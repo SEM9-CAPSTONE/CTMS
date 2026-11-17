@@ -11,21 +11,30 @@ class PublishedTrip {
     required this.pricePerPerson,
     required this.remainingSeats,
     required this.isBookable,
+    this.areaName,
   });
 
-  factory PublishedTrip.fromJson(Map<String, Object?> json) => PublishedTrip(
-    id: json['id'] as String,
-    title: json['title'] as String,
-    description: json['description'] as String?,
-    difficulty: json['difficulty'] as String?,
-    startsAt: DateTime.parse(json['startsAt'] as String),
-    endsAt: DateTime.parse(json['endsAt'] as String),
-    bookingDeadline: DateTime.parse(json['bookingDeadline'] as String),
-    durationNights: (json['durationNights'] as num).toInt(),
-    pricePerPerson: json['pricePerPerson'] as num,
-    remainingSeats: (json['remainingSeats'] as num?)?.toInt(),
-    isBookable: json['isBookable'] as bool,
-  );
+  factory PublishedTrip.fromJson(Map<String, Object?> json) {
+    final area = json['area'] as Map<String, Object?>?;
+    final names = {
+      (area?['name'] as String?)?.trim(),
+      (area?['provinceName'] as String?)?.trim(),
+    }.nonNulls.where((name) => name.isNotEmpty);
+    return PublishedTrip(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      description: json['description'] as String?,
+      difficulty: json['difficulty'] as String?,
+      startsAt: DateTime.parse(json['startsAt'] as String),
+      endsAt: DateTime.parse(json['endsAt'] as String),
+      bookingDeadline: DateTime.parse(json['bookingDeadline'] as String),
+      durationNights: (json['durationNights'] as num).toInt(),
+      pricePerPerson: json['pricePerPerson'] as num,
+      remainingSeats: (json['remainingSeats'] as num?)?.toInt(),
+      isBookable: json['isBookable'] as bool,
+      areaName: names.isEmpty ? null : names.join(', '),
+    );
+  }
 
   final String id;
   final String title;
@@ -38,4 +47,5 @@ class PublishedTrip {
   final num pricePerPerson;
   final int? remainingSeats;
   final bool isBookable;
+  final String? areaName;
 }

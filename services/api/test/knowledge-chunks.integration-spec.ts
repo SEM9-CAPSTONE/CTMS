@@ -117,13 +117,18 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		return (await upload.attach("file", uniqueFictionalPdf(), `${randomUUID()}.pdf`).expect(201))
 			.body as SourceTestDetail;
 	}
-	async function publish(doc: SourceTestDetail, rights = true): Promise<SourceTestDetail> {
+	async function publish(
+		doc: SourceTestDetail,
+		rights = true,
+		approveProcessing = false
+	): Promise<SourceTestDetail> {
 		return (
 			await request(app.getHttpServer())
 				.post(`${endpoint}/${doc.id}/versions/${doc.versions[0].id}/publish`)
 				.set("Authorization", auth)
 				.send({
 					expectedRevision: doc.versions[0].revision,
+					...(approveProcessing ? { approveProcessing } : {}),
 					...(rights ? { rights: fictionalRights } : {}),
 				})
 				.expect(201)
@@ -362,6 +367,54 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			generate.mockRestore();
 		}
 	});
+	it("queues a previously skipped publication after Admin approves it from the document detail", async () => {
+		const doc = await publish(await draft(), false);
+		const version = doc.versions[0];
+		const approval = `${endpoint}/${doc.id}/versions/${version.id}/approve-processing`;
+		const hosts = jest.replaceProperty(process.env, "SURVIVAL_KNOWLEDGE_APPROVED_HOSTS", "");
+		try {
+			await db.query(
+				"INSERT INTO knowledge_chunk_event_receipts(event_id) SELECT id FROM survival_document_outbox WHERE document_id<>$1 ON CONFLICT DO NOTHING",
+				[doc.id]
+			);
+			await repo.consumeEvents(configuration);
+			expect(await repo.status(doc.id, version.id)).toEqual([]);
+			await request(app.getHttpServer())
+				.post(approval)
+				.set("Authorization", camperAuth)
+				.send({ expectedRevision: version.revision })
+				.expect(403);
+			const approved = await request(app.getHttpServer())
+				.post(approval)
+				.set("Authorization", auth)
+				.send({ expectedRevision: version.revision })
+				.expect(201);
+			expect(approved.body).toMatchObject({
+				canApproveProcessing: false,
+				processingSyncStatus: "REGENERATION_NEEDED",
+				versions: [
+					{ id: version.id, checksum: version.checksum, publishedAt: version.publishedAt },
+				],
+			});
+			await repo.consumeEvents(configuration);
+			await repo.consumeEvents(configuration);
+			expect(await repo.status(doc.id, version.id)).toEqual([
+				expect.objectContaining({ status: ChunkSetStatus.PENDING }),
+			]);
+			const generate = jest.spyOn(provider, "generate").mockImplementation(async (set) => {
+				expect(set.document_version_id).toBe(version.id);
+				return output(set);
+			});
+			try {
+				expect(await worker.processOne()).toBe(true);
+				expect(await repo.readCurrent(doc.id)).toHaveLength(2);
+			} finally {
+				generate.mockRestore();
+			}
+		} finally {
+			hosts.restore();
+		}
+	});
 	it("cancels work after archive and removes derived rows on document deletion", async () => {
 		const doc = await publish(await draft());
 		await enqueue(doc);
@@ -593,6 +646,21 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 						trace: providerInferenceTraceFixture,
 					};
 				});
+			});
+
+			it("answers from a PDF approved at publication without a configured source host", async () => {
+				const hosts = jest.replaceProperty(process.env, "SURVIVAL_KNOWLEDGE_APPROVED_HOSTS", "");
+				try {
+					const doc = await publish(await draft(), false, true);
+					await ready(doc);
+					const answer = await postAnswer(randomUUID()).expect(200);
+					expect(answer.body).toMatchObject({
+						status: "ANSWERED",
+						sources: [{ documentVersionId: doc.versions[0].id }],
+					});
+				} finally {
+					hosts.restore();
+				}
 			});
 
 			it("persists exact provenance once across concurrent POSTs and retries, and restricts source access", async () => {

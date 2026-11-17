@@ -87,6 +87,7 @@ class ReviewBooking {
     this.paymentStatus,
     this.totalAmount,
     this.endsAt,
+    this.routeName,
   });
   final String id;
   final String title;
@@ -99,6 +100,7 @@ class ReviewBooking {
   final String? paymentStatus;
   final String? totalAmount;
   final DateTime? endsAt;
+  final String? routeName;
 
   factory ReviewBooking.fromJson(Map<String, Object?> json) {
     final presentation = json['tripPresentation'] as Map?;
@@ -115,6 +117,7 @@ class ReviewBooking {
       numPeople: json['numPeople'] as int?,
       paymentStatus: json['paymentStatus'] as String?,
       totalAmount: json['totalAmount'] as String?,
+      routeName: presentation?['currentRouteName'] as String?,
       endsAt: json['tripEndsAtSnapshot'] == null
           ? null
           : DateTime.parse(json['tripEndsAtSnapshot'] as String),

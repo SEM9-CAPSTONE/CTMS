@@ -54,12 +54,19 @@ describe("CTMS-050 source policy and private storage", () => {
 		const source = (sourceUrl?: string, hash = checksum) => ({
 			metadata: { ...metadata, sourceUrl },
 			checksum: hash,
+			processingApprovedAt: null,
 		});
 		expect(() => assertApprovedSource(source("https://example.org/manual.pdf"))).not.toThrow();
 		expect(() => assertApprovedSource(source("http://example.org/manual.pdf"))).toThrow();
 		for (const host of ["sub.example.org", "example.org.other.com", "unlisted.example.com"])
 			expect(() => assertApprovedSource(source(`https://${host}/manual.pdf`))).toThrow();
 		expect(() => assertApprovedSource(source())).toThrow();
+		expect(() =>
+			assertApprovedSource({
+				...source(),
+				processingApprovedAt: "2026-11-17T12:00:00Z",
+			})
+		).not.toThrow();
 		const previous = process.env.SURVIVAL_KNOWLEDGE_APPROVED_SHA256;
 		try {
 			process.env.SURVIVAL_KNOWLEDGE_APPROVED_SHA256 = checksum.toUpperCase();

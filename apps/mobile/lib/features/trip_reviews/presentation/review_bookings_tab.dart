@@ -471,7 +471,7 @@ class _ReviewBookingsTabState extends ConsumerState<ReviewBookingsTab> {
                       final tripId = item.tripId;
                       if (tripId == null || tripId.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Không tìm thấy mã chuyến đi.')),
+                          const SnackBar(content: Text('Không tìm thấy thông tin chuyến đi.')),
                         );
                         return;
                       }
@@ -479,7 +479,6 @@ class _ReviewBookingsTabState extends ConsumerState<ReviewBookingsTab> {
                         MaterialPageRoute<void>(
                           builder: (_) => CamperTripDetailScreen(
                             booking: item,
-                            tripId: tripId,
                           ),
                         ),
                       );

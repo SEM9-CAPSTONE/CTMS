@@ -161,6 +161,11 @@ export class SourceRightsDto {
 	@ApiProperty() @Transform(trim) @IsString() @MinLength(10) @MaxLength(5000) evidence!: string;
 }
 export class PublishSourceDto extends RevisionDto {
+	@ApiPropertyOptional()
+	@IsOptional()
+	@IsBoolean()
+	approveProcessing?: boolean;
+
 	@ApiPropertyOptional({ type: SourceRightsDto })
 	@IsOptional()
 	@IsObject()

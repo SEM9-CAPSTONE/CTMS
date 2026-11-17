@@ -78,17 +78,15 @@ class CamperOverviewScreen extends ConsumerWidget {
                   onViewDetail: () {
                     final booking = ref.read(camperOverviewRepositoryProvider).activeBooking;
                     final tripId = booking?.tripId;
-                    if (tripId == null || tripId.isEmpty) {
+                    if (booking == null || tripId == null || tripId.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Không tìm thấy mã chuyến đi.')),
+                        const SnackBar(content: Text('Không tìm thấy thông tin chuyến đi.')),
                       );
                       return;
                     }
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
                         builder: (_) => CamperTripDetailScreen(
-                          trip: trip,
-                          tripId: tripId,
                           booking: booking,
                         ),
                       ),

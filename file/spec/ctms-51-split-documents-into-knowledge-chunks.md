@@ -114,7 +114,7 @@ Admin endpoints require an active Admin session, under `/api/admin/survival-docu
 | `GET` | HTTP 200 with exact-version chunk-set summaries, state, attempts, quality issues, configuration and chunk count; HTTP 404 for an unknown document/version pair. |
 | `POST` | HTTP 202 with the idempotently queued or existing summary. Retries failed/review-needed eligible work; a READY/in-flight set is unchanged. HTTP 409 `KNOWLEDGE_SOURCE_INELIGIBLE` for nonexistent, draft, unverified, superseded or archived sources. |
 
-Publication outbox events enqueue work automatically using consumer-specific receipts. The authenticated internal Python endpoint `POST /knowledge-chunks` accepts exact-version metadata, SHA-256, configuration and PDF bytes as base64; it returns complete chunks and embeddings or a blocking quality report with no chunks. No public retrieval or AI answering API is introduced.
+Publication and processing approval outbox events enqueue work automatically using consumer-specific receipts. The authenticated internal Python endpoint `POST /knowledge-chunks` accepts exact-version metadata, SHA-256, configuration and PDF bytes as base64. It returns complete chunks and embeddings or a blocking quality report with no chunks. No public retrieval or AI answering API is introduced.
 
 ## 10. Error & Edge Cases
 

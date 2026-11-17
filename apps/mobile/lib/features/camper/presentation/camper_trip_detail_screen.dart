@@ -19,7 +19,6 @@ import '../../route_deviation/presentation/route_deviation_panel.dart';
 import '../../sync/application/device_sync_controller.dart';
 import '../../sync/domain/device_sync_models.dart';
 import '../../sync/presentation/device_sync_status_screen.dart';
-import '../overview/domain/camper_overview_models.dart';
 import '../../sos/presentation/sos_active_banner.dart';
 import '../../schedule_progress/presentation/schedule_progress_panels.dart';
 import '../../sos/presentation/trigger_sos_dialog.dart';
@@ -28,18 +27,12 @@ import '../../trip_weather/presentation/trip_weather_panel.dart';
 import '../../trip_weather/presentation/weather_reschedule_response_card.dart';
 import '../../trip_reviews/domain/review_models.dart';
 import '../../trip_reviews/presentation/trip_reviews_screen.dart';
+import '../data/camper_explore_api.dart';
 
 class CamperTripDetailScreen extends ConsumerStatefulWidget {
-  const CamperTripDetailScreen({
-    super.key,
-    required this.tripId,
-    this.trip,
-    this.booking,
-  });
+  const CamperTripDetailScreen({super.key, required this.booking});
 
-  final String tripId;
-  final UpcomingTrip? trip;
-  final ReviewBooking? booking;
+  final ReviewBooking booking;
 
   @override
   ConsumerState<CamperTripDetailScreen> createState() =>
@@ -72,7 +65,7 @@ class _CamperTripDetailScreenState
     super.dispose();
   }
 
-  String get effectiveTripId => widget.tripId;
+  String get effectiveTripId => widget.booking.tripId!;
 
   (String, CtmsStatus) _syncBadgeInfo(DeviceSyncState state) => switch (state) {
     DeviceSyncState.synced => ('Đã đồng bộ', CtmsStatus.success),
@@ -132,36 +125,56 @@ class _CamperTripDetailScreenState
     final summary = syncController.summary;
     final (syncBadgeLabel, syncBadgeStatus) = _syncBadgeInfo(summary.state);
 
-    final tripName = widget.booking?.title ?? widget.trip?.name ?? 'Trekking Tà Năng – Phan Dũng';
-    final statusLabel = widget.booking != null
-        ? switch (widget.booking!.status) {
-            'completed' => 'Đã hoàn thành',
-            'confirmed' => 'Đã xác nhận',
-            'cancelled' => 'Đã hủy',
-            'expired' => 'Đã hết hạn',
-            'pending_payment' => 'Chờ thanh toán',
-            'pending_reconfirmation' => 'Chờ xác nhận lại',
-            _ => 'Chưa có trạng thái',
-          }
-        : (widget.trip?.statusLabel ?? 'Đã xác nhận');
-    final startDateStr = widget.booking?.startsAt != null
-        ? _dateFormat.format(widget.booking!.startsAt!.toLocal())
-        : (widget.trip != null
-            ? _dateFormat.format(widget.trip!.startDate)
-            : '28/07/2026');
-    final durationText = '${widget.trip?.durationDays ?? 3} ngày 2 đêm';
-    final memberText = '${widget.booking?.numPeople ?? widget.trip?.memberCount ?? 8} người';
-    final difficultyText = widget.trip?.difficulty ?? 'Trung bình';
-    final porterText = widget.booking?.hostName ?? widget.trip?.porterName ?? 'Nguyễn Minh Sơn';
+    final booking = widget.booking;
+    final trip = ref
+        .watch(publishedTripDetailsProvider(effectiveTripId))
+        .valueOrNull;
+    final tripName = trip?.title ?? booking.title;
+    final statusLabel = switch (booking.status) {
+      'completed' => 'Đã hoàn thành',
+      'confirmed' => 'Đã xác nhận',
+      'ongoing' => 'Đang diễn ra',
+      'cancelled' => 'Đã hủy',
+      'expired' => 'Đã hết hạn',
+      'pending_payment' => 'Chờ thanh toán',
+      'pending_reconfirmation' => 'Chờ xác nhận lại',
+      _ => 'Chưa có trạng thái',
+    };
+    final startsAt = (trip?.startsAt ?? booking.startsAt)?.toLocal();
+    final endsAt = booking.endsAt?.toLocal();
+    final duration = switch (trip?.durationNights) {
+      0 => 'Trong ngày',
+      final int nights => '${nights + 1} ngày $nights đêm',
+      null => null,
+    };
+    final scheduleText = [
+      if (startsAt != null) 'Khởi hành: ${_dateFormat.format(startsAt)}',
+      if (duration != null)
+        'Thời lượng: $duration'
+      else if (endsAt != null)
+        'Kết thúc: ${_dateFormat.format(endsAt)}',
+    ].join(' · ');
+    final location = trip?.areaName ?? booking.routeName;
+    final memberText = switch (booking.numPeople) {
+      final int count => '$count người',
+      null => 'Chưa có thông tin',
+    };
+    final difficultyText = switch (trip?.difficulty) {
+      'easy' => 'Dễ',
+      'moderate' => 'Trung bình',
+      'hard' => 'Khó',
+      'expert' => 'Rất khó',
+      _ => 'Chưa có thông tin',
+    };
     // CTMS-62: real risk level of the forecast for the Trip's dates once it is loaded
     final weatherRiskText = tripWeatherHighlightValue(
       ref.watch(
         tripWeatherControllerProvider((
           tripId: effectiveTripId,
-          bookingId: widget.booking?.id,
+          bookingId: booking.id,
         )),
       ),
-      widget.trip?.weatherRiskLabel ?? 'An toàn',
+      'Đang tải dự báo',
     );
 
     return CtmsScaffold(
@@ -211,7 +224,7 @@ class _CamperTripDetailScreenState
                 SosActiveBanner(tripId: effectiveTripId),
                 OfflinePackagePanel(
                   tripId: effectiveTripId,
-                  tripTitle: widget.booking?.title ?? widget.trip?.name,
+                  tripTitle: tripName,
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 // Emergency alerts broadcast by the Host (CTMS-081); empty until one arrives
@@ -219,11 +232,11 @@ class _CamperTripDetailScreenState
                 // Weather for the Trip's own dates (CTMS-62): reschedule answer, then the forecast
                 WeatherRescheduleResponseCard(
                   tripId: effectiveTripId,
-                  bookingId: widget.booking?.id,
+                  bookingId: booking.id,
                 ),
                 TripWeatherPanel(
                   tripId: effectiveTripId,
-                  bookingId: widget.booking?.id,
+                  bookingId: booking.id,
                 ),
                 // Trip Header Card
                 Container(
@@ -272,7 +285,7 @@ class _CamperTripDetailScreenState
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
-                              'Lâm Đồng – Bình Thuận',
+                              location ?? 'Chưa có thông tin khu vực',
                               style: AppTypography.body.copyWith(
                                 color: Colors.black,
                                 fontWeight: FontWeight.w600,
@@ -294,34 +307,12 @@ class _CamperTripDetailScreenState
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
-                              'Khởi hành: $startDateStr · Thời lượng: $durationText',
+                              scheduleText.isEmpty ? 'Chưa có lịch trình' : scheduleText,
                               style: AppTypography.caption.copyWith(
                                 color: Colors.black,
                                 fontWeight: FontWeight.w500,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.person_pin_circle_outlined,
-                            size: 14,
-                            color: Colors.black,
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              'Porter dẫn đoàn: $porterText · Quy mô: $memberText',
-                              style: AppTypography.caption.copyWith(
-                                color: Colors.black,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              maxLines: 1,
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -330,7 +321,6 @@ class _CamperTripDetailScreenState
                       const SizedBox(height: AppSpacing.md),
                       const Divider(height: 1, thickness: 1, color: AppColors.border),
                       const SizedBox(height: AppSpacing.md),
-                      // 2x2 Clean Feature Highlights
                       Row(
                         children: [
                           Expanded(
@@ -351,24 +341,10 @@ class _CamperTripDetailScreenState
                         ],
                       ),
                       const SizedBox(height: AppSpacing.sm),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _FeatureHighlightBox(
-                              icon: Icons.group_outlined,
-                              label: 'THÀNH VIÊN',
-                              value: memberText,
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                            child: _FeatureHighlightBox(
-                              icon: Icons.verified_user_outlined,
-                              label: 'BẢO HIỂM',
-                              value: 'Đã kích hoạt',
-                            ),
-                          ),
-                        ],
+                      _FeatureHighlightBox(
+                        icon: Icons.group_outlined,
+                        label: 'SỐ KHÁCH TRONG ĐƠN',
+                        value: memberText,
                       ),
                     ],
                   ),
@@ -556,7 +532,7 @@ class _CamperTripDetailScreenState
               children: [
                 OfflineMapPanel(
                   tripId: effectiveTripId,
-                  tripTitle: widget.booking?.title ?? widget.trip?.name,
+                  tripTitle: tripName,
                   integrateArrivals: true,
                   enableRecovery: true,
                 ),
@@ -628,7 +604,7 @@ class _CamperTripDetailScreenState
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Gói bản đồ: ${summary.packageVersion ?? "pkg-v2"} · Cấu hình: ${summary.configVersion}',
+                                  'Gói bản đồ: ${summary.packageVersion ?? 'Chưa có'} · Cấu hình: ${summary.configVersion}',
                                   style: AppTypography.caption.copyWith(
                                     color: Colors.black,
                                     fontWeight: FontWeight.w600,
@@ -783,39 +759,35 @@ class _CamperTripDetailScreenState
                       const SizedBox(height: AppSpacing.md),
                       const Divider(height: 1, thickness: 1, color: AppColors.border),
                       const SizedBox(height: AppSpacing.md),
-                      _buildInfoRow('Mã đơn:', widget.booking?.id ?? 'Chưa xác định'),
-                      _buildInfoRow('Mã chuyến đi:', effectiveTripId),
                       _buildInfoRow('Số lượng khách:', memberText),
                       _buildInfoRow(
                         'Thanh toán:',
-                        switch (widget.booking?.paymentStatus) {
+                        switch (booking.paymentStatus) {
                           'completed' || 'paid' => 'Đã thanh toán',
                           'pending' || 'unpaid' => 'Chờ thanh toán',
                           'refunded' => 'Đã hoàn tiền',
                           'not_required' => 'Không yêu cầu',
-                          _ => 'Đã xác nhận',
+                          _ => 'Chưa có thông tin',
                         },
                       ),
-                      if (widget.booking?.totalAmount != null)
+                      if (double.tryParse(booking.totalAmount ?? '') case final amount?)
                         _buildInfoRow(
                           'Tổng tiền:',
-                          '${NumberFormat('#,###', 'vi_VN').format(double.tryParse(widget.booking!.totalAmount!) ?? 0)} đ',
+                          '${NumberFormat('#,###', 'vi_VN').format(amount)} đ',
                           isHighlight: true,
                         ),
                       _buildInfoRow(
                         'Thời gian đặt:',
-                        widget.booking != null
-                            ? DateFormat('dd/MM/yyyy HH:mm').format(widget.booking!.createdAt.toLocal())
-                            : '28/07/2026',
+                        DateFormat('dd/MM/yyyy HH:mm').format(booking.createdAt.toLocal()),
                       ),
                     ],
                   ),
                 ),
 
                 // Leader follow-up: pay an unpaid Booking and request a refund.
-                if (widget.booking != null) BookingOrderPanel(bookingId: widget.booking!.id),
+                BookingOrderPanel(bookingId: booking.id),
 
-                if (widget.booking != null && widget.booking!.status == 'completed') ...[
+                if (booking.status == 'completed') ...[
                   Container(
                     margin: const EdgeInsets.only(bottom: AppSpacing.lg),
                     padding: const EdgeInsets.all(AppSpacing.cardPadding),
@@ -847,7 +819,7 @@ class _CamperTripDetailScreenState
                           onPressed: () {
                             Navigator.of(context).push(
                               MaterialPageRoute<void>(
-                                builder: (_) => TripReviewsScreen(booking: widget.booking!),
+                                builder: (_) => TripReviewsScreen(booking: booking),
                               ),
                             );
                           },

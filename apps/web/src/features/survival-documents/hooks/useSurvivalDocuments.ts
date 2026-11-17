@@ -75,7 +75,12 @@ export function useSurvivalDocuments(filters: SourceFilters, id: string | null) 
 			payload,
 		}: { documentId: string; versionId: string; action: SourceAction; payload: SourceDecision }) =>
 			service.action(documentId, versionId, action, payload),
-		onSuccess: save,
+		onSuccess: (data, { documentId, versionId }) => {
+			save(data);
+			void client.invalidateQueries({
+				queryKey: queryKeys.survivalDocuments.chunkSets(documentId, versionId),
+			});
+		},
 		onError: refresh,
 	});
 	const remove = useMutation({

@@ -80,6 +80,7 @@ export interface SourceVersion extends StoredSourceFile {
 	reviewedAt: string | null;
 	publishedBy: string | null;
 	publishedAt: string | null;
+	processingApprovedAt: string | null;
 	reason: string | null;
 }
 export interface SurvivalDocument {
@@ -101,7 +102,8 @@ export type PublicSourceVersion = Omit<SourceVersion, "fileRef">;
 export const VERSION_SELECT = `SELECT id, document_id AS "documentId",version_number AS "versionNumber",revision,status,metadata,rights,
 	file_ref AS "fileRef",original_filename AS "originalFilename",checksum,size,content_type AS "contentType",original_version_id AS "originalVersionId",
 	created_by AS "createdBy",created_at AS "createdAt",reviewed_by AS "reviewedBy",reviewed_at AS "reviewedAt",
-	published_by AS "publishedBy",published_at AS "publishedAt",reason FROM survival_document_versions`;
+	published_by AS "publishedBy",published_at AS "publishedAt",processing_approved_at AS "processingApprovedAt",
+	reason FROM survival_document_versions`;
 export const DOCUMENT_SELECT = `SELECT id,revision,version_count AS "versionCount",current_published_version_id AS "currentPublishedVersionId",
 	created_by AS "createdBy",created_at AS "createdAt",updated_at AS "updatedAt" FROM survival_documents`;
 export function publicVersion(version: SourceVersion): PublicSourceVersion {

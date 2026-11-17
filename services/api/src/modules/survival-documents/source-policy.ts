@@ -11,15 +11,20 @@ import {
 	type SourceVersion,
 } from "./survival-documents.types";
 
-const SOURCE_NOT_APPROVED =
-	"Nguồn PDF chưa được CTMS cho phép xử lý. Hãy kiểm tra URL nguồn hoặc mã SHA-256 của tệp.";
+export const SOURCE_NOT_APPROVED = "Nguồn PDF chưa được xác nhận để xử lý cho Trợ lý AI.";
 
-export function assertApprovedSource(source: Pick<SourceVersion, "metadata" | "checksum">): void {
+type SourceApproval = Pick<SourceVersion, "metadata" | "checksum" | "processingApprovedAt">;
+
+export function assertApprovedSource(source: SourceApproval): void {
 	const checksums = (process.env.SURVIVAL_KNOWLEDGE_APPROVED_SHA256 ?? "")
 		.trim()
 		.toLowerCase()
 		.split(/\s*,\s*/);
-	if (/^[a-f0-9]{64}$/.test(source.checksum) && checksums.includes(source.checksum)) return;
+	if (
+		/^[a-f0-9]{64}$/.test(source.checksum) &&
+		(source.processingApprovedAt || checksums.includes(source.checksum))
+	)
+		return;
 	const sourceUrl = source.metadata.sourceUrl;
 	if (sourceUrl) {
 		const url = new URL(sourceUrl);
@@ -124,16 +129,12 @@ export function isEligiblePublishedSource(
 	return isEligibleSourceContent(version);
 }
 
-export function sourceContentIssue({ metadata, rights, checksum }: SourceVersion): string | null {
+export function sourceContentIssue(source: SourceVersion): string | null {
+	const { metadata, rights } = source;
 	try {
 		validatePublishedSourceMetadata(metadata);
 	} catch {
 		return "Thông tin nguồn PDF không hợp lệ.";
-	}
-	try {
-		assertApprovedSource({ metadata, checksum });
-	} catch {
-		return SOURCE_NOT_APPROVED;
 	}
 	const medical = [Classification.FIRST_AID, Classification.MEDICAL_REFERENCE].includes(
 		metadata.classification
@@ -147,6 +148,11 @@ export function sourceContentIssue({ metadata, rights, checksum }: SourceVersion
 		return "Nguồn sơ cứu hoặc y tế cần được xác nhận chuyên môn.";
 	if (isTranslation(metadata) && rights.translationAllowed !== true)
 		return "Phiên bản dịch chưa có xác nhận quyền dịch hoặc chuyển thể.";
+	try {
+		assertApprovedSource(source);
+	} catch {
+		return SOURCE_NOT_APPROVED;
+	}
 	return null;
 }
 

@@ -106,7 +106,7 @@ export class KnowledgeChunksRepository {
 			// Other worker instances take document locks in the same order.
 			events.sort((left, right) => left.document_id.localeCompare(right.document_id));
 			for (const event of events) {
-				if (event.event_type === "published_version_changed") {
+				if (["published_version_changed", "processing_approved"].includes(event.event_type)) {
 					const source = await this.source(manager, event.document_id, event.version_id);
 					if (source) await this.insert(manager, source, configuration);
 				}
