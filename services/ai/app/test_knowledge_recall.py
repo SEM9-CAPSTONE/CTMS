@@ -43,3 +43,17 @@ def test_only_complete_unique_version_snapshots_are_accepted():
     snapshot.quality.status = "NEEDS_REVIEW"
     with pytest.raises(ValueError, match="quality-checked"):
         recall_at_five(questions, [snapshot], [[1.0,0.0]]*30)
+
+
+def test_recall_reports_original_source_locale_for_cross_lingual_gold():
+    snapshot, questions = fixture()
+    english = snapshot.model_copy(update={"locale": "en"})
+    for question in questions:
+        question.expected_sources[0].locale = "en"
+    result = recall_at_five(questions, [english], [[0.0,1.0]]*30, source_locales={"en"})
+    assert result["by_language_direction"]["vi-VN->en"] == {
+        "questions": 30, "hits": 30, "recall_at_5": 1,
+    }
+    assert result["questions"][0]["top_5"][0]["source_locale"] == "en"
+    with pytest.raises(ValueError, match="No eligible source corpus"):
+        recall_at_five(questions, [english], [[0.0,1.0]]*30, source_locales={"vi-VN"})

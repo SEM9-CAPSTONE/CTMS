@@ -5,7 +5,7 @@ import {
 } from "@nestjs/common";
 import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { contextBlocks } from "../rag/rag-context";
-import { MAX_CONTEXT_BLOCKS, type RagResult } from "../rag/rag.types";
+import { MAX_CONTEXT_BLOCKS, RAG_LOCALE_PATTERN, type RagResult } from "../rag/rag.types";
 import { UserRole, UserStatus } from "../users/entities/user.entity";
 import { answerSafetyV1 } from "./ai-answer-safety-v1";
 import {
@@ -49,7 +49,13 @@ export function generationInput(
 		contextTokenCount < 1 ||
 		!retrievalConfigVersion ||
 		retrievalConfigVersion.length > 100 ||
-		selectedChunks.some(({ source, locations }) => source.locale !== locale || !locations.length)
+		!rag.retrievalSettings.locales.includes(locale) ||
+		selectedChunks.some(
+			({ source, locations }) =>
+				!RAG_LOCALE_PATTERN.test(source.locale) ||
+				!rag.retrievalSettings.sourceLocales.includes(source.locale) ||
+				!locations.length
+		)
 	)
 		throw aiUnavailable("RETRIEVAL_UNAVAILABLE");
 	const body = JSON.stringify({ question, locale, evidence: JSON.parse(context) as unknown });

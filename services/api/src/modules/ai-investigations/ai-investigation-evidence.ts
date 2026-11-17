@@ -24,10 +24,11 @@ export function snapshotContent(snapshot: Snapshot) {
 			packageId,
 		};
 	}
-	const { question, answer, retrieval_config_version, generation } = snapshot.online;
+	const { question, answer, locale, retrieval_config_version, generation } = snapshot.online;
 	return {
 		question: question ?? null,
 		answer,
+		responseLocale: locale,
 		provenance: "SERVER_RECORDED" as const,
 		initialSignal: snapshot.intake ?? null,
 		trace: recordedInferenceTrace(snapshot.online),
@@ -96,8 +97,7 @@ export class AiInvestigationEvidence {
 		if (snapshot.mode === "LOCAL") return [];
 		const recorded = recordedEvidence(snapshot);
 		const chunks = await this.rag.resolveInvestigationEvidence(
-			recorded.flatMap(({ ref }) => (ref ? [ref] : [])),
-			snapshot.online.locale
+			recorded.flatMap(({ ref }) => (ref ? [ref] : []))
 		);
 		const byChunk = new Map(chunks.map((chunk) => [chunk.chunkId, chunk]));
 		return recorded.map(({ evidenceId, cited, ref }): SourceObservation & { excerpt?: string } => {
@@ -116,6 +116,7 @@ export class AiInvestigationEvidence {
 					title: chunk.source.sourceTitle,
 					checksum: chunk.source.checksum,
 					classification: chunk.source.classification,
+					locale: chunk.source.locale,
 					chunkIndex: ref.chunkIndex,
 					locations: ref.locations,
 					fingerprint: ref.fingerprint,

@@ -16,6 +16,7 @@ import { AiInvestigationEvidence } from "../src/modules/ai-investigations/ai-inv
 import { AiInvestigationWorker } from "../src/modules/ai-investigations/ai-investigation-worker";
 import type { InvestigationReport } from "../src/modules/ai-investigations/ai-investigation.types";
 import { AuditLog } from "../src/modules/auth/entities/audit-log.entity";
+import { RagConfig } from "../src/modules/rag/rag.config";
 import { RagRepository } from "../src/modules/rag/rag.repository";
 import { Classification } from "../src/modules/survival-documents/survival-documents.types";
 import { UserRole, UserStatus } from "../src/modules/users/entities/user.entity";
@@ -92,7 +93,7 @@ describe("CTMS-073 PostgreSQL investigation workflow", () => {
 			await runner.release();
 		}
 		const config = new ConfigService(settings);
-		evidence = new AiInvestigationEvidence(new RagRepository(db));
+		evidence = new AiInvestigationEvidence(new RagRepository(db, new RagConfig(config)));
 		const analyzer = new AiInvestigationAnalyzer(config, evidence);
 		const providerWorker = new AiInvestigationWorker(db, analyzer, config);
 		worker = providerWorker;

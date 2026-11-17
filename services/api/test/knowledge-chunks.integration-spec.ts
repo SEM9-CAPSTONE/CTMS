@@ -27,6 +27,7 @@ import { KnowledgeChunksWorker } from "../src/modules/knowledge-chunks/knowledge
 import { RagEmbeddingProvider } from "../src/modules/rag/rag-embedding.provider";
 import { RagRetrievalService } from "../src/modules/rag/rag-retrieval.service";
 import { RagConfig } from "../src/modules/rag/rag.config";
+import { RagRepository } from "../src/modules/rag/rag.repository";
 import { Classification } from "../src/modules/survival-documents/survival-documents.types";
 import { SurvivalSourceReader } from "../src/modules/survival-documents/survival-source-reader.service";
 import { UserRole, UserStatus } from "../src/modules/users/entities/user.entity";
@@ -114,12 +115,16 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 	});
 	async function draft(
 		previous?: SourceTestDetail,
-		classification = Classification.TREKKING_SAFETY
+		classification = Classification.TREKKING_SAFETY,
+		locale = fictionalMetadata.locale
 	): Promise<SourceTestDetail> {
 		const upload = request(app.getHttpServer())
 			.post(previous ? `${endpoint}/${previous.id}/versions` : endpoint)
 			.set("Authorization", auth)
-			.field("metadata", JSON.stringify({ ...fictionalMetadata, classification }));
+			.field(
+				"metadata",
+				JSON.stringify({ ...fictionalMetadata, classification, locale, originalLocale: locale })
+			);
 		if (previous) upload.field("expectedDocumentRevision", String(previous.revision));
 		return (await upload.attach("file", uniqueFictionalPdf(), `${randomUUID()}.pdf`).expect(201))
 			.body as SourceTestDetail;
@@ -689,11 +694,8 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 	});
 	describe("CTMS-068 RAG service boundary", () => {
 		const question = { question: "Nguồn thử nghiệm", locale: "vi" };
-		const retrieve = () =>
-			rag.retrieve(
-				{ userId: camper, roles: [UserRole.CAMPER], status: UserStatus.ACTIVE },
-				question
-			);
+		const retrieve = (input = question) =>
+			rag.retrieve({ userId: camper, roles: [UserRole.CAMPER], status: UserStatus.ACTIVE }, input);
 
 		beforeEach(() => {
 			ragProvider.embed
@@ -704,17 +706,29 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 					)
 				);
 			ragProvider.countPrefixes.mockReset().mockResolvedValue([30]);
-			const settings = new RagConfig(new ConfigService({ RAG_MIN_SCORE: "0.8" })).settings();
+			const settings = new RagConfig(
+				new ConfigService({
+					RAG_MIN_SCORE: "0.8",
+					RAG_LOCALES: "vi,en",
+					RAG_SOURCE_LOCALES: "vi,en",
+				})
+			).settings();
 			jest.spyOn(ragConfig, "settings").mockReturnValue(settings);
+			jest.spyOn(ragConfig, "sourceLocales").mockReturnValue(settings.sourceLocales);
 		});
 
 		afterEach(() => jest.restoreAllMocks());
 
-		async function ready(doc: SourceTestDetail) {
+		async function ready(doc: SourceTestDetail, content?: string) {
 			await enqueue(doc);
 			const set = await claim();
 			expect(set.document_version_id).toBe(doc.versions[0].id);
-			expect(await repo.finish(set, output(set))).toBe(true);
+			const generated = output(set);
+			if (content) {
+				generated.chunks[0].content = content;
+				generated.chunks[0].embedding_text = `passage: ${content}`;
+			}
+			expect(await repo.finish(set, generated)).toBe(true);
 			return set;
 		}
 
@@ -766,6 +780,46 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 				} finally {
 					hosts.restore();
 				}
+			});
+
+			it("answers in Vietnamese from English evidence and keeps its citations after withdrawal", async () => {
+				const doc = await publish(await draft(undefined, Classification.TREKKING_SAFETY, "en"));
+				const content = "Read the map legend and check your compass before choosing a route.";
+				const set = await ready(doc, content);
+				const requestId = randomUUID();
+				const ask = () => postAnswer(requestId, camperAuth, "Đọc bản đồ và la bàn thế nào?");
+				const answer = await ask().expect(200);
+				expect(answer.body).toMatchObject({
+					status: "ANSWERED",
+					answer: expect.stringContaining("Hãy xem chú giải"),
+					sources: [
+						{
+							documentVersionId: set.document_version_id,
+							sourceVersion: set.source_version,
+							locale: "en",
+							locations: [{ page: 1, itemRef: "#/texts/0" }],
+						},
+					],
+				});
+				expect(JSON.parse(generationProvider.generate.mock.calls[0][0])).toMatchObject({
+					locale: "vi",
+					evidence: [{ locale: "en", content }],
+				});
+				const [stored] = await db.query("SELECT generation FROM ai_answers WHERE id=$1", [
+					answer.body.answerId,
+				]);
+				expect(stored.generation.trace).toMatchObject({
+					responseLocale: "vi",
+					sourceLocales: ["en"],
+				});
+				expect((await ask().expect(200)).body).toEqual(answer.body);
+				await archive(doc);
+				expect((await ask().expect(200)).body.status).toBe("INSUFFICIENT_CONTEXT");
+				const historical = await request(app.getHttpServer())
+					.get(`/api/ai/answers/${answer.body.answerId}/sources`)
+					.set("Authorization", camperAuth)
+					.expect(200);
+				expect(historical.body.sources).toEqual(answer.body.sources);
 			});
 
 			it("persists exact provenance once across concurrent POSTs and retries, and restricts source access", async () => {
@@ -908,6 +962,51 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 					).toEqual([]);
 				}
 			);
+		});
+
+		it("searches across an eligible mixed corpus with a global candidate limit", async () => {
+			const en = await ready(
+				await publish(await draft(undefined, Classification.TREKKING_SAFETY, "en")),
+				"Read the map legend. Pack your compass."
+			);
+			const vi = await ready(
+				await publish(await draft()),
+				"Xem chú giải bản đồ và kiểm tra la bàn."
+			);
+			ragProvider.countPrefixes.mockResolvedValue([20, 40]);
+			const result = await retrieve({ question: "Cách đọc bản đồ và la bàn?", locale: "vi" });
+			expect(result).toMatchObject({
+				status: "GROUNDED",
+				metrics: { candidateCount: 4, selectedCount: 2 },
+				sources: expect.arrayContaining([
+					expect.objectContaining({ locale: "en", chunkSetId: en.id }),
+					expect.objectContaining({ locale: "vi", chunkSetId: vi.id }),
+				]),
+			});
+			const original = result.selectedChunks.find(({ source }) => source.locale === "en");
+			if (!original) throw new Error("Expected the original English chunk");
+			const relabeled = { ...original, source: { ...original.source, locale: "vi" } };
+			await expect(
+				app.get(RagRepository).revalidate([relabeled], ragConfig.settings())
+			).resolves.toBe("SOURCE_CHANGED");
+			const settings = { ...ragConfig.settings(), maxCandidates: 3 };
+			jest.spyOn(ragConfig, "settings").mockReturnValue(settings);
+			await expect(retrieve()).rejects.toMatchObject({ response: { code: "RAG_CORPUS_LIMIT" } });
+		});
+
+		it("rejects an unreviewed medical PDF in a different language", async () => {
+			const unreviewed = await publish(
+				await draft(undefined, Classification.FIRST_AID, "en"),
+				false
+			);
+			await repo.consumeEvents(configuration);
+			expect(await repo.status(unreviewed.id, unreviewed.versions[0].id)).toEqual([]);
+			expect(await retrieve({ question: "Sơ cứu bong gân thế nào?", locale: "vi" })).toMatchObject({
+				status: "INSUFFICIENT_CONTEXT",
+				reason: "NO_MATCH",
+				sources: [],
+			});
+			expect(ragProvider.embed).not.toHaveBeenCalled();
 		});
 
 		it("serves only active READY versions with verified provenance, fencing V1 during V2 rebuild", async () => {
