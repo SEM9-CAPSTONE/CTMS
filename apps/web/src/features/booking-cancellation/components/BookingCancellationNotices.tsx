@@ -1,12 +1,11 @@
-import { NotificationPanel } from "../../../shared/components/NotificationPanel";
+import { InAppNotificationBell } from "../../in-app-notifications/components/InAppNotificationBell";
 import { useBookingCancellationNotices } from "../hooks/useBookingCancellationNotices";
 
 export function BookingCancellationNotices() {
 	const { query, markRead } = useBookingCancellationNotices();
 	return (
-		<NotificationPanel
-			label="Thông báo hủy đặt chỗ"
-			items={(query.isError ? [] : (query.data ?? [])).map((notice) => ({
+		<InAppNotificationBell
+			legacyItems={(query.isError ? [] : (query.data ?? [])).map((notice) => ({
 				id: notice.id,
 				tripId: notice.tripId,
 				kind: "booking",
@@ -15,10 +14,10 @@ export function BookingCancellationNotices() {
 				createdAt: notice.createdAt,
 				unread: !notice.readAt,
 			}))}
-			loading={query.isLoading}
-			error={query.isError ? "Chưa tải được thông báo." : undefined}
-			onRefresh={() => void query.refetch()}
-			onRead={(item) => markRead.mutateAsync(item.id)}
+			legacyLoading={query.isLoading}
+			legacyError={query.isError ? "Chưa tải được thông báo." : undefined}
+			onLegacyRefresh={() => void query.refetch()}
+			onLegacyRead={(item) => markRead.mutateAsync(item.id)}
 		/>
 	);
 }

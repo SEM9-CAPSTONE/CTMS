@@ -1,8 +1,6 @@
-import {
-	type NotificationItem,
-	NotificationPanel,
-} from "../../../shared/components/NotificationPanel";
+import type { NotificationItem } from "../../../shared/components/NotificationPanel";
 import { useBookingCancellationNotices } from "../../booking-cancellation/hooks/useBookingCancellationNotices";
+import { InAppNotificationBell } from "../../in-app-notifications/components/InAppNotificationBell";
 import { departureReasonLabel, departureTime } from "../copy";
 import { useDepartureInbox } from "../hooks/useDepartureInbox";
 
@@ -28,21 +26,21 @@ export function HostNotifications({ actor }: { actor: string }) {
 		description: `${item.tripTitle}${item.reason ? ` · ${item.reason}` : ""}`,
 	}));
 	return (
-		<NotificationPanel
-			items={[...departures, ...bookings]}
-			loading={inbox.isPending || query.isLoading}
-			error={
+		<InAppNotificationBell
+			legacyItems={[...departures, ...bookings]}
+			legacyLoading={inbox.isPending || query.isLoading}
+			legacyError={
 				inbox.isError || query.isError
 					? forbidden
 						? "Bạn không có quyền xem thông báo khởi hành."
 						: "Chưa tải được một số thông báo."
 					: undefined
 			}
-			onRefresh={() => {
+			onLegacyRefresh={() => {
 				void inbox.refetch();
 				void query.refetch();
 			}}
-			onRead={(item) =>
+			onLegacyRead={(item) =>
 				item.kind === "departure"
 					? read.mutateAsync(item.id.slice("departure:".length))
 					: markRead.mutateAsync(item.id.slice("booking:".length))

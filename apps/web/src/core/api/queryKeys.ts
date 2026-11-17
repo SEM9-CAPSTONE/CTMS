@@ -1,4 +1,12 @@
 export const queryKeys = {
+	inAppNotifications: {
+		actor: (actor: string) => ["in-app-notifications", actor] as const,
+		list: (actor: string, unread: boolean) =>
+			["in-app-notifications", actor, "list", unread] as const,
+		count: (actor: string) => ["in-app-notifications", actor, "count"] as const,
+		reviewTarget: (actor: string, tripId: string) =>
+			["notification-review-target", actor, tripId] as const,
+	},
 	myContentReports: {
 		all: (actor: string) => ["my-content-reports", actor] as const,
 		list: (actor: string, page: number) => ["my-content-reports", actor, "list", page] as const,

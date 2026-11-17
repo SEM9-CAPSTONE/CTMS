@@ -1,4 +1,9 @@
 export const API_ENDPOINTS = {
+	IN_APP_NOTIFICATIONS: {
+		LIST: "/in-app-notifications",
+		COUNT: "/in-app-notifications/unread-count",
+		READ: (id: string) => `/in-app-notifications/${id}/read`,
+	},
 	HOST_MONITORING: {
 		ALERTS: (tripId: string) => `/host/monitoring/active-trips/${tripId}/alerts`,
 		ACTIVE_TRIPS: "/host/monitoring/active-trips",

@@ -3,6 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { expect, it, vi } from "vitest";
 import { type NotificationItem, NotificationPanel } from "./NotificationPanel";
+import { toast } from "./Toast";
+
+vi.mock("./Toast", () => ({ toast: { error: vi.fn() } }));
 
 const items: NotificationItem[] = [
 	{
@@ -69,6 +72,52 @@ it("keeps a failed read unread and offers a clear retry", async () => {
 	render(<NotificationPanel items={items} loading={false} onRefresh={vi.fn()} onRead={read} />);
 	fireEvent.click(screen.getByRole("button", { name: "Thông báo (1 chưa đọc)" }));
 	fireEvent.click(screen.getByRole("button", { name: "Đánh dấu đã đọc tất cả" }));
-	await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Chưa đánh dấu được"));
+	await waitFor(() =>
+		expect(toast.error).toHaveBeenCalledWith(
+			"Chưa đánh dấu được một số thông báo. Vui lòng thử lại."
+		)
+	);
 	expect(screen.getByRole("button", { name: "Thông báo (1 chưa đọc)" })).toBeVisible();
+});
+
+it("keeps an individual notification unread when its read request fails", async () => {
+	const read = vi.fn().mockRejectedValue(new Error("offline"));
+	render(<NotificationPanel items={items} loading={false} onRefresh={vi.fn()} onRead={read} />);
+	fireEvent.click(screen.getByRole("button", { name: "Thông báo (1 chưa đọc)" }));
+	fireEvent.click(screen.getByRole("button", { name: "Đánh dấu đã đọc" }));
+	await waitFor(() =>
+		expect(toast.error).toHaveBeenCalledWith(
+			"Chưa đánh dấu đã đọc. Thông báo vẫn được giữ là chưa đọc."
+		)
+	);
+	expect(read).toHaveBeenCalledExactlyOnceWith(items[0]);
+	expect(screen.getByRole("button", { name: "Đánh dấu đã đọc" })).toBeEnabled();
+	expect(screen.getByRole("button", { name: "Thông báo (1 chưa đọc)" })).toHaveTextContent("1");
+});
+
+it("uses the authoritative count, caps its badge and hides zero", () => {
+	const props = { items, loading: false, onRefresh: vi.fn(), onRead: vi.fn() };
+	const { rerender } = render(<NotificationPanel {...props} unreadCount={140} />);
+	expect(screen.getByRole("button", { name: "Thông báo (140 chưa đọc)" })).toHaveTextContent("99+");
+	rerender(<NotificationPanel {...props} unreadCount={0} />);
+	expect(screen.getByRole("button", { name: "Thông báo (0 chưa đọc)" })).not.toHaveTextContent("0");
+});
+
+it("offers a keyboard-accessible read action on every unread row without navigating", async () => {
+	let finish: (() => void) | undefined;
+	const read = vi.fn(
+		() =>
+			new Promise<void>((resolve) => {
+				finish = resolve;
+			})
+	);
+	render(<NotificationPanel items={items} loading={false} onRefresh={vi.fn()} onRead={read} />);
+	fireEvent.click(screen.getByRole("button", { name: "Thông báo (1 chưa đọc)" }));
+	const action = screen.getByRole("button", { name: "Đánh dấu đã đọc" });
+	action.focus();
+	await userEvent.keyboard("{Enter}");
+	expect(read).toHaveBeenCalledExactlyOnceWith(items[0]);
+	expect(screen.getByRole("dialog")).toBeVisible();
+	expect(screen.getByRole("button", { name: "Thông báo (1 chưa đọc)" })).toBeVisible();
+	finish?.();
 });

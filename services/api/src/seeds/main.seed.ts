@@ -21,6 +21,8 @@ import {
 	DEFAULT_CANCELLATION_POLICY,
 	parseCancellationPolicy,
 } from "../modules/bookings/cancellation-policy";
+import { InAppNotificationType } from "../modules/in-app-notifications/in-app-notification.entity";
+import { InAppNotificationsService } from "../modules/in-app-notifications/in-app-notifications.service";
 import dataSource from "../shared/database/data-source";
 import { seedFinancialAdjustments } from "./financial-adjustments.seed";
 
@@ -7055,7 +7057,199 @@ export async function seedHostMonitoringAlerts(ds: DataSource): Promise<void> {
 	console.log("[seed:host-monitoring] GPS, recovery and Porter checkpoint confirmations prepared");
 }
 
+/** CTMS-380: additive inbox scenarios using the existing primary Host/Admin accounts. */
+export async function seedInAppNotificationScenarios(ds: DataSource = dataSource): Promise<void> {
+	if (!ds.isInitialized) await ds.initialize();
+	const notices = new InAppNotificationsService(ds);
+	const titles = [
+		"Bình minh trên đèo Hải Vân",
+		"Hải Vân – Cung đường ven núi",
+		"Hải Vân – Mùa cỏ lau",
+		"Hải Vân – Khám phá rừng xanh",
+		"Hải Vân – Ngắm vịnh từ trên cao",
+		"Hải Vân – Hành trình trong mây",
+		"Hải Vân – Dấu chân bên sườn núi",
+		"Hải Vân – Đón nắng đầu ngày",
+		"Hải Vân – Gió biển và rừng núi",
+		"Hải Vân – Cuối tuần giữa thiên nhiên",
+		"Hải Vân – Con đường qua triền dốc",
+		"Hải Vân – Khám phá đỉnh đèo",
+		"Hải Vân – Sắc xanh mùa mới",
+		"Hải Vân – Hẹn cùng bình minh",
+		"Hải Vân – Về phía biển",
+		"Hải Vân – Lắng nghe núi rừng",
+		"Hải Vân – Ngày mới trên đỉnh núi",
+		"Hải Vân – Bước qua rừng già",
+		"Hải Vân – Dọc theo mây trắng",
+		"Hải Vân – Vịnh xanh dưới chân đèo",
+		"Hải Vân – Ngắm biển mùa thu",
+		"Hải Vân – Nắng sớm bên đường mòn",
+		"Hải Vân – Hành trình đón gió",
+		"Hải Vân – Hoàng hôn trên sườn núi",
+		"Hải Vân – Buổi sáng giữa tầng mây",
+	];
+	await ds.transaction(async (manager) => {
+		const actors: { id: string; email: string }[] = await manager.query(
+			"SELECT id,email FROM users WHERE email = ANY($1) AND status = 'active'",
+			[["host@ctms.local", "admin@ctms.local"]]
+		);
+		const host = actors.find((actor) => actor.email === "host@ctms.local");
+		const admin = actors.find((actor) => actor.email === "admin@ctms.local");
+		if (!host || !admin) throw new Error("Primary Host and Admin seed accounts are required");
+		const routes: { id: string }[] = await manager.query(
+			`SELECT id FROM trekking_routes WHERE host_id = $1 AND status = 'active'
+			 AND (name ILIKE '%Hải Vân%' OR name ILIKE '%Hai Van%') ORDER BY created_at LIMIT 1`,
+			[host.id]
+		);
+		if (!routes[0])
+			throw new Error("An existing active Hai Van Route owned by the primary Host is required");
+		await manager.query(
+			`UPDATE users SET full_name = CASE WHEN id = $1 THEN 'Nguyễn Thị Mai' ELSE 'Nguyễn Minh Anh' END
+			WHERE (id = $1 AND full_name = 'Host Ban Mai') OR (id = $2 AND full_name = 'Administrator')`,
+			[host.id, admin.id]
+		);
+		for (const [index, title] of titles.entries()) {
+			// Keep scenario identities stable when adding a new submission for realtime verification.
+			const rejected = index === 23;
+			const reminder = index === 22;
+			const submittedAt = new Date(
+				Date.now() - (rejected ? 25 * 60 : reminder ? 23 * 60 + 20 : index * 5) * 60_000
+			);
+			const startsAt = new Date();
+			startsAt.setDate(startsAt.getDate() + 14 + index);
+			startsAt.setHours(7, 0, 0, 0);
+			const endsAt = new Date(startsAt.getTime() + 8 * 60 * 60_000);
+			const key = `ctms-380-trip:${index}`;
+			// Stable RFC-4122 version/variant bits are required by the public UUID validators.
+			const seedId =
+				"(substr(md5($1),1,12)||'4'||substr(md5($1),14,3)||'8'||substr(md5($1),18))::uuid";
+			const oldRows: { id: string }[] = await manager.query(
+				`SELECT id FROM trips
+				WHERE id=md5($1)::uuid AND id<>${seedId} AND host_id=$2`,
+				[key, host.id]
+			);
+			for (const old of oldRows) {
+				const protectedRows: { id: string }[] = await manager.query(
+					`SELECT id FROM trips WHERE id=$1 AND
+					(updated_at<>created_at OR title<>$2 OR status NOT IN ('pending_approval','rejected')
+					 OR EXISTS(SELECT 1 FROM bookings WHERE trip_id=$1))`,
+					[old.id, title]
+				);
+				if (protectedRows.length)
+					throw new Error("An earlier inbox fixture has user changes; refusing to replace it");
+				// Only untouched rows created by this fixture are repaired; operational Trips are never selected.
+				await manager.query("DELETE FROM in_app_notifications WHERE trip_id=$1", [old.id]);
+				await manager.query("DELETE FROM audit_logs WHERE target_type='trip' AND target_id=$1", [
+					old.id,
+				]);
+				await manager.query("DELETE FROM trips WHERE id=$1", [old.id]);
+			}
+			const inserted: { id: string }[] = await manager.query(
+				`INSERT INTO trips
+				(id,host_id,route_id,title,trip_type,duration_nights,starts_at,ends_at,meeting_point,meeting_at,
+				 booking_deadline,capacity_min,capacity_max,price_per_person,status,created_at,updated_at)
+				SELECT ${seedId},$2,r.id,$3,'day_trip',0,$4,$5,ST_StartPoint(r.route_geom::geometry)::geography,
+				$4::timestamptz-interval '30 minutes',$4::timestamptz-interval '2 days',2,20,350000,
+				$6::trip_status,$7,$7 FROM trekking_routes r WHERE r.id=$8 ON CONFLICT(id) DO NOTHING RETURNING id`,
+				[
+					key,
+					host.id,
+					title,
+					startsAt,
+					endsAt,
+					rejected ? TripStatus.REJECTED : TripStatus.PENDING_APPROVAL,
+					submittedAt,
+					routes[0].id,
+				]
+			);
+			const trips: { id: string; status: string; updatedAt: Date }[] = await manager.query(
+				`SELECT id,status,updated_at AS "updatedAt" FROM trips WHERE id=${seedId}`,
+				[key]
+			);
+			const trip = trips[0];
+			// Preserve all existing user decisions, dates, prices, and read state on reruns.
+			if (inserted.length === 0) continue;
+			await manager.query(
+				`INSERT INTO trip_waypoints(id,trip_id,type,name,location,day_number,sequence_order,planned_at)
+				SELECT md5($1||':start')::uuid,$2::uuid,'start'::waypoint_type,'Điểm tập trung chân đèo',ST_StartPoint(r.route_geom::geometry)::geography,1,1,$3::timestamptz
+				FROM trekking_routes r WHERE r.id=$5
+				UNION ALL SELECT md5($1||':finish')::uuid,$2::uuid,'finish'::waypoint_type,'Điểm kết thúc hành trình',ST_EndPoint(r.route_geom::geometry)::geography,1,2,$4::timestamptz
+				FROM trekking_routes r WHERE r.id=$5`,
+				[key, trip.id, startsAt, endsAt, routes[0].id]
+			);
+			await manager.query(
+				`INSERT INTO audit_logs(id,actor_id,action,target_type,target_id,"before","after",reason,created_at)
+				VALUES(md5($1||':submit')::uuid,$2,'trip.submitted_for_approval','trip',$3,
+				'{"status":"draft"}'::jsonb,'{"status":"pending_approval"}'::jsonb,'Chủ chuyến gửi lịch trình để xét duyệt.',$4)`,
+				[key, host.id, trip.id, submittedAt]
+			);
+			const type = rejected
+				? InAppNotificationType.AUTO_REJECTED
+				: reminder
+					? InAppNotificationType.REVIEW_REMINDER
+					: InAppNotificationType.REVIEW_REQUESTED;
+			await notices.enqueueTripReview(
+				manager,
+				trip.id,
+				type,
+				trip.updatedAt.toISOString(),
+				reminder || rejected ? new Date() : submittedAt
+			);
+			if (reminder || rejected)
+				await manager.query(
+					`INSERT INTO audit_logs(id,actor_id,action,target_type,target_id,"before","after",reason)
+				VALUES(md5($1||':outcome')::uuid,NULL,$2,'trip',$3,'{"status":"pending_approval"}'::jsonb,$4::jsonb,$5)`,
+					[
+						key,
+						rejected ? "trip.auto_rejected" : "trip.review.reminder_sent",
+						trip.id,
+						JSON.stringify({ status: trip.status }),
+						rejected
+							? "Chuyến đi chưa được duyệt trong thời hạn 24 giờ."
+							: "Lịch trình đang chờ xét duyệt trước khi hết hạn.",
+					]
+				);
+			if (index === 0)
+				await manager.query(
+					"UPDATE in_app_notifications SET read_at=now() WHERE trip_id=$1 AND recipient_id=$2",
+					[trip.id, admin.id]
+				);
+		}
+		// Historical inbox records retain read state after their original Trip becomes unavailable.
+		for (const actor of [host, admin]) {
+			await manager.query(
+				`DELETE FROM in_app_notifications WHERE recipient_id=$1
+				AND id=md5('ctms-380-unavailable:'||$1::text)::uuid AND read_at IS NULL`,
+				[actor.id]
+			);
+			await manager.query(
+				`INSERT INTO in_app_notifications
+			(id,recipient_id,trip_id,event_type,source_key,occurred_at)
+			VALUES(uuid_generate_v4(),$1::uuid,NULL,$2,'ctms-380-unavailable:'||$1::text,now()-interval '1 hour')
+			ON CONFLICT(source_key,recipient_id) DO NOTHING`,
+				[
+					actor.id,
+					actor.id === host.id
+						? InAppNotificationType.AUTO_REJECTED
+						: InAppNotificationType.REVIEW_REQUESTED,
+				]
+			);
+		}
+	});
+	console.log(
+		"[seed:in-app-notifications] Existing primary accounts and additive inbox scenarios prepared"
+	);
+}
+
 export async function runMasterSeed(): Promise<void> {
+	if (process.argv.includes("--in-app-notifications-only")) {
+		try {
+			await seedInAppNotificationScenarios(dataSource);
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
 	if (process.argv.includes("--host-monitoring-only")) {
 		try {
 			await seedHostTripMonitoring(dataSource);
