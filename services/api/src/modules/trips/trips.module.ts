@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { DataSource } from "typeorm";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
+import { InAppNotificationsModule } from "../in-app-notifications/in-app-notifications.module";
 import { OfflinePackagesModule } from "../offline-packages/offline-packages.module";
 import { PorterProfile } from "../profiles/entities/porter-profile.entity";
 import { RealtimeModule } from "../realtime/realtime.module";
@@ -41,7 +42,13 @@ import { TripWeatherDecisionsController } from "./weather-decisions/trip-weather
 import { TripWeatherDecisionsRepository } from "./weather-decisions/trip-weather-decisions.repository";
 
 @Module({
-	imports: [RealtimeModule, UploadsModule, WeatherModule, OfflinePackagesModule],
+	imports: [
+		RealtimeModule,
+		UploadsModule,
+		WeatherModule,
+		OfflinePackagesModule,
+		InAppNotificationsModule,
+	],
 	controllers: [
 		TripsController,
 		TripImagesController,

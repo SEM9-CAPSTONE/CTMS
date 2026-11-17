@@ -132,6 +132,31 @@ describe("EventsGateway (CTMS-078/CTMS-079, BR-259/BR-260)", () => {
 	});
 
 	describe("handleConnection", () => {
+		it("publishes an inbox invalidation only to the recipient, with no replayable Trip details", async () => {
+			const payload = {
+				id: "notification-id",
+				eventType: "trip.review.requested",
+				occurredAt: "2026-11-17T00:00:00Z",
+				createdAt: "2026-11-17T00:00:00Z",
+				readAt: null,
+				targetAvailable: true,
+				target: { type: "trip", tripId: TRIP_ID, title: "Private title", action: "review" },
+			} as const;
+			await gateway.emitInAppNotification(
+				USER_ID,
+				payload as import("../in-app-notifications/in-app-notifications.service").NotificationView
+			);
+			expect(server.to).toHaveBeenCalledWith(userRoom(USER_ID));
+			expect(server.emit).not.toHaveBeenCalled();
+			expect(realtimeEvents.record).toHaveBeenCalledWith(
+				"notification.created",
+				{ notificationId: payload.id, occurredAt: payload.occurredAt },
+				{ userIds: [USER_ID], roles: [], tripId: null },
+				payload.id
+			);
+			expect(JSON.stringify(roomEmit.mock.calls)).not.toContain("Private title");
+		});
+
 		it("joins an authenticated active user only to their own user room", async () => {
 			const socket = buildSocket({ token: "valid-token" });
 
@@ -431,7 +456,7 @@ describe("EventsGateway (CTMS-078/CTMS-079, BR-259/BR-260)", () => {
 						rejectedAt: "r",
 						reason: "x",
 					}),
-				[userRoom(HOST_ID), roleRoom(UserRole.ADMIN)],
+				[userRoom(HOST_ID)],
 			],
 			[
 				"porter.request.created",

@@ -16,6 +16,7 @@ import { BookingMemberStatus } from "../bookings/booking-member-status.enum";
 import type { EmergencyBroadcastPayload } from "../emergency-broadcasts/emergency-broadcasts.types";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { GpsParticipationSource } from "../gps-tracking/gps-participation.source";
+import type { NotificationView } from "../in-app-notifications/in-app-notifications.service";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { PushNotificationsService } from "../push-notifications/push-notifications.service";
 import { UserRole, UserStatus } from "../users/entities/user.entity";
@@ -413,6 +414,21 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		this.publish("trip.review.updated", payload, { roles: [UserRole.ADMIN] });
 	}
 
+	/** Durable CTMS-379 outbox owns retries; this event never queues background pushes. */
+	async emitInAppNotification(userId: string, payload: NotificationView): Promise<void> {
+		if (!this.server) throw new Error("Realtime server is not ready");
+		// Recovery must not replay a Trip title/reference after its authorization changes.
+		// Clients fetch the authenticated inbox to resolve current content permissions.
+		const event = { notificationId: payload.id, occurredAt: payload.occurredAt };
+		const meta = await this.realtimeEvents.record(
+			"notification.created",
+			event,
+			{ userIds: [userId], roles: [], tripId: null },
+			payload.id
+		);
+		this.server.to(userRoom(userId)).emit("notification.created", event, meta);
+	}
+
 	emitTripReviewRequested(payload: {
 		tripId: string;
 		title: string;
@@ -442,7 +458,6 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 	}) {
 		this.publish("trip.review.auto_rejected", payload, {
 			userIds: [payload.hostId],
-			roles: [UserRole.ADMIN],
 		});
 	}
 
