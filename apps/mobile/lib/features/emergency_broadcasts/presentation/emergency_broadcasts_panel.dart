@@ -102,10 +102,9 @@ class EmergencyBroadcastsPanel extends ConsumerWidget {
 }
 
 class _BroadcastRow extends StatelessWidget {
-  const _BroadcastRow({required this.broadcast, this.emphasized = false});
+  const _BroadcastRow({required this.broadcast});
 
   final EmergencyBroadcast broadcast;
-  final bool emphasized;
 
   @override
   Widget build(BuildContext context) {
@@ -120,16 +119,14 @@ class _BroadcastRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   emergencyAlertTypeLabel(broadcast.alertType),
-                  style: _bodyStrong.copyWith(
-                    color: emphasized ? AppColors.statusDanger : null,
-                  ),
+                  style: _bodyStrong.copyWith(color: AppColors.textPrimary),
                 ),
               ),
               Text(_time(broadcast.createdAt), style: _caption),
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
-          Text(broadcast.content, style: emphasized ? _bodyStrong : _body),
+          Text(broadcast.content, style: _body),
         ],
       ),
     );
