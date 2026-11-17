@@ -19,6 +19,19 @@ export class OfflinePackageAccessRepository {
 		return status === TripStatus.PUBLISHED || status === TripStatus.ONGOING ? status : null;
 	}
 
+	async applicableVersion(tripId: string): Promise<number | undefined> {
+		const [selected]: Array<{ version: number }> = await this.db.query(
+			`SELECT p.package_version AS version FROM trips t
+			 LEFT JOIN offline_package_requirements r ON t.id=r.trip_id
+			 LEFT JOIN offline_package_departures d ON t.id=d.trip_id AND d.locked_at IS NOT NULL
+			 JOIN offline_packages p ON p.trip_id=t.id
+			   AND p.id=CASE WHEN t.status='ongoing' THEN d.package_id ELSE r.package_id END
+			 WHERE t.id=$1`,
+			[tripId]
+		);
+		return selected?.version;
+	}
+
 	/** Same participation predicate, optionally evaluated within a caller's DB snapshot. */
 	async participantTripStatus(
 		tripId: string,

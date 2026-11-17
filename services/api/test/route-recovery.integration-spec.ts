@@ -19,9 +19,11 @@ import { RouteRecoveryService } from "../src/modules/offline-package-download/ro
 import { OfflinePackagesRepository } from "../src/modules/offline-packages/offline-packages.repository";
 import { OfflinePackagesService } from "../src/modules/offline-packages/offline-packages.service";
 import { UnavailableOfflineSafetySources } from "../src/modules/offline-packages/offline-safety-sources";
+import { PackageActivationService } from "../src/modules/offline-packages/package-activation.service";
 import { PackageArtifactBuilder } from "../src/modules/offline-packages/package-artifact.builder";
 import { LocalPackageArtifactStorage } from "../src/modules/offline-packages/package-artifact.storage";
 import { PackageCoreReader } from "../src/modules/offline-packages/package-core.reader";
+import { UnavailablePackageFreshnessSource } from "../src/modules/offline-packages/package-freshness.source";
 import {
 	ApprovedGuidanceSelector,
 	EligibleHazardResolver,
@@ -53,9 +55,9 @@ describe("CTMS-315 read-only HTTP, PostgreSQL snapshot and private artifact inte
 	let originalRoot: string | undefined;
 	let repository: RouteRecoveryRepository;
 	let storage: LocalPackageArtifactStorage;
-	const endpoint = (id = tripId) => `/trips/${id}/route-recovery/context`;
+	const endpoint = (id: string = tripId) => `/trips/${id}/route-recovery/context`;
 	const query = { packageId: fixture.metadata.id, packageVersion: 1 };
-	const get = (id = tripId, participant = userId) =>
+	const get = (id: string = tripId, participant = userId) =>
 		request(app.getHttpServer())
 			.get(endpoint(id))
 			.set("Authorization", `Bearer ${jwt.sign({ sub: participant, roles: [UserRole.CAMPER] })}`);
@@ -91,7 +93,13 @@ describe("CTMS-315 read-only HTTP, PostgreSQL snapshot and private artifact inte
 			new ApprovedGuidanceSelector(),
 			new PackageEligibilityValidator(),
 			new PackageArtifactBuilder(),
-			storage
+			storage,
+			new PackageActivationService(
+				db,
+				new UnavailablePackageFreshnessSource(),
+				storage,
+				new PackageArtifactBuilder()
+			)
 		);
 		repository = new RouteRecoveryRepository();
 		const service = new RouteRecoveryService(

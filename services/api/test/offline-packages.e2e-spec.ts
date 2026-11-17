@@ -8,6 +8,8 @@ import { Test } from "@nestjs/testing";
 import { unzipSync } from "fflate";
 import { DataSource, type EntityManager } from "typeorm";
 import { CreateOfflinePackages1794200000000 } from "../src/migrations/1794200000000-CreateOfflinePackages";
+import { CreatePackageActivationPolicy1795100000000 } from "../src/migrations/1795100000000-CreatePackageActivationPolicy";
+import { TrackOfflinePackageImpacts1796600000000 } from "../src/migrations/1796600000000-TrackOfflinePackageImpacts";
 import { OfflinePackagesModule } from "../src/modules/offline-packages/offline-packages.module";
 import { OfflinePackagesService } from "../src/modules/offline-packages/offline-packages.service";
 import {
@@ -62,6 +64,7 @@ describe("CTMS-052 module E2E: published Trip -> automatic worker -> stored veri
 		await assertSafeTestDatabase(db);
 		await db.query(`CREATE EXTENSION IF NOT EXISTS postgis; CREATE SCHEMA ${schema}`);
 		await db.query(`
+		 CREATE TABLE users(id uuid PRIMARY KEY);
 		 CREATE TABLE trekking_routes(id uuid PRIMARY KEY,route_geom geography(LineString,4326));
 		 CREATE TABLE trips(id uuid PRIMARY KEY,route_id uuid NOT NULL REFERENCES trekking_routes(id),status text NOT NULL,trip_type text NOT NULL,starts_at timestamptz NOT NULL,ends_at timestamptz NOT NULL);
 		 CREATE TABLE checkpoints(id uuid PRIMARY KEY,route_id uuid NOT NULL REFERENCES trekking_routes(id),name text,type text,location geography(Point,4326),radius_m integer,expected_arrival_offset integer,instructions text,route_position double precision);
@@ -71,6 +74,8 @@ describe("CTMS-052 module E2E: published Trip -> automatic worker -> stored veri
 		const runner = db.createQueryRunner();
 		try {
 			await new CreateOfflinePackages1794200000000().up(runner);
+			await new CreatePackageActivationPolicy1795100000000().up(runner);
+			await new TrackOfflinePackageImpacts1796600000000().up(runner);
 		} finally {
 			await runner.release();
 		}

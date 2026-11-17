@@ -4,6 +4,8 @@ import { dirname, join, resolve } from "node:path";
 import { DataSource, type EntityManager } from "typeorm";
 import { CreateKnowledgeChunks1794100000000 } from "../src/migrations/1794100000000-CreateKnowledgeChunks";
 import { CreateOfflinePackages1794200000000 } from "../src/migrations/1794200000000-CreateOfflinePackages";
+import { CreatePackageActivationPolicy1795100000000 } from "../src/migrations/1795100000000-CreatePackageActivationPolicy";
+import { TrackOfflinePackageImpacts1796600000000 } from "../src/migrations/1796600000000-TrackOfflinePackageImpacts";
 import { KnowledgeChunksRepository } from "../src/modules/knowledge-chunks/knowledge-chunks.repository";
 import { OfflinePackagesRepository } from "../src/modules/offline-packages/offline-packages.repository";
 import { OfflinePackagesService } from "../src/modules/offline-packages/offline-packages.service";
@@ -17,9 +19,11 @@ import {
 	type PackageSafetyInputs,
 } from "../src/modules/offline-packages/offline-packages.types";
 import { UnavailableOfflineSafetySources } from "../src/modules/offline-packages/offline-safety-sources";
+import { PackageActivationService } from "../src/modules/offline-packages/package-activation.service";
 import { PackageArtifactBuilder } from "../src/modules/offline-packages/package-artifact.builder";
 import { LocalPackageArtifactStorage } from "../src/modules/offline-packages/package-artifact.storage";
 import { PackageCoreReader } from "../src/modules/offline-packages/package-core.reader";
+import { UnavailablePackageFreshnessSource } from "../src/modules/offline-packages/package-freshness.source";
 import {
 	ApprovedGuidanceSelector,
 	EligibleHazardResolver,
@@ -67,7 +71,13 @@ describe("CTMS-052 PostgreSQL publication, fencing and immutable artifacts", () 
 			new ApprovedGuidanceSelector(),
 			new PackageEligibilityValidator(),
 			new PackageArtifactBuilder(),
-			storage
+			storage,
+			new PackageActivationService(
+				db,
+				new UnavailablePackageFreshnessSource(),
+				storage,
+				new PackageArtifactBuilder()
+			)
 		);
 	}
 	beforeAll(async () => {
@@ -82,6 +92,7 @@ describe("CTMS-052 PostgreSQL publication, fencing and immutable artifacts", () 
 		await assertSafeTestDatabase(db);
 		await db.query(`CREATE EXTENSION IF NOT EXISTS postgis; CREATE SCHEMA ${schema}`);
 		await db.query(`
+		 CREATE TABLE users(id uuid PRIMARY KEY);
 		 CREATE TABLE trekking_routes(id uuid PRIMARY KEY,route_geom geography(LineString,4326));
 		 CREATE TABLE trips(id uuid PRIMARY KEY,route_id uuid NOT NULL REFERENCES trekking_routes(id),status text NOT NULL,trip_type text NOT NULL,starts_at timestamptz NOT NULL,ends_at timestamptz NOT NULL);
 		 CREATE TABLE checkpoints(id uuid PRIMARY KEY,route_id uuid NOT NULL REFERENCES trekking_routes(id),name text,type text,location geography(Point,4326),radius_m integer,expected_arrival_offset integer,instructions text,route_position double precision);
@@ -91,6 +102,8 @@ describe("CTMS-052 PostgreSQL publication, fencing and immutable artifacts", () 
 		const runner = db.createQueryRunner();
 		try {
 			await new CreateOfflinePackages1794200000000().up(runner);
+			await new CreatePackageActivationPolicy1795100000000().up(runner);
+			await new TrackOfflinePackageImpacts1796600000000().up(runner);
 		} finally {
 			await runner.release();
 		}
@@ -182,9 +195,15 @@ describe("CTMS-052 PostgreSQL publication, fencing and immutable artifacts", () 
 		const runner = db.createQueryRunner();
 		try {
 			const migration = new CreateOfflinePackages1794200000000();
+			const impacts = new TrackOfflinePackageImpacts1796600000000();
+			const activation = new CreatePackageActivationPolicy1795100000000();
+			await impacts.down(runner);
+			await activation.down(runner);
 			await migration.down(runner);
 			await publish();
 			await migration.up(runner);
+			await activation.up(runner);
+			await impacts.up(runner);
 			expect((await claim()).trip_id).toBe(tripId);
 		} finally {
 			await runner.release();
@@ -258,7 +277,17 @@ describe("CTMS-052 PostgreSQL publication, fencing and immutable artifacts", () 
 		const impact = await service.requestImpact(tripId, "approved-guidance-2");
 		expect((await service.requestImpact(tripId, "approved-guidance-2")).id).toBe(impact.id);
 		await service.generate(await claim());
-		expect((await service.getReadyMetadata(tripId))?.packageVersion).toBe(2);
+		const replacement = await service.getReadyMetadata(tripId);
+		expect(replacement?.packageVersion).toBe(2);
+		expect(
+			await db.query(
+				`SELECT i.source_reference,r.package_id FROM offline_package_impacts i
+			 JOIN offline_package_jobs j ON j.id=i.job_id
+			 JOIN offline_package_requirements r ON r.trip_id=i.trip_id AND r.package_id=j.package_id
+			 WHERE i.trip_id=$1`,
+				[tripId]
+			)
+		).toEqual([{ source_reference: "approved-guidance-2", package_id: replacement?.id }]);
 		expect((await service.readArtifact(tripId, 1))?.equals(original as Buffer)).toBe(true);
 		await expect(
 			db.query("UPDATE offline_packages SET size_bytes=1 WHERE trip_id=$1", [tripId])
@@ -267,6 +296,52 @@ describe("CTMS-052 PostgreSQL publication, fencing and immutable artifacts", () 
 			db.query("DELETE FROM offline_packages WHERE trip_id=$1", [tripId])
 		).rejects.toThrow("immutable");
 	});
+	it("captures committed core changes, ignores no-ops and reuses one job", async () => {
+		await publish();
+		await service.generate(await claim());
+		await db.query("UPDATE checkpoints SET instructions=instructions WHERE route_id=$1", [routeId]);
+		expect(await repo.pendingImpacts()).toEqual([]);
+		await expect(
+			db.transaction(async (m) => {
+				await m.query(
+					"UPDATE checkpoints SET instructions='Follow trail markers' WHERE route_id=$1",
+					[routeId]
+				);
+				throw new Error("rollback");
+			})
+		).rejects.toThrow("rollback");
+		expect(await repo.pendingImpacts()).toEqual([]);
+		await db.query("UPDATE checkpoints SET instructions='Follow trail markers' WHERE route_id=$1", [
+			routeId,
+		]);
+		expect(await repo.pendingImpacts()).toHaveLength(1);
+		await Promise.all([service.dispatchPendingImpacts(), service.dispatchPendingImpacts()]);
+		await service.generate(await claim());
+		expect(await repo.claim()).toBeNull();
+		expect((await service.getReadyMetadata(tripId))?.packageVersion).toBe(2);
+	});
+
+	it("leaves the old version intact when departure wins the publication race", async () => {
+		await publish();
+		await service.generate(await claim());
+		const original = await service.getReadyMetadata(tripId);
+		await db.query("UPDATE checkpoints SET instructions='Follow trail markers' WHERE route_id=$1", [
+			routeId,
+		]);
+		await service.dispatchPendingImpacts();
+		const replacementJob = await claim();
+		const put = storage.put.bind(storage);
+		jest.spyOn(storage, "put").mockImplementationOnce(async (key, bytes) => {
+			await put(key, bytes);
+			await db.query("UPDATE trips SET status='ongoing' WHERE id=$1", [tripId]);
+		});
+		await expect(service.generate(replacementJob)).rejects.toBeInstanceOf(PackageFailure);
+		expect(await service.getReadyMetadata(tripId)).toEqual(original);
+		expect(
+			await db.query("SELECT * FROM offline_package_requirements WHERE trip_id=$1", [tripId])
+		).toEqual([]);
+	});
+
 	it("defers chunk cleanup during package revalidation and preserves the published ZIP after cleanup", async () => {
 		// Use the real chunk schema and cleanup against the same private DB as the package worker.
 		await db.query(`

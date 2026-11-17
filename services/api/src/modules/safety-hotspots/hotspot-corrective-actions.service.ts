@@ -22,7 +22,10 @@ import {
 	type RouteSafetyTargets,
 } from "./hotspot-corrective-actions.repository";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
-import { HotspotPackageImpactDispatcher } from "./hotspot-package-impact.dispatcher";
+import {
+	HotspotPackageImpactDispatcher,
+	correctionImpactId,
+} from "./hotspot-package-impact.dispatcher";
 import { CorrectiveActionType, PackageImpact, SafetyHotspotStatus } from "./safety-hotspots.enums";
 
 export enum CorrectiveActionErrorCode {
@@ -97,7 +100,11 @@ export class HotspotCorrectiveActionsService {
 				}
 
 				const change = await this.apply(manager, hotspot.routeId, dto);
-				const packageImpact = packageImpactOf(dto.actionType);
+				const packageImpact =
+					packageImpactOf(dto.actionType) === PackageImpact.AFFECTED &&
+					change.before?.instructions !== change.after?.instructions
+						? PackageImpact.AFFECTED
+						: PackageImpact.NOT_AFFECTED;
 				const tripIds =
 					packageImpact === PackageImpact.AFFECTED
 						? await this.repository.findPublishedTripIds(manager, hotspot.routeId)
@@ -119,6 +126,8 @@ export class HotspotCorrectiveActionsService {
 					impactTripIds: tripIds,
 					actorId,
 				});
+				if (tripIds.length)
+					await this.repository.recordPackageImpacts(manager, tripIds, correctionImpactId(id));
 				await manager.getRepository(AuditLog).save({
 					actorId,
 					action: "safety_hotspot.corrective_action",
@@ -184,6 +193,8 @@ export class HotspotCorrectiveActionsService {
 				return fromChange(HAZARD_TARGET, change.result.id, change);
 			}
 			case CorrectiveActionType.UPDATE_CHECKPOINT_INSTRUCTIONS: {
+				// The correction's durable handoff carries its evidence reference.
+				await manager.query("SELECT set_config('ctms.package_hotspot_correction','on',true)");
 				const change = await this.checkpoints.updateSafetyInstructionsCorrective(
 					manager,
 					routeId,

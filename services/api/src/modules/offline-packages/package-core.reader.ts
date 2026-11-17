@@ -14,10 +14,13 @@ export class PackageCoreReader {
 	async read(manager: EntityManager, tripId: string, lock = false): Promise<PackageCore> {
 		// Existing core writers do not implement a revision-row protocol. These short final
 		// SHARE locks fence inserts/deletes as well as updates, without changing those writers.
-		if (lock)
+		if (lock) {
+			// Use the departure row lock. NOWAIT avoids a cycle with concurrent core writers.
+			await manager.query("SELECT id FROM trips WHERE id=$1 FOR UPDATE", [tripId]);
 			await manager.query(
-				"LOCK TABLE trips,trekking_routes,checkpoints,trip_waypoints IN SHARE MODE"
+				"LOCK TABLE trekking_routes,checkpoints,trip_waypoints IN SHARE MODE NOWAIT"
 			);
+		}
 		const rows: PackageCore[] = await manager.query(
 			`
 		 SELECT t.id AS "tripId",t.status,t.trip_type AS "tripType",

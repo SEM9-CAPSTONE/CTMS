@@ -28,7 +28,11 @@ describe("CTMS-052 worker and dependency wiring", () => {
 		package_id: null,
 	};
 	const jobs = { claim: jest.fn(), heartbeat: jest.fn().mockResolvedValue(true), fail: jest.fn() };
-	const packages = { generate: jest.fn(), cleanupOrphans: jest.fn() };
+	const packages = {
+		generate: jest.fn(),
+		dispatchPendingImpacts: jest.fn(),
+		cleanupOrphans: jest.fn(),
+	};
 	const worker = new OfflinePackagesWorker(
 		new ConfigService({ OFFLINE_PACKAGE_WORKER_ENABLED: "false" }),
 		jobs as unknown as OfflinePackagesRepository,

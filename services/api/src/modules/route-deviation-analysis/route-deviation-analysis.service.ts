@@ -99,7 +99,8 @@ export class RouteDeviationAnalysisService {
 
 			const samples = await this.repository.findSamples(manager, tripId);
 			const excluded: Record<string, number> = {};
-			const groups = new Map<string, StoredGpsSample[]>();
+			const groups: StoredGpsSample[][] = [];
+			const activeGroups = new Map<string, StoredGpsSample[]>();
 			const participants = new Map<string, Participant | null>();
 			for (const sample of samples) {
 				const key = `${sample.userId}:${sample.participantRole}`;
@@ -110,16 +111,30 @@ export class RouteDeviationAnalysisService {
 					);
 				}
 				const reason = this.exclusion(trip, participants.get(key) ?? null, sample);
-				if (reason) {
-					excluded[reason] = (excluded[reason] ?? 0) + 1;
+				if (reason || sample.missingPackageGeometry) {
+					const label = reason ?? RouteDeviationExclusionReason.PACKAGE_GEOMETRY_UNAVAILABLE;
+					excluded[label] = (excluded[label] ?? 0) + 1;
+					if (sample.missingPackageGeometry) activeGroups.delete(key);
 					continue;
 				}
-				groups.set(key, [...(groups.get(key) ?? []), sample]);
+				const current = activeGroups.get(key);
+				const previous = current?.[0];
+				if (
+					current &&
+					previous?.packageRoute?.routeVersion === sample.packageRoute?.routeVersion &&
+					(previous?.packageRoute == null || previous.packageVersion === sample.packageVersion)
+				) {
+					current.push(sample);
+				} else {
+					const group = [sample];
+					groups.push(group);
+					activeGroups.set(key, group);
+				}
 			}
 
 			const events: NewRouteDeviationEvent[] = [];
-			for (const group of groups.values()) {
-				const { userId, participantRole } = group[0];
+			for (const group of groups) {
+				const { userId, participantRole, packageRoute, packageVersion: recordedVersion } = group[0];
 				for (const episode of replayRouteDeviation(group.map(toReplaySample))) {
 					const summary = summarizeEpisode(episode);
 					const last = episode.recoveryConfirm ?? episode.end;
@@ -129,15 +144,18 @@ export class RouteDeviationAnalysisService {
 						tripId,
 						userId,
 						new Date(episode.start.eventTime.getTime() - margin),
-						new Date(last.eventTime.getTime() + margin)
+						new Date(last.eventTime.getTime() + margin),
+						packageRoute && recordedVersion
+							? { packageVersion: recordedVersion, routeVersion: packageRoute.routeVersion }
+							: undefined
 					);
 					const { packageVersion, issues } = packageContext(summary.packageVersions, trip);
 					events.push({
 						analysisVersion: ROUTE_DEVIATION_ANALYSIS_VERSION,
 						configVersion: ROUTE_DEVIATION_RUNTIME_CONTEXT.configVersion,
 						tripId,
-						routeId: trip.routeId,
-						routeVersion: trip.routeVersion,
+						routeId: packageRoute?.routeId ?? trip.routeId,
+						routeVersion: packageRoute?.routeVersion ?? trip.routeVersion,
 						packageVersion,
 						userId,
 						participantRole,
@@ -173,9 +191,11 @@ export class RouteDeviationAnalysisService {
 					routeId: trip.routeId,
 					routeVersion: trip.routeVersion,
 					runtimeContext: { ...ROUTE_DEVIATION_RUNTIME_CONTEXT },
-					participants: groups.size,
+					participants: new Set(
+						groups.map(([sample]) => `${sample.userId}:${sample.participantRole}`)
+					).size,
 					samplesTotal: samples.length,
-					samplesUsed: [...groups.values()].reduce((sum, group) => sum + group.length, 0),
+					samplesUsed: groups.reduce((sum, group) => sum + group.length, 0),
 					samplesExcluded: excluded,
 					triggeredBy,
 					analyzedAt: now,

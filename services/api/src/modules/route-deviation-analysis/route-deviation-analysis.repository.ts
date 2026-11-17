@@ -2,6 +2,9 @@ import { Injectable } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { DataSource, type EntityManager } from "typeorm";
 import type { GpsParticipantRole } from "../gps-tracking/gps-tracking.enums";
+// biome-ignore lint/style/useImportType: Nest injection
+import { OfflinePackagesService } from "../offline-packages/offline-packages.service";
+import { PackageFailure, type PackageMetadata } from "../offline-packages/offline-packages.types";
 import { TripStatus } from "../trips/entities/trip.entity";
 
 export interface AnalysisTrip {
@@ -27,6 +30,8 @@ export interface StoredGpsSample {
 	lat: number;
 	routeFraction: number;
 	packageVersion: string | null;
+	packageRoute: { routeId: string; routeVersion: string } | null;
+	missingPackageGeometry: boolean;
 }
 
 export interface NewTripAnalysis {
@@ -109,7 +114,10 @@ export interface TripAnalysisRow extends Omit<NewTripAnalysis, "triggeredBy"> {
 /** CTMS-115: reads raw evidence (never writes it) and stores the derived episodes. */
 @Injectable()
 export class RouteDeviationAnalysisRepository {
-	constructor(private readonly dataSource: DataSource) {}
+	constructor(
+		private readonly dataSource: DataSource,
+		private readonly packages: OfflinePackagesService
+	) {}
 
 	transaction<T>(work: (manager: EntityManager) => Promise<T>): Promise<T> {
 		return this.dataSource.transaction(work);
@@ -163,21 +171,58 @@ export class RouteDeviationAnalysisRepository {
 		return rows.length > 0;
 	}
 
-	/** Every stored log of the Trip with its distance (metres) and position along the Route. */
+	private async recordedPackageRoutes(manager: EntityManager, tripId: string) {
+		const rows: PackageMetadata[] = await manager.query(
+			`SELECT p.* FROM offline_packages p WHERE p.trip_id=$1 AND EXISTS(
+			 SELECT 1 FROM gps_logs log WHERE log.trip_id=p.trip_id
+			 AND log.package_version=p.package_version::text)`,
+			[tripId]
+		);
+		return Promise.all(
+			rows.map(async (p) => {
+				let geometry = null;
+				try {
+					geometry = await this.packages.readSnapshotRoute(p);
+				} catch (error) {
+					if (!(error instanceof PackageFailure)) throw error;
+				}
+				return {
+					version: p.package_version.toString(),
+					geometry,
+					route_id: p.manifest?.route?.routeId,
+					route_version: p.manifest?.route?.fingerprint,
+				};
+			})
+		);
+	}
+
+	/** Distance and position are computed against the original package geometry when recorded. */
 	async findSamples(manager: EntityManager, tripId: string): Promise<StoredGpsSample[]> {
+		const packages = await this.recordedPackageRoutes(manager, tripId);
 		const rows = (await manager.query(
-			`SELECT log."id", log."user_id" AS "userId", log."participant_role" AS "participantRole",
+			`WITH package_routes AS (
+			   SELECT version, route_id, route_version, ST_GeomFromGeoJSON(geometry) AS geom
+			   FROM jsonb_to_recordset($2::jsonb) AS p(version text, route_id text, route_version text, geometry jsonb)
+			 )
+			 SELECT log."id", log."user_id" AS "userId", log."participant_role" AS "participantRole",
 			        log."event_time" AS "eventTime", log."accuracy_meters" AS "accuracyMeters",
-			        ST_Distance(log."location", route."route_geom") AS "distanceMeters",
+			        ST_Distance(log."location", active_route.geom::geography) AS "distanceMeters",
 			        ST_X(log."location"::geometry) AS "lng", ST_Y(log."location"::geometry) AS "lat",
-			        ST_LineLocatePoint(route."route_geom"::geometry, log."location"::geometry) AS "routeFraction",
-			        log."package_version" AS "packageVersion"
+			        ST_LineLocatePoint(active_route.geom,log."location"::geometry) AS "routeFraction",
+			        log."package_version" AS "packageVersion",
+			        CASE WHEN p.geom IS NOT NULL THEN
+			          jsonb_build_object('routeId',p.route_id,'routeVersion',p.route_version) END AS "packageRoute",
+			        (p.version IS NOT NULL AND p.geom IS NULL) AS "missingPackageGeometry"
 			 FROM "gps_logs" log
 			 INNER JOIN "trips" trip ON trip."id" = log."trip_id"
 			 INNER JOIN "trekking_routes" route ON route."id" = trip."route_id"
+			 LEFT JOIN package_routes p ON p.version=log.package_version
+			 CROSS JOIN LATERAL (
+			  SELECT CASE WHEN p.version IS NULL THEN route.route_geom::geometry ELSE p.geom END AS geom
+			 ) active_route
 			 WHERE log."trip_id" = $1
 			 ORDER BY log."user_id", log."event_time", log."id"`,
-			[tripId]
+			[tripId, JSON.stringify(packages)]
 		)) as StoredGpsSample[];
 		return rows.map((row) => ({
 			...row,
@@ -196,15 +241,24 @@ export class RouteDeviationAnalysisRepository {
 		tripId: string,
 		userId: string,
 		from: Date,
-		to: Date
+		to: Date,
+		packageContext?: { packageVersion: string; routeVersion: string }
 	): Promise<string[]> {
 		const rows = (await manager.query(
 			`SELECT "id" FROM "safety_events"
 			 WHERE "trip_id" = $1 AND "user_id" = $2
 			   AND "event_type" IN ('OFF_ROUTE', 'ON_ROUTE_RECOVERED')
 			   AND "event_time" BETWEEN $3 AND $4
+			   AND ($5::text IS NULL OR ("package_version"=$5 AND "route_version"=$6))
 			 ORDER BY "event_time", "id"`,
-			[tripId, userId, from, to]
+			[
+				tripId,
+				userId,
+				from,
+				to,
+				packageContext?.packageVersion ?? null,
+				packageContext?.routeVersion ?? null,
+			]
 		)) as Array<{ id: string }>;
 		return rows.map((row) => row.id);
 	}

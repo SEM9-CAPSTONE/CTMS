@@ -19,9 +19,15 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../auth/jwt.strategy";
 // biome-ignore lint/style/useImportType: Nest injection metadata
 import { PackageActivationService } from "../offline-packages/package-activation.service";
+// biome-ignore lint/style/useImportType: Nest injection
+import { PackageCamperPreparationService } from "../offline-packages/package-camper-preparation.service";
 import { UserRole } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: ValidationPipe runtime metadata
-import { PackageDeviceQueryDto, PackageDeviceReportDto } from "./package-freshness.dto";
+import {
+	CamperPreparationAcknowledgementDto,
+	PackageDeviceQueryDto,
+	PackageDeviceReportDto,
+} from "./package-freshness.dto";
 
 const validation = new ValidationPipe({
 	transform: true,
@@ -38,7 +44,32 @@ const tripIdPipe = new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESS
 @ApiResponse({ status: 404, description: "Trip absent or participation unavailable" })
 @ApiResponse({ status: 409, description: "Stable package policy reason code" })
 export class PackageFreshnessController {
-	constructor(private readonly policy: PackageActivationService) {}
+	constructor(
+		private readonly policy: PackageActivationService,
+		private readonly preparation: PackageCamperPreparationService
+	) {}
+
+	@Get("camper-preparation")
+	@Roles(UserRole.CAMPER)
+	@Header("Cache-Control", "private, no-store")
+	camperPreparation(
+		@CurrentUser() user: AuthenticatedUser,
+		@Param("tripId", tripIdPipe) tripId: string
+	) {
+		return this.preparation.read(tripId, user.userId);
+	}
+
+	@Post("camper-preparation")
+	@Roles(UserRole.CAMPER)
+	@Header("Cache-Control", "private, no-store")
+	acknowledgeOfflineLimitations(
+		@CurrentUser() user: AuthenticatedUser,
+		@Param("tripId", tripIdPipe) tripId: string,
+		@Body(validation) body: CamperPreparationAcknowledgementDto
+	) {
+		return this.preparation.confirm(tripId, user.userId, body.packageId, body.policyVersion);
+	}
+
 	@Get("departure-status")
 	@Header("Cache-Control", "private, no-store")
 	@Roles(UserRole.HOST, UserRole.CAMPER, UserRole.PORTER)
