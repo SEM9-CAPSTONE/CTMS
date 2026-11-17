@@ -59,6 +59,12 @@ describe("CTMS-050 HTTP E2E with real login", () => {
 		expect(doc.versions[0].rights.offlineRedistributionAllowed).toBe(false);
 		expect(doc.versions[0].reviewedBy).toBeNull();
 		const chunkSets = `${endpoint}/${doc.id}/versions/${id}/chunk-sets`;
+		await request(app.getHttpServer()).post(chunkSets).set("Authorization", bearer).expect(404);
+		await request(app.getHttpServer())
+			.post(`${endpoint}/${doc.id}/versions/${id}/approve-processing`)
+			.set("Authorization", bearer)
+			.send({ expectedRevision: doc.versions[0].revision })
+			.expect(404);
 		const repo = app.get(KnowledgeChunksRepository);
 		const provider = app.get(KnowledgeChunksProvider);
 		const [event]: Array<{ id: string; payload: { regenerationNeeded: boolean } }> =

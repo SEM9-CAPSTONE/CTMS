@@ -11,20 +11,20 @@ import {
 	type SourceVersion,
 } from "./survival-documents.types";
 
-export const SOURCE_NOT_APPROVED = "Nguồn PDF chưa được xác nhận để xử lý cho Trợ lý AI.";
+const SOURCE_NOT_APPROVED =
+	"Nguồn PDF chưa được xác nhận. Cần dùng nguồn chính thức hoặc bản PDF đã được xác minh.";
 
-type SourceApproval = Pick<SourceVersion, "metadata" | "checksum" | "processingApprovedAt">;
+type SourceIdentity = Pick<SourceVersion, "metadata" | "checksum"> &
+	Partial<Pick<SourceVersion, "rights" | "reviewedBy" | "reviewedAt">>;
 
-export function assertApprovedSource(source: SourceApproval): void {
+export function isConfiguredKnowledgeSource(
+	source: Pick<SourceVersion, "metadata" | "checksum">
+): boolean {
 	const checksums = (process.env.SURVIVAL_KNOWLEDGE_APPROVED_SHA256 ?? "")
 		.trim()
 		.toLowerCase()
 		.split(/\s*,\s*/);
-	if (
-		/^[a-f0-9]{64}$/.test(source.checksum) &&
-		(source.processingApprovedAt || checksums.includes(source.checksum))
-	)
-		return;
+	if (/^[a-f0-9]{64}$/.test(source.checksum) && checksums.includes(source.checksum)) return true;
 	const sourceUrl = source.metadata.sourceUrl;
 	if (sourceUrl) {
 		const url = new URL(sourceUrl);
@@ -40,7 +40,17 @@ export function assertApprovedSource(source: SourceApproval): void {
 			!url.port &&
 			hosts.includes(host)
 		)
-			return;
+			return true;
+	}
+	return false;
+}
+
+export function assertApprovedSource(source: SourceIdentity): void {
+	if (isConfiguredKnowledgeSource(source)) return;
+	if (source.reviewedBy && source.reviewedAt && source.rights) {
+		validatePublicationMetadata(source.metadata);
+		assertRights(source.metadata, source.rights);
+		return;
 	}
 	throw invalidSource(SOURCE_NOT_APPROVED);
 }

@@ -80,7 +80,7 @@ export interface SourceVersion extends StoredSourceFile {
 	reviewedAt: string | null;
 	publishedBy: string | null;
 	publishedAt: string | null;
-	processingApprovedAt: string | null;
+	processingApprovedAt?: string | null;
 	reason: string | null;
 }
 export interface SurvivalDocument {

@@ -32,6 +32,20 @@ def test_authentication_and_configuration_required(monkeypatch):
     assert client.post("/knowledge-chunks", headers={"X-CTMS-Knowledge-Token": "wrong"}, json=payload()).status_code == 401
     monkeypatch.delenv("KNOWLEDGE_SERVICE_TOKEN")
     assert client.post("/knowledge-chunks", json=payload()).status_code == 503
+    assert client.get("/readiness").status_code == 503
+
+
+def test_readiness_checks_authentication_without_loading_the_model():
+    assert client.get("/readiness").status_code == 401
+    response = client.get("/readiness", headers={"X-CTMS-Knowledge-Token": "test-token"})
+    assert response.status_code == 204
+    assert not response.content
+
+
+def test_read_error_returns_a_stable_issue():
+    response = client.post("/knowledge-chunks", headers={"X-CTMS-Knowledge-Token": "test-token"}, json=payload())
+    assert response.status_code == 422
+    assert response.json()["detail"] == {"code": "invalid_pdf", "issue": "pdf_text_read_failed"}
 
 
 def test_rejects_configuration_drift_before_processing():

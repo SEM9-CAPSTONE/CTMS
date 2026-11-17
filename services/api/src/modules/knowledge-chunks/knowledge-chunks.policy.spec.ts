@@ -16,6 +16,7 @@ describe("CTMS-051 worker response validation", () => {
 		config_hash: "hash",
 		status: ChunkSetStatus.RUNNING,
 		attempts: 1,
+		recovery_round: 0,
 		lease_token: "token",
 	};
 	const output = (): ChunkOutput => ({

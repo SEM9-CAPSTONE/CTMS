@@ -44,6 +44,16 @@ const translationFields: MetadataField[] = [
 	{ name: "originalVersionId", label: "Mã phiên bản gốc" },
 	{ name: "adaptationDisclaimer", label: "Thông báo bản dịch hoặc chuyển thể", long: true },
 ];
+const permissionFields: MetadataField[] = [
+	{ name: "licenseType", label: "Giấy phép sử dụng" },
+	{ name: "attribution", label: "Thông tin ghi công" },
+	{
+		name: "permissionEvidence",
+		label: "Minh chứng nguồn và quyền sử dụng",
+		placeholder: "Ghi cách đã xác minh bản PDF và căn cứ được phép dùng nội dung cho trợ lý.",
+		long: true,
+	},
+];
 
 const DISCLOSURE_STYLE = "group rounded-xl border border-[#dfe8df]";
 const SUMMARY_STYLE =
@@ -68,6 +78,7 @@ export function DocumentMetadataDetails({
 	const supplementary = includeSourceUrl ? [publisherField, sourceUrlField] : [publisherField];
 	const provenance = translated ? [...provenanceFields, ...translationFields] : provenanceFields;
 	const provenanceError = editing && provenance.some(({ name }) => errors[name]);
+	const permissionError = permissionFields.some(({ name }) => errors[name]);
 	const supplementaryError = [notesField, ...supplementary].some(({ name }) => errors[name]);
 	const renderField = ({ name, label, type, long, icon: Icon, placeholder }: MetadataField) => {
 		const registration = register(`metadata.${name}`);
@@ -99,7 +110,7 @@ export function DocumentMetadataDetails({
 	return (
 		<details
 			className={cn(DISCLOSURE_STYLE, "bg-[#f5f8f5]")}
-			open={supplementOpen || supplementaryError || provenanceError}
+			open={supplementOpen || supplementaryError || provenanceError || permissionError}
 			onToggle={(event) => setSupplementOpen(event.currentTarget.open)}
 		>
 			<summary className={SUMMARY_STYLE}>
@@ -111,6 +122,17 @@ export function DocumentMetadataDetails({
 					{supplementary.map(renderField)}
 					{renderField(notesField)}
 				</div>
+				<details
+					className="rounded-lg border border-[#dfe8df] bg-white"
+					open={permissionError || undefined}
+				>
+					<summary className="cursor-pointer px-3 py-2 text-sm font-semibold">
+						Nguồn và quyền sử dụng
+					</summary>
+					<div className="grid grid-cols-2 gap-3 px-3 pb-3">
+						{permissionFields.map(renderField)}
+					</div>
+				</details>
 				{editing && (
 					<details
 						className="rounded-lg border border-[#dfe8df] bg-white"

@@ -21,7 +21,7 @@ Out of scope: PDF UI/processing/embedding, RAG/chatbot, government ingestion/cra
 | GOVERNMENT hazard | Normalized source ID/version/reference, original validFrom/validUntil, active lifecycle, source verification, spatial match and a complete available feed run | 010 / safety ingestion |
 | FIELD_VERIFIED hazard | Above provenance plus independent authorized Host decision, decision version/evidence/time and valid expiry; rejected/revoked/unverified excluded | Proposed verification + promotion tasks |
 | HOST_DEFINED / FIELD_OBSERVATION / RESOURCE / historical | Not eligible as verified package hazard; preview behavior retained | Existing Route Safety |
-| Guidance | Current PUBLISHED version (BR-227) that meets source eligibility (BR-484), active READY chunk set with matching checksum, complete steps/warnings and pages, approved applicability/taxonomy and complete coverage | 050/051 + proposed guidance approval task |
+| Guidance | Current PUBLISHED version (BR-227) that meets source eligibility (BR-484, BR-535 through BR-537) and offline source configuration (BR-546), active READY chunk set with matching checksum, complete steps/warnings and pages, approved applicability/taxonomy and complete coverage | 050/051 + proposed guidance approval task |
 
 Incident `resolved/closed` never implies Host verification. Official successful EMPTY means NO_ACTIVE_ALERT at checkedAt, not SAFE; unavailable/partial/stale is UNKNOWN/STALE and blocks a required source. No fetchedAt-derived renewal of provider expiry. Policy filters run before any optional retrieval/ranking. No AI similarity or PDF classification is approval. UNKNOWN context is explicit; proximity to water cannot establish river crossing. Baseline/condition/hazard coverage topics and mandatory evidence come from a versioned approved upstream policy, never guessed by the generator.
 
@@ -103,6 +103,7 @@ Required Route/Trip/safety sources must exist.
 | BR-230 | When sharing_consent is withdrawn, the server must immediately terminate access to medical data. Any downloaded Offline Safety Package containing medical data must be marked invalid/outdated for the sensitive portion; at the next sync/connectivity opportunity, the client must purge or lock that medical data and must no longer treat the local copy as authorized for use. |
 | BR-365 | An Offline Safety Package used for safety must contain all data needed for local detection within the enabled feature scope, including at minimum the applicable Route geometry, monitored Checkpoints, required hazard/safety metadata, and package metadata/version. The client must not depend on the server to read this data while offline.                                    |
 | BR-428 | Package generation must accurately snapshot or reference the versions of all required authoritative inputs. Storing only a generic package version is insufficient if it does not allow the exact Route, Checkpoint, and hazard state included in the package to be identified for audit.                                                                                           |
+| BR-546 | Offline guidance can use only sources with a configured exact HTTPS hostname or PDF SHA-256. |
 | BR-212 | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                                                                                                                                               |
 | BR-213 | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                                                                                                                                                        |
 
@@ -169,6 +170,7 @@ TBD — Technical Design.
 
 | Scenario | Expected |
 | --- | --- |
+| Configured and unlisted sources with matching READY knowledge and approved guidance (BR-546) | Eligible configured guidance can be packaged. Unlisted guidance is excluded. |
 | Published Trip | Package can be generated |
 | Non-published Trip | Rejected |
 | Inspect package | Required safety components present |

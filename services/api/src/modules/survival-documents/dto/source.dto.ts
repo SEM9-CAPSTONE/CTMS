@@ -161,7 +161,8 @@ export class SourceRightsDto {
 	@ApiProperty() @Transform(trim) @IsString() @MinLength(10) @MaxLength(5000) evidence!: string;
 }
 export class PublishSourceDto extends RevisionDto {
-	@ApiPropertyOptional()
+	/** Accepted for compatibility with older clients; source eligibility is evaluated independently. */
+	@ApiPropertyOptional({ deprecated: true })
 	@IsOptional()
 	@IsBoolean()
 	approveProcessing?: boolean;

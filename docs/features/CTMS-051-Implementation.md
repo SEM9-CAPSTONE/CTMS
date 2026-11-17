@@ -5,7 +5,7 @@ CTMS-051 converts current eligible survival-document PDFs into ordered, traceabl
 ## Processing and configuration
 
 1. The NestJS worker consumes `survival_document_outbox` through its own receipts, checks current publication and CTMS-050 source eligibility, and creates one set per `(document_version_id, config_hash)`.
-2. PostgreSQL `FOR UPDATE SKIP LOCKED` assigns one job with a random lease token. A 120-second lease renews every 20 seconds. Transient HTTP/transport errors retry after 30 seconds, up to three attempts. Worker restarts recover expired claims. A completion must own the current, unexpired token.
+2. PostgreSQL `FOR UPDATE SKIP LOCKED` assigns one job with a random lease token. A 120-second lease renews every 20 seconds. Transient failures and expired claims retry after 30 and 60 seconds. After three attempts, exhausted technical jobs wait for an authenticated service probe and a cooldown before entering up to two recovery rounds (15 and 60 minutes). Retry counters and deadlines persist across restarts. A completion must own the current, unexpired token.
 3. `SurvivalSourceReader` supplies verified private PDF bytes and source metadata. The Python worker checks SHA-256 before parsing. The internal request has a 10-minute timeout; the API renews the lease while waiting.
 4. Docling identifies headings, paragraphs, lists and tables. `HybridChunker` splits oversized units and merges adjacent peers with the same heading/caption. Page breaks are provenance, not chunk boundaries.
 5. Embedding input is `passage: <document title>\n<heading context and original chunk content>`. Raw chunk content is stored separately. No LLM decides boundaries or invents context. The pinned E5 tokenizer counts the complete embedding input, including title, prefix and special tokens, against a 480-token budget.
@@ -23,7 +23,7 @@ Every extracted body item's words must survive serialization/chunking, scoped by
 
 Blocking issues include partial conversion, page-count mismatch, available parse/table confidence below 0.8, layout confidence below 0.5 (Docling's poor region-classification grade), missing PDF locations, empty/oversize chunks, missing extracted text, missing native safety text, tables without verified headers, visual/formula content, and fragmented ordered procedures or their critical context. Fair layout confidence still requires independent text coverage and all structure gates to pass; it is not itself a text-loss score. A quality failure returns `NEEDS_REVIEW`, issues and zero chunks; no embedding is generated or activated.
 
-OCR is disabled in this first release. Pages without independently extractable text, including scanned or blank pages, produce `page_text_unverifiable`. These documents need a corrected/searchable source and reprocessing. Long procedures that cannot fit safely are also blocked. Retrying an unchanged deficient source repeats the report; correcting it normally means uploading/publishing a new PDF version. There is no override that silently approves incomplete text.
+OCR is disabled in this first release. Pages without independently extractable text, including scanned or blank pages, produce `page_text_unverifiable`. Long procedures that cannot fit safely are also blocked. Quality issue codes retain the observed cause where possible, such as encryption, unverifiable text, missing coverage or fragmented procedures. The same source and configuration retain the quality outcome. A corrected source version or changed pipeline configuration receives a fresh validation.
 
 These checks cannot prove that an original PDF or its parsed layout is correct. Real survival PDFs still require corpus evaluation and professional source review, especially for medical material.
 
@@ -34,21 +34,21 @@ These checks cannot prove that an original PDF or its parsed layout is correct. 
 | `PENDING` | Awaiting a claim or transient retry. |
 | `RUNNING` | One fenced lease owns processing. |
 | `READY` | All validated chunks and embeddings committed together. |
-| `NEEDS_REVIEW` | Extraction cannot establish adequate coverage/structure; issue codes remain visible to Admin. |
-| `FAILED` | Permanent technical error or exhausted attempts. Admin may retry when the cause is resolved. |
+| `NEEDS_REVIEW` | Extraction cannot establish adequate coverage or structure. Admin sees a summary derived from the stored issue codes. |
+| `FAILED` | Permanent technical error or exhausted attempts. The recovery indicator shows whether another automatic round remains. |
 | `OBSOLETE` | Source lost eligibility before completion. Process the newer authoritative version instead. |
 
 V2 builds independently of V1. Existing chunks retain their exact source version. The active pointer changes only in the successful V2 transaction. `readCurrent(documentId)` checks current source eligibility, version, checksum, locale and count. Readers return an empty result while a newly published replacement is still being built.
 
-Eligible publication queues ingestion. Manual requests use the same policy. Archive, supersession and deletion fence in-flight completions. Whole-document deletion cascades derived rows, and CTMS-050 retains audit and outbox history. Scheduled cleanup only removes superseded derived sets after an eligible active replacement has been READY for the retention period. See the [CTMS-051 specification](../../file/spec/ctms-51-split-documents-into-knowledge-chunks.md) for retention and test backfill.
+Eligible publication queues ingestion. Background reconciliation revisits current eligible publications missing a set for the current configuration. Archive, supersession and deletion fence in-flight completions. Whole-document deletion cascades derived rows, and CTMS-050 retains audit and outbox history. Scheduled cleanup only removes superseded derived sets after an eligible active replacement has been READY for the retention period. See the [CTMS-051 specification](../../file/spec/ctms-51-split-documents-into-knowledge-chunks.md) for retention and test reconciliation.
 
 ## Data dictionary
 
-Migration: `1794100000000-CreateKnowledgeChunks.ts`. It requires the current CTMS-050 migrations and is applied by the existing TypeORM migration runner.
+Migrations: `1794100000000-CreateKnowledgeChunks.ts` and `1796900000000-TrackKnowledgeIngestionRecovery.ts`. The forward recovery migration preserves chunk data, marks unfinished obsolete jobs and classifies previously exhausted failures as recoverable only for recognized technical codes.
 
 | Table | Stored data and invariants |
 | --- | --- |
-| `knowledge_chunk_sets` | UUID, document UUID, exact document-version UUID, numbered source version, SHA-256, locale, configuration JSON/hash, state, attempt counter, retry time, fenced lease, quality report, count and timestamps. Unique `(document_version_id, config_hash)` makes automatic delivery and requests idempotent. Composite source FK binds document/version. |
+| `knowledge_chunk_sets` | UUID, document UUID, exact document-version UUID, numbered source version, SHA-256, locale, configuration JSON/hash, state, attempt counter within the current round, retryable-failure flag, recovery round, next attempt time, fenced lease, quality report, count and timestamps. Unique `(document_version_id, config_hash)` makes delivery and reconciliation idempotent. Composite source FK binds document/version. |
 | `knowledge_chunks` | UUID, chunk-set UUID, exact version UUID, numbered source version, locale, contiguous zero-based index, original content, contextual embedding text, metadata JSON and `double precision[]` vector. Composite FK requires each chunk's set/version/source-version/locale to agree with its set; indexes are unique within a set. Metadata includes heading path, original page/item/bounding boxes, token count and source title. Model identity and checksum are inherited from the immutable set. |
 | `knowledge_chunk_publications` | One document → one complete active chunk set. Composite FK prevents linking another document's set. Application transactions require READY and current-source eligibility; consumers recheck eligibility. |
 | `knowledge_chunk_event_receipts` | CTMS-051-specific unique outbox event UUID and consumed timestamp. Other downstream consumers retain independent delivery tracking. |
@@ -57,15 +57,13 @@ Vectors use ordinary PostgreSQL arrays so pgvector is not required for ingestion
 
 ## API contracts
 
-`GET /api/admin/survival-documents/:documentId/versions/:versionId/chunk-sets` returns exact-version summaries with status, attempts, quality report, configuration, chunk count and timestamps. It excludes lease tokens. Unknown document/version pairs return 404 `KNOWLEDGE_SOURCE_NOT_FOUND`.
+`GET /api/admin/survival-documents/:documentId/versions/:versionId/chunk-sets` requires an active Admin and returns exact-version summaries with status, attempts, recovery indicator, quality report, configuration, chunk count and timestamps. It excludes lease tokens. Unknown document/version pairs return 404 `KNOWLEDGE_SOURCE_NOT_FOUND`. The former mutation route returns 404.
 
-`POST` at the same route returns HTTP 202. Eligible new work is queued. READY or in-flight requests return the existing set; FAILED/NEEDS_REVIEW resets attempts and queues that same configuration. It rejects ineligible/missing sources with 409 `KNOWLEDGE_SOURCE_INELIGIBLE`. Both routes require an active Admin; unauthenticated/non-Admin requests return 401/403. There is no request-body configuration override.
-
-The Python service exposes `POST /knowledge-chunks`, authenticated with `X-CTMS-Knowledge-Token`, and an inexpensive `/health` endpoint. Payload contains `document_version_id`, `source_version`, `checksum`, `locale`, `title`, fixed `configuration`, and `pdf_base64`. Limits are 50 MiB decoded PDF, 1,000 pages and 10,000 chunks. Missing service configuration returns 503; invalid token 401; invalid PDF/configuration 422; technical or malformed embedding failures 502. Error responses do not include source text. Python output is independently validated in NestJS before persistence.
+The Python service exposes `POST /knowledge-chunks` and `GET /readiness`, authenticated with `X-CTMS-Knowledge-Token`. The readiness probe verifies connectivity and authentication without loading the model. Docker checks liveness on `/health`. The ingestion payload contains `document_version_id`, `source_version`, `checksum`, `locale`, `title`, fixed `configuration`, and `pdf_base64`. Limits are 50 MiB decoded PDF, 1,000 pages and 10,000 chunks. Invalid PDF/configuration returns 422. PDF read failures can include an allowlisted issue code without source text. NestJS independently validates Python output before persistence.
 
 ## Run and verify
 
-Configure the same nonempty `KNOWLEDGE_SERVICE_TOKEN` for API and ingestion. API uses `KNOWLEDGE_SERVICE_URL` (locally `http://localhost:8001`, Compose `http://ingestion:8001`). `KNOWLEDGE_WORKER_ENABLED` defaults to true outside tests. The dedicated ingestion image isolates heavy Python/model dependencies from existing weather and review services. Compose binds port 8001 to localhost and caches model artifacts in `knowledge-model-cache`.
+`pnpm dev:quick` starts PostgreSQL, Redis, Adminer, AI and Ingestion in Docker, then API and web locally. Before starting, set `KNOWLEDGE_SERVICE_URL=http://localhost:8001` and a nonempty `KNOWLEDGE_SERVICE_TOKEN` in the repository root `.env` so the local API and Ingestion share the same token. API in Compose uses `http://ingestion:8001`. `KNOWLEDGE_WORKER_ENABLED` defaults to true outside tests. Compose binds port 8001 to localhost and caches model artifacts in `knowledge-model-cache`.
 
 ```powershell
 docker compose up -d --build ingestion api
@@ -103,13 +101,26 @@ Run PostgreSQL integration/E2E tests against the isolated test service. From the
 docker compose -f docker-compose.test.yml up -d --wait
 $env:TEST_DATABASE_URL='postgresql://ctms:ctms@127.0.0.1:55451/ctms_test'
 
-pnpm --filter @ctms/api exec jest --runInBand knowledge-chunks
-pnpm --filter @ctms/api exec jest --config test/jest-integration.json --runInBand knowledge-chunks.integration-spec.ts survival-documents.integration-spec.ts
-pnpm --filter @ctms/api exec jest --config test/jest-e2e.json --runInBand survival-documents.e2e-spec.ts
+Push-Location services/api
+$testFiles = Get-ChildItem src/modules/knowledge-chunks,src/modules/survival-documents,src/modules/rag,src/modules/offline-packages -Recurse -Filter '*.spec.ts' | ForEach-Object FullName
+.\node_modules\.bin\jest.cmd --runInBand --runTestsByPath @testFiles
+.\node_modules\.bin\jest.cmd --config test/jest-integration.json --runInBand --runTestsByPath test/knowledge-chunks.integration-spec.ts test/survival-documents.integration-spec.ts test/offline-packages.integration-spec.ts test/package-activation.integration-spec.ts
+.\node_modules\.bin\jest.cmd --config test/jest-e2e.json --runInBand --runTestsByPath test/survival-documents.e2e-spec.ts test/ai-answers.e2e-spec.ts test/offline-packages.e2e-spec.ts
+Pop-Location
+
+Push-Location apps/web
+.\node_modules\.bin\vitest.cmd run src/features/survival-documents
+Pop-Location
 
 Push-Location services/ai
-..\..\.venv-ingestion\Scripts\python.exe -m pytest app/test_knowledge_chunking.py app/test_knowledge_api.py app/test_knowledge_recall.py -q
+..\..\.venv-ingestion\Scripts\python.exe -B -m pytest -q -p no:cacheprovider app/test_knowledge_api.py app/test_knowledge_chunking.py app/test_rag_knowledge_api.py app/test_knowledge_recall.py
 Pop-Location
+```
+
+For chunking, recall and checksum checks without the Python HTTP client, run from `services/ai`:
+
+```powershell
+..\..\.venv-ingestion\Scripts\python.exe -B -m pytest -q -p no:cacheprovider app/test_knowledge_chunking.py app/test_knowledge_recall.py app/test_knowledge_api.py::test_checksum_or_invalid_pdf_rejected_before_loading_models
 ```
 
 `docker-compose.test.yml` uses a separate Compose project, localhost port 55451 and disposable in-memory storage. It never mounts the application's `postgres-data` volume. Test data is recreated after restarting the container. `TEST_DATABASE_URL` must remain set in the terminal running Jest; setting it only in the root `.env` does not configure Jest's database setup. The existing test guards still require the database name to end in `_test`.

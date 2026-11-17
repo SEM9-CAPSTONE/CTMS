@@ -12,6 +12,7 @@ if (!databaseName.endsWith("_test")) {
 }
 
 process.env.NODE_ENV = "test";
+process.env.KNOWLEDGE_WORKER_ENABLED = "false";
 process.env.TRIP_STATUS_WORKER_ENABLED = "false";
 process.env.TRIP_WEATHER_MONITOR_WORKER_ENABLED = "false";
 process.env.TRIP_WEATHER_DECISION_WORKER_ENABLED = "false";

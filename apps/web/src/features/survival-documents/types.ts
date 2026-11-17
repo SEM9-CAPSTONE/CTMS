@@ -69,7 +69,6 @@ export interface DocumentListItem extends SurvivalDocument {
 }
 export interface DocumentDetail extends SurvivalDocument {
 	processingBlockedReason?: string | null;
-	canApproveProcessing?: boolean;
 	versions: SourceVersion[];
 	history: Array<{
 		id: string;
@@ -90,10 +89,9 @@ export interface SourceFilters {
 	locale?: string;
 	status?: DocumentStatus;
 }
-export type SourceAction = "publish" | "approve-processing" | "archive";
+export type SourceAction = "publish" | "archive";
 export interface SourceDecision {
 	expectedRevision: number;
-	approveProcessing?: boolean;
 	reason?: string;
 	rights?: SourceRights;
 }
@@ -110,5 +108,6 @@ export interface SourceChunkSet {
 	active: boolean;
 	chunk_count: number;
 	error_code: string | null;
+	automatic_recovery_pending: boolean;
 	quality_report: { issues: string[] } | null;
 }

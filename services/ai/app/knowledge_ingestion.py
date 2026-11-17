@@ -97,11 +97,17 @@ class KnowledgeIngestionService:
         from pypdf import PdfReader
         try:
             source = PdfReader(BytesIO(pdf), strict=True)
-            if source.is_encrypted or not 0 < len(source.pages) <= MAX_PAGES:
-                raise InvalidPdf("unsupported_pdf")
+            if source.is_encrypted:
+                raise InvalidPdf("pdf_encrypted")
+            if not source.pages:
+                raise InvalidPdf("pdf_no_pages")
+            if len(source.pages) > MAX_PAGES:
+                raise InvalidPdf("pdf_page_limit_exceeded")
             native_pages = [page.extract_text() or "" for page in source.pages]
+        except InvalidPdf:
+            raise
         except Exception as error:
-            raise InvalidPdf("unreadable_pdf") from error
+            raise InvalidPdf("pdf_text_read_failed") from error
 
         with self._lock:
             self._load()

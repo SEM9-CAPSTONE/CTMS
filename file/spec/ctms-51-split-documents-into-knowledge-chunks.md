@@ -39,7 +39,7 @@ Goal: Convert authoritative survival-document versions into traceable knowledge 
 - System / ingestion process.
 - Authorized knowledge-management workflow as upstream source.
 
-Only the current `PUBLISHED` version under CTMS-050 BR-227 that meets BR-484 source eligibility may be processed. The worker evaluates the source itself, including for events created before the policy change.
+Only the current `PUBLISHED` version under CTMS-050 BR-227 that meets BR-484 and BR-535 through BR-537 may be processed. The worker evaluates the source itself, including for historical events. Admin can inspect processing status.
 
 ## 4. Preconditions & Dependencies
 
@@ -53,7 +53,14 @@ A survival-document source/version exists.
 
 | BR         | Rule                                                                                                                                                                                                                                                   |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| BR-228     | Each knowledge chunk must store content, chunk_index, metadata, source_version, locale, and embedding. source_version must match the document version used to generate the chunk, and chunks must be reproducible when the source document is updated. |
+| BR-228     | Each knowledge chunk must store content, chunk_index, metadata, source_version, locale and embedding with the exact source version used to generate it. |
+| BR-539     | One document version and configuration identity may create at most one chunk set. |
+| BR-540     | Only the current, unexpired processing lease can complete a claimed chunk set. |
+| BR-541     | A chunk set becomes active only when the complete quality-validated result for the current eligible source commits. |
+| BR-542     | A transient technical failure retries with bounded exponential backoff and a persisted attempt counter. |
+| BR-543     | Exhausted technical work can automatically start a new bounded retry round only after its cooldown and a successful ingestion service probe. |
+| BR-544     | A deterministic quality failure prevents further automatic attempts for the same PDF version and configuration. |
+| BR-545     | Only the system can schedule or retry knowledge ingestion. |
 | BR-212     | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                  |
 | BR-213     | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                           |
 
@@ -61,7 +68,7 @@ A survival-document source/version exists.
 
 An eligible source version creates an idempotent `PENDING` chunk set. A worker claims it as `RUNNING` with a renewable, fenced lease. Successful extraction, quality validation and complete embeddings transition it to `READY`; chunk insertion and activation commit together.
 
-Other outcomes are `NEEDS_REVIEW` for incomplete/unverifiable extraction, `FAILED` for exhausted or permanent technical failures, and `OBSOLETE` when the source is superseded, archived or unavailable before completion. Transient failures return to `PENDING`, with at most three attempts. Explicit Admin retry requeues `FAILED`/`NEEDS_REVIEW` for an otherwise eligible source.
+Other outcomes are `NEEDS_REVIEW` for incomplete or unverifiable extraction, `FAILED` for exhausted or permanent technical failures, and `OBSOLETE` when the source is superseded, archived or unavailable before completion. Technical failures and expired leases have up to three attempts per round, with 30 and 60 seconds between attempts. A failed round can start up to two recovery rounds after cooldowns of 15 and 60 minutes. Recovery waits for an authenticated response from Ingestion and persists its round counter across restarts. Quality failures retain issue codes for the same PDF and configuration. A new published version or a changed pipeline configuration has its own eligibility and validation.
 
 Source update
 → new authoritative source version
@@ -73,7 +80,7 @@ V1 remains in history while V2 is generated separately. The active chunk-set poi
 
 The existing worker removes derived sets for superseded versions only after an eligible current active replacement has been READY for `KNOWLEDGE_CHUNK_RETENTION_DAYS` (default 7). Cleanup rechecks identity under the document lock, skips locked documents and leaves sets with restrictive live dependencies in place. Source files, version history and published package snapshots are retained.
 
-On a local PostgreSQL database ending in `_test`, run `pnpm --filter @ctms/api run knowledge:reconcile:test` with `TEST_DATABASE_URL` and the source list set. It considers only current published versions without any set, reports queued and skipped versions, and is safe to repeat. Use an isolated integration database for the disposable test suites.
+The worker periodically reconciles current eligible publications missing a set for the current configuration. It handles already-receipted events and newly verified historical sources. On an isolated local PostgreSQL database ending in `_test`, `pnpm --filter @ctms/api run knowledge:reconcile:test` with `TEST_DATABASE_URL` exercises the same reconciliation.
 
 ## 7. Business Flow
 
@@ -111,10 +118,9 @@ Admin endpoints require an active Admin session, under `/api/admin/survival-docu
 
 | Method | Result |
 | --- | --- |
-| `GET` | HTTP 200 with exact-version chunk-set summaries, state, attempts, quality issues, configuration and chunk count; HTTP 404 for an unknown document/version pair. |
-| `POST` | HTTP 202 with the idempotently queued or existing summary. Retries failed/review-needed eligible work; a READY/in-flight set is unchanged. HTTP 409 `KNOWLEDGE_SOURCE_INELIGIBLE` for nonexistent, draft, unverified, superseded or archived sources. |
+| `GET` | HTTP 200 with exact-version chunk-set summaries, state, attempts, automatic recovery indicator, quality issues, configuration and chunk count; HTTP 404 for an unknown document/version pair. |
 
-Publication and processing approval outbox events enqueue work automatically using consumer-specific receipts. The authenticated internal Python endpoint `POST /knowledge-chunks` accepts exact-version metadata, SHA-256, configuration and PDF bytes as base64. It returns complete chunks and embeddings or a blocking quality report with no chunks. No public retrieval or AI answering API is introduced.
+Publication events enqueue work automatically using consumer-specific receipts. The authenticated internal Python endpoint `POST /knowledge-chunks` accepts exact-version metadata, SHA-256, configuration and PDF bytes as base64. It returns complete chunks and embeddings or a blocking quality result. When the PDF reader cannot establish a page count, the stored quality report contains the issue and a null page count. The worker probes the authenticated `GET /readiness` endpoint before a new recovery round.
 
 ## 10. Error & Edge Cases
 
@@ -126,8 +132,8 @@ Publication and processing approval outbox events enqueue work automatically usi
 | Source updated during processing    | Prevent mixed-version chunk set.                |
 | Regeneration                        | New chunks reference new source version.        |
 | Missing warning/condition, uncertain table, missing location, low parse confidence | Mark `NEEDS_REVIEW`; do not activate or generate embeddings for incomplete extraction. |
-| Worker restart/lease expiration | Reclaim bounded attempts; expired worker tokens cannot complete another worker's job. |
-| Duplicate publication event/request | One chunk set for the same version/configuration. |
+| Worker restart/lease expiration | Schedule the next bounded attempt; expired worker tokens cannot finalize the job. |
+| Duplicate publication event | One chunk set for the same version/configuration. |
 | Source stop-use/deletion | Exclude from consumption immediately; document deletion cascades derived rows. |
 | Storage failure during completion | Roll back chunks, status and active pointer together. |
 
@@ -140,9 +146,14 @@ Publication and processing approval outbox events enqueue work automatically usi
 | BR-228 | Source v2 generated      | Chunks reference v2   |
 | BR-228 | Source changes           | Regeneration possible |
 | BR-228 | Concurrent source update | No mixed provenance   |
-| BR-228 | Concurrent enqueue/claim and lease recovery | One live claim; stale completions rejected |
-| BR-228 | Embedding/transaction failure | No partial READY set or activation |
-| BR-228 | Extraction omits critical content | Visible `NEEDS_REVIEW` report with no consumable chunks |
+| BR-534 | Eligible publication and a rejected publication | Automatic durable delivery only for the committed eligible version |
+| BR-539 | Replayed publication and concurrent consumers | One set for the exact version and configuration |
+| BR-540 | Two workers contend and an earlier lease expires | One live claim and stale completions rejected |
+| BR-541 | Complete extraction, failed replacement and transaction failure | Activate only the complete current set; exclude superseded or incomplete sets from retrieval |
+| BR-542 | Transport failure, expired lease and restart | Persist the next retry and observe backoff before the next claim |
+| BR-543 | Exhausted technical work while Ingestion is down, then up | Recovery waits for Ingestion and stops after the bounded rounds |
+| BR-544 | Extraction omits critical content and the publication event is replayed | Visible `NEEDS_REVIEW` issues and zero retries or consumable chunks |
+| BR-545 | Admin views status or attempts the retired mutation routes | Status reads succeed; manual processing mutations are unavailable |
 | BR-227, BR-485 | Archive or delete the source | No current consumption. Archival retains the source version and document deletion removes it. |
 
 ## 12. Technical Design and Evaluation
@@ -151,7 +162,7 @@ The implemented technical design uses Docling PDF parsing and `HybridChunker`, w
 
 The initial embedding model is the pinned multilingual `intfloat/multilingual-e5-small` revision, producing 384-dimensional vectors. PostgreSQL stores vectors as `double precision[]`; pgvector indexes and online retrieval belong to CTMS-068. Parser, chunker, model revisions and preprocessing changes require a new pipeline version/configuration identity.
 
-The first release handles searchable PDFs. OCR-only/blank pages, visual safety content, unverified table headers, missing extracted/native text, missing source locations and low extraction confidence block automatic activation and require a corrected source/review. Quality checks are conservative evidence checks, not a guarantee that PDF interpretation is clinically or professionally correct.
+The first release handles searchable PDFs. OCR-only/blank pages, visual safety content, unverified table headers, missing extracted/native text, missing source locations and low extraction confidence block automatic activation. A report distinguishes observed source conditions such as encryption from extraction or chunking gaps when the evidence supports that distinction. Quality checks are conservative evidence checks, not a guarantee that PDF interpretation is clinically or professionally correct.
 
 Retrieval acceptance uses 30–50 human-labelled questions from the actual PDF corpus. Gold evidence identifies the exact document version, page, source item and answer excerpt. Offline Recall@5 checks whether a retrieved chunk contains the labelled answer evidence; a match on page alone is insufficient. The evaluation tool is provided; a production score remains pending until the actual corpus and annotations are available.
 

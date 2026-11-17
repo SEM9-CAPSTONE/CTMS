@@ -203,6 +203,12 @@ services:
       - knowledge-model-cache:/var/cache/ctms-models
     ports:
       - "127.0.0.1:8001:8001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8001/health', timeout=2).close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
 
   web:
     build:

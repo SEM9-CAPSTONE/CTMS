@@ -165,19 +165,6 @@ export class SurvivalDocumentsController {
 	) {
 		return this.documents.change(actor.userId, id, versionId, { action: "publish", dto });
 	}
-	@Post(":id/versions/:versionId/approve-processing")
-	@ApiOperation({ summary: "Approve the current publication for processing and queue ingestion" })
-	approveProcessing(
-		@Param("id", uuid) id: string,
-		@Param("versionId", uuid) versionId: string,
-		@CurrentUser() actor: AuthenticatedUser,
-		@Body() dto: RevisionDto
-	) {
-		return this.documents.change(actor.userId, id, versionId, {
-			action: "approve-processing",
-			dto,
-		});
-	}
 	@Post(":id/versions/:versionId/archive")
 	@ApiOperation({ summary: "Stop use of current publication without deleting provenance" })
 	archive(
