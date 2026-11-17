@@ -110,7 +110,11 @@ Published package content remains immutable.
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+A package-affecting checkpoint correction records a durable impact for each affected published
+Trip with the same commit as the correction and audit. The dispatcher uses the corrective action
+ID as its stable source reference. An unchanged instruction or a danger-zone edit outside
+the approved package inputs has no package impact.
+
 
 ## 10. Error & Edge Cases
 

@@ -91,6 +91,12 @@ Historical GPS/safety records
 
 ## 8. Data & Invariants
 
+For breadcrumbs with a resolvable package version, replay uses the verified immutable route
+geometry from that package and retains its fingerprint on the episode. Replay splits evidence
+when the resolved geometry/version changes. A known package whose geometry cannot be verified
+is excluded from replay with a specific reason. Legacy evidence without a resolvable package
+retains its existing interpretation.
+
 RouteDeviationEvent includes applicable:
 
 - started_at;

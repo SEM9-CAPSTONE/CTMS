@@ -86,6 +86,15 @@ V3 package policy:
 
 ## 9. API / Integration Contract
 
+The authenticated Camper preparation resource is
+`GET|POST /trips/:tripId/offline-package-policy/camper-preparation`. A confirmed Camper
+can acknowledge the notice only for their own Trip and applicable required or locked package context.
+The server sets the confirmation timestamp and audits one confirmation per Camper, Trip, package
+context and notice policy version. Postponement and closing the dialog do not record confirmation.
+The acknowledgement records understanding of offline limitations and is independent of package
+verification, activation and Porter readiness. The Trip screen highlights preparation within
+24 hours of departure when opened. Participation remains available without a package.
+
 CTMS-305 contract: `docs/features/CTMS-305-Package-Freshness-Contract.md`.
 
 Integrity, publication/newer-version availability and authoritative source freshness
@@ -112,6 +121,11 @@ that integration supplies evidence. Unknown required freshness fails closed.
 | Cannot check server while offline     | Show known local version; do not claim current without evidence |
 
 ## 11. Acceptance & Test Matrix
+
+| Source | Valid path | Violation path | Test type |
+| --- | --- | --- | --- |
+| BR-235, BR-427 | Confirmed Camper sees an applicable optional reminder and can acknowledge once per requirement. | Dismissal, postponement, unchecked confirmation, stale requirement, outsider and cross-account requests. | Flutter, HTTP, PostgreSQL |
+| BR-427, BR-191 | Assigned Porter confirms one eligible device and the worker locks that version at departure. | Camper acknowledgement or a stale package cannot satisfy the gate. | PostgreSQL, HTTP |
 
 | Scenario             | Expected                       |
 | -------------------- | ------------------------------ |

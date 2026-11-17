@@ -78,6 +78,12 @@ An authoritative safety change affects Offline Safety Package content.
 
 ## 6. State & Lifecycle
 
+The package worker sees only committed impacts. READY publication for a material replacement
+and its required-version promotion use the same transaction and Trip row lock as departure.
+If departure wins that lock, the publisher preserves the ongoing Trip's package. The
+existing opt-in departure gate checks one responsible assigned Porter and installation.
+A Trip without a package requirement follows its existing lifecycle.
+
 Authoritative safety update
 → package impact detected
 → new package version generated
@@ -134,7 +140,18 @@ For an ongoing Trip, active package behavior continues to follow the approved pa
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+- CTMS-118 records a source reference tied to the corrective action and its audit. Committed
+  changes to package core fields record the affected published Trips in `offline_package_impacts`.
+  The worker uses `requestImpact(tripId, sourceReference)` and links that record to the durable job
+  and its immutable package. Equal semantic snapshots reuse the applicable publication.
+- The existing package download endpoint resolves the required version before departure and
+  the recorded lock during an ongoing Trip. Explicit version downloads retain their
+  authorization and integrity checks. The device stages and verifies the replacement and
+  retains previously activated bytes through interruptions and failed activation.
+- The production source contracts require an approved complete feed and applicable approved
+  guidance and policy. Generation remains BLOCKED and source freshness remains unknown
+  until real adapters provide that evidence. See
+  [CTMS-052 upstream contracts](ctms-52-upstream-safety-contracts.md).
 
 ## 10. Error & Edge Cases
 
@@ -150,6 +167,13 @@ TBD — Technical Design.
 
 ## 11. Acceptance & Test Matrix
 
+| Jira AC | Valid path | Violation path | Test type |
+| --- | --- | --- | --- |
+| AC1 / BR-359 | Committed package-affecting change generates a new verified version. | Rollback, no-op, duplicate notification, invalid or unavailable authority. | Unit, PostgreSQL |
+| AC2 / BR-427, BR-429 | Pre-start Trip resolves the exact required version and activates it after validation. | Wrong artifact, interrupted download, or rejected activation retains the old active bytes. | HTTP, Flutter |
+| AC3–AC4 / BR-427, BR-430 | Departure and publication serialize. The ongoing Trip keeps its recorded lock. | Publication losing the race or a newer activation request leaves the lock intact. | PostgreSQL, HTTP, Flutter |
+| AC5 / BR-428, BR-191 | Source reference → job → immutable package can be traced. | Repeated delivery creates one request and preserves the audit trail and previous artifacts. | PostgreSQL |
+
 | Source | Scenario                        | Expected Result                     | Test Type    |
 | ------ | ------------------------------- | ----------------------------------- | ------------ |
 | BR-359 | Package-affecting safety update | New version created                 | Integration  |
@@ -161,5 +185,9 @@ TBD — Technical Design.
 | BR-191 | Publication                     | Audited                             | Audit        |
 
 ## 12. Open Decisions
+
+Approved production integrations are still needed for government feed runs, eligible field-safety publication,
+approved guidance and coverage-policy changes, and revocation/expiry evidence. The worker preserves the
+BLOCKED/UNKNOWN source outcomes when these integrations are absent.
 
 None for the core versioning rule: package-affecting authoritative safety updates require a new package version and published packages are not edited in place.

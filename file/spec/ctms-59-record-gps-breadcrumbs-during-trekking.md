@@ -96,6 +96,9 @@ Trip/participation no longer eligible
 
 ## 8. Data & Invariants
 
+A breadcrumb retains the package version associated with its sampled fix when the verified
+package monitoring context was available. Breadcrumbs can still be recorded without a package version.
+
 Each persisted log includes:
 
 - stable UUID/local ID;

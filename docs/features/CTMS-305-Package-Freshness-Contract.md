@@ -246,3 +246,19 @@ after the server notification follow-up. Integration coverage also includes inbo
 ownership, retry deduplication, notification rollback, concurrent workers and blocked
 batch fairness. The full diff inventory includes newly created files; a plain
 unstaged `git diff --stat` excludes them.
+
+## CTMS-431 publication and Camper preparation
+
+The CTMS-119 impact and acknowledgement migrations are additive. The publication worker promotes
+a new applicable READY version through `requirePackage()` while holding the Trip row lock.
+Manual legacy requirement records, existing Trip locks, and immutable artifacts retain their
+stored identities. The existing schedule gate and feature flag still apply.
+
+Camper acknowledgements are scoped by authenticated participant, Trip, required or locked
+package identity and notice policy version. They are never used as departure or package
+integrity evidence. The Trip screen surfaces the reminder during foreground use, including
+the last 24 hours before departure. There is no scheduled 24-hour push for this notice.
+
+Deployment requires the additive migrations before the worker, then verified production
+source contracts before any live enforcement rollout. The production source adapters retain
+BLOCKED generation and UNKNOWN freshness pending authoritative upstream evidence.
