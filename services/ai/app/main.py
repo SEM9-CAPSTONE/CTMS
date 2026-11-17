@@ -20,6 +20,7 @@ from pydantic import BaseModel
 
 from app.models import WeatherAdvisoryRequest, WeatherAdvisoryResponse
 from app.survival_answers import router as survival_answers_router
+from app.feedback_investigation import router as feedback_investigation_router
 from app.weather_advisory_service import WeatherAdvisoryService
 from app.review_analysis_service import (
     ReviewAnalysisRequest, ReviewAnalysisResponse, ReviewAnalysisService,
@@ -46,6 +47,7 @@ app = FastAPI(
 	version="0.1.0",
 )
 app.include_router(survival_answers_router)
+app.include_router(feedback_investigation_router)
 
 
 class WeatherRiskRequest(BaseModel):

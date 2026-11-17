@@ -7,7 +7,7 @@ import {
 	MAX_TOKENS,
 	chunkConfiguration,
 } from "../knowledge-chunks/knowledge-chunks.types";
-import { isEligiblePublishedSource } from "../survival-documents/source-policy";
+import { assertRights, isEligiblePublishedSource } from "../survival-documents/source-policy";
 import {
 	DocumentStatus,
 	type SourceVersion,
@@ -207,6 +207,43 @@ export class RagRepository {
 		return this.read(timeoutMs, (manager) =>
 			this.checkEvidence(manager, chunks.map(evidenceRef), locale)
 		);
+	}
+
+	/** Resolve only exact recorded artifacts that remain published and permitted for internal RAG use. */
+	async resolveInvestigationEvidence(refs: RagEvidenceRef[], locale: string) {
+		if (!refs.length) return [];
+		return this.read(2000, async (manager) => {
+			const documentIds = [...new Set(refs.map(({ source }) => source.documentId))];
+			const publications = await this.publications(
+				manager,
+				locale,
+				documentIds.length,
+				documentIds
+			);
+			const allowed = publications.filter((version) => {
+				try {
+					assertRights(version.metadata, version.rights);
+					return true;
+				} catch {
+					return false;
+				}
+			});
+			const bySet = new Map(allowed.map((version) => [version.chunkSetId, version]));
+			const byId = new Map(refs.map((ref) => [ref.chunkId, ref]));
+			const rows: Omit<CandidateRow, "score">[] = await manager.query(
+				`SELECT id,chunk_set_id,chunk_index,content,metadata FROM knowledge_chunks
+				 WHERE id=ANY($1::uuid[]) AND chunk_set_id=ANY($2::uuid[])
+				 AND octet_length(content)<=$3 AND octet_length(metadata::text)<=$3`,
+				[[...byId.keys()], [...bySet.keys()], MAX_BLOCK_BYTES]
+			);
+			return rows.flatMap((row) => {
+				const version = bySet.get(row.chunk_set_id);
+				const ref = byId.get(row.id);
+				if (!version || !ref) return [];
+				const chunk = asChunk({ ...row, score: 0 }, version, toSource(version));
+				return chunk && sameEvidence(evidenceRef(chunk), ref) ? [chunk] : [];
+			});
+		});
 	}
 
 	/** Serializes the final consumer write with publication, withdrawal and chunk activation. */
