@@ -201,6 +201,33 @@ describe("PushNotificationsService (CTMS-090)", () => {
 			expect(sos.repository.markSent).toHaveBeenCalled();
 		});
 
+		it("uses a fresh per-recipient batch snapshot and never filters red weather or emergencies", async () => {
+			const sample = setup({
+				rows: [
+					row({ id: "ordinary", category: PushCategory.WEATHER, mandatory: false }),
+					row({ id: "red", category: PushCategory.WEATHER, mandatory: true }),
+					row({ id: "emergency", category: PushCategory.EMERGENCY, mandatory: true }),
+				],
+			});
+			const allows = jest.fn().mockResolvedValue(false);
+			const loadBatch = jest.fn().mockResolvedValue({ allows });
+			Object.assign(sample.preferences, { loadBatch });
+			await sample.service.deliverDue(NOW);
+			expect(loadBatch).toHaveBeenCalledTimes(1);
+			expect(allows).toHaveBeenCalledTimes(1);
+			expect(sample.repository.markSkipped).toHaveBeenCalledWith(
+				"ordinary",
+				PushSkipReason.PREFERENCE_OFF,
+				NOW
+			);
+			expect(sample.repository.markSent).toHaveBeenCalledWith("red", NOW);
+			expect(sample.repository.markSent).toHaveBeenCalledWith("emergency", NOW);
+			loadBatch.mockResolvedValue({ allows: async () => true });
+			await sample.service.deliverDue(NOW);
+			expect(loadBatch).toHaveBeenCalledTimes(2);
+			expect(sample.repository.markSent).toHaveBeenCalledWith("ordinary", NOW);
+		});
+
 		it("skips a recipient without a registered device", async () => {
 			const { service, repository } = setup({ devices: [] });
 			await service.deliverDue(NOW);

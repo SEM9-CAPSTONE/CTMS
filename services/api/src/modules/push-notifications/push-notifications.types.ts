@@ -98,6 +98,7 @@ export const PUSH_SENDER = Symbol("PUSH_SENDER");
  */
 export interface PushPreferenceSource {
 	allows(userId: string, category: PushCategory): Promise<boolean>;
+	loadBatch?(userIds: readonly string[]): Promise<PushPreferenceSource>;
 }
 
 export const PUSH_PREFERENCES = Symbol("PUSH_PREFERENCES");

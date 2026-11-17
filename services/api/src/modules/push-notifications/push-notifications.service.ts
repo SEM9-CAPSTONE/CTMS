@@ -92,6 +92,11 @@ export class PushNotificationsService {
 	/** One delivery pass over due pushes. */
 	async deliverDue(now: Date = new Date(), batchSize = 50): Promise<PushDeliveryReport> {
 		const rows = await this.repository.claimDue(now, batchSize);
+		const preferences = this.preferences.loadBatch
+			? await this.preferences.loadBatch(
+					rows.filter((row) => !row.mandatory).map((row) => row.recipientId)
+				)
+			: this.preferences;
 		const report: PushDeliveryReport = {
 			claimed: rows.length,
 			sent: 0,
@@ -100,7 +105,7 @@ export class PushNotificationsService {
 			failed: 0,
 		};
 		for (const row of rows) {
-			const outcome = await this.deliver(row, now).catch(async (error: unknown) => {
+			const outcome = await this.deliver(row, now, preferences).catch(async (error: unknown) => {
 				await this.failAttempt(row, `Unexpected delivery error: ${describe(error)}`, now);
 				return row.attempts >= this.maxAttempts() ? "failed" : "retried";
 			});
@@ -111,7 +116,8 @@ export class PushNotificationsService {
 
 	private async deliver(
 		row: PushNotificationRow,
-		now: Date
+		now: Date,
+		preferences: PushPreferenceSource
 	): Promise<"sent" | "skipped" | "retried" | "failed"> {
 		if (!this.sender.configured) {
 			await this.repository.markSkipped(row.id, PushSkipReason.PROVIDER_NOT_CONFIGURED, now);
@@ -121,7 +127,7 @@ export class PushNotificationsService {
 			await this.repository.markSkipped(row.id, PushSkipReason.NOT_ELIGIBLE, now);
 			return "skipped";
 		}
-		if (!row.mandatory && !(await this.preferences.allows(row.recipientId, row.category))) {
+		if (!row.mandatory && !(await preferences.allows(row.recipientId, row.category))) {
 			await this.repository.markSkipped(row.id, PushSkipReason.PREFERENCE_OFF, now);
 			return "skipped";
 		}
