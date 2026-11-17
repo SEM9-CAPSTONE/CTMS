@@ -58,6 +58,8 @@ import { RefundOrigin } from "../modules/bookings/refund-policy";
 import { RefundsService } from "../modules/bookings/refunds.service";
 import { Booking } from "../modules/profiles/entities/booking.entity";
 import { ROUTE_DEVIATION_ANALYSIS_VERSION } from "../modules/route-deviation-analysis/route-deviation-analysis.constants";
+import { HotspotReviewService } from "../modules/safety-hotspots/hotspot-review.service";
+import { SafetyHotspotStatus } from "../modules/safety-hotspots/safety-hotspots.enums";
 import { SafetyHotspotsRepository } from "../modules/safety-hotspots/safety-hotspots.repository";
 import { SafetyHotspotsService } from "../modules/safety-hotspots/safety-hotspots.service";
 import { UserRole } from "../modules/users/entities/user.entity";
@@ -1009,16 +1011,16 @@ export async function seedRevenueAnalyticsScenarios(ds: DataSource): Promise<voi
 /**
  * CTMS-116/117/118 seed: route-deviation evidence on host@ctms.local's Sơn Trà route, the
  * hotspots the real CTMS-116 detector finds in it, and a review state for each, so the Admin
- * "Điểm nóng an toàn" page has a CONFIRMED hotspot to correct.
+ * "Điểm nóng an toàn" page has new detections, pending reviews and confirmed evidence.
  *
  * Rules (AGENTS.md):
  * - Reuses host@ctms.local, admin@ctms.local and the members already booked on completed Trips;
  *   never creates accounts, Routes or Trips.
- * - Deviation events sit at two real spots of the route (the slippery cliff slope and the Suối Đá
- *   water station) and carry fixed GPS-log ids, so a re-run inserts nothing new.
+ * - Deviation events sit at separate places along the route and carry fixed GPS-log ids,
+ *   so a re-run inserts nothing new.
  * - Hotspots come from SafetyHotspotsService.detect (BR-417 criteria), not hand-written rows.
- * - CTMS-117 (review) is not built yet; this seed records its outcome only for hotspots still in
- *   DETECTED, so a status an Admin changed later is kept. Review notes read like real operations.
+ * - Only newly detected fixtures receive their initial review through the real review service.
+ *   Existing Admin decisions and notes are preserved on re-runs.
  */
 
 const ROUTE_NAME = "Bán Đảo Sơn Trà Discovery";
@@ -1032,11 +1034,11 @@ interface Spot {
 	lng: number;
 	lat: number;
 	routeFraction: number;
-	reviewStatus: "CONFIRMED" | "UNDER_REVIEW";
-	reviewNote: string;
+	reviewStatus: "UNDER_REVIEW" | "CONFIRMED";
+	reviewNote?: string;
 }
 
-/** Two places on the route where several groups left the trail in the last weeks. */
+/** Separate places on the route where several groups left the trail in the last weeks. */
 const SPOTS: Spot[] = [
 	{
 		key: "a1180000-0000-4000-8118-0000000001",
@@ -1055,6 +1057,31 @@ const SPOTS: Spot[] = [
 		reviewStatus: "UNDER_REVIEW",
 		reviewNote:
 			"Đang hỏi Host về việc đoàn rẽ xuống suối lấy nước tại Trạm Suối Đá; cần xác minh lối xuống suối có an toàn không.",
+	},
+	{
+		key: "a1180000-0000-4000-8118-0000000003",
+		lng: 108.2678,
+		lat: 16.1147,
+		routeFraction: 0.2,
+		reviewStatus: "UNDER_REVIEW",
+		reviewNote:
+			"Các đoàn cùng rẽ vào lối mòn phía trên ngã ba. Đang đối chiếu với Host về biển chỉ hướng bị cây che khuất sau mưa.",
+	},
+	{
+		key: "a1180000-0000-4000-8118-0000000004",
+		lng: 108.2758,
+		lat: 16.1187,
+		routeFraction: 0.4,
+		reviewStatus: "UNDER_REVIEW",
+		reviewNote:
+			"Nhiều đoàn đi vòng qua đoạn đường có đá rơi. Đang xác minh độ ổn định của sườn dốc trước khi bổ sung cảnh báo.",
+	},
+	{
+		key: "a1180000-0000-4000-8118-0000000005",
+		lng: 108.2942,
+		lat: 16.1137,
+		routeFraction: 0.85,
+		reviewStatus: "UNDER_REVIEW",
 	},
 ];
 
@@ -1198,27 +1225,22 @@ export async function seedSafetyHotspotScenarios(ds: DataSource): Promise<void> 
 		`   • Phát hiện điểm nóng: ${detection.candidatesCreated} mới từ ${detection.eventsConsidered} lần lệch tuyến.`
 	);
 
-	// Stand-in for the CTMS-117 review outcome; only DETECTED hotspots are moved.
+	// Initialize only candidates created in this run; never undo a user's review.
+	const reviews = new HotspotReviewService(ds);
 	for (const spot of SPOTS) {
-		const reviewed = (await ds.query(
-			`UPDATE "potential_safety_hotspots" SET "status" = $5, "status_changed_at" = now()
-			 WHERE "route_id" = $1 AND "route_version" = $2 AND "status" = 'DETECTED'
-			   AND ST_DWithin("center", ST_SetSRID(ST_MakePoint($3, $4), 4326)::geography, 60)
-			 RETURNING "id"`,
-			[route.id, route.routeVersion, spot.lng, spot.lat, spot.reviewStatus]
-		)) as [Array<{ id: string }>, number];
-		for (const { id } of reviewed[0]) {
-			await ds.query(
-				`INSERT INTO "audit_logs" ("actor_id", "action", "target_type", "target_id", "before", "after", "reason")
-				 VALUES ($1, 'safety_hotspot.reviewed', 'potential_safety_hotspot', $2, $3::jsonb, $4::jsonb, $5)`,
-				[
-					admin.id,
-					id,
-					JSON.stringify({ status: "DETECTED" }),
-					JSON.stringify({ status: spot.reviewStatus }),
-					spot.reviewNote.slice(0, 255),
-				]
-			);
+		if (spot.reviewStatus === "UNDER_REVIEW" || !spot.reviewNote) continue;
+		const candidates = (await ds.query(
+			`SELECT "id" FROM "potential_safety_hotspots"
+			 WHERE "route_id" = $1 AND "route_version" = $2 AND "status" = 'UNDER_REVIEW'
+			   AND "id" = ANY($5::uuid[])
+			   AND ST_DWithin("center", ST_SetSRID(ST_MakePoint($3, $4), 4326)::geography, 60)`,
+			[route.id, route.routeVersion, spot.lng, spot.lat, detection.createdHotspotIds]
+		)) as Array<{ id: string }>;
+		for (const { id } of candidates) {
+			await reviews.review(admin.id, id, {
+				status: SafetyHotspotStatus.CONFIRMED,
+				reason: spot.reviewNote,
+			});
 		}
 	}
 

@@ -85,7 +85,7 @@ export interface CreateCorrectiveActionPayload {
 	};
 }
 
-export type HotspotReviewTarget = Exclude<HotspotStatus, "DETECTED">;
+export type HotspotReviewTarget = "CONFIRMED" | "DISMISSED";
 
 export interface HotspotReview {
 	id: string;

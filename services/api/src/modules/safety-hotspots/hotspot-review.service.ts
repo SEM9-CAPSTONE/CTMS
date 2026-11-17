@@ -19,9 +19,9 @@ export interface HotspotReviewRow {
 	createdAt: Date;
 }
 
-/** BR-357 lifecycle. Only these human transitions exist; analytics never calls this service. */
+/** New candidates start UNDER_REVIEW; DETECTED remains actionable for legacy records. */
 const ALLOWED_TRANSITIONS: Record<SafetyHotspotStatus, readonly SafetyHotspotStatus[]> = {
-	[SafetyHotspotStatus.DETECTED]: [SafetyHotspotStatus.UNDER_REVIEW],
+	[SafetyHotspotStatus.DETECTED]: [SafetyHotspotStatus.CONFIRMED, SafetyHotspotStatus.DISMISSED],
 	[SafetyHotspotStatus.UNDER_REVIEW]: [
 		SafetyHotspotStatus.CONFIRMED,
 		SafetyHotspotStatus.DISMISSED,

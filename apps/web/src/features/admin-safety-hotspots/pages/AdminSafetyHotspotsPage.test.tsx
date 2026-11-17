@@ -224,36 +224,67 @@ describe("AdminSafetyHotspotsPage (CTMS-118)", () => {
 		);
 	});
 
-	it("moves an under-review hotspot to confirmed only with a reason and confirmation", async () => {
-		const underReview: SafetyHotspot = { ...confirmed, status: "UNDER_REVIEW" };
-		vi.mocked(safetyHotspotsService.list).mockResolvedValue([underReview]);
-		const review = vi
-			.spyOn(safetyHotspotsService, "review")
-			.mockResolvedValue({ ...confirmed, status: "CONFIRMED" });
-		render(<AdminSafetyHotspotsPage />);
-		await userEvent.click(
-			await screen.findByRole("button", {
-				name: /Xem điểm nóng trên tuyến Khám phá bán đảo Sơn Trà/,
-			})
-		);
-		const dialog = within(await screen.findByRole("dialog"));
-		await userEvent.click(dialog.getByRole("button", { name: "Xác nhận điểm nóng" }));
-		expect(await dialog.findByText("Lý do cần tối thiểu 10 ký tự.")).toBeInTheDocument();
-		expect(review).not.toHaveBeenCalled();
+	it.each(["DETECTED", "UNDER_REVIEW"] as const)(
+		"confirms a %s hotspot directly with a reason and confirmation",
+		async (status) => {
+			vi.mocked(safetyHotspotsService.list).mockResolvedValue([{ ...confirmed, status }]);
+			const review = vi
+				.spyOn(safetyHotspotsService, "review")
+				.mockResolvedValue({ ...confirmed, status: "CONFIRMED" });
+			render(<AdminSafetyHotspotsPage />);
+			await userEvent.click(
+				await screen.findByRole("button", {
+					name: /Xem điểm nóng trên tuyến Khám phá bán đảo Sơn Trà/,
+				})
+			);
+			const dialog = within(await screen.findByRole("dialog"));
+			expect(dialog.queryByRole("button", { name: "Bắt đầu xem xét" })).not.toBeInTheDocument();
+			await userEvent.click(dialog.getByRole("button", { name: "Xác nhận điểm nóng" }));
+			expect(await dialog.findByText("Lý do cần tối thiểu 10 ký tự.")).toBeInTheDocument();
+			expect(review).not.toHaveBeenCalled();
 
-		await userEvent.type(
-			dialog.getByLabelText("Lý do", { selector: "#hotspot-review-reason" }),
-			"Năm đoàn cùng lệch tuyến ở ngã ba suối Đá."
-		);
-		await userEvent.click(dialog.getByRole("button", { name: "Xác nhận điểm nóng" }));
-		await userEvent.click(await screen.findByRole("button", { name: "Xác nhận" }));
-		await waitFor(() =>
-			expect(review).toHaveBeenCalledWith(
-				HOTSPOT_ID,
-				"CONFIRMED",
+			await userEvent.type(
+				dialog.getByLabelText("Lý do", { selector: "#hotspot-review-reason" }),
 				"Năm đoàn cùng lệch tuyến ở ngã ba suối Đá."
-			)
-		);
-		expect(toast.success).toHaveBeenCalled();
-	});
+			);
+			await userEvent.click(dialog.getByRole("button", { name: "Xác nhận điểm nóng" }));
+			await userEvent.click(await screen.findByRole("button", { name: "Xác nhận" }));
+			await waitFor(() =>
+				expect(review).toHaveBeenCalledWith(
+					HOTSPOT_ID,
+					"CONFIRMED",
+					"Năm đoàn cùng lệch tuyến ở ngã ba suối Đá."
+				)
+			);
+			expect(toast.success).toHaveBeenCalled();
+		}
+	);
+
+	it.each(["DETECTED", "UNDER_REVIEW"] as const)(
+		"dismisses a %s hotspot directly and keeps the reason",
+		async (status) => {
+			vi.mocked(safetyHotspotsService.list).mockResolvedValue([{ ...confirmed, status }]);
+			const review = vi
+				.spyOn(safetyHotspotsService, "review")
+				.mockResolvedValue({ ...confirmed, status: "DISMISSED" });
+			const dialog = await openDetail();
+			expect(dialog.queryByRole("button", { name: "Bắt đầu xem xét" })).not.toBeInTheDocument();
+			await userEvent.click(dialog.getByRole("button", { name: "Bác bỏ" }));
+			expect(await dialog.findByText("Lý do cần tối thiểu 10 ký tự.")).toBeInTheDocument();
+			expect(review).not.toHaveBeenCalled();
+			const reason = "Đoàn rẽ xuống điểm nghỉ đã được Host kiểm tra, không có nguy hiểm tại đây.";
+			await userEvent.type(
+				dialog.getByLabelText("Lý do", { selector: "#hotspot-review-reason" }),
+				reason
+			);
+			await userEvent.click(dialog.getByRole("button", { name: "Bác bỏ" }));
+			const confirmation = within(await screen.findByTestId("confirm-modal"));
+			expect(confirmation.getByText("Bác bỏ điểm nóng")).toBeInTheDocument();
+			expect(review).not.toHaveBeenCalled();
+			await userEvent.click(confirmation.getByRole("button", { name: "Bác bỏ" }));
+			await waitFor(() => expect(review).toHaveBeenCalledWith(HOTSPOT_ID, "DISMISSED", reason));
+			expect(review).toHaveBeenCalledOnce();
+			expect(toast.success).toHaveBeenCalledWith("Đã bác bỏ điểm nóng.", "Điểm nóng an toàn");
+		}
+	);
 });

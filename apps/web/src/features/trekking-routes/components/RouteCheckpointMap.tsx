@@ -93,6 +93,7 @@ export function RouteCheckpointMap({
 	selectedLocation,
 	radiusMeters,
 	proposedHazard,
+	proposedHazardRadiusMeters,
 	polygonVertices = EMPTY_VERTICES,
 	disabled,
 	showFitRouteControl = true,
@@ -182,10 +183,13 @@ export function RouteCheckpointMap({
 		() =>
 			proposedHazard
 				? proposedHazard.type === "Point"
-					? pointHazardPolygon(proposedHazard, DANGER_ZONE_MAP_RADIUS_METERS)
+					? pointHazardPolygon(
+							proposedHazard,
+							proposedHazardRadiusMeters ?? DANGER_ZONE_MAP_RADIUS_METERS
+						)
 					: proposedHazard
 				: undefined,
-		[proposedHazard]
+		[proposedHazard, proposedHazardRadiusMeters]
 	);
 	const proposedHazardFeature = useMemo(() => {
 		if (!proposedHazardPolygon) return { type: "FeatureCollection" as const, features: [] };
@@ -388,7 +392,7 @@ export function RouteCheckpointMap({
 				shelter: item.type === "emergency_shelter",
 				vertex: false,
 			}));
-			if (mode === "checkpoint" && selectedLocation) {
+			if (mode !== "hazard-polygon" && selectedLocation) {
 				locations.push({
 					point: selectedLocation.coordinates,
 					proposed: true,
@@ -412,7 +416,12 @@ export function RouteCheckpointMap({
 					element.className =
 						"flex size-5 items-center justify-center rounded-full border-2 border-white bg-violet-700 text-[10px] font-extrabold text-white shadow";
 				} else if (proposed) {
-					element.className = "size-4 rounded-full border-2 border-white bg-teal-700 shadow";
+					element.className = `size-5 rounded-full border-2 border-white shadow ${mode === "hazard-point" ? "bg-violet-700" : "bg-teal-700"}`;
+					element.setAttribute(
+						"aria-label",
+						mode === "hazard-point" ? "Vị trí nguy hiểm đang chọn" : "Vị trí điểm dừng đang chọn"
+					);
+					element.dataset.selectedLocationMarker = "true";
 				} else if (shelter) {
 					element.className =
 						"flex size-7 items-center justify-center rounded-md border-2 border-white bg-sky-700 text-xs font-extrabold text-white shadow";
@@ -738,17 +747,28 @@ export function RouteCheckpointMap({
 							</g>
 						);
 					})}
-					{mode === "checkpoint" &&
+					{mode !== "hazard-polygon" &&
 						selectedLocation &&
 						(() => {
 							const [x, y] = coordinateToPercent(selectedLocation.coordinates, bounds);
 							return (
 								<circle
-									data-testid="selected-checkpoint-marker"
+									data-testid={
+										mode === "hazard-point"
+											? "selected-hazard-marker"
+											: "selected-checkpoint-marker"
+									}
+									aria-label={
+										mode === "hazard-point"
+											? "Vị trí nguy hiểm đang chọn"
+											: "Vị trí điểm dừng đang chọn"
+									}
 									cx={x}
 									cy={y}
 									r="1.6"
-									fill="#0f766e"
+									fill={mode === "hazard-point" ? "#6d28d9" : "#0f766e"}
+									stroke="white"
+									strokeWidth="0.5"
 								/>
 							);
 						})()}

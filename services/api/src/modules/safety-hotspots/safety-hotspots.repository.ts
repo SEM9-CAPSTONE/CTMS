@@ -224,7 +224,7 @@ export class SafetyHotspotsRepository {
 		);
 	}
 
-	/** Inserts a DETECTED candidate; null when the same evidence already produced one. */
+	/** Inserts a candidate directly into the Admin review queue; null when evidence already exists. */
 	async insertHotspot(manager: EntityManager, hotspot: NewHotspot): Promise<string | null> {
 		const rows = (await manager.query(
 			`INSERT INTO "potential_safety_hotspots"
@@ -233,7 +233,7 @@ export class SafetyHotspotsRepository {
 			    "route_fraction_min", "route_fraction_max", "event_count", "distinct_trip_count",
 			    "distinct_member_count", "evidence_event_ids", "evidence_hash", "first_event_at", "last_event_at",
 			    "previous_hotspot_id", "detection_run_id", "detected_at")
-			 VALUES ($1, $2, 'DETECTED', $3, $4, $5, $6::jsonb, $7, $8,
+			 VALUES ($1, $2, 'UNDER_REVIEW', $3, $4, $5, $6::jsonb, $7, $8,
 			   ST_SetSRID(ST_MakePoint($9, $10), 4326)::geography, $11, $12, $13, $14, $15, $16, $17,
 			   $18::uuid[], $19, $20, $21, $22, $23, $3)
 			 ON CONFLICT ("route_id", "route_version", "analysis_version", "evidence_hash") DO NOTHING
@@ -307,7 +307,11 @@ export class SafetyHotspotsRepository {
 		}
 		if (filter.status) {
 			params.push(filter.status);
-			conditions.push(`hotspot."status" = $${params.length}`);
+			conditions.push(
+				filter.status === "UNDER_REVIEW"
+					? `(hotspot."status" = $${params.length} OR hotspot."status" = 'DETECTED')`
+					: `hotspot."status" = $${params.length}`
+			);
 		}
 		params.push(filter.limit);
 		return (await this.dataSource.query(
