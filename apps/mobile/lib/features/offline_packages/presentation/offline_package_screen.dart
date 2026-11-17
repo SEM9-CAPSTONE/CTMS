@@ -9,6 +9,7 @@ import '../domain/offline_package.dart';
 import 'offline_trip_screen.dart';
 import 'package_policy_details.dart';
 import 'departure_status_panel.dart';
+import 'camper_package_preparation.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/domain/user_role.dart';
 
@@ -194,6 +195,15 @@ class OfflinePackagePanel extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (!summaryOnly &&
+              ref.watch(authControllerProvider).asData?.value?.role == UserRole.camper)
+            CamperPackagePreparationPanel(
+              key: ValueKey((accountId, tripId)),
+              tripId: tripId,
+              onDownload: package != null && !controller.loading && !controller.downloading
+                  ? startDownload
+                  : null,
+            ),
           if (!summaryOnly &&
               ![
                 'ongoing',

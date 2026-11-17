@@ -163,13 +163,18 @@ class _RouteDeviationPanelState extends ConsumerState<RouteDeviationPanel> {
   (String, CtmsStatus) _statusBadge(RouteDeviationController controller) =>
       switch (controller.status) {
         RouteDeviationStatus.checking => ('Đang kiểm tra', CtmsStatus.neutral),
+        RouteDeviationStatus.active
+          when controller.context?.packageId != null &&
+               controller.detector?.lastSampleValid != true &&
+               controller.navigation == RouteNavigationState.onRoute =>
+          ('Đang chờ GPS', CtmsStatus.neutral),
         RouteDeviationStatus.active => switch (controller.navigation) {
           RouteNavigationState.onRoute => ('Đúng tuyến', CtmsStatus.success),
           RouteNavigationState.offRoute => ('Có thể lệch tuyến', CtmsStatus.danger),
         },
         RouteDeviationStatus.paused => ('Tạm dừng', CtmsStatus.neutral),
         RouteDeviationStatus.notEligible => ('Không theo dõi', CtmsStatus.neutral),
-        RouteDeviationStatus.unavailable => ('Chưa có dữ liệu tuyến', CtmsStatus.danger),
+        RouteDeviationStatus.unavailable => ('Chưa có dữ liệu tuyến', CtmsStatus.neutral),
       };
 
   List<Widget> _notices(RouteDeviationController controller) {
