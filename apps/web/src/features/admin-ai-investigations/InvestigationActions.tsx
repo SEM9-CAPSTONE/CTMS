@@ -113,15 +113,20 @@ export function InvestigationActions({
 					{isResolve ? "Ghi kết luận xử lý" : "Ghi nhận bàn giao kỹ thuật"}
 				</legend>
 				{isResolve && (
-					<label className="block space-y-1 text-sm font-medium">
-						<span>Kết luận</span>
-						<select name="disposition" className={fieldClass} {...validation("disposition")}>
+					<div className="space-y-1 text-sm font-medium">
+						<label htmlFor={`${formId}-disposition-input`}>Kết luận</label>
+						<select
+							id={`${formId}-disposition-input`}
+							name="disposition"
+							className={fieldClass}
+							{...validation("disposition")}
+						>
 							<option value="">Chọn kết luận</option>
 							<option value="VERIFIED_FIX">{technicalLabels.VERIFIED_FIX[0]}</option>
 							<option value="JUSTIFIED_NO_FIX">{technicalLabels.JUSTIFIED_NO_FIX[0]}</option>
 						</select>
 						{fieldError("disposition")}
-					</label>
+					</div>
 				)}
 				<label className="block space-y-1 text-sm font-medium">
 					<span>

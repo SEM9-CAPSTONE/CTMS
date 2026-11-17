@@ -20,15 +20,21 @@ async function setup(page: Page, role: "admin" | "camper") {
 		localStorage.setItem("authUser", JSON.stringify(user));
 	}, actor);
 	await page.routeWebSocket("**/socket.io/**", (socket) => socket.close());
-	await page.route("**/api/**", async (route) => {
+	// Keep Vite modules under /src/core/api/ outside the API mock.
+	await page.route(/^https?:\/\/[^/]+\/api\//, async (route) => {
 		const { pathname } = new URL(route.request().url());
 		const headers = {
 			"access-control-allow-origin": "*",
 			"access-control-allow-headers": "authorization, content-type",
 			"access-control-allow-methods": "GET, PATCH, OPTIONS",
 		};
-		const send = (json: unknown) => route.fulfill({ json, headers });
+		const send = (json: unknown, status = 200) => route.fulfill({ json, headers, status });
 		if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers });
+		if (pathname === "/api/profiles/me") return send(actor);
+		if (pathname === "/api/booking-cancellation-notices") return send([]);
+		if (pathname === "/api/me/weather-decision-alerts") {
+			return send({ items: [], unreadCount: 0 });
+		}
 		if (pathname === "/api/content-reports") {
 			return send({ items: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 } });
 		}
@@ -65,7 +71,7 @@ async function setup(page: Page, role: "admin" | "camper") {
 			}
 			return send(detail);
 		}
-		return send(actor);
+		return send({ message: `No mock for ${pathname}` }, 404);
 	});
 	return { commands, reads: () => investigationReads };
 }
