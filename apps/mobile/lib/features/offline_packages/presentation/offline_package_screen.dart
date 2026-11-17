@@ -261,7 +261,6 @@ class OfflinePackagePanel extends ConsumerWidget {
             LinearProgressIndicator(
               value: transferProgress,
               semanticsLabel: 'Tiến độ tải dữ liệu ngoại tuyến',
-              semanticsValue: '${(transferProgress * 100).floor()}%',
             ),
           ],
           if (!summaryOnly && controller.storageBlocked) ...[

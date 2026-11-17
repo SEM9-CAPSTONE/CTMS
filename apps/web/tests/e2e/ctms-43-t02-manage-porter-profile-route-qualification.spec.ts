@@ -13,7 +13,7 @@ function runSeed(script: string): void {
 
 function runDbHelper(action: string, argPayload: unknown): void {
 	const base64 = Buffer.from(JSON.stringify(argPayload)).toString("base64");
-	execSync(`node node_modules/ts-node/dist/bin.js src/seeds/db-helper.ts ${action} ${base64}`, {
+	execSync(`node node_modules/ts-node/dist/bin.js test/helpers/db-helper.ts ${action} ${base64}`, {
 		cwd: path.join(WORKSPACE_ROOT, "services/api"),
 		stdio: "inherit",
 	});
@@ -22,7 +22,7 @@ function runDbHelper(action: string, argPayload: unknown): void {
 function readDbHelper<T>(action: string, argPayload: unknown): T {
 	const base64 = Buffer.from(JSON.stringify(argPayload)).toString("base64");
 	const stdout = execSync(
-		`node node_modules/ts-node/dist/bin.js src/seeds/db-helper.ts ${action} ${base64}`,
+		`node node_modules/ts-node/dist/bin.js test/helpers/db-helper.ts ${action} ${base64}`,
 		{
 			cwd: path.join(WORKSPACE_ROOT, "services/api"),
 		}

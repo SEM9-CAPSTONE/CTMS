@@ -22,7 +22,7 @@ let fixtures: Fixtures;
 function fixture(action: "seed" | "clean"): string {
 	return execFileSync(
 		process.execPath,
-		["node_modules/ts-node/dist/bin.js", "src/seeds/content-reports-e2e.ts", action, runId],
+		["node_modules/ts-node/dist/bin.js", "test/helpers/content-reports-e2e.ts", action, runId],
 		{ cwd: path.resolve(process.cwd(), "../../services/api"), encoding: "utf8" }
 	);
 }

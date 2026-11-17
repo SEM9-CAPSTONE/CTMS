@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { randomInt, randomUUID } from "node:crypto";
 import * as bcrypt from "bcrypt";
-import dataSource from "../shared/database/data-source";
+import dataSource from "../../src/shared/database/data-source";
 
 // Test-only fixtures. Every write is scoped to a unique E2E run, never seed accounts.
 async function main(): Promise<void> {

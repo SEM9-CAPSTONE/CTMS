@@ -49,7 +49,7 @@ function Invoke-DbHelper {
     try {
         # No `2>&1` -- stderr is already captured by this tool/host and
         # merging it would wrap lines as ErrorRecord objects (no .Trim()).
-        $output = & pnpm --filter '@ctms/api' exec ts-node src/seeds/db-helper.ts $Action $Arg
+        $output = & pnpm --filter '@ctms/api' exec ts-node test/helpers/db-helper.ts $Action $Arg
         if ($LASTEXITCODE -ne 0) {
             throw "db-helper '$Action' failed (exit $LASTEXITCODE):`n$output"
         }
