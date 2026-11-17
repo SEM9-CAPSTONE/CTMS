@@ -1,4 +1,4 @@
-/** BR-357 lifecycle. Detection only ever creates DETECTED; the other states belong to CTMS-117. */
+/** BR-357 lifecycle. New candidates enter the Admin queue; DETECTED is retained for legacy rows. */
 export enum SafetyHotspotStatus {
 	DETECTED = "DETECTED",
 	UNDER_REVIEW = "UNDER_REVIEW",

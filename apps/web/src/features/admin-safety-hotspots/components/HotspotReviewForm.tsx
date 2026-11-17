@@ -3,16 +3,15 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Button, ConfirmModal } from "../../../shared/components";
 import { type HotspotReviewFormValues, hotspotReviewSchema } from "../schema/hotspot-review.schema";
-import type { HotspotReviewTarget, SafetyHotspot } from "../types";
+import type { HotspotReviewTarget } from "../types";
 
 interface Props {
-	hotspot: SafetyHotspot;
 	submitting: boolean;
 	onReview: (status: HotspotReviewTarget, reason: string) => Promise<boolean>;
 }
 
 const DECISION_COPY: Record<
-	Exclude<HotspotReviewTarget, "UNDER_REVIEW">,
+	HotspotReviewTarget,
 	{ title: string; description: string; confirmText: string; variant: "success" | "danger" }
 > = {
 	CONFIRMED: {
@@ -31,8 +30,8 @@ const DECISION_COPY: Record<
 };
 
 /** CTMS-117 review step; a reason is kept with every decision. */
-export function HotspotReviewForm({ hotspot, submitting, onReview }: Props) {
-	const [pending, setPending] = useState<Exclude<HotspotReviewTarget, "UNDER_REVIEW"> | null>(null);
+export function HotspotReviewForm({ submitting, onReview }: Props) {
+	const [pending, setPending] = useState<HotspotReviewTarget | null>(null);
 	const {
 		register,
 		handleSubmit,
@@ -43,7 +42,6 @@ export function HotspotReviewForm({ hotspot, submitting, onReview }: Props) {
 		resolver: zodResolver(hotspotReviewSchema),
 		defaultValues: { reason: "" },
 	});
-	const underReview = hotspot.status === "UNDER_REVIEW";
 
 	const submit = async (status: HotspotReviewTarget) => {
 		const saved = await onReview(status, getValues("reason").trim());
@@ -74,34 +72,21 @@ export function HotspotReviewForm({ hotspot, submitting, onReview }: Props) {
 				)}
 			</div>
 			<div className="flex flex-wrap justify-end gap-2">
-				{!underReview && (
-					<Button
-						type="button"
-						disabled={submitting}
-						onClick={handleSubmit(() => submit("UNDER_REVIEW"))}
-					>
-						Bắt đầu xem xét
-					</Button>
-				)}
-				{underReview && (
-					<>
-						<Button
-							type="button"
-							variant="outline"
-							disabled={submitting}
-							onClick={handleSubmit(() => setPending("DISMISSED"))}
-						>
-							Bác bỏ
-						</Button>
-						<Button
-							type="button"
-							disabled={submitting}
-							onClick={handleSubmit(() => setPending("CONFIRMED"))}
-						>
-							Xác nhận điểm nóng
-						</Button>
-					</>
-				)}
+				<Button
+					type="button"
+					variant="outline"
+					disabled={submitting}
+					onClick={handleSubmit(() => setPending("DISMISSED"))}
+				>
+					Bác bỏ
+				</Button>
+				<Button
+					type="button"
+					disabled={submitting}
+					onClick={handleSubmit(() => setPending("CONFIRMED"))}
+				>
+					Xác nhận điểm nóng
+				</Button>
 			</div>
 
 			<ConfirmModal

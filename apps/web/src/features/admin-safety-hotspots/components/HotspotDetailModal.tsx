@@ -131,11 +131,7 @@ export function HotspotDetailModal({ hotspot, onClose, onChanged, onReviewed }: 
 						<h3 id="hotspot-review-title" className="text-lg font-semibold text-[#10221b]">
 							Xét duyệt
 						</h3>
-						<HotspotReviewForm
-							hotspot={hotspot}
-							submitting={review.submitting}
-							onReview={review.review}
-						/>
+						<HotspotReviewForm submitting={review.submitting} onReview={review.review} />
 					</section>
 				)}
 

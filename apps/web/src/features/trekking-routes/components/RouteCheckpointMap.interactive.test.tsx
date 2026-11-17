@@ -140,6 +140,37 @@ async function loadMap() {
 }
 
 describe("interactive danger zone details", () => {
+	it("shows a visible selected hazard marker on the native map and replaces it when moved", async () => {
+		const onSelectLocation = vi.fn();
+		const props = {
+			geometry,
+			checkpoints: [],
+			dangerZones: [point],
+			radiusMeters: 80,
+			mode: "hazard-point" as const,
+			onSelectLocation,
+		};
+		const { rerender } = render(<RouteCheckpointMap {...props} />);
+		const map = await loadMap();
+		fireEvent.click(map.container);
+		expect(onSelectLocation).toHaveBeenCalledWith({ type: "Point", coordinates: [108.3, 16.1] });
+		rerender(
+			<RouteCheckpointMap
+				{...props}
+				selectedLocation={{ type: "Point", coordinates: [108.3, 16.1] }}
+			/>
+		);
+		expect(await screen.findByLabelText("Vị trí nguy hiểm đang chọn")).toBeVisible();
+		rerender(
+			<RouteCheckpointMap
+				{...props}
+				selectedLocation={{ type: "Point", coordinates: [108.29, 16.11] }}
+			/>
+		);
+		await waitFor(() =>
+			expect(screen.getAllByLabelText("Vị trí nguy hiểm đang chọn")).toHaveLength(1)
+		);
+	});
 	it.each(["checkpoint", "hazard-point", "hazard-polygon"] as RouteMapMode[])(
 		"opens a persisted marker without selecting a location in %s mode",
 		async (mode) => {

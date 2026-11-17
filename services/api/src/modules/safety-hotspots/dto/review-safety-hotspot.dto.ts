@@ -3,11 +3,7 @@ import { Transform } from "class-transformer";
 import { IsIn, IsString, MaxLength, MinLength } from "class-validator";
 import { SafetyHotspotStatus } from "../safety-hotspots.enums";
 
-const REVIEW_TARGETS = [
-	SafetyHotspotStatus.UNDER_REVIEW,
-	SafetyHotspotStatus.CONFIRMED,
-	SafetyHotspotStatus.DISMISSED,
-] as const;
+const REVIEW_TARGETS = [SafetyHotspotStatus.CONFIRMED, SafetyHotspotStatus.DISMISSED] as const;
 
 export class ReviewSafetyHotspotDto {
 	@ApiProperty({ enum: REVIEW_TARGETS })

@@ -60,7 +60,8 @@ export class SafetyHotspotsController {
 	@Post(":id/review")
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({
-		summary: "Move a hotspot through review: DETECTED → UNDER_REVIEW → CONFIRMED or DISMISSED",
+		summary:
+			"Confirm or dismiss a detected hotspot directly, including existing under-review records",
 		description:
 			"Human Admin decision with a reason (BR-357, BR-424). Review never changes Route safety data.",
 	})
@@ -92,7 +93,7 @@ export class SafetyHotspotsController {
 	@ApiOperation({
 		summary: "Run hotspot detection now over the last 30 days of authoritative deviation events",
 		description:
-			"Creates DETECTED candidates for same-Route clusters within 50 m having at least 3 distinct Trips, 3 distinct Members and 5 RouteDeviationEvents (BR-417, BR-418). Idempotent; never changes Route or safety data (BR-356).",
+			"Creates UNDER_REVIEW candidates for same-Route clusters within 50 m having at least 3 distinct Trips, 3 distinct Members and 5 RouteDeviationEvents (BR-417, BR-418). Idempotent; never changes Route or safety data (BR-356).",
 	})
 	detect(@Req() request: AuthenticatedRequest): Promise<HotspotDetectionResult> {
 		return this.hotspots.detect(request.user.userId);

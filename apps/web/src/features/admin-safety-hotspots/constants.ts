@@ -10,14 +10,14 @@ import type {
 export const HOTSPOT_PAGE_SIZE = 10;
 
 export const HOTSPOT_STATUS_LABELS: Record<HotspotStatus, string> = {
-	DETECTED: "Mới phát hiện",
+	DETECTED: "Đang xem xét",
 	UNDER_REVIEW: "Đang xem xét",
 	CONFIRMED: "Đã xác nhận",
 	DISMISSED: "Đã bác bỏ",
 };
 
 export const HOTSPOT_STATUS_TONES: Record<HotspotStatus, StatusBadgeTone> = {
-	DETECTED: "info",
+	DETECTED: "warning",
 	UNDER_REVIEW: "warning",
 	CONFIRMED: "success",
 	DISMISSED: "neutral",
@@ -27,7 +27,6 @@ export const HOTSPOT_STATUS_FILTERS: Array<{ value: HotspotStatusFilter; label: 
 	{ value: "ALL", label: "Tất cả" },
 	{ value: "CONFIRMED", label: HOTSPOT_STATUS_LABELS.CONFIRMED },
 	{ value: "UNDER_REVIEW", label: HOTSPOT_STATUS_LABELS.UNDER_REVIEW },
-	{ value: "DETECTED", label: HOTSPOT_STATUS_LABELS.DETECTED },
 	{ value: "DISMISSED", label: HOTSPOT_STATUS_LABELS.DISMISSED },
 ];
 
@@ -50,7 +49,6 @@ export const HAZARD_SEVERITY_OPTIONS: Array<{ value: HazardSeverity; label: stri
 ];
 
 export const HOTSPOT_REVIEW_TOASTS: Record<HotspotReviewTarget, string> = {
-	UNDER_REVIEW: "Đã chuyển điểm nóng sang đang xem xét.",
 	CONFIRMED: "Đã xác nhận điểm nóng. Bạn có thể cập nhật dữ liệu an toàn của tuyến.",
 	DISMISSED: "Đã bác bỏ điểm nóng.",
 };
