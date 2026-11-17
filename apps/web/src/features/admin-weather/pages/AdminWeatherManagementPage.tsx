@@ -1,4 +1,11 @@
-import { CloudLightning } from "lucide-react";
+import {
+	AlertTriangle,
+	CloudLightning,
+	type LucideIcon,
+	Scale,
+	SlidersHorizontal,
+	Sparkles,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
 import { WeatherRulesPanel } from "../../admin-weather-rules/components/WeatherRulesPanel";
@@ -16,11 +23,11 @@ export type AdminWeatherTab = "interventions" | "penalties" | "ai-review" | "rul
 
 export const ADMIN_WEATHER_PATH = "/admin/weather";
 
-const TABS: Array<{ key: AdminWeatherTab; label: string }> = [
-	{ key: "interventions", label: "Cần xử lý" },
-	{ key: "penalties", label: "Phạt Host" },
-	{ key: "ai-review", label: "Cần xem lại ngưỡng" },
-	{ key: "rules", label: "Cấu hình ngưỡng" },
+const TABS: Array<{ key: AdminWeatherTab; label: string; icon: LucideIcon }> = [
+	{ key: "interventions", label: "Cần xử lý", icon: AlertTriangle },
+	{ key: "penalties", label: "Phạt Host", icon: Scale },
+	{ key: "ai-review", label: "Cần xem lại ngưỡng", icon: Sparkles },
+	{ key: "rules", label: "Cấu hình ngưỡng", icon: SlidersHorizontal },
 ];
 
 const TAB_KEYS = new Set<string>(TABS.map((option) => option.key));
@@ -78,7 +85,7 @@ export function AdminWeatherManagementPage({
 
 	return (
 		<AdminLayout activeItem="weather-management" onLogout={onLogout}>
-			<div className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+			<div className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6 lg:px-8">
 				<div>
 					<h1 className="flex items-center gap-3 text-2xl font-extrabold text-[#10221b]">
 						<CloudLightning className="size-7 text-[#164027]" /> Quản lý thời tiết
@@ -89,9 +96,15 @@ export function AdminWeatherManagementPage({
 					</p>
 				</div>
 
-				<div className="flex flex-wrap gap-2" role="tablist" aria-label="Quản lý thời tiết">
+				{/* Same underlined tab bar as Admin › Quản lý tài chính. */}
+				<div
+					className="flex border-b border-[#dfe8df] overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+					role="tablist"
+					aria-label="Quản lý thời tiết"
+				>
 					{TABS.map((option) => {
 						const count = counts[option.key];
+						const Icon = option.icon;
 						return (
 							<button
 								key={option.key}
@@ -101,19 +114,18 @@ export function AdminWeatherManagementPage({
 								aria-selected={tab === option.key}
 								aria-controls={`admin-weather-panel-${option.key}`}
 								onClick={() => setTab(option.key)}
-								className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition ${
+								className={`inline-flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-bold whitespace-nowrap transition ${
 									tab === option.key
-										? "bg-[#164027] text-white"
-										: "border border-[#dfe8df] bg-white text-[#164027] hover:bg-[#f1f5f0]"
+										? "border-[#164027] text-[#164027]"
+										: "border-transparent text-[#667a6d] hover:text-[#10221b]"
 								}`}
 							>
-								{option.label}
+								<Icon className="size-4" />
+								<span>{option.label}</span>
 								{count !== undefined && count > 0 && (
 									<span
 										data-testid={`admin-weather-count-${option.key}`}
-										className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ${
-											tab === option.key ? "bg-white text-[#164027]" : "bg-[#164027] text-white"
-										}`}
+										className="rounded-full bg-[#164027] px-2 py-0.5 text-[11px] font-extrabold text-white"
 									>
 										{count}
 									</span>
