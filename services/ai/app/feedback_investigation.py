@@ -45,6 +45,7 @@ class Trace(StrictModel):
     modelId: str | None = Field(max_length=128)
     retrievalConfigVersion: str | None = Field(default=None, max_length=128)
     promptVersion: str | None = Field(default=None, max_length=128)
+    responseLocale: str | None = Field(default=None, pattern=r"^[a-z]{2,3}(?:-[A-Z]{2})?$")
     safetyPolicyVersion: str | None = Field(default=None, max_length=128)
     localPath: str | None = Field(default=None, max_length=128)
     runtimeConfigVersion: str | None = Field(default=None, max_length=128)
@@ -62,6 +63,7 @@ class Source(StrictModel):
     title: str | None = Field(default=None, max_length=150)
     version: int | None = Field(default=None, ge=1)
     classification: str | None = Field(default=None, max_length=80)
+    locale: str | None = Field(default=None, pattern=r"^[a-z]{2,3}(?:-[A-Z]{2})?$")
     excerpt: str | None = Field(default=None, max_length=360)
 
 

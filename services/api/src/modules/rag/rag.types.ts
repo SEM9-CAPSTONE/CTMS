@@ -5,6 +5,8 @@ export const MAX_QUERY_LENGTH = 2000;
 export const MAX_CONTEXT_BLOCKS = 10;
 export const MAX_BLOCK_BYTES = 16384;
 export const CONTEXT_TOKENIZER = "e5-sentencepiece";
+export const RAG_LOCALE_PATTERN = /^[a-z]{2,3}(?:-[A-Z]{2})?$/;
+export const CROSS_LINGUAL_RELEVANCE_VERSION = "vi-en-concepts-v1";
 
 export interface RagQuery {
 	question: string;

@@ -29,6 +29,7 @@ describe("CTMS-069 public HTTP contract", () => {
 	beforeAll(async () => {
 		process.env.RAG_MIN_SCORE = "0.8";
 		process.env.RAG_LOCALES = locale;
+		process.env.RAG_SOURCE_LOCALES = locale;
 		const setup = await createSurvivalE2eApp();
 		app = setup.app;
 		root = setup.storageRoot;
@@ -93,6 +94,11 @@ describe("CTMS-069 public HTTP contract", () => {
 			expectedStatus: 422,
 		},
 		{ name: "client-supplied sources", input: { ...body, sources: [] }, expectedStatus: 422 },
+		{
+			name: "client-supplied source locale",
+			input: { ...body, sourceLocales: ["en"] },
+			expectedStatus: 422,
+		},
 	])("rejects $name with $expectedStatus", async ({ input, expectedStatus }) => {
 		await request(app.getHttpServer())
 			.post(endpoint)
@@ -114,6 +120,51 @@ describe("CTMS-069 public HTTP contract", () => {
 			answer: null,
 			sources: [],
 		});
+	});
+
+	it("returns the original English citation for a stored Vietnamese answer", async () => {
+		const db = app.get(DataSource);
+		const chunkId = randomUUID();
+		const source = {
+			documentId: randomUUID(),
+			documentVersionId: randomUUID(),
+			chunkSetId: randomUUID(),
+			sourceVersion: 2,
+			sourceTitle: "Fictional hiking guide",
+			classification: "TREKKING_SAFETY",
+			locale: "en",
+		};
+		const locations = [{ page: 3, itemRef: "#/texts/4" }];
+		const [row]: Array<{ id: string }> = await db.query(
+			`INSERT INTO ai_answers(user_id,request_id,request_hash,locale,answer,retrieved_evidence,
+			 cited_chunk_ids,generation,retrieval_config_version)
+			 VALUES($1,$2,$3,'vi',$4,$5,$6::uuid[],'{}','test') RETURNING id`,
+			[
+				camperId,
+				randomUUID(),
+				"e".repeat(64),
+				answerFixture,
+				JSON.stringify([{ chunkId, chunkIndex: 0, source, locations }]),
+				[chunkId],
+			]
+		);
+		try {
+			const response = await request(app.getHttpServer())
+				.get(`${endpoint}/${row.id}/sources`)
+				.auth(camperToken, { type: "bearer" })
+				.expect(200);
+			expect(response.body.sources).toMatchObject([
+				{
+					locale: "en",
+					documentVersionId: source.documentVersionId,
+					sourceVersion: 2,
+					chunkId,
+					locations,
+				},
+			]);
+		} finally {
+			await db.query("DELETE FROM ai_answers WHERE id=$1", [row.id]);
+		}
 	});
 
 	it("reports unavailable provenance and protects unknown, expired and other owners' answers", async () => {

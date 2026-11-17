@@ -14,7 +14,8 @@ import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from .survival_prompt_v2 import PROMPT_VERSION, SYSTEM_PROMPT, VERIFICATION_PROMPT
+from . import survival_prompt_v2
+from .survival_prompt_v3 import PROMPT_VERSION, SYSTEM_PROMPT, VERIFICATION_PROMPT
 
 router = APIRouter()
 MAX_REQUEST_BYTES = 16_384
@@ -31,10 +32,15 @@ DRAFT_OUTPUT_TOKENS = 512
 VERIFICATION_OUTPUT_TOKENS = 64
 slots = asyncio.Semaphore(MAX_COMPLETIONS)
 
-PROMPT_ARTIFACTS = {PROMPT_VERSION: {"draft": SYSTEM_PROMPT, "verification": VERIFICATION_PROMPT}}
+PROMPT_ARTIFACTS = {
+    survival_prompt_v2.PROMPT_VERSION: {
+        "draft": survival_prompt_v2.SYSTEM_PROMPT, "verification": survival_prompt_v2.VERIFICATION_PROMPT,
+    },
+    PROMPT_VERSION: {"draft": SYSTEM_PROMPT, "verification": VERIFICATION_PROMPT},
+}
 PROMPT_DIGESTS = {
-    stage: sha256(prompt.encode("utf-8")).hexdigest()
-    for stage, prompt in PROMPT_ARTIFACTS[PROMPT_VERSION].items()
+    version: {stage: sha256(prompt.encode("utf-8")).hexdigest() for stage, prompt in prompts.items()}
+    for version, prompts in PROMPT_ARTIFACTS.items()
 }
 
 def resolve_prompt_artifact(version: str, stage: str, digest: str) -> str | None:
@@ -48,6 +54,7 @@ class Evidence(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     chunkId: UUID
+    locale: str | None = Field(default=None, pattern=r"^[a-z]{2,3}(?:-[A-Z]{2})?$")
     headings: list[str] = Field(max_length=100)
     content: str = Field(min_length=1, max_length=MAX_REQUEST_BYTES)
 
@@ -67,6 +74,8 @@ class GenerationInput(BaseModel):
             raise ValueError("Duplicate evidence")
         if any(not chunk.content.strip() for chunk in self.evidence):
             raise ValueError("Empty evidence")
+        if any(chunk.locale is None for chunk in self.evidence) and any(chunk.locale is not None for chunk in self.evidence):
+            raise ValueError("Inconsistent evidence locales")
         return self
 
 
@@ -211,14 +220,17 @@ def completion_content(completion: dict) -> str | None:
 
 async def generate_answer(payload: GenerationInput, *, include_trace: bool = False) -> dict:
     provider, model, key, timeout = provider_config()
-    evidence_message = payload.model_dump_json()
-    if len(SYSTEM_PROMPT.encode("utf-8")) + len(evidence_message.encode("utf-8")) > MAX_PROMPT_BYTES:
+    version = PROMPT_VERSION if payload.evidence[0].locale else survival_prompt_v2.PROMPT_VERSION
+    prompts = PROMPT_ARTIFACTS[version]
+    digests = PROMPT_DIGESTS[version]
+    evidence_message = payload.model_dump_json(exclude_none=True)
+    if len(prompts["draft"].encode("utf-8")) + len(evidence_message.encode("utf-8")) > MAX_PROMPT_BYTES:
         raise HTTPException(413, detail={"code": "AI_INPUT_TOO_LARGE"})
     try:
         async with asyncio.timeout(timeout), httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
             inference_started_at = datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
             completion = await request_completion(
-                client, provider, model, key, SYSTEM_PROMPT, evidence_message, DRAFT_OUTPUT_TOKENS
+                client, provider, model, key, prompts["draft"], evidence_message, DRAFT_OUTPUT_TOKENS
             )
             if completion is None:
                 return {"status": "INSUFFICIENT_CONTEXT"}
@@ -237,12 +249,12 @@ async def generate_answer(payload: GenerationInput, *, include_trace: bool = Fal
                 "question": payload.question,
                 "locale": payload.locale,
                 "answerText": result.answerText,
-                "evidence": [chunk.model_dump(mode="json") for chunk in used_evidence],
+                "evidence": [chunk.model_dump(mode="json", exclude_none=True) for chunk in used_evidence],
             }, ensure_ascii=False, separators=(",", ":"))
-            if len((VERIFICATION_PROMPT + verification_input).encode("utf-8")) > MAX_PROMPT_BYTES:
+            if len((prompts["verification"] + verification_input).encode("utf-8")) > MAX_PROMPT_BYTES:
                 return {"status": "INSUFFICIENT_CONTEXT"}
             verification = await request_completion(
-                client, provider, model, key, VERIFICATION_PROMPT, verification_input, VERIFICATION_OUTPUT_TOKENS
+                client, provider, model, key, prompts["verification"], verification_input, VERIFICATION_OUTPUT_TOKENS
             )
             if verification is None:
                 return {"status": "INSUFFICIENT_CONTEXT"}
@@ -255,7 +267,7 @@ async def generate_answer(payload: GenerationInput, *, include_trace: bool = Fal
                 "usedEvidenceIds": [str(chunk_id) for chunk_id in result.usedEvidenceIds],
                 "provider": provider,
                 "model": resolved_model,
-                "promptVersion": PROMPT_VERSION,
+                "promptVersion": version,
             }
             if include_trace:
                 verification_model = verification.get("model")
@@ -265,9 +277,9 @@ async def generate_answer(payload: GenerationInput, *, include_trace: bool = Fal
                     "verificationModel": verification_model if (
                         isinstance(verification_model, str) and MODEL_NAME.fullmatch(verification_model)
                     ) else None,
-                    "draft": {"promptSha256": PROMPT_DIGESTS["draft"], "maxOutputTokens": DRAFT_OUTPUT_TOKENS},
+                    "draft": {"promptSha256": digests["draft"], "maxOutputTokens": DRAFT_OUTPUT_TOKENS},
                     "verification": {
-                        "promptSha256": PROMPT_DIGESTS["verification"],
+                        "promptSha256": digests["verification"],
                         "maxOutputTokens": VERIFICATION_OUTPUT_TOKENS,
                     },
                     "configuration": {

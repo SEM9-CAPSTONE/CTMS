@@ -1,11 +1,11 @@
 import { isEnum, isUUID } from "class-validator";
 import type { RagSettings } from "../rag/rag.config";
-import type { RagEvidenceRef } from "../rag/rag.types";
+import { RAG_LOCALE_PATTERN, type RagEvidenceRef } from "../rag/rag.types";
 import { Classification } from "../survival-documents/survival-documents.types";
 import { answerSafetyV1 } from "./ai-answer-safety-v1";
 import { type ProviderInferenceTrace, TRACE_SCHEMA_VERSION } from "./ai-inference-trace";
 
-export const AI_PROMPT_VERSION = "ctms-069-grounded-v2";
+export const AI_PROMPT_VERSION = "ctms-069-grounded-v3";
 export const MAX_GENERATED_ANSWER_CHARS = 2600;
 export const MAX_ANSWER_CHARS = answerSafetyV1.maxAnswerChars;
 export const MAX_AI_PAYLOAD_BYTES = 16384;
@@ -27,12 +27,15 @@ export type GenerationResult =
 
 export type StoredGeneration = Pick<
 	Extract<GenerationResult, { status: "ANSWERED" }>,
-	"provider" | "model" | "promptVersion"
+	"provider" | "model"
 > & {
+	promptVersion: string;
 	trace: ProviderInferenceTrace & {
 		schemaVersion: typeof TRACE_SCHEMA_VERSION;
 		retrievalSettings: Omit<RagSettings, "version">;
 		safetyPolicyVersion: string;
+		responseLocale?: string;
+		sourceLocales?: string[];
 	};
 };
 
@@ -80,7 +83,8 @@ export function citedEvidence(row: StoredAnswer): RagEvidenceRef[] {
 			typeof source.sourceTitle === "string" &&
 			source.sourceTitle.trim() &&
 			isEnum(source.classification, Classification) &&
-			source.locale === row.locale &&
+			typeof source.locale === "string" &&
+			RAG_LOCALE_PATTERN.test(source.locale) &&
 			Array.isArray(ref.locations) &&
 			ref.locations.length > 0 &&
 			ref.locations.every(

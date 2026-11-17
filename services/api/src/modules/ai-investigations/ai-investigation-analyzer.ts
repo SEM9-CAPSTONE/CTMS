@@ -202,6 +202,7 @@ export class AiInvestigationAnalyzer {
 					? {
 							retrievalConfigVersion: snapshot.online.retrieval_config_version ?? null,
 							promptVersion: snapshot.online.generation?.promptVersion ?? null,
+							responseLocale: snapshot.online.locale,
 							safetyPolicyVersion: snapshot.online.generation?.trace?.safetyPolicyVersion ?? null,
 						}
 					: {
@@ -224,6 +225,7 @@ export class AiInvestigationAnalyzer {
 							title: reference.title.slice(0, 150),
 							version: reference.version,
 							classification: reference.classification,
+							locale: reference.locale,
 						}
 					: {}),
 				...(excerpt ? { excerpt } : {}),
