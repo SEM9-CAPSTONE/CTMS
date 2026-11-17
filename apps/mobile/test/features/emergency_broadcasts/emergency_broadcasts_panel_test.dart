@@ -111,6 +111,7 @@ void main() {
       );
       expect(find.text('Cảnh báo khẩn từ Host · Sơ tán'), findsOneWidget);
       expect(find.text('Đã xem (2)'), findsOneWidget);
+      expect(find.text('Cả đoàn quay về điểm xuất phát.'), findsOneWidget);
       expect(find.byKey(const Key('emergency-broadcast-b-1')), findsOneWidget);
       expect(find.text('Nguy hiểm trên tuyến'), findsOneWidget);
     },
@@ -123,10 +124,15 @@ void main() {
     final api = FakeApi()..responses.add([broadcast('b-1', 'Dừng lại chờ.')]);
     await pumpPanel(tester, api, store);
 
+    expect(find.text('Dừng lại chờ.'), findsOneWidget);
+    expect(find.byKey(const Key('emergency-broadcast-b-1')), findsNothing);
+
     await tester.tap(find.text('Đã xem'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('emergency-broadcast-unseen')), findsNothing);
     expect(find.byKey(const Key('emergency-broadcasts-panel')), findsOneWidget);
+    expect(find.text('Dừng lại chờ.'), findsOneWidget);
+    expect(find.byKey(const Key('emergency-broadcast-b-1')), findsOneWidget);
     expect(await store.read(tripId), {'b-1'});
 
     await tester.pumpWidget(const SizedBox());

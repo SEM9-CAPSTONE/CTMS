@@ -5,6 +5,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_client.dart';
+import '../../../core/api/api_exception.dart';
+import '../../auth/application/auth_controller.dart';
 import '../data/emergency_broadcast_seen_store.dart';
 import '../data/emergency_broadcasts_api.dart';
 
@@ -63,10 +65,16 @@ class EmergencyBroadcastsController extends ChangeNotifier
     _refreshing = true;
     try {
       final items = await api.fetch(tripId);
+      if (_disposed) return;
       broadcasts = [...items]
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       lastRefreshFailed = false;
-    } catch (_) {
+    } catch (error) {
+      if (_disposed) return;
+      if (error is ApiException &&
+          const [401, 403, 404].contains(error.statusCode)) {
+        broadcasts = const [];
+      }
       lastRefreshFailed = true;
     } finally {
       _refreshing = false;
@@ -109,10 +117,13 @@ final emergencyBroadcastSeenStoreProvider =
     );
 
 final emergencyBroadcastsControllerProvider = ChangeNotifierProvider.autoDispose
-    .family<EmergencyBroadcastsController, String>(
-      (ref, tripId) => EmergencyBroadcastsController(
+    .family<EmergencyBroadcastsController, String>((ref, tripId) {
+      ref.watch(
+        authControllerProvider.select((state) => state.valueOrNull?.id),
+      );
+      return EmergencyBroadcastsController(
         tripId: tripId,
         api: ref.watch(emergencyBroadcastsApiProvider),
         seenStore: ref.watch(emergencyBroadcastSeenStoreProvider),
-      ),
-    );
+      );
+    });

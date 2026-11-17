@@ -13,6 +13,7 @@ import '../../../core/widgets/ctms_status_badge.dart';
 import '../../camper_bookings/presentation/booking_order_panel.dart';
 import '../../emergency_broadcasts/presentation/emergency_broadcasts_panel.dart';
 import '../../gps_tracking/presentation/gps_tracking_panel.dart';
+import '../../missed_alerts/missed_alerts_panel.dart';
 import '../../offline_map/presentation/offline_map_panel.dart';
 import '../../offline_packages/presentation/offline_package_screen.dart';
 import '../../route_deviation/presentation/route_deviation_panel.dart';
@@ -216,6 +217,7 @@ class _CamperTripDetailScreenState
                 const SizedBox(height: AppSpacing.lg),
                 // Emergency alerts broadcast by the Host (CTMS-081); empty until one arrives
                 EmergencyBroadcastsPanel(tripId: effectiveTripId),
+                MissedAlertsPanel(tripId: effectiveTripId),
                 // Weather for the Trip's own dates (CTMS-62): reschedule answer, then the forecast
                 WeatherRescheduleResponseCard(
                   tripId: effectiveTripId,

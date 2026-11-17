@@ -38,8 +38,8 @@ class EmergencyBroadcastsPanel extends ConsumerWidget {
     if (broadcasts.isEmpty) return const SizedBox.shrink();
 
     final unseen = controller.unseen;
-    final latest = broadcasts.first;
-    final older = broadcasts.skip(1).toList();
+    final bannerId = unseen.isEmpty ? null : unseen.first.id;
+    final history = broadcasts.where((item) => item.id != bannerId).toList();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.lg),
@@ -68,24 +68,33 @@ class EmergencyBroadcastsPanel extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.md),
           ],
-          CtmsSectionCard(
-            title: 'Cảnh báo khẩn từ Host',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text('Làm theo hướng dẫn mới nhất của Host.', style: _caption),
-                const SizedBox(height: AppSpacing.sm),
-                _BroadcastRow(broadcast: latest, emphasized: true),
-                for (final item in older) _BroadcastRow(broadcast: item),
-                if (controller.lastRefreshFailed)
+          if (history.isNotEmpty)
+            CtmsSectionCard(
+              title: 'Cảnh báo khẩn từ Host',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
                   Text(
-                    'Không cập nhật được, đang hiển thị danh sách đã tải trước đó.',
-                    key: const Key('emergency-broadcasts-stale'),
+                    'Làm theo hướng dẫn mới nhất của Host.',
                     style: _caption,
                   ),
-              ],
+                  const SizedBox(height: AppSpacing.sm),
+                  for (final item in history) _BroadcastRow(broadcast: item),
+                  if (controller.lastRefreshFailed)
+                    Text(
+                      'Không cập nhật được, đang hiển thị danh sách đã tải trước đó.',
+                      key: const Key('emergency-broadcasts-stale'),
+                      style: _caption,
+                    ),
+                ],
+              ),
             ),
-          ),
+          if (history.isEmpty && controller.lastRefreshFailed)
+            Text(
+              'Không cập nhật được, đang hiển thị danh sách đã tải trước đó.',
+              key: const Key('emergency-broadcasts-stale'),
+              style: _caption,
+            ),
         ],
       ),
     );
