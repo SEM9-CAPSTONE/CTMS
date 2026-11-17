@@ -5,6 +5,8 @@ import { GpsTrackingModule } from "../gps-tracking/gps-tracking.module";
 import { PushNotificationsModule } from "../push-notifications/push-notifications.module";
 import { UsersModule } from "../users/users.module";
 import { EventsGateway } from "./events.gateway";
+import { MissedAlertsController } from "./missed-alerts.controller";
+import { MissedAlertsService } from "./missed-alerts.service";
 import { RealtimeEventPruneWorker } from "./realtime-event-prune.worker";
 import { RealtimeEventsRepository } from "./realtime-events.repository";
 import { RealtimeEventsService } from "./realtime-events.service";
@@ -26,7 +28,9 @@ import { RealtimeEventsService } from "./realtime-events.service";
 		}),
 	],
 	// CTMS-082: protected events are stored for missed-event recovery after a reconnect.
+	controllers: [MissedAlertsController],
 	providers: [
+		MissedAlertsService,
 		EventsGateway,
 		RealtimeEventsRepository,
 		RealtimeEventsService,

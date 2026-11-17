@@ -8,6 +8,7 @@ import request from "supertest";
 import { DataSource } from "typeorm";
 import { AppModule } from "../src/modules/app.module";
 import type { EmergencyBroadcastPayload } from "../src/modules/emergency-broadcasts/emergency-broadcasts.types";
+import { RealtimeEventsService } from "../src/modules/realtime/realtime-events.service";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
 import { assertSafeTestDatabase } from "./support/assert-safe-test-database";
 
@@ -20,6 +21,7 @@ describe("CTMS-081 emergency broadcast to Trip (PostgreSQL + HTTP + socket.io)",
 	let db: DataSource;
 	let jwt: JwtService;
 	let baseUrl: string;
+	let realtime: RealtimeEventsService;
 	const sockets: ClientSocket[] = [];
 
 	const host = randomUUID();
@@ -90,6 +92,7 @@ describe("CTMS-081 emergency broadcast to Trip (PostgreSQL + HTTP + socket.io)",
 		const { port } = app.getHttpServer().address() as AddressInfo;
 		baseUrl = `http://127.0.0.1:${port}`;
 		db = module.get(DataSource);
+		realtime = module.get(RealtimeEventsService);
 		jwt = module.get(JwtService);
 		await assertSafeTestDatabase(db);
 
@@ -306,6 +309,52 @@ describe("CTMS-081 emergency broadcast to Trip (PostgreSQL + HTTP + socket.io)",
 		expect(received.filter((p) => p.broadcastId === payload.id)).toHaveLength(1);
 
 		await post({ ...payload, content: "Nội dung khác" }).expect(409);
+	});
+
+	it("recovers the same broadcast identity and rechecks Camper membership on both paths", async () => {
+		const payload = body();
+		const afterSequence = await realtime.latestSequence();
+		await post(payload).expect(201);
+		const backfill = () =>
+			request(app.getHttpServer())
+				.get("/api/missed-alerts")
+				.set("Authorization", `Bearer ${token(camper)}`)
+				.expect(200);
+		const replay = () =>
+			realtime.recover({
+				afterSequence,
+				userId: camper,
+				roles: ["camper"],
+				isTripMember: async () => false,
+			});
+		const recovered = await backfill();
+		expect(recovered.body.failedSources).toEqual([]);
+		const item = recovered.body.items.find(
+			(entry: { sourceId: string }) => entry.sourceId === payload.id
+		);
+		expect(item).toMatchObject({ dedupKey: `broadcast:${payload.id}`, source: "broadcast" });
+		const event = (await replay()).events.find((entry) => entry.meta.eventId === payload.id);
+		expect(event?.payload).toMatchObject({
+			broadcastId: item.sourceId,
+			createdAt: item.occurredAt,
+		});
+		await db.query(
+			"UPDATE booking_members SET member_status='removed' WHERE booking_id=$1 AND user_id=$2",
+			[booking, camper]
+		);
+		try {
+			expect((await replay()).events.some((entry) => entry.meta.eventId === payload.id)).toBe(
+				false
+			);
+			expect((await backfill()).body.items).not.toContainEqual(
+				expect.objectContaining({ sourceId: payload.id })
+			);
+		} finally {
+			await db.query(
+				"UPDATE booking_members SET member_status='joined' WHERE booking_id=$1 AND user_id=$2",
+				[booking, camper]
+			);
+		}
 	});
 
 	it("lists all broadcasts for the Host and only addressed ones for recipients; strangers get 404", async () => {

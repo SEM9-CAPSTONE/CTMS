@@ -89,7 +89,34 @@ Disconnected
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+The existing WebSocket replay returns `events`, `latestSequence` and `truncated`.
+Replay has a default 24-hour retention and a default 200-event response limit across all event types.
+After a truncated replay, including a cursor outside retention, Camper clients use the same HTTP backfill flow.
+
+`GET /api/missed-alerts?cursor=<opaque cursor>` requires an authenticated Camper.
+It returns `items`, `nextCursor`, `failedSources` and `recoveryMode: "backfill"`.
+WebSocket replay has no `recoveryMode` field. The HTTP snapshot covers the 24 hours
+before the first request and returns at most 200 items per page across all sources.
+Ordering is `occurredAt` descending and `dedupKey` ascending. The cursor is signed,
+account-bound, and expires 24 hours after the snapshot starts. Missing credentials
+return 401, missing Camper role returns 403, and an invalid or expired cursor returns 422.
+Restart without a cursor after a 422. On partial failure, hold the current cursor,
+retain successful items and merge the same page again when retrying. Pagination resumes
+when all sources succeed.
+
+Each item has `source`, `sourceId`, `dedupKey`, `occurredAt` and `details`.
+Deduplicate using `<source>:<sourceId>`.
+
+| Source | Identity and timestamp | Details and visibility |
+| --- | --- | --- |
+| `broadcast` | Live and replay `broadcastId`, with original `createdAt` | Trip ID, alert type and content. Camper must be an original recipient and a current eligible member. |
+| `sos` | Live and replay `transitionId`, with audit `occurredAt` | SOS ID and one of the audited cancellation, acknowledgement or closure actions. Only the SOS sender can backfill them. |
+| `notification` | Live and replay `notificationId`, with original `occurredAt` | Event type and `readAt` for the authenticated recipient. Use the existing inbox API for authorized target details. CTMS-379 currently produces Host/Admin trip-review notices. |
+
+For notifications, `readAt: null` means unread. Broadcast and SOS omit the field.
+Legacy SOS replay entries can lack the audit ID. Keep their opaque replay identity
+unless a transition match is verified. An old replay entry and its backfill counterpart
+can therefore temporarily appear twice. Audit actors, notes and raw snapshots are excluded from backfill.
 
 ## 10. Error & Edge Cases
 

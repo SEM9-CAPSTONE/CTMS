@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: Nest injection metadata
 import { DataSource } from "typeorm";
+import { broadcastRecoveryScope } from "./broadcast-recovery-scope";
 
 /** Who may receive a protected event; frozen when it is published (CTMS-082). */
 export interface RealtimeAudience {
@@ -123,6 +124,10 @@ export class RealtimeEventsRepository {
 			 FROM "realtime_events"
 			 WHERE "sequence" > $1 AND "created_at" >= $2
 			   AND ($3::uuid = ANY("user_ids") OR "roles" && $4::varchar[] OR "trip_id" = ANY($5::uuid[]))
+			   AND ("event_name" <> 'emergency.broadcast' OR EXISTS (
+			     SELECT 1 FROM emergency_broadcasts b WHERE b.id = realtime_events.id
+			       AND ${broadcastRecoveryScope("b", "$3", true)}
+			   ))
 			 ORDER BY "sequence" ASC
 			 LIMIT $6`,
 			[

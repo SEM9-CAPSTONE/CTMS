@@ -124,6 +124,8 @@ export interface BookingUpdatedPayload {
 }
 
 export interface SosStateChangedPayload {
+	transitionId?: string;
+	occurredAt?: string;
 	sosId: string;
 	tripId: string;
 	senderId: string;
@@ -612,7 +614,12 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 
 	/** CTMS-077 / CTMS-080: SOS state transition, routed only to the Trip Host and the SOS sender. */
 	emitSosStateChanged(hostId: string, payload: SosStateChangedPayload) {
-		this.publish("sos.state_changed", payload, { userIds: [hostId, payload.senderId] });
+		this.publish(
+			"sos.state_changed",
+			payload,
+			{ userIds: [hostId, payload.senderId] },
+			payload.transitionId
+		);
 	}
 
 	/**
