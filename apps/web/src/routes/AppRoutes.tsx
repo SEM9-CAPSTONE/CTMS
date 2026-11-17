@@ -64,6 +64,11 @@ const AdminContentReportsPage = lazy(() =>
 		default: module.AdminContentReportsPage,
 	}))
 );
+const AdminAiInvestigationsPage = lazy(() =>
+	import("../features/admin-ai-investigations/AdminAiInvestigationsPage").then((module) => ({
+		default: module.AdminAiInvestigationsPage,
+	}))
+);
 const AdminPorterLevelsPage = lazy(() =>
 	import("../features/porter-levels/pages/AdminPorterLevelsPage").then((module) => ({
 		default: module.AdminPorterLevelsPage,
@@ -1153,6 +1158,18 @@ function AppRouteContent() {
 					) : (
 						<AdminUserAccountsPage onLogout={handleLogout} />
 					)}
+				</AppRoleGuard>
+			);
+
+		case RoutePath.ADMIN_AI_INVESTIGATIONS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminAiInvestigationsPage onLogout={handleLogout} />
 				</AppRoleGuard>
 			);
 

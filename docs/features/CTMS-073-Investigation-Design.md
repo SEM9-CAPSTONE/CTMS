@@ -1,6 +1,6 @@
 # CTMS-073 — AI Feedback Analysis & Investigation design
 
-[CTMS-073](../../file/spec/ctms-73-review-ai-answers-reported-as-dangerous.md) defines the planned investigation workflow for Jira CTMS-261. The current CTMS-072 implementation stores feedback, initializes Unsafe `review_status` to `pending`, preserves its acceptance receipts and cleans up expired rows. The analyzer, grouping, evidence storage, Admin transitions and Developer handoff below are design requirements.
+[CTMS-073](../../file/spec/ctms-73-review-ai-answers-reported-as-dangerous.md) defines the investigation workflow for Jira CTMS-261. CTMS-072 stores feedback, initializes Unsafe `review_status` to `pending`, preserves its acceptance receipts and cleans up expired rows. The backend contract below describes how CTMS-343 extends that transaction and exposes the investigation workflow to authorized Admins.
 
 ## Feedback intake and processing
 
@@ -54,6 +54,30 @@ The case report may submit a candidate regression scenario containing minimized 
 | CTMS-072 | Keep Online `answerId` resolution and the existing rating/Unsafe UI. Add only the optional allowlisted Local trace gap in the existing endpoint when the metadata can be captured. Keep legacy payloads, frozen evidence and idempotent offline queue behavior. |
 | CTMS-073 | Design durable accepted-event capture, restricted snapshots, prioritized idempotent analysis, evidence-based grouping, audited review, manual Developer references and approved cleanup. Test expiry/cleanup races, missing evidence, conflicting findings, duplicate or reordered events, authorization and handoff without premature closure. |
 | CTMS-098 | Accept independently validated candidate scenarios through dataset versioning. Reference benchmark versions and reports for a verified disposition when applicable. Run baseline/candidate comparison under existing gates without a feedback prerequisite. |
+
+## Backend contract
+
+The feedback transaction writes the accepted state, receipt, work item and first actionable snapshot together. Each work item is keyed by the original feedback and client mutation. Superseded work cannot replace the latest report. Useful-only work increments a UTC-day count of effective changes and clears its work item atomically. `CreateAiInvestigations1796500000000` creates the investigation tables independently from the 30-day answer and feedback relationships.
+
+| Method and path | Contract |
+| --- | --- |
+| `GET /api/admin/ai-investigations` | Paginated `items`, `pagination`, optional `group` classification and unfiltered `summary` counts (`totalCases`, `unsafeCases`, `notUsefulCases`, `resolvedCases`). Resolved cases have a recorded closure. Filters are `scope=ALL/UNSAFE/NOT_USEFUL`, optional `reviewStatus`, `groupId`, `q`, `page` and `limit`. `q` is a case-insensitive substring search of the retained question and answer, limited to 180 characters. `NOT_USEFUL` selects only Not Useful cases without an Unsafe report. The Unsafe queue prioritizes `pending`, then `reviewing`, then `actioned`. Each item has a nullable `questionPreview` of up to 180 characters from the retained investigation snapshot. |
+| `GET /api/admin/ai-investigations/:id` | Case, feedback and answer identifiers, processing/review/technical status, review version, selected-turn evidence, permitted source references, report, observation of recorded citation divergence, groups and review history. It indicates withdrawn evidence, absent legacy fields and evidence removed by policy. Detail reads record a case access audit. |
+| `PATCH /api/admin/ai-investigations/:id` | `START_REVIEW` requires `version`. `HANDOFF` adds `reference` and `verification` (the work to verify). `RESOLVE` adds `disposition` (`VERIFIED_FIX` or `JUSTIFIED_NO_FIX`), the independent verification scope and result in `verification`, a nonblank `resolutionNote` and optional engineering `reference`. A successful write returns the case ID, new version and statuses. The server derives reviewer and time. |
+
+Admin requests use the existing active-account JWT and Admin role guard. Unknown cases return `404`, malformed commands return `422`, and stale or invalid transitions return `409`. A resolution reference is a Jira issue key or issue URL, or a GitHub issue/PR URL. CTMS records the Admin's substantiation and provenance without calling those sites. The audit payload contains actor, target, timestamps and state changes. Reference, verification and resolution notes are available in the restricted case history.
+
+CTMS sends a bounded investigation payload to the existing AI service through `POST /internal/feedback-investigation`. The service uses `AI_SURVIVAL_PROVIDER` (`openai` or `gemini`) and `AI_SURVIVAL_MODEL`. It sends the instruction and evidence in separate message roles, validates structured output and checks referenced evidence IDs against the actual inputs. Model output is stored as observations and hypotheses. An absent, weak or conflicting basis yields `UNDETERMINED`. Recorded citation divergence can be checked independently by comparing the saved retrieved and cited sets. Cases share a group only for the same deterministic divergence signature (recorded retrieval/prompt versions and the same unmatched citation identity). Other findings have singleton groups. Candidate regression scenarios remain part of the report.
+
+The provider configuration is opt-in through `AI_INVESTIGATION_PROVIDER_ENABLED` on the API and AI services. Actionable jobs stay pending with the configuration off. With it on, a failing attempt can retry up to three total attempts. Current, exact chunk references resolve under the existing publication and rights rules. Sending bounded excerpts of eligible current sources requires `AI_INVESTIGATION_SOURCE_EXCERPTS_ENABLED`. Historical source text is never copied into the snapshot. A report derived from a source that subsequently becomes unavailable is withheld in the detail response.
+
+`AI_INVESTIGATION_CLOSED_RETENTION_DAYS` has no default. An approved value enables cleanup of closed snapshots, report text and feedback reasons for eligible cases without a retention hold. Cleanup leaves the technical disposition, lineage and audit intact. Management of holds, account erasure, historical source access and rollout backfill remain subject to the open decisions below.
+
+| Verification | Test suites |
+| --- | --- |
+| Feedback effect, priority, output validation, grouping and review policies | `ai-investigation.spec.ts`, `test_feedback_investigation.py` |
+| PostgreSQL commit/rollback, replay, lease fencing, grouping, expiry, holds and audited review | `ai-investigations.integration-spec.ts` |
+| HTTP authorization, Unsafe queue, legacy evidence, handoff, conflict and completion | `ai-investigations.e2e-spec.ts` |
 
 ## Open decisions
 

@@ -10,17 +10,13 @@ import {
 } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: Nest injection
 import { DataSource, type EntityManager } from "typeorm";
+import { recordInvestigationIntake } from "../ai-investigations/ai-investigation-intake";
+import type { Signal } from "../ai-investigations/ai-investigation.types";
 import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { aiUnavailable, ensureCamper } from "./ai-answers.policy";
 // biome-ignore lint/style/useImportType: Nest injection
 import { AiAnswersRepository } from "./ai-answers.repository";
 import { type FeedbackInput, type FeedbackRating, feedbackInput } from "./ai-feedback.policy";
-
-type FeedbackRow = {
-	id: string;
-	rating: FeedbackRating | null;
-	reported_unsafe: boolean;
-};
 
 type FeedbackAck = {
 	feedbackId: string;
@@ -110,9 +106,9 @@ export class AiFeedbackService implements OnModuleInit, OnModuleDestroy {
 			return replay.ack;
 		}
 
-		const [current]: Array<FeedbackRow & { evidence_matches: boolean; expired: boolean }> =
+		const [current]: Array<Signal & { evidence_matches: boolean; expired: boolean }> =
 			await manager.query(
-				`SELECT id, rating, reported_unsafe,
+				`SELECT id, rating, reported_unsafe, reason, reported_at,
 				 local_evidence IS NOT DISTINCT FROM $5::jsonb AS evidence_matches,
 				 expires_at<=clock_timestamp() AS expired
 				 FROM ai_answer_feedback WHERE user_id=$1 AND
@@ -137,7 +133,7 @@ export class AiFeedbackService implements OnModuleInit, OnModuleDestroy {
 		if (stream && (stream.feedback_id !== current?.id || stream.already_used)) conflict();
 		const latest = Math.max(input.revision, stream?.revision ?? 0);
 		const newRating = input.revision === latest ? input.rating : null;
-		let result = current;
+		let result: Signal;
 		if (current) {
 			[result] = await manager.query(
 				`WITH updated AS (
@@ -146,7 +142,7 @@ export class AiFeedbackService implements OnModuleInit, OnModuleDestroy {
 				             WHEN NOT reported_unsafe AND $6 THEN COALESCE($4,reason) ELSE reason END,
 				 reported_at=CASE WHEN NOT reported_unsafe AND $3 THEN $5 ELSE reported_at END,
 				 review_status=CASE WHEN NOT reported_unsafe AND $3 THEN 'pending' ELSE review_status END,
-				 reported_unsafe=reported_unsafe OR $3 WHERE id=$1 RETURNING id,rating,reported_unsafe
+				 reported_unsafe=reported_unsafe OR $3 WHERE id=$1 RETURNING id,rating,reported_unsafe,reason,reported_at
 				) SELECT * FROM updated`,
 				[
 					current.id,
@@ -163,7 +159,7 @@ export class AiFeedbackService implements OnModuleInit, OnModuleDestroy {
 				 rating,reported_unsafe,reason,reported_at,review_status,expires_at)
 				 VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8,CASE WHEN $7 THEN $9::timestamptz END,
 				        CASE WHEN $7 THEN 'pending' END,COALESCE($10,clock_timestamp()+interval '30 days'))
-				 RETURNING id,rating,reported_unsafe`,
+				 RETURNING id,rating,reported_unsafe,reason,reported_at`,
 				[
 					userId,
 					online?.answerId,
@@ -199,6 +195,7 @@ export class AiFeedbackService implements OnModuleInit, OnModuleDestroy {
 				JSON.stringify(ack),
 			]
 		);
+		await recordInvestigationIntake(manager, userId, input, current, result);
 		return ack;
 	}
 }

@@ -19,6 +19,12 @@ export const queryKeys = {
 		all: ["admin-moderation"] as const,
 		counts: (adminId: string) => ["admin-moderation", adminId, "counts"] as const,
 	},
+	aiInvestigations: {
+		lists: (actor: string) => ["ai-investigations", actor, "list"] as const,
+		list: (actor: string, filters: Record<string, string | number | undefined>) =>
+			["ai-investigations", actor, "list", filters] as const,
+		detail: (actor: string, id: string) => ["ai-investigations", actor, "detail", id] as const,
+	},
 	demandInsights: {
 		periods: (actor: string) => ["demand-insights", actor, "periods"] as const,
 		report: (actor: string, month: string) => ["demand-insights", actor, month] as const,
