@@ -1,4 +1,5 @@
 import type { DataSource } from "typeorm";
+import dataSource from "../shared/database/data-source";
 import { readableDemoTripTitle, tidyDemoCopyForReview } from "./main.seed";
 import {
 	PORTER_CONFLICT_ASSIGNMENT_TRIP,
@@ -10,7 +11,60 @@ import {
 	PORTER_SEED_ROUTE_NAMES,
 	porterSeedTripWindowsOverlap,
 	refreshPorterLevelDemoCopy,
+	runMasterSeed,
 } from "./main.seed";
+
+describe("Master seed entry point", () => {
+	it.each([
+		"--financial-adjustments-only",
+		"--bank-accounts-only",
+		"--group-bookings-only",
+		"--revenue-analytics-only",
+		"--safety-hotspots-only",
+		"--fresh",
+	])("refuses %s in production before connecting to the database", async (flag) => {
+		const environment = jest.replaceProperty(process, "env", {
+			...process.env,
+			NODE_ENV: "production",
+		});
+		const argv = jest.replaceProperty(process, "argv", ["node", "main.seed.ts", flag]);
+		const initialize = jest.spyOn(dataSource, "initialize");
+		try {
+			await expect(runMasterSeed()).rejects.toThrow("production");
+			expect(initialize).not.toHaveBeenCalled();
+		} finally {
+			initialize.mockRestore();
+			argv.restore();
+			environment.restore();
+		}
+	});
+
+	it("closes the database when a financial-only seed fails without prerequisite accounts", async () => {
+		const environment = jest.replaceProperty(process, "env", {
+			...process.env,
+			NODE_ENV: "test",
+		});
+		const argv = jest.replaceProperty(process, "argv", [
+			"node",
+			"main.seed.ts",
+			"--financial-adjustments-only",
+		]);
+		const initialized = jest.replaceProperty(dataSource, "isInitialized", true);
+		const query = jest.spyOn(dataSource, "query").mockResolvedValue([]);
+		const destroy = jest.spyOn(dataSource, "destroy").mockResolvedValue();
+		try {
+			await expect(runMasterSeed()).rejects.toThrow("admin, host và camper");
+			expect(query).toHaveBeenCalledTimes(1);
+			expect(destroy).toHaveBeenCalledTimes(1);
+		} finally {
+			destroy.mockRestore();
+			query.mockRestore();
+			initialized.restore();
+			argv.restore();
+			environment.restore();
+		}
+	});
+});
 
 describe("Porter demo copy maintenance", () => {
 	it("refuses production before opening a transaction", async () => {

@@ -14,7 +14,7 @@ function db<T>(action: string, payload: unknown): T {
 	const base64 = Buffer.from(JSON.stringify(payload)).toString("base64");
 	const stdout = execFileSync(
 		"node",
-		["node_modules/ts-node/dist/bin.js", "src/seeds/db-helper.ts", action, base64],
+		["node_modules/ts-node/dist/bin.js", "test/helpers/db-helper.ts", action, base64],
 		{ cwd: API_ROOT }
 	).toString();
 	return JSON.parse(stdout) as T;
@@ -23,7 +23,7 @@ function db<T>(action: string, payload: unknown): T {
 function cleanUser(email: string): void {
 	execFileSync(
 		process.execPath,
-		["node_modules/ts-node/dist/bin.js", "src/seeds/db-helper.ts", "clean-user", email],
+		["node_modules/ts-node/dist/bin.js", "test/helpers/db-helper.ts", "clean-user", email],
 		{ cwd: API_ROOT, stdio: "ignore" }
 	);
 }

@@ -26,7 +26,7 @@ function db<T>(action: string, payload: unknown): T {
 			[
 				path.join(API_ROOT, "node_modules/ts-node/dist/bin.js"),
 				"--transpile-only",
-				path.join(API_ROOT, "src/seeds/db-helper.ts"),
+				path.join(API_ROOT, "test/helpers/db-helper.ts"),
 				action,
 				Buffer.from(JSON.stringify(payload)).toString("base64"),
 			],
@@ -104,7 +104,7 @@ test.afterAll(() => {
 			[
 				path.join(API_ROOT, "node_modules/ts-node/dist/bin.js"),
 				"--transpile-only",
-				path.join(API_ROOT, "src/seeds/db-helper.ts"),
+				path.join(API_ROOT, "test/helpers/db-helper.ts"),
 				"clean-user",
 				email,
 			],

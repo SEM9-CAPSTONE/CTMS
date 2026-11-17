@@ -1,18 +1,18 @@
 import "dotenv/config";
 import { randomInt } from "node:crypto";
 import * as bcrypt from "bcrypt";
-import { BookingExpiryService } from "../modules/bookings/booking-expiry.service";
-import { BookingsRepository } from "../modules/bookings/bookings.repository";
-import { DEFAULT_CANCELLATION_POLICY } from "../modules/bookings/cancellation-policy";
-import { EquipmentReservation } from "../modules/bookings/entities/equipment-reservation.entity";
-import { Payment } from "../modules/bookings/entities/payment.entity";
-import { EquipmentReservationsRepository } from "../modules/bookings/equipment-reservations.repository";
-import { PaymentsRepository } from "../modules/bookings/payments.repository";
-import { Booking } from "../modules/profiles/entities/booking.entity";
-import { Trip } from "../modules/trips/entities/trip.entity";
-import { TripsRepository } from "../modules/trips/repositories/trips.repository";
-import { TripAutoCancelService } from "../modules/trips/services/trip-auto-cancel.service";
-import dataSource from "../shared/database/data-source";
+import { BookingExpiryService } from "../../src/modules/bookings/booking-expiry.service";
+import { BookingsRepository } from "../../src/modules/bookings/bookings.repository";
+import { DEFAULT_CANCELLATION_POLICY } from "../../src/modules/bookings/cancellation-policy";
+import { EquipmentReservation } from "../../src/modules/bookings/entities/equipment-reservation.entity";
+import { Payment } from "../../src/modules/bookings/entities/payment.entity";
+import { EquipmentReservationsRepository } from "../../src/modules/bookings/equipment-reservations.repository";
+import { PaymentsRepository } from "../../src/modules/bookings/payments.repository";
+import { Booking } from "../../src/modules/profiles/entities/booking.entity";
+import { Trip } from "../../src/modules/trips/entities/trip.entity";
+import { TripsRepository } from "../../src/modules/trips/repositories/trips.repository";
+import { TripAutoCancelService } from "../../src/modules/trips/services/trip-auto-cancel.service";
+import dataSource from "../../src/shared/database/data-source";
 
 /**
  * JSON-payload actions take their `arg` base64-encoded -- a raw JSON string
