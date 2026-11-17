@@ -3,6 +3,7 @@ import { AlertCircle, Loader2, MapPin, RefreshCw, Send, Trash2, X } from "lucide
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { toast } from "../../../shared/components/Toast";
+import { createUuid } from "../../../shared/utils/uuid";
 import { useRouteCheckpoints } from "../../trekking-routes/hooks/useRouteCheckpoints";
 import type { CreatedTrekkingRoute, Position } from "../../trekking-routes/types";
 import type { ConfigureTripWaypointsError } from "../hooks/useConfigureTripWaypoints";
@@ -312,7 +313,7 @@ export function ConfigureTripWaypointsPanel({
 		if (onStageTripChange) {
 			const next = waypoints.map((w, index) => ({
 				...toCreateTripWaypointInput(w),
-				id: w.id || crypto.randomUUID(),
+				id: w.id || createUuid(),
 				tripId: serverTrip.id,
 				checkpointId: w.checkpointId || null,
 				dayNumber: 1,

@@ -97,6 +97,14 @@ export function SourceDetail({
 							versionId={version.id}
 							eligible={document.processingSyncStatus === "REGENERATION_NEEDED"}
 							blockedReason={document.processingBlockedReason}
+							onApproveProcessing={
+								document.canApproveProcessing
+									? () =>
+											void onAction(version, "approve-processing", {
+												expectedRevision: version.revision,
+											})
+									: undefined
+							}
 							busy={busy}
 						/>
 					)}

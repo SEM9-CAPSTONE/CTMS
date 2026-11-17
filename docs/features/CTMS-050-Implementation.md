@@ -29,7 +29,7 @@ The service checks for conflicts before creating a storage reservation. Within a
 
 ## Publication and downstream use
 
-A draft holds a PDF and the minimum metadata. Publishing checks the draft revision, metadata, stored bytes and a configured HTTPS source hostname or exact PDF SHA-256. The source policy applies to new publications and downstream reads. URL imports record the final download URL. Eligible publications queue automatically. The optional API rights payload still requires exact-version licence, evidence and attribution. Medical and translation safeguards apply to downstream use. Separate grants are required to distribute or translate the original PDF.
+A draft holds a PDF and the minimum metadata. Publishing checks the draft revision, metadata and stored bytes. The Admin UI requests processing approval for the exact version during publication. Admin can also approve a current publication from its detail view. The API records `processing_approved_at` and the actor, version and checksum in the audit trail. Configured HTTPS hostnames and SHA-256 digests remain supported for existing integrations. URL imports record the final download URL. The worker queues eligible versions from publication and processing approval events. The optional API rights payload requires exact-version licence, evidence and attribution. Medical and translation safeguards still apply. Separate grants are required to distribute or translate the original PDF.
 
 | Action | Transition | Effect |
 | --- | --- | --- |
@@ -48,7 +48,7 @@ Publication rejects older drafts when a newer version has already been published
 | Table or field | Behavior |
 | --- | --- |
 | `survival_documents` | Stable UUID, document revision, monotonic version count, nullable current published version, creator and timestamps. `expectedDocumentRevision` is required for another version. |
-| `survival_document_versions` | Version UUID, parent document, sequential version number, immutable file reference, SHA-256, size, original filename and MIME. Stores version revision, status, metadata, rights, reviewer/publisher and timestamps, plus lifecycle reason where applicable. `expectedRevision` is required to edit, publish or archive. |
+| `survival_document_versions` | Version UUID, parent document, sequential version number, immutable file reference, SHA-256, size, original filename and MIME. Stores version revision, status, metadata, rights, reviewer and publisher, timestamps, processing approval time and lifecycle reason. `expectedRevision` is required to edit, publish, approve processing or archive. |
 | `metadata` | Required draft fields are `sourceTitle`, `classification` and `locale`. Optional fields include publisher, original language/version, HTTPS source and license URLs, publication/retrieval dates, license type, permission evidence, attribution, change summary and adaptation disclaimer. URL import records the supplied URL and server retrieval timestamp. |
 | `rights` | Review status is `NOT_REVIEWED`, `REVIEW_REQUIRED`, `PERMITTED` or `RESTRICTED`. Stores confirmation and use flags for AI, offline distribution and translation, medical review status `NOT_REVIEWED`, `APPROVED` or `REJECTED`, and exact-version evidence. |
 | `survival_document_uploads` | Durable reservation links to its version on commit. Compensation removes unlinked reservations and files after failures. Hourly cleanup retries unlinked reservations older than 24 hours with database row locks. |

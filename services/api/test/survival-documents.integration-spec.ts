@@ -364,11 +364,11 @@ describe("CTMS-050 PostgreSQL integration + real guarded HTTP", () => {
 			acquisition.mockRestore();
 		}
 	});
-	it("refuses publication outside the source allowlist while preserving the draft", async () => {
+	it("requires Admin approval for unlisted sources and queues the exact approved version", async () => {
 		for (const sourceUrl of [undefined, "https://unlisted.example.com/manual.pdf"]) {
 			const doc = await create({ ...fictionalMetadata, sourceUrl }, uniqueFictionalPdf());
 			const failure = await action(doc, "publish", {}, 422);
-			expect(failure.body.message).toContain("chưa được CTMS cho phép");
+			expect(failure.body.message).toContain("chưa được xác nhận");
 			const [version] = await db.query(
 				"SELECT status FROM survival_document_versions WHERE id=$1",
 				[doc.versions[0].id]
@@ -377,6 +377,26 @@ describe("CTMS-050 PostgreSQL integration + real guarded HTTP", () => {
 			expect(
 				await db.query("SELECT id FROM survival_document_outbox WHERE document_id=$1", [doc.id])
 			).toEqual([]);
+			const publication = await action(doc, "publish", { approveProcessing: true });
+			expect(publication.body).toMatchObject({
+				processingSyncStatus: "REGENERATION_NEEDED",
+				versions: [
+					{
+						status: DocumentStatus.PUBLISHED,
+						checksum: doc.versions[0].checksum,
+						processingApprovedAt: expect.any(String),
+						rights: { offlineRedistributionAllowed: false, translationAllowed: false },
+					},
+				],
+			});
+			const [event] = await db.query(
+				"SELECT payload FROM survival_document_outbox WHERE version_id=$1",
+				[doc.versions[0].id]
+			);
+			expect(event.payload).toMatchObject({
+				checksum: doc.versions[0].checksum,
+				regenerationNeeded: true,
+			});
 		}
 	});
 	it("checks the final PDF host instead of approving an import based on its starting URL", async () => {

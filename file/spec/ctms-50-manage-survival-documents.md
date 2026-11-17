@@ -31,7 +31,7 @@ In scope are PDF intake and safety checks, duplicate detection, draft and publis
 | --- | --- |
 | PB AC-1 | Admin can create a private draft or add a version from exactly one PDF source, local file or direct HTTPS URL. |
 | PB AC-2 | A valid unique intake stores traceable identity, version, classification, language and status. |
-| PB AC-3 | Publishing an approved-source draft advances the current version, preserves past provenance and records a publication event. The worker queues eligible content automatically. |
+| PB AC-3 | Admin can publish and approve an eligible PDF for AI processing in the same UI action. Publishing advances the current version, preserves past provenance and queues eligible content automatically. |
 | PB AC-4 | Downstream consumers can identify the precise source version that generated chunks or packages. |
 | PB AC-5 | Invalid or ineligible content cannot become authoritative. Admin can stop use of a publication with a reason, and downstream access respects lifecycle and permitted use. |
 | PB AC-6 | The system rejects duplicate filenames, duplicate SHA-256 checksums, and matches on both. Admin can open the exact version returned by the conflict. |
@@ -43,7 +43,7 @@ In scope are PDF intake and safety checks, duplicate detection, draft and publis
 | BR-227 | An authorized Admin manages the publication lifecycle. Each document has at most one authoritative current published version. A replacement draft leaves the current version available. Publishing a newer draft that meets BR-484 supersedes the current version. Stop-use archives the current version. File identity and published provenance are retained, with critical actions audited under BR-191. |
 | BR-482 | A draft starts from one local PDF or one direct HTTPS PDF URL and requires a title, classification and language. The source URL is optional when saving a local upload as a draft. Validate bytes and parsed structure before storage. Accept standard PDF object compression. Reject encryption, active content and embedded files, including inside compressed objects. |
 | BR-483 | Both the normalized PDF filename and SHA-256 must be new across all stored versions, including drafts, superseded and archived versions. Apply this to new documents and replacement versions. A duplicate conflict leaves documents, versions, files, revision counters and audit history unchanged. Concurrent submissions sharing either key may create at most one version. |
-| BR-484 | Publication requires intact PDF bytes, valid metadata and an exact approved HTTPS source hostname or PDF SHA-256. A current publication meeting source eligibility can be processed without a separate AI review. Explicit restrictions, professional review of medical content and translation checks still apply. The original PDF remains private. Its offline distribution and translation require recorded grants. |
+| BR-484 | Publication requires intact PDF bytes, valid metadata and approval for the exact PDF version. Admin can record that approval during publication or for the current published version. A configured exact HTTPS source hostname or PDF SHA-256 also satisfies source approval. Explicit restrictions, professional review of medical content and translation checks still apply. The original PDF remains private. Its offline distribution and translation require recorded grants. |
 | BR-485 | After confirmation, an authorized Admin can permanently delete a whole Survival Document and all its versions. A stale document revision or a reference from another document blocks deletion. Preserve audit history under BR-191 and remove private PDF files after the transaction commits. |
 | BR-172 | Access control must be enforced by the backend using role, ownership, and business scope. Hiding or disabling functionality in the UI is not a substitute for backend authorization. |
 | BR-191 | Critical actions must be recorded in the audit log with actor, action, target, timestamp, and either before/after data or the reason for the change. |
@@ -87,9 +87,10 @@ The filename comparison uses the stored PDF filename with Unicode NFC normalizat
 ### B. Publish or stop use
 
 1. Admin selects **Xuất bản** from intake or the draft detail. Intake saves the draft first, then publishes that version.
-2. The API checks revision, PDF integrity, metadata and the approved source list. The transaction publishes the version, supersedes the old version and emits `published_version_changed`. It requests regeneration when the source meets the downstream policy. An unlisted source stays in draft and gets an actionable HTTP 422 error.
+2. The API checks the revision, PDF integrity and metadata. The UI requests approval for AI processing as part of publication. The transaction records that approval for the exact version, supersedes the old version and emits `published_version_changed`. The worker queues eligible content automatically.
 3. To stop use, Admin selects the current published version and supplies a reason. The API archives it, clears the publication pointer and emits `source_unavailable`.
 4. Downstream consumers treat these events as a change in source availability or a need to regenerate. Event creation alone does not indicate derived content is ready.
+5. For an existing current publication missing source approval, Admin selects **Cho phép xử lý**. The API verifies the same PDF and records the approval and a `processing_approved` event in one transaction. The worker queues that version even if it previously consumed the publication event.
 
 ### C. Permanently delete a document
 
@@ -101,6 +102,7 @@ The filename comparison uses the stored PDF filename with Unicode NFC normalizat
 
 - A document has a stable ID, revision, monotonic version count and at most one current publication.
 - Each version stores its ID, version number, source metadata, SHA-256, original filename, private file reference, size, state and revision. Published provenance and the original file identity are immutable.
+- `processing_approved_at` records approval for the exact stored version. The audit entry identifies the Admin and the version's SHA-256.
 - Historical versions keep their audit and provenance. Duplicate filename and checksum indexes allow pre-existing duplicate rows to remain in history. Every new intake checks those rows.
 - Downstream consumers can identify the precise source version, checksum and locale. Only the current eligible publication can supply bytes for new processing. Previously published versions can resolve historical citations.
 
@@ -120,7 +122,8 @@ All endpoints are under `/api/admin/survival-documents` and require an active Ad
 | POST | `/:id/versions` | Multipart draft replacement with `expectedDocumentRevision` |
 | POST | `/:id/versions/import-url` | JSON URL draft replacement with `expectedDocumentRevision` |
 | PATCH | `/:id/versions/:versionId/metadata` | Edit draft metadata with `expectedRevision` |
-| POST | `/:id/versions/:versionId/publish` | Publish with `expectedRevision`. API callers can supply optional verified rights, subject to exact-version validation. |
+| POST | `/:id/versions/:versionId/publish` | Publish with `expectedRevision` and optional `approveProcessing`. Verified rights can accompany the request. |
+| POST | `/:id/versions/:versionId/approve-processing` | Approve the current publication with `expectedRevision` and queue processing for the exact version |
 | POST | `/:id/versions/:versionId/archive` | Stop use with `expectedRevision` and a reason |
 
 A duplicate response includes `code`, `message`, `documentId`, `versionId`, `versionNumber` and `sourceTitle`. Authorization, invalid input, unsafe/unavailable URLs, oversize files, stale revisions and illegal transitions return errors without advancing the lifecycle. See the [implementation and data documentation](../../docs/features/CTMS-050-Implementation.md) for technical details.
@@ -134,7 +137,7 @@ Each BR ID refers to its definition in Section 5. The scenarios below describe t
 | BR-227 | New publication supersedes the previous one and archive retains history | Stale revisions, illegal transitions, overwrite of published provenance, and downstream access after archive | PostgreSQL integration, Chrome |
 | BR-482 | Admin creates a private draft by local upload or URL import | Malformed or unsafe PDF, blocked URL, oversize response | Unit, HTTP E2E, PostgreSQL integration, Chrome |
 | BR-483 | A new name and new bytes create one draft | TH1–TH3, case/NFC/space variants, legacy or archived matches, and concurrent same-name or same-checksum requests | PostgreSQL integration, HTTP E2E, Chrome |
-| BR-484 | Draft from an approved source publishes without rights input and eligible content queues automatically | Missing or unlisted source provenance, restricted content, missing medical/translation checks, or original PDF use outside recorded grants | Policy unit, PostgreSQL integration, Chrome |
+| BR-484 | Admin publishes an eligible PDF from the UI or approves a current publication and the worker queues the exact version | Missing source approval, restricted content, missing medical or translation checks, or original PDF use outside recorded grants | Policy unit, PostgreSQL integration, Web |
 | BR-485 | Confirmed deletion removes document, versions and PDFs, and retains audit | Stale revision or another document referencing a version | PostgreSQL integration, Chrome |
 | BR-172 | The API allows an active Admin to access private PDFs and manage document versions | The API returns HTTP 401 without a session and HTTP 403 for a disallowed role. Rejected writes leave the document unchanged. | HTTP E2E, PostgreSQL integration |
 | BR-191 | A successful publication records the Admin, action, document, timestamp and version state before and after publication. Archiving also records its reason. | If the audit write fails, the publication, current-version pointer and outbox event roll back together. | PostgreSQL integration |
@@ -142,4 +145,4 @@ Each BR ID refers to its definition in Section 5. The scenarios below describe t
 
 ## 11. Source policy configuration
 
-Configure comma-separated exact hostnames with `SURVIVAL_KNOWLEDGE_APPROVED_HOSTS` and exact SHA-256 digests with `SURVIVAL_KNOWLEDGE_APPROVED_SHA256`. Use the digest for files without a source URL or when approval is specific to one PDF. The configured list starts empty. New URL imports use the final download hostname. Uploaded files that use the hostname option carry Admin-declared provenance, so the operator must verify the file against its source before publication. Use exact digests for legacy imports if the final download provenance cannot be established. A legacy publication outside the list stays visible in Admin with a reason and is excluded from processing and new downstream reads until its provenance is approved.
+The Admin UI records approval in the database for each PDF version. Existing integrations can also configure comma-separated exact hostnames with `SURVIVAL_KNOWLEDGE_APPROVED_HOSTS` and exact SHA-256 digests with `SURVIVAL_KNOWLEDGE_APPROVED_SHA256`. For URL imports, the hostname check uses the final download URL. A current publication without source approval stays visible with a reason and can be approved in its detail view when it meets the other processing requirements.

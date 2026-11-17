@@ -108,6 +108,7 @@ export class SurvivalDocumentsRepository {
 					status: version.status,
 					revision: version.revision,
 					checksum: version.checksum,
+					processingApprovedAt: version.processingApprovedAt,
 					rightsReviewStatus: version.rights.rightsReviewStatus,
 				}),
 				reason?.slice(0, 255) ?? null,

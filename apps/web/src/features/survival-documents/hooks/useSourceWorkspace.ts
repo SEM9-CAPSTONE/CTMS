@@ -75,11 +75,13 @@ export function useSourceWorkspace() {
 				documentId: version.documentId,
 				versionId: version.id,
 				action,
-				payload,
+				payload: action === "publish" ? { ...payload, approveProcessing: true } : payload,
 			});
 			if (action === "publish") {
 				openDocument(null);
 				toast.success("Đã xuất bản tài liệu.");
+			} else if (action === "approve-processing") {
+				toast.success("Đã cho phép xử lý tài liệu.");
 			} else {
 				setNotice("Đã ngừng sử dụng tài liệu.");
 			}
@@ -87,6 +89,11 @@ export function useSourceWorkspace() {
 			if (savedFromEditor) {
 				const message = error instanceof Error ? error.message : "Vui lòng thử lại.";
 				toast.error(message, "Đã lưu bản nháp. Xuất bản chưa thành công.");
+			} else if (action === "approve-processing") {
+				toast.error(
+					error instanceof Error ? error.message : "Vui lòng thử lại.",
+					"Chưa thể cho phép xử lý tài liệu."
+				);
 			}
 		}
 	}

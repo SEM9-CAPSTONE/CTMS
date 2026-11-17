@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createUuid } from "../../../shared/utils/uuid";
 import {
 	type CachedTripDraft,
 	type DraftSnapshot,
@@ -18,7 +19,7 @@ export function useTripDraftSession(explicitId?: string, enabled = true) {
 	const [initial] = useState(() => {
 		const owner = draftOwner();
 		const active = enabled ? activeDraftId(owner) : undefined;
-		const id = explicitId ?? active ?? crypto.randomUUID();
+		const id = explicitId ?? active ?? createUuid();
 		const cached = enabled ? readDraftCache(owner, id) : null;
 		return {
 			owner,
@@ -75,8 +76,8 @@ export function useTripDraftSession(explicitId?: string, enabled = true) {
 				owner: initial.owner,
 				values: structuredClone(snapshot.values),
 				tripId: snapshot.tripId,
-				revision: crypto.randomUUID(),
-				imageVersion: imagesChanged ? crypto.randomUUID() : (last.current?.meta.imageVersion ?? ""),
+				revision: createUuid(),
+				imageVersion: imagesChanged ? createUuid() : (last.current?.meta.imageVersion ?? ""),
 				imageCount: snapshot.images.length,
 				updatedAt: new Date().toISOString(),
 				dirty: true,

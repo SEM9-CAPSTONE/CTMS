@@ -27,12 +27,14 @@ export function SourceChunkingStatus({
 	versionId,
 	eligible,
 	blockedReason,
+	onApproveProcessing,
 	busy,
 }: {
 	documentId: string;
 	versionId: string;
 	eligible: boolean;
 	blockedReason?: string | null;
+	onApproveProcessing?: () => void;
 	busy: boolean;
 }) {
 	const { query, retry } = useSourceChunking(documentId, versionId);
@@ -57,6 +59,29 @@ export function SourceChunkingStatus({
 				{title()}
 				{eligible && status === "READY" && set?.active ? ` · ${set.chunk_count} đoạn trích` : null}
 			</output>
+			{!eligible && onApproveProcessing && (
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					disabled={busy}
+					onClick={onApproveProcessing}
+				>
+					Cho phép xử lý
+				</Button>
+			)}
+			{eligible && query.isSuccess && (!set || status === "FAILED") && (
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					disabled={busy || retry.isPending}
+					onClick={() => retry.mutate()}
+				>
+					{set ? "Thử lại xử lý" : "Bắt đầu xử lý"}
+				</Button>
+			)}
+			{retry.isError && <p role="alert">Không thể gửi yêu cầu xử lý.</p>}
 			{eligible && status === "NEEDS_REVIEW" && (
 				<p className="text-sm text-muted-foreground">
 					{issue
@@ -65,19 +90,7 @@ export function SourceChunkingStatus({
 				</p>
 			)}
 			{eligible && status === "FAILED" && (
-				<>
-					<p className="text-sm text-muted-foreground">{failureMessage}</p>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						disabled={busy || retry.isPending}
-						onClick={() => retry.mutate()}
-					>
-						Thử lại xử lý
-					</Button>
-					{retry.isError && <p role="alert">Không thể gửi yêu cầu thử lại.</p>}
-				</>
+				<p className="text-sm text-muted-foreground">{failureMessage}</p>
 			)}
 		</section>
 	);

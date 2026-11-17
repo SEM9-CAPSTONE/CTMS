@@ -17,10 +17,10 @@ import { type PdfSource, PdfSourceService } from "./pdf-source.service";
 // biome-ignore lint/style/useImportType: Nest injection
 import { SourceFilesService } from "./source-files.service";
 import {
+	SOURCE_NOT_APPROVED,
 	assertApprovedSource,
 	assertRights,
 	isEligiblePublishedSource,
-	isEligibleSourceContent,
 	sourceContentIssue,
 	validatePublicationMetadata,
 	validatePublishedSourceMetadata,
@@ -43,6 +43,7 @@ import {
 type VersionChange =
 	| { action: "metadata"; dto: EditSourceDto }
 	| { action: "publish"; dto: PublishSourceDto }
+	| { action: "approve-processing"; dto: RevisionDto }
 	| { action: "archive"; dto: RevisionDto };
 
 @Injectable()
@@ -126,6 +127,7 @@ export class SurvivalDocumentsService {
 			const published = versions.find(
 				(version) => version.id === document.currentPublishedVersionId
 			);
+			const processingBlockedReason = published ? sourceContentIssue(published) : null;
 			return {
 				...document,
 				versions: versions.map(publicVersion),
@@ -136,7 +138,10 @@ export class SurvivalDocumentsService {
 				)
 					? ("REGENERATION_NEEDED" as const)
 					: ("NOT_PROCESSED" as const),
-				processingBlockedReason: published ? sourceContentIssue(published) : null,
+				processingBlockedReason,
+				canApproveProcessing:
+					published?.status === DocumentStatus.PUBLISHED &&
+					processingBlockedReason === SOURCE_NOT_APPROVED,
 			};
 		});
 	}
@@ -411,7 +416,11 @@ export class SurvivalDocumentsService {
 					} else {
 						validatePublishedSourceMetadata(before.metadata);
 					}
-					assertApprovedSource(before);
+					const processingApprovedAt = dto.approveProcessing ? new Date().toISOString() : null;
+					const publication = { ...before, rights, processingApprovedAt };
+					assertApprovedSource(publication);
+					const processingIssue = sourceContentIssue(publication);
+					if (dto.approveProcessing && processingIssue) throw invalidSource(processingIssue);
 					await this.original(manager, before.metadata);
 					await this.files.read(before);
 					if (document.currentPublishedVersionId) {
@@ -439,9 +448,10 @@ export class SurvivalDocumentsService {
 						`UPDATE survival_document_versions
 						 SET published_by=$2,published_at=now(),rights=$3::jsonb,
 						 reviewed_by=CASE WHEN $4 THEN $2 ELSE reviewed_by END,
-						 reviewed_at=CASE WHEN $4 THEN now() ELSE reviewed_at END
+						 reviewed_at=CASE WHEN $4 THEN now() ELSE reviewed_at END,
+						 processing_approved_at=$5
 						 WHERE id=$1`,
-						[versionId, actorId, JSON.stringify(rights), !!dto.rights]
+						[versionId, actorId, JSON.stringify(rights), !!dto.rights, processingApprovedAt]
 					);
 					await manager.query(
 						"UPDATE survival_documents SET current_published_version_id=$2 WHERE id=$1",
@@ -450,11 +460,29 @@ export class SurvivalDocumentsService {
 					await this.event(
 						manager,
 						documentId,
-						{ ...before, rights },
+						publication,
 						document.currentPublishedVersionId,
 						"published_version_changed",
-						isEligibleSourceContent({ ...before, rights })
+						processingIssue === null
 					);
+					break;
+				}
+				case "approve-processing": {
+					if (
+						status !== DocumentStatus.PUBLISHED ||
+						document.currentPublishedVersionId !== versionId
+					)
+						sourceConflict();
+					if (before.processingApprovedAt) return;
+					const approved = { ...before, processingApprovedAt: new Date().toISOString() };
+					const issue = sourceContentIssue(approved);
+					if (issue) throw invalidSource(issue);
+					await this.files.read(before);
+					await manager.query(
+						"UPDATE survival_document_versions SET processing_approved_at=$2 WHERE id=$1",
+						[versionId, approved.processingApprovedAt]
+					);
+					await this.event(manager, documentId, approved, null, "processing_approved");
 					break;
 				}
 				case "archive":
@@ -475,7 +503,7 @@ export class SurvivalDocumentsService {
 			await manager.query(
 				`UPDATE survival_document_versions SET status=$2::varchar,revision=revision+1,
 				 reason=CASE WHEN $2::varchar='PUBLISHED' THEN $3::varchar ELSE COALESCE($3::varchar,reason) END WHERE id=$1`,
-				[versionId, status, dto.reason ?? null]
+				[versionId, status, action === "approve-processing" ? before.reason : (dto.reason ?? null)]
 			);
 			await manager.query(
 				"UPDATE survival_documents SET revision=revision+1,updated_at=now() WHERE id=$1",
@@ -498,7 +526,11 @@ export class SurvivalDocumentsService {
 		documentId: string,
 		version: SourceVersion,
 		previousId: string | null,
-		type: "published_version_changed" | "source_unavailable" | "document_deleted",
+		type:
+			| "published_version_changed"
+			| "processing_approved"
+			| "source_unavailable"
+			| "document_deleted",
 		canProcess = false
 	): Promise<void> {
 		await manager.query(

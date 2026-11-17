@@ -1,3 +1,4 @@
+import { createUuid } from "../../../shared/utils/uuid";
 import type { CreateTripInput, Trip, TripWaypoint } from "../types";
 export function pendingTripPreview(trip: Trip, payload: CreateTripInput): Trip {
 	const endpoints = payload.waypoints
@@ -5,7 +6,7 @@ export function pendingTripPreview(trip: Trip, payload: CreateTripInput): Trip {
 		.map(
 			(w, index): TripWaypoint => ({
 				...w,
-				id: trip.waypoints.find((old) => old.type === w.type)?.id ?? crypto.randomUUID(),
+				id: trip.waypoints.find((old) => old.type === w.type)?.id ?? createUuid(),
 				tripId: trip.id,
 				checkpointId: w.checkpointId ?? null,
 				dayNumber: 1,

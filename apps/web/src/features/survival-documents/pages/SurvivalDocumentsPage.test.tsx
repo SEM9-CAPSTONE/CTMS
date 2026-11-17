@@ -137,16 +137,22 @@ describe("CTMS-050 Admin source management", () => {
 		expect(panel.queryByRole("button", { name: "Thử lại xử lý" })).toBeNull();
 	});
 
-	it("shows why a legacy publication is blocked by the source policy", async () => {
-		const reason = "Nguồn PDF chưa được CTMS cho phép xử lý.";
+	it("lets Admin approve the exact version of a blocked legacy publication", async () => {
+		const reason = "Nguồn PDF chưa được xác nhận để xử lý cho Trợ lý AI.";
 		vi.mocked(service.detail).mockResolvedValue({
 			...published,
 			processingSyncStatus: "NOT_PROCESSED",
 			processingBlockedReason: reason,
+			canApproveProcessing: true,
 		});
+		vi.mocked(service.action).mockResolvedValue(published);
 		vi.spyOn(service, "chunkSets").mockResolvedValue([]);
 		const panel = await detail();
 		expect(await panel.findByText(reason)).toBeInTheDocument();
+		await userEvent.click(panel.getByRole("button", { name: "Cho phép xử lý" }));
+		expect(service.action).toHaveBeenCalledWith(doc.id, doc.versions[0].id, "approve-processing", {
+			expectedRevision: doc.versions[0].revision,
+		});
 	});
 	it("shows loading until authoritative list arrives", async () => {
 		vi.mocked(service.list).mockReturnValue(new Promise(() => {}));
@@ -231,6 +237,7 @@ describe("CTMS-050 Admin source management", () => {
 		await waitFor(() =>
 			expect(service.action).toHaveBeenCalledWith(doc.id, doc.versions[0].id, "publish", {
 				expectedRevision: doc.versions[0].revision,
+				approveProcessing: true,
 			})
 		);
 		await waitFor(() => expect(notify).toHaveBeenCalledWith("Đã xuất bản tài liệu."));
@@ -342,6 +349,7 @@ describe("CTMS-050 Admin source management", () => {
 		await waitFor(() =>
 			expect(service.action).toHaveBeenCalledWith(doc.id, doc.versions[0].id, "publish", {
 				expectedRevision: doc.versions[0].revision,
+				approveProcessing: true,
 			})
 		);
 	});
