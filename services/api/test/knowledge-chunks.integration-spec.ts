@@ -145,6 +145,17 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		expect(set).toBeDefined();
 		return set;
 	}
+	async function replayPublication(versionId: string): Promise<void> {
+		const receipts: Array<{ event_id: string }> = await db.query(
+			`WITH replay AS (
+			   DELETE FROM knowledge_chunk_event_receipts r USING survival_document_outbox e
+			   WHERE r.event_id=e.id AND e.version_id=$1 AND e.event_type='published_version_changed'
+			   RETURNING r.event_id
+			 ) SELECT event_id FROM replay`,
+			[versionId]
+		);
+		expect(receipts).toHaveLength(1);
+	}
 	function output(set: ChunkSet): ChunkOutput {
 		return {
 			document_version_id: set.document_version_id,
@@ -180,47 +191,44 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			.status as ChunkSetStatus;
 	}
 
-	it("allows only active Admin and eligible exact-version publications", async () => {
+	it("guards exact-version status and rejects manual enqueue", async () => {
 		const doc = await draft();
-		await request(app.getHttpServer()).post(chunkEndpoint(doc)).expect(401);
+		await request(app.getHttpServer()).get(chunkEndpoint(doc)).expect(401);
 		await request(app.getHttpServer())
 			.get(chunkEndpoint(doc))
 			.set("Authorization", camperAuth)
 			.expect(403);
-		await request(app.getHttpServer())
-			.post(chunkEndpoint(doc))
-			.set("Authorization", auth)
-			.expect(404);
 		const unverified = await publish(await draft(undefined, Classification.FIRST_AID), false);
+		await repo.consumeEvents(configuration);
 		await request(app.getHttpServer())
-			.post(chunkEndpoint(unverified))
+			.get(chunkEndpoint(unverified))
 			.set("Authorization", auth)
-			.expect(404);
+			.expect(200, []);
 		const valid = await publish(doc, false);
 		await request(app.getHttpServer())
 			.post(chunkEndpoint(valid))
 			.set("Authorization", auth)
 			.expect(404);
-		await request(app.getHttpServer())
+		await repo.consumeEvents(configuration);
+		const status = await request(app.getHttpServer())
 			.get(chunkEndpoint(valid))
 			.set("Authorization", auth)
 			.expect(200);
+		expect(status.body).toMatchObject([
+			{ document_version_id: valid.versions[0].id, status: ChunkSetStatus.PENDING },
+		]);
 		await request(app.getHttpServer())
 			.get(`${endpoint}/${valid.id}/versions/${randomUUID()}/chunk-sets`)
 			.set("Authorization", auth)
 			.expect(404);
 	});
-	it("enqueues duplicate publication events idempotently and claims at most once", async () => {
+	it("replays publication idempotently and claims at most once", async () => {
 		const doc = await publish(await draft());
-		await db.query(
-			`
-			INSERT INTO survival_document_outbox(document_id,version_id,event_type,payload)
-			SELECT document_id,version_id,event_type,payload FROM survival_document_outbox
-			WHERE version_id=$1 AND event_type='published_version_changed'`,
-			[doc.versions[0].id]
-		);
-		const sets = await Promise.all([enqueue(doc), enqueue(doc), enqueue(doc)]);
-		expect(new Set(sets.map((set) => set.id)).size).toBe(1);
+		const initial = await enqueue(doc);
+		await replayPublication(initial.document_version_id);
+		await Promise.all([repo.consumeEvents(configuration), repo.consumeEvents(configuration)]);
+		const summaries = await repo.status(doc.id, initial.document_version_id);
+		expect(summaries).toMatchObject([{ id: initial.id, status: ChunkSetStatus.PENDING }]);
 		const claims = await Promise.all([
 			repo.claim(configuration),
 			repo.claim(configuration),
@@ -278,11 +286,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			.set("Authorization", auth)
 			.expect(200);
 		expect(status.body[0].quality_report.issues).toContain("missing_critical_pdf_text");
-		await db.query(
-			`DELETE FROM knowledge_chunk_event_receipts r USING survival_document_outbox e
-			 WHERE r.event_id=e.id AND e.version_id=$1 AND e.event_type='published_version_changed'`,
-			[set.document_version_id]
-		);
+		await replayPublication(set.document_version_id);
 		expect((await enqueue(doc)).status).toBe(ChunkSetStatus.NEEDS_REVIEW);
 		expect(await repo.hasRecoverableFailures(configuration)).toBe(false);
 		expect(await repo.claim(configuration)).toBeNull();
@@ -937,10 +941,11 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 
 		it("drops the entire snapshot if one selected publication is withdrawn during tokenization", async () => {
 			const first = await publish(await draft());
-			const second = await publish(await draft());
 			await ready(first);
-			await enqueue(second);
+			const second = await publish(await draft());
+			const queuedSecond = await enqueue(second);
 			const set = await claim();
+			expect(set.id).toBe(queuedSecond.id);
 			const generated = output(set);
 			generated.chunks[0].content += " nguồn thứ hai";
 			generated.chunks[0].embedding_text += " nguồn thứ hai";
