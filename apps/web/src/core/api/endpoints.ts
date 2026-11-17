@@ -14,6 +14,10 @@ export const API_ENDPOINTS = {
 		READ: (id: string) => `/offline-package-notifications/${id}/read`,
 	},
 	ADMIN_MODERATION_COUNTS: "/admin/moderation/counts",
+	AI_INVESTIGATIONS: {
+		LIST: "/admin/ai-investigations",
+		CASE: (id: string) => `/admin/ai-investigations/${id}`,
+	},
 	SAFETY_HOTSPOTS: {
 		LIST: "/admin/safety-hotspots",
 		EVIDENCE: (id: string) => `/admin/safety-hotspots/${id}/evidence`,
