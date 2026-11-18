@@ -32,6 +32,7 @@ export interface PorterRequestAssignmentSummary {
 export interface PorterRequestWithContext extends Omit<PorterRequest, "trip"> {
 	trip?: PorterRequestTripSummary | null;
 	assignment?: PorterRequestAssignmentSummary | null;
+	isOwnedTrip?: boolean;
 }
 
 @Injectable()
@@ -347,6 +348,7 @@ export class PorterRequestsRepository extends Repository<PorterRequest> {
 				request."responded_at" AS "respondedAt",
 				request."created_at" AS "createdAt",
 				request."updated_at" AS "updatedAt",
+				(trip."host_id" = $1) AS "isOwnedTrip",
 				jsonb_build_object(
 					'id', trip."id",
 					'title', trip."title",

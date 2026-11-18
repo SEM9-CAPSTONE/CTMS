@@ -3,6 +3,7 @@ import { ConflictException, Injectable, NotFoundException } from "@nestjs/common
 // biome-ignore lint/style/useImportType: Nest runtime injection metadata
 import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../auth/entities/audit-log.entity";
+import { readReviewReputations, reputationFor } from "../review-reputation/review-reputation";
 import type { CreatePorterReviewDto, UpdatePorterReviewDto } from "./dto/porter-review.dto";
 import {
 	canEditPorterReview,
@@ -55,6 +56,10 @@ export class PorterReviewsService {
 			const participation = await this.requireParticipation(manager, userId, bookingId);
 			const porters = await this.reviews.assignedPorters(manager, participation.tripId);
 			const own = await this.reviews.listOwn(manager, userId, bookingId);
+			const reputations = await readReviewReputations(manager, "porter", [
+				...porters.map(({ porterId }) => porterId),
+				...own.map(({ porterId }) => porterId),
+			]);
 			const names = await this.reviews.names(
 				manager,
 				own.map((review) => review.porterId)
@@ -69,11 +74,13 @@ export class PorterReviewsService {
 				...eligibility,
 				porters: porters.map((porter) => ({
 					...porter,
+					reputation: reputationFor(reputations, porter.porterId),
 					canCreate:
 						eligibility.eligible && !own.some((review) => review.porterId === porter.porterId),
 				})),
 				reviews: own.map((review) => ({
 					...review,
+					reputation: reputationFor(reputations, review.porterId),
 					porterName:
 						names.find((porter) => porter.porterId === review.porterId)?.porterName ?? null,
 					canEdit: canEditPorterReview(participation, review, now),

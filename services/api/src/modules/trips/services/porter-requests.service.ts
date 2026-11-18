@@ -15,6 +15,7 @@ import { PorterRouteProficiency } from "../../profiles/entities/porter-route-qua
 import { APPROVED_PORTER_VERIFICATION_SQL } from "../../profiles/repositories/porter-verifications.repository";
 // biome-ignore lint/style/useImportType: NestJS DI requires runtime metadata
 import { EventsGateway } from "../../realtime/events.gateway";
+import { readReviewReputations, reputationFor } from "../../review-reputation/review-reputation";
 import { UserRole, UserStatus } from "../../users/entities/user.entity";
 import { IntendedPorterRole } from "../dto/available-porters-query.dto";
 import type { CreatePorterRequestDto } from "../dto/create-porter-request.dto";
@@ -145,7 +146,19 @@ export class PorterRequestsService {
 		const expired = await this.porterRequestsRepository.expirePendingByHost(hostId);
 		for (const request of expired) this.emitStateChangedNotification(request);
 		const requests = await this.porterRequestsRepository.listRespondedForHost(hostId);
-		return requests.map(toPorterRequestResponse);
+		const pending = requests.filter(
+			(request) => request.isOwnedTrip && request.status === PorterRequestStatus.PENDING
+		);
+		const ratings = await readReviewReputations(
+			this.dataSource,
+			"porter",
+			pending.map(({ porterId }) => porterId)
+		);
+		const pendingIds = new Set(pending.map(({ id }) => id));
+		return requests.map((request) => ({
+			...toPorterRequestResponse(request),
+			...(pendingIds.has(request.id) && { reputation: reputationFor(ratings, request.porterId) }),
+		}));
 	}
 
 	async accept(porterId: string, requestId: string): Promise<PorterRequestResponseDto> {

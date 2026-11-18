@@ -191,7 +191,7 @@ describe("TripsService", () => {
 		findHostingPenalties: jest.Mock;
 	};
 	let auditRepository: { save: jest.Mock };
-	let dataSource: { transaction: jest.Mock };
+	let dataSource: { transaction: jest.Mock; query?: jest.Mock };
 	let service: TripsService;
 
 	beforeEach(() => {
@@ -262,6 +262,7 @@ describe("TripsService", () => {
 		};
 		auditRepository = { save: jest.fn().mockResolvedValue({}) };
 		dataSource = {
+			query: jest.fn().mockResolvedValue([]),
 			transaction: jest.fn(async (callback: (manager: unknown) => unknown) =>
 				callback({
 					getRepository: jest.fn().mockReturnValue(auditRepository),

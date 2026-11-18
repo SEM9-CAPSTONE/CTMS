@@ -15,9 +15,11 @@ import { DEFAULT_CANCELLATION_POLICY } from "../../bookings/cancellation-policy"
 import { InAppNotificationType } from "../../in-app-notifications/in-app-notification.entity";
 // biome-ignore lint/style/useImportType: Nest injection metadata
 import { InAppNotificationsService } from "../../in-app-notifications/in-app-notifications.service";
+import { TripPorterStatus } from "../../profiles/entities/trip-porter.entity";
 import { publishBookingUpdates } from "../../realtime/booking-updates";
 // biome-ignore lint/style/useImportType: Nest constructor injection requires runtime metadata
 import { EventsGateway } from "../../realtime/events.gateway";
+import { readReviewReputations, reputationFor } from "../../review-reputation/review-reputation";
 import { TrekkingRouteStatus } from "../../trekking-routes/entities/trekking-route.entity";
 import { UserRole } from "../../users/entities/user.entity";
 import { TripWeatherForecastStatus } from "../../weather/entities/trip-weather-forecast.entity";
@@ -181,13 +183,11 @@ export class TripsService {
 			throw new NotFoundException("Trip not found");
 		}
 
-		if (!isOwningHost && !isAdmin) {
-			const sanitizedTrip = { ...trip };
-			sanitizedTrip.routeId = undefined;
-			return sanitizedTrip;
-		}
+		const details = isOwningHost || isAdmin ? trip : { ...trip, routeId: undefined };
+		if (!actor.roles?.includes(UserRole.CAMPER)) return details;
 
-		return trip;
+		const ratings = await readReviewReputations(this.dataSource, "host", [trip.hostId]);
+		return { ...details, hostReputation: reputationFor(ratings, trip.hostId) };
 	}
 
 	async getMyTrips(hostId: string): Promise<TripResponseDto[]> {
@@ -199,7 +199,24 @@ export class TripsService {
 	}
 
 	async getPorterAssignmentHistory(hostId: string): Promise<HostPorterAssignmentTripDto[]> {
-		return this.tripsRepository.findPorterAssignmentHistoryByHost(hostId);
+		const trips = await this.tripsRepository.findPorterAssignmentHistoryByHost(hostId);
+		const ratings = await readReviewReputations(
+			this.dataSource,
+			"porter",
+			trips.flatMap(({ assignments }) =>
+				assignments
+					.filter(({ status }) => status === TripPorterStatus.ASSIGNED)
+					.map(({ porterId }) => porterId)
+			)
+		);
+		return trips.map((trip) => ({
+			...trip,
+			assignments: trip.assignments.map((assignment) =>
+				assignment.status === TripPorterStatus.ASSIGNED
+					? { ...assignment, reputation: reputationFor(ratings, assignment.porterId) }
+					: assignment
+			),
+		}));
 	}
 
 	async getAssignedTrips(porterId: string): Promise<PorterAssignedTripResponseDto[]> {
