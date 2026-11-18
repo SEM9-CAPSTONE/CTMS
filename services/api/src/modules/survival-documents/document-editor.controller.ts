@@ -4,6 +4,7 @@ import {
 	Get,
 	Param,
 	ParseUUIDPipe,
+	Patch,
 	Post,
 	UseGuards,
 } from "@nestjs/common";
@@ -16,7 +17,11 @@ import { UserRole } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: Nest injection
 import { DocumentEditorService } from "./document-editor.service";
 // biome-ignore lint/style/useImportType: runtime DTO validation metadata
-import { StartDocumentEditDto } from "./dto/document-editor.dto";
+import {
+	ConfirmDocumentEditDto,
+	PlanDocumentEditDto,
+	StartDocumentEditDto,
+} from "./dto/document-editor.dto";
 
 const uuid = new ParseUUIDPipe({ errorHttpStatusCode: 422 });
 
@@ -47,5 +52,25 @@ export class DocumentEditorController {
 		@Param("draftId", uuid) draftId: string
 	) {
 		return this.editor.preview(actor.userId, id, draftId);
+	}
+
+	@Post("edit-drafts/:draftId/plan")
+	plan(
+		@CurrentUser() actor: AuthenticatedUser,
+		@Param("id", uuid) id: string,
+		@Param("draftId", uuid) draftId: string,
+		@Body() dto: PlanDocumentEditDto
+	) {
+		return this.editor.plan(actor.userId, id, draftId, dto);
+	}
+
+	@Patch("edit-drafts/:draftId")
+	confirm(
+		@CurrentUser() actor: AuthenticatedUser,
+		@Param("id", uuid) id: string,
+		@Param("draftId", uuid) draftId: string,
+		@Body() dto: ConfirmDocumentEditDto
+	) {
+		return this.editor.confirm(actor.userId, id, draftId, dto);
 	}
 }
