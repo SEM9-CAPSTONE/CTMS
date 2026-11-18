@@ -12,7 +12,7 @@ import { RefactorSurvivalDocumentLifecycle1793600000000 } from "../src/migration
 import { IndexSurvivalDocumentChecksum1793700000000 } from "../src/migrations/1793700000000-IndexSurvivalDocumentChecksum";
 import { IndexSurvivalDocumentFilename1793800000000 } from "../src/migrations/1793800000000-IndexSurvivalDocumentFilename";
 import { AppModule } from "../src/modules/app.module";
-import { validatePdf } from "../src/modules/survival-documents/pdf-file-validator";
+import { sourceMaxBytes, validatePdf } from "../src/modules/survival-documents/pdf-file-validator";
 import { PdfSourceService } from "../src/modules/survival-documents/pdf-source.service";
 import { SourceFilesService } from "../src/modules/survival-documents/source-files.service";
 import { SourceUploadCleanupService } from "../src/modules/survival-documents/source-upload-cleanup.service";
@@ -272,15 +272,25 @@ describe("CTMS-050 PostgreSQL integration + real guarded HTTP", () => {
 				contentType: "application/pdf",
 			})
 			.expect(422);
-		await request(app.getHttpServer())
-			.post(endpoint)
-			.set("Authorization", token("admin"))
-			.field("metadata", JSON.stringify(fictionalMetadata))
-			.attach("file", Buffer.alloc(10485761), {
-				filename: "large.pdf",
-				contentType: "application/pdf",
-			})
-			.expect(413);
+	});
+	it("allows a multipart PDF at the configured limit and rejects one byte over", async () => {
+		const limit = sourceMaxBytes();
+		const original = uniqueFictionalPdf();
+		const startxref = original.lastIndexOf("\nstartxref\n");
+		// Insert whitespace before startxref so the object offsets and trailer stay valid.
+		const bytes = Buffer.alloc(limit + 1, 0x0a);
+		original.copy(bytes, 0, 0, startxref);
+		original.copy(bytes, limit - (original.length - startxref), startxref);
+		const doc = await create(fictionalMetadata, bytes.subarray(0, limit));
+		try {
+			expect(doc.versions[0].size).toBe(limit);
+			await uploadPdf(bytes, fictionalMetadata, `oversized-${randomUUID()}.pdf`).expect(413);
+		} finally {
+			await request(app.getHttpServer())
+				.delete(`${endpoint}/${doc.id}?expectedRevision=${doc.revision}`)
+				.set("Authorization", token("admin"))
+				.expect(204);
+		}
 	});
 	it("imports direct PDF URLs as private drafts and enforces the revision on replacement", async () => {
 		const sourceUrl = "https://example.org/manual";
@@ -421,6 +431,40 @@ describe("CTMS-050 PostgreSQL integration + real guarded HTTP", () => {
 		} finally {
 			acquisition.mockRestore();
 		}
+	});
+	it("lets only Admin confirm a medical PDF while specialist review still gates processing", async () => {
+		const draft = await create({
+			sourceTitle: fictionalMetadata.sourceTitle,
+			classification: Classification.FIRST_AID,
+			locale: fictionalMetadata.locale,
+		});
+		const version = draft.versions[0];
+		await request(app.getHttpServer())
+			.post(`${endpoint}/${draft.id}/versions/${version.id}/publish`)
+			.set("Authorization", token("camper"))
+			.send({ expectedRevision: version.revision, confirmSource: true })
+			.expect(403);
+		const publication = await action(draft, "publish", { confirmSource: true });
+		expect(publication.body).toMatchObject({
+			currentPublishedVersionId: version.id,
+			processingSyncStatus: "NOT_PROCESSED",
+			processingBlockedReason: "Nguồn sơ cứu hoặc y tế cần được xác nhận chuyên môn.",
+			versions: [
+				{
+					status: DocumentStatus.PUBLISHED,
+					publishedBy: ids.admin,
+					rights: {
+						sourceReviewConfirmed: true,
+						medicalContentReviewStatus: MedicalStatus.NOT_REVIEWED,
+					},
+				},
+			],
+		});
+		const [event] = await db.query(
+			"SELECT payload FROM survival_document_outbox WHERE version_id=$1",
+			[version.id]
+		);
+		expect(event.payload).toMatchObject({ regenerationNeeded: false });
 	});
 	it("rejects all three PDF conflicts through all ingestion routes without changing stored data", async () => {
 		const bytes = uniqueFictionalPdf();

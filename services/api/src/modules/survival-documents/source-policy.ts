@@ -15,7 +15,9 @@ const SOURCE_NOT_APPROVED =
 	"Nguồn PDF chưa được xác nhận. Cần dùng nguồn chính thức hoặc bản PDF đã được xác minh.";
 
 type SourceIdentity = Pick<SourceVersion, "metadata" | "checksum"> &
-	Partial<Pick<SourceVersion, "rights" | "reviewedBy" | "reviewedAt">>;
+	Partial<
+		Pick<SourceVersion, "rights" | "reviewedBy" | "reviewedAt" | "publishedBy" | "publishedAt">
+	>;
 
 export function isConfiguredKnowledgeSource(
 	source: Pick<SourceVersion, "metadata" | "checksum">
@@ -47,6 +49,13 @@ export function isConfiguredKnowledgeSource(
 
 export function assertApprovedSource(source: SourceIdentity): void {
 	if (isConfiguredKnowledgeSource(source)) return;
+	if (
+		source.publishedBy &&
+		source.publishedAt &&
+		source.rights?.rightsReviewStatus === RightsStatus.NOT_REVIEWED &&
+		source.rights.sourceReviewConfirmed === true
+	)
+		return;
 	if (source.reviewedBy && source.reviewedAt && source.rights) {
 		validatePublicationMetadata(source.metadata);
 		assertRights(source.metadata, source.rights);

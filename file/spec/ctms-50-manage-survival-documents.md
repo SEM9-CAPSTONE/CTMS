@@ -41,9 +41,9 @@ In scope are PDF intake and safety checks, duplicate detection, draft and publis
 | ID | Rule |
 | --- | --- |
 | BR-227 | An authorized Admin manages the publication lifecycle. Each document has at most one authoritative current published version. A replacement draft leaves the current version available. Publishing a newer draft that meets BR-484 supersedes the current version. Stop-use archives the current version. File identity and published provenance are retained, with critical actions audited under BR-191. |
-| BR-482 | A draft starts from one local PDF or one direct HTTPS PDF URL and requires a title, classification and language. The source URL is optional when saving a local upload as a draft. Validate bytes and parsed structure before storage. Accept standard PDF object compression. Reject encryption, active content and embedded files, including inside compressed objects. |
+| BR-482 | A draft starts from one local PDF or one direct HTTPS PDF URL and requires a title, classification and language. The source URL is optional when saving a local upload as a draft. The PDF may be up to 50 MiB (52,428,800 bytes) by default. A deployment may configure a lower limit. Validate bytes and parsed structure before storage. Accept standard PDF object compression. Reject encryption, active content and embedded files, including inside compressed objects. |
 | BR-483 | Both the normalized PDF filename and SHA-256 must be new across all stored versions, including drafts, superseded and archived versions. Apply this to new documents and replacement versions. A duplicate conflict leaves documents, versions, files, revision counters and audit history unchanged. Concurrent submissions sharing either key may create at most one version. |
-| BR-484 | Publication requires a verified source for the exact PDF version, backed by a configured exact HTTPS hostname, a configured SHA-256, or recorded evidence of source identity and internal use rights for that version. |
+| BR-484 | Publication requires source confirmation for the exact PDF version. The Admin web **Xuất bản** action confirms that source and records the publisher, publication time and checksum. A configured exact HTTPS hostname, configured SHA-256 or recorded exact-version source and internal-use rights can also establish eligibility. The source confirmation does not grant specialist approval, translation or offline redistribution rights. |
 | BR-485 | After confirmation, an authorized Admin can permanently delete a whole Survival Document and all its versions. A stale document revision or a reference from another document blocks deletion. Preserve audit history under BR-191 and remove private PDF files after the transaction commits. |
 | BR-534 | Publishing an eligible version records its automatic ingestion event in the same transaction as publication. |
 | BR-535 | Knowledge processing excludes sources with a restricted or review-required rights status. |
@@ -78,6 +78,8 @@ A draft older than a version already published for that document cannot be publi
 5. If neither key matches, the system serializes competing writes by checksum and normalized filename and checks again before writing. It also verifies the expected document revision when adding a version.
 6. The system stores the private PDF, creates the draft and audit entry, and returns the document detail. Admin can open the stored PDF from the draft detail. Creating a draft does not trigger downstream regeneration.
 
+The **Sửa thông tin** form edits the draft title, classification, language, publisher and notes. Saving these fields preserves the existing source URL, recorded provenance and licence metadata.
+
 #### Duplicate decision table (BR-483)
 
 | Case | PDF filename | SHA-256 | Outcome | HTTP 409 code |
@@ -91,8 +93,8 @@ The filename comparison uses the stored PDF filename with Unicode NFC normalizat
 
 ### B. Publish or stop use
 
-1. Admin selects **Xuất bản** from intake or the draft detail. Intake saves the draft first, then publishes that version.
-2. The API checks the revision, PDF integrity, metadata and source verification. Where applicable, Admin records the licence, attribution and evidence for the exact PDF when publishing. The transaction supersedes the previous version and emits `published_version_changed`. The worker queues eligible content automatically.
+1. Admin selects **Xuất bản** from intake or the draft detail to confirm the source of that version. Intake saves the draft first, then publishes that version. **Lưu bản nháp** only saves the draft.
+2. The API checks the revision, PDF integrity, metadata and source verification, including the recorded licence, attribution and evidence for the exact PDF where applicable. The transaction supersedes the previous version and emits `published_version_changed`. The worker queues eligible content automatically.
 3. To stop use, Admin selects the current published version and supplies a reason. The API archives it, clears the publication pointer and emits `source_unavailable`.
 4. Downstream consumers treat these events as a change in source availability or a need to regenerate. Event creation alone does not indicate derived content is ready.
 
@@ -126,7 +128,7 @@ All endpoints are under `/api/admin/survival-documents` and require an active Ad
 | POST | `/:id/versions` | Multipart draft replacement with `expectedDocumentRevision` |
 | POST | `/:id/versions/import-url` | JSON URL draft replacement with `expectedDocumentRevision` |
 | PATCH | `/:id/versions/:versionId/metadata` | Edit draft metadata with `expectedRevision` |
-| POST | `/:id/versions/:versionId/publish` | Publish with `expectedRevision` and optional verified rights. The deprecated `approveProcessing` input has no effect. |
+| POST | `/:id/versions/:versionId/publish` | Publish with `expectedRevision`, optional Admin source confirmation (`confirmSource`) and optional verified rights. The deprecated `approveProcessing` input has no effect. |
 | POST | `/:id/versions/:versionId/archive` | Stop use with `expectedRevision` and a reason |
 
 A duplicate response includes `code`, `message`, `documentId`, `versionId`, `versionNumber` and `sourceTitle`. Authorization, invalid input, unsafe/unavailable URLs, oversize files, stale revisions and illegal transitions return errors without advancing the lifecycle. See the [implementation and data documentation](../../docs/features/CTMS-050-Implementation.md) for technical details.
@@ -138,9 +140,9 @@ Each BR ID refers to its definition in Section 5. The scenarios below describe t
 | Rule ID | Valid path | Violation or edge case | Coverage |
 | --- | --- | --- | --- |
 | BR-227 | New publication supersedes the previous one and archive retains history | Stale revisions, illegal transitions, overwrite of published provenance, and downstream access after archive | PostgreSQL integration, Chrome |
-| BR-482 | Admin creates a private draft by local upload or URL import | Malformed or unsafe PDF, blocked URL, oversize response | Unit, HTTP E2E, PostgreSQL integration, Chrome |
+| BR-482 | Admin creates a private draft by local upload or URL import, including a valid PDF exactly at the size limit | Malformed or unsafe PDF, blocked URL, PDF one byte over the size limit | Unit, HTTP E2E, PostgreSQL integration, Chrome |
 | BR-483 | A new name and new bytes create one draft | TH1–TH3, case/NFC/space variants, legacy or archived matches, and concurrent same-name or same-checksum requests | PostgreSQL integration, HTTP E2E, Chrome |
-| BR-484 | Admin publishes a PDF with a configured source or documented exact-version rights | Unverified source stays a draft even when a legacy client sends `approveProcessing` | Policy unit, PostgreSQL integration, Web |
+| BR-484 | Admin confirms the exact source on publication, or publishes with a configured source or documented exact-version rights | Saving a draft or sending only the legacy `approveProcessing` flag leaves an unverified source unconfirmed | Policy unit, HTTP E2E, PostgreSQL integration, Web |
 | BR-534 | Successful eligible publication leaves a durable event for CTMS-051 | Rejected or rolled-back publication leaves no ingestion event | PostgreSQL integration, HTTP E2E |
 | BR-535 | Source with permitted use can be processed | Restricted or review-required source is excluded | PostgreSQL integration |
 | BR-536 | Recorded specialist approval permits an otherwise eligible medical source | Missing or rejected specialist review blocks ingestion | Policy unit, PostgreSQL integration |
@@ -153,4 +155,4 @@ Each BR ID refers to its definition in Section 5. The scenarios below describe t
 
 ## 11. Source policy configuration
 
-Configure comma-separated verified HTTPS hostnames with `SURVIVAL_KNOWLEDGE_APPROVED_HOSTS` and exact PDF digests with `SURVIVAL_KNOWLEDGE_APPROVED_SHA256`. For URL imports, the hostname check uses the final download URL. Admin can also record exact-version licence, attribution and use evidence during publication. Medical and translated sources use their existing recorded specialist decision or grant. An older publication that relied solely on the retired approval flag needs independent source evidence. A verified source configuration can make that same version eligible without changing its history.
+The Admin web publication action sends `confirmSource: true` and records source confirmation on the published version. Configure comma-separated verified HTTPS hostnames with `SURVIVAL_KNOWLEDGE_APPROVED_HOSTS` and exact PDF digests with `SURVIVAL_KNOWLEDGE_APPROVED_SHA256` for sources verified by configuration. For URL imports, the hostname check uses the final download URL. The API also supports exact-version licence, attribution and use evidence. Medical and translated sources use their recorded specialist decision or grant. An older publication that relied solely on the retired approval flag needs independent source evidence. A verified source configuration can make that same version eligible without changing its history.

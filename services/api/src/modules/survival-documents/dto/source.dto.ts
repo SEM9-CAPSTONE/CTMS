@@ -167,6 +167,11 @@ export class PublishSourceDto extends RevisionDto {
 	@IsBoolean()
 	approveProcessing?: boolean;
 
+	@ApiPropertyOptional({ description: "Admin confirms the source of this exact PDF version" })
+	@IsOptional()
+	@IsBoolean()
+	confirmSource?: boolean;
+
 	@ApiPropertyOptional({ type: SourceRightsDto })
 	@IsOptional()
 	@IsObject()

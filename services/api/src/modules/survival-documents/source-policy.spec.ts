@@ -81,6 +81,22 @@ describe("CTMS-050 source policy and private storage", () => {
 			process.env.SURVIVAL_KNOWLEDGE_APPROVED_SHA256 = previous ?? "";
 		}
 	});
+	it("requires publication provenance for Admin source confirmation without granting other uses", () => {
+		const source = {
+			metadata: {
+				sourceTitle: metadata.sourceTitle,
+				classification: metadata.classification,
+				locale: "vi",
+			},
+			checksum: createHash("sha256").update(pdf).digest("hex"),
+			rights: { ...UNREVIEWED_RIGHTS, sourceReviewConfirmed: true },
+		};
+		const publication = { ...source, publishedBy: "admin", publishedAt: "2026-11-18T12:00:00Z" };
+		expect(() => assertApprovedSource(source)).toThrow();
+		expect(() => assertApprovedSource({ ...publication, rights: UNREVIEWED_RIGHTS })).toThrow();
+		expect(() => assertApprovedSource(publication)).not.toThrow();
+		expect(() => assertRights(source.metadata, source.rights, "OFFLINE")).toThrow();
+	});
 	it("accepts today's Vietnam calendar date before UTC midnight, but rejects tomorrow", () => {
 		jest.useFakeTimers().setSystemTime(new Date("2026-11-03T18:00:00Z"));
 		try {
