@@ -77,7 +77,7 @@ const queue = {
 	total: 1,
 	page: 1,
 	limit: 20,
-	maxBytes: 10485760,
+	maxBytes: 52_428_800,
 };
 function view() {
 	const client = new QueryClient({
@@ -243,9 +243,23 @@ describe("CTMS-050 Admin source management", () => {
 	it("requires metadata and an actual supplied file", async () => {
 		view();
 		await userEvent.click(screen.getByRole("button", { name: /^Thêm tài liệu$/ }));
+		expect(await screen.findByText(/Dung lượng tối đa 50\.0 MB/)).toBeInTheDocument();
 		await userEvent.click(screen.getByRole("button", { name: "Lưu bản nháp" }));
 		expect(await screen.findByText("Nhập tên tài liệu")).toBeInTheDocument();
 		expect(service.upload).not.toHaveBeenCalled();
+	});
+	it("displays the server upload size error in Vietnamese", async () => {
+		vi.mocked(service.upload).mockRejectedValue(new HttpError("File too large", 413, {}));
+		const user = userEvent.setup();
+		view();
+		await user.click(screen.getByRole("button", { name: /^Thêm tài liệu$/ }));
+		await user.type(screen.getByLabelText(/^Tên tài liệu/), metadata.sourceTitle);
+		const file = new File(["test bytes"], "fictional.pdf", { type: "application/pdf" });
+		await user.upload(screen.getByLabelText("Tệp PDF"), file);
+		await user.click(screen.getByRole("button", { name: "Lưu bản nháp" }));
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			"Tệp PDF vượt quá dung lượng cho phép."
+		);
 	});
 	it("saves the selected PDF and publishes that version without rights input", async () => {
 		const notify = vi.spyOn(toast, "success");
@@ -253,6 +267,8 @@ describe("CTMS-050 Admin source management", () => {
 		view();
 		await user.click(screen.getByRole("button", { name: /^Thêm tài liệu$/ }));
 		const editor = within(await screen.findByRole("dialog", { name: "Thêm tài liệu sinh tồn" }));
+		expect(editor.getByLabelText("URL nguồn tham khảo")).toBeInTheDocument();
+		expect(editor.queryByText("Nguồn và quyền sử dụng")).not.toBeInTheDocument();
 		await user.type(editor.getByLabelText(/Tên tài liệu/), metadata.sourceTitle);
 		const file = new File(["test bytes"], "fictional.pdf", { type: "application/pdf" });
 		fireEvent.drop(editor.getByText("Kéo thả tệp PDF vào đây hoặc"), {
@@ -265,6 +281,7 @@ describe("CTMS-050 Admin source management", () => {
 		await waitFor(() =>
 			expect(service.action).toHaveBeenCalledWith(doc.id, doc.versions[0].id, "publish", {
 				expectedRevision: doc.versions[0].revision,
+				confirmSource: true,
 			})
 		);
 		await waitFor(() => expect(notify).toHaveBeenCalledWith("Đã xuất bản tài liệu."));
@@ -343,6 +360,39 @@ describe("CTMS-050 Admin source management", () => {
 		expect(panel.getByRole("button", { name: "Xuất bản" })).toBeInTheDocument();
 		expect(panel.queryByRole("button", { name: "Gửi duyệt" })).not.toBeInTheDocument();
 	});
+	it("edits draft information while retaining the stored source and provenance", async () => {
+		const storedMetadata = {
+			...metadata,
+			sourceUrl: "https://example.org/manual.pdf",
+			sourcePublishedAt: "2025-12-10T21:00:00Z",
+			retrievedAt: "2026-01-01T21:00:00Z",
+			licenseUrl: "https://example.org/license",
+		};
+		vi.mocked(service.detail).mockResolvedValue({
+			...doc,
+			versions: [{ ...doc.versions[0], metadata: storedMetadata }],
+		});
+		const user = userEvent.setup();
+		const panel = await detail();
+		await user.click(panel.getByRole("button", { name: "Sửa thông tin" }));
+		const editor = within(await screen.findByRole("dialog", { name: "Sửa thông tin bản nháp" }));
+		expect(editor.queryByLabelText("URL nguồn tham khảo")).not.toBeInTheDocument();
+		expect(editor.queryByText("Nguồn và quyền sử dụng")).not.toBeInTheDocument();
+		expect(editor.queryByText("Thông tin xuất xứ")).not.toBeInTheDocument();
+		expect(editor.getByLabelText("Tổ chức / Tác giả")).toHaveValue(storedMetadata.publisher);
+		const title = editor.getByLabelText("Tên tài liệu");
+		await user.clear(title);
+		await user.type(title, "Cẩm nang đã cập nhật");
+		await user.click(editor.getByRole("button", { name: "Lưu bản nháp" }));
+		await waitFor(() =>
+			expect(service.edit).toHaveBeenCalledWith(
+				doc.id,
+				doc.versions[0].id,
+				doc.versions[0].revision,
+				{ ...storedMetadata, sourceTitle: "Cẩm nang đã cập nhật" }
+			)
+		);
+	});
 	it("blocks duplicate submissions and waits for server confirmation", async () => {
 		let finish!: (value: DocumentDetail) => void;
 		vi.mocked(service.action).mockReturnValue(
@@ -376,6 +426,7 @@ describe("CTMS-050 Admin source management", () => {
 		await waitFor(() =>
 			expect(service.action).toHaveBeenCalledWith(doc.id, doc.versions[0].id, "publish", {
 				expectedRevision: doc.versions[0].revision,
+				confirmSource: true,
 			})
 		);
 	});
@@ -389,6 +440,7 @@ describe("CTMS-050 Admin source management", () => {
 		await waitFor(() =>
 			expect(service.action).toHaveBeenCalledWith(doc.id, doc.versions[0].id, "publish", {
 				expectedRevision: doc.versions[0].revision,
+				confirmSource: true,
 				rights: {
 					rightsReviewStatus: "PERMITTED",
 					sourceReviewConfirmed: true,

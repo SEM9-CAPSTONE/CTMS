@@ -1,3 +1,4 @@
+import type { ServerResponse } from "node:http";
 import {
 	Body,
 	Controller,
@@ -10,7 +11,7 @@ import {
 	Patch,
 	Post,
 	Query,
-	StreamableFile,
+	Res,
 	UploadedFile,
 	UseGuards,
 	UseInterceptors,
@@ -137,13 +138,20 @@ export class SurvivalDocumentsController {
 	@Header("Cache-Control", "private, no-store")
 	@Header("X-Content-Type-Options", "nosniff")
 	@Header("Content-Security-Policy", "sandbox; default-src 'none'")
-	async file(@Param("id", uuid) id: string, @Param("versionId", uuid) versionId: string) {
+	async file(
+		@Param("id", uuid) id: string,
+		@Param("versionId", uuid) versionId: string,
+		@Res() response: ServerResponse
+	): Promise<void> {
 		const file = await this.documents.file(id, versionId);
-		return new StreamableFile(file.bytes, {
-			type: "application/pdf",
-			disposition: `attachment; filename="document.pdf"; filename*=UTF-8''${encodeURIComponent(file.filename)}`,
-			length: file.bytes.length,
-		});
+		if (response.destroyed) return;
+		response.setHeader("Content-Type", "application/pdf");
+		response.setHeader(
+			"Content-Disposition",
+			`attachment; filename="document.pdf"; filename*=UTF-8''${encodeURIComponent(file.filename)}`
+		);
+		response.setHeader("Content-Length", file.bytes.length);
+		response.end(file.bytes);
 	}
 	@Patch(":id/versions/:versionId/metadata")
 	@ApiOperation({ summary: "Edit draft-only provenance" })

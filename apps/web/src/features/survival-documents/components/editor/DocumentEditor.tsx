@@ -48,14 +48,13 @@ export function DocumentEditor({
 	onSubmit,
 }: DocumentEditorProps) {
 	const saveBlocked = busy || !!duplicatePdf;
-	const { form, method, file, selectSource, submit, preparePublication, translated } =
-		useDocumentEditor({
-			initial,
-			editing: kind === "edit",
-			maxBytes,
-			busy: saveBlocked,
-			onSubmit,
-		});
+	const { form, method, file, selectSource, submit, preparePublication } = useDocumentEditor({
+		initial,
+		editing: kind === "edit",
+		maxBytes,
+		busy: saveBlocked,
+		onSubmit,
+	});
 	const { errors, isSubmitting } = form.formState;
 	const addingPdf = method !== "edit";
 	return (
@@ -126,9 +125,7 @@ export function DocumentEditor({
 					<DocumentMetadataDetails
 						register={form.register}
 						errors={errors.metadata ?? {}}
-						includeSourceUrl={method !== "url"}
-						editing={kind === "edit"}
-						translated={translated}
+						includeSourceUrl={method === "upload"}
 					/>
 				</fieldset>
 				{error && (

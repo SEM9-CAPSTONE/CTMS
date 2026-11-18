@@ -13,7 +13,8 @@ import { SurvivalSourceReader } from "./survival-source-reader.service";
 	// Resolve limits after ConfigModule has loaded .env, rather than at import time.
 	imports: [
 		MulterModule.registerAsync({
-			useFactory: () => ({ limits: { fileSize: sourceMaxBytes(), files: 1, fields: 2 } }),
+			// Busboy emits its limit event at equality. The PDF validator enforces the inclusive cap.
+			useFactory: () => ({ limits: { fileSize: sourceMaxBytes() + 1, files: 1, fields: 2 } }),
 		}),
 	],
 	controllers: [SurvivalDocumentsController],

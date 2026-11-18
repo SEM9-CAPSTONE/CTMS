@@ -37,7 +37,11 @@ describe("CTMS-050 HTTP E2E with real login", () => {
 	});
 	it("uploads, publishes, downloads and stops using an exact source version", async () => {
 		const pdf = uniqueFictionalPdf();
-		const metadata = { ...fictionalMetadata, sourceTitle: "HTTP E2E fictional source" };
+		const metadata = {
+			sourceTitle: "HTTP E2E fictional source",
+			classification: fictionalMetadata.classification,
+			locale: fictionalMetadata.locale,
+		};
 		const filename = `fictional-${randomUUID()}.pdf`;
 		const upload = (filename: string, bytes = pdf) =>
 			request(app.getHttpServer())
@@ -48,16 +52,31 @@ describe("CTMS-050 HTTP E2E with real login", () => {
 		let doc = (await upload(filename).expect(201)).body as SourceTestDetail;
 		const id = doc.versions[0].id;
 		expect(doc.versions[0].status).toBe(DocumentStatus.DRAFT);
+		expect(doc.versions[0].rights.sourceReviewConfirmed).toBe(false);
 		doc = (
 			await request(app.getHttpServer())
 				.post(`${endpoint}/${doc.id}/versions/${id}/publish`)
 				.set("Authorization", bearer)
-				.send({ expectedRevision: doc.versions[0].revision })
+				.send({ expectedRevision: doc.versions[0].revision, confirmSource: true })
 				.expect(201)
 		).body as SourceTestDetail;
 		expect(doc.currentPublishedVersionId).toBe(id);
-		expect(doc.versions[0].rights.offlineRedistributionAllowed).toBe(false);
+		expect(doc.versions[0].rights).toMatchObject({
+			sourceReviewConfirmed: true,
+			internalRagUseAllowed: false,
+			offlineRedistributionAllowed: false,
+		});
 		expect(doc.versions[0].reviewedBy).toBeNull();
+		expect(doc.history).toContainEqual(
+			expect.objectContaining({
+				action: "survival_document.publish",
+				actorId: doc.versions[0].publishedBy,
+				after: expect.objectContaining({
+					checksum: doc.versions[0].checksum,
+					sourceReviewConfirmed: true,
+				}),
+			})
+		);
 		const chunkSets = `${endpoint}/${doc.id}/versions/${id}/chunk-sets`;
 		await request(app.getHttpServer()).post(chunkSets).set("Authorization", bearer).expect(404);
 		await request(app.getHttpServer())

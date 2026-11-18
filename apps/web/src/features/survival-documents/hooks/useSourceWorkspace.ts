@@ -96,12 +96,19 @@ export function useSourceWorkspace() {
 	) {
 		setNotice("");
 		try {
-			const rights = action === "publish" ? publicationRights(version.metadata) : undefined;
+			const decision =
+				action === "publish"
+					? {
+							...payload,
+							confirmSource: true,
+							rights: publicationRights(version.metadata) ?? payload.rights,
+						}
+					: payload;
 			await state.action.mutateAsync({
 				documentId: version.documentId,
 				versionId: version.id,
 				action,
-				payload: rights ? { ...payload, rights } : payload,
+				payload: decision,
 			});
 			if (action === "publish") {
 				openDocument(null);
@@ -166,8 +173,12 @@ export function useSourceWorkspace() {
 		const { sourceTitle, classification, locale, publisher } = mode.version.metadata;
 		formMetadata = { sourceTitle, classification, locale, publisher };
 	}
-	const formError =
+	const mutationError =
 		mode?.kind === "edit" ? state.edit.error : (state.upload.error ?? state.importUrl.error);
+	const formError =
+		mutationError instanceof HttpError && mutationError.status === 413
+			? new Error("Tệp PDF vượt quá dung lượng cho phép.")
+			: mutationError;
 	const duplicate =
 		formError instanceof HttpError && formError.status === 409
 			? duplicatePdfSchema.safeParse(formError.errorData)

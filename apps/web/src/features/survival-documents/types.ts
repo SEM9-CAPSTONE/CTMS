@@ -93,6 +93,7 @@ export type SourceAction = "publish" | "archive";
 export interface SourceDecision {
 	expectedRevision: number;
 	reason?: string;
+	confirmSource?: boolean;
 	rights?: SourceRights;
 }
 export type ChunkSetStatus =

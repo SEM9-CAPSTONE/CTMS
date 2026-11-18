@@ -32,6 +32,7 @@ import { SurvivalDocumentsRepository, sourceConflict } from "./survival-document
 import {
 	type DocumentListItem,
 	DocumentStatus,
+	RightsStatus,
 	type SourceMetadata,
 	type SourceVersion,
 	UNREVIEWED_RIGHTS,
@@ -404,18 +405,26 @@ export class SurvivalDocumentsService {
 						[documentId, before.versionNumber]
 					);
 					if (newer.length) sourceConflict();
-					const rights = dto.rights ?? before.rights;
+					const confirmSource =
+						dto.confirmSource === true &&
+						before.rights.rightsReviewStatus === RightsStatus.NOT_REVIEWED;
+					const rights =
+						dto.rights ??
+						(confirmSource ? { ...before.rights, sourceReviewConfirmed: true } : before.rights);
 					if (dto.rights) {
 						validatePublicationMetadata(before.metadata);
 						assertRights(before.metadata, dto.rights);
 					} else {
 						validatePublishedSourceMetadata(before.metadata);
 					}
+					const publishedAt = new Date().toISOString();
 					const publication = {
 						...before,
 						rights,
+						publishedBy: actorId,
+						publishedAt,
 						reviewedBy: dto.rights ? actorId : before.reviewedBy,
-						reviewedAt: dto.rights ? new Date().toISOString() : before.reviewedAt,
+						reviewedAt: dto.rights ? publishedAt : before.reviewedAt,
 					};
 					assertApprovedSource(publication);
 					const processingIssue = sourceContentIssue(publication);
