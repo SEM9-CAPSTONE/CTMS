@@ -140,6 +140,23 @@ The reviewer foreign keys restrict hard deletion while referenced reviews exist.
 
 ## 10. Error & Edge Cases
 
+CTMS-414 supplements the Host invitation list from CTMS-413 with
+`porterDisplayName` (string or null) on rows whose Trip is still owned by the
+authenticated Host. The existing list query joins the person's display name;
+it does not add per-person queries or contact information. Other response
+contexts omit the field. Existing authorization and reputation eligibility
+are unchanged.
+
+Client presentation uses Vietnamese decimal formatting, one fractional digit,
+and decimal half-up rounding (4.25 becomes 4,3; 4.35 becomes 4,4; 5 becomes 5,0).
+Count is always shown beside a numeric rating, including one review.
+An omitted reputation block is not a zero-rating state.
+Network/5xx refresh failures retain existing data marked as not updated;
+401/403/404 responses clear it. Account changes discard cached data and late
+responses. Host management is web-only; Flutter serves Camper and Porter.
+AI insight presentation remains conditional on an authorized data source,
+which the numeric CTMS-413 projection does not provide.
+
 | Case                        | Expected Behavior           |
 | --------------------------- | --------------------------- |
 | No eligible reviews         | Valid empty/no-rating state |

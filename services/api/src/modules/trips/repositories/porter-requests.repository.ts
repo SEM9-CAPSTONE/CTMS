@@ -33,6 +33,7 @@ export interface PorterRequestWithContext extends Omit<PorterRequest, "trip"> {
 	trip?: PorterRequestTripSummary | null;
 	assignment?: PorterRequestAssignmentSummary | null;
 	isOwnedTrip?: boolean;
+	porterDisplayName?: string | null;
 }
 
 @Injectable()
@@ -349,6 +350,7 @@ export class PorterRequestsRepository extends Repository<PorterRequest> {
 				request."created_at" AS "createdAt",
 				request."updated_at" AS "updatedAt",
 				(trip."host_id" = $1) AS "isOwnedTrip",
+				CASE WHEN trip."host_id" = $1 THEN person."full_name" ELSE NULL END AS "porterDisplayName",
 				jsonb_build_object(
 					'id', trip."id",
 					'title', trip."title",
@@ -364,6 +366,7 @@ export class PorterRequestsRepository extends Repository<PorterRequest> {
 				) END AS "assignment"
 			 FROM "porter_requests" request
 			 INNER JOIN "trips" trip ON trip."id" = request."trip_id"
+			 LEFT JOIN "users" person ON person."id" = request."porter_id"
 			 LEFT JOIN "trip_porters" assignment
 				 ON assignment."trip_id" = request."trip_id"
 				 AND assignment."porter_id" = request."porter_id"
