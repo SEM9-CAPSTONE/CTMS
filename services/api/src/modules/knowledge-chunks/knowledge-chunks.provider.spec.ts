@@ -119,4 +119,72 @@ describe("Knowledge ingestion provider boundary", () => {
 			})
 		);
 	});
+	it("encodes unique misses in order and keeps the prepared locations for each chunk", async () => {
+		const matchingInput = "passage: Title\nUnchanged";
+		const changedInput = "passage: New heading\nUnchanged";
+		const vector = (index: number) => Array.from({ length: 384 }, (_, i) => Number(i === index));
+		const response = {
+			...set,
+			quality: { status: "PASSED", issues: [], page_count: 3 },
+			chunks: [matchingInput, changedInput, changedInput].map((input, index) => ({
+				chunk_index: index,
+				content: "Unchanged",
+				embedding_text: input,
+				token_count: 7,
+				headings: [],
+				locations: [
+					{
+						page: index + 1,
+						item_ref: `#/texts/${index}`,
+						bbox: { l: 0, t: 10, r: 100, b: 0, coord_origin: "BOTTOMLEFT" },
+					},
+				],
+			})),
+		};
+		const find = jest.fn().mockResolvedValue(
+			new Map([
+				[matchingInput, vector(0)],
+				[changedInput, [0]],
+			])
+		);
+		const fetcher = jest
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(Response.json(response))
+			.mockResolvedValueOnce(Response.json({ embeddings: [vector(1)] }));
+		const result = await provider.generate(
+			set,
+			Buffer.from("pdf"),
+			"Title",
+			new AbortController().signal,
+			find
+		);
+		expect(find).toHaveBeenCalledWith([matchingInput, changedInput]);
+		expect(fetcher).toHaveBeenCalledTimes(2);
+		expect(JSON.parse(String(fetcher.mock.calls[1][1]?.body))).toEqual({
+			configuration: set.configuration,
+			passages: [changedInput],
+		});
+		expect(result.chunks.map(({ embedding, locations }) => [embedding, locations[0].page])).toEqual(
+			[
+				[vector(0), 1],
+				[vector(1), 2],
+				[vector(1), 3],
+			]
+		);
+	});
+	it("stops after extraction when the new version fails quality checks", async () => {
+		const fetcher = jest.spyOn(globalThis, "fetch").mockResolvedValue(
+			Response.json({
+				...set,
+				quality: { status: "NEEDS_REVIEW", issues: ["missing_critical_content"], page_count: 1 },
+				chunks: [],
+			})
+		);
+		const find = jest.fn();
+		await expect(
+			provider.generate(set, Buffer.from("pdf"), "Title", new AbortController().signal, find)
+		).resolves.toMatchObject({ quality: { status: "NEEDS_REVIEW" }, chunks: [] });
+		expect(find).not.toHaveBeenCalled();
+		expect(fetcher).toHaveBeenCalledTimes(1);
+	});
 });
