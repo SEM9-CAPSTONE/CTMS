@@ -129,7 +129,92 @@ Invariants:
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+### CTMS-389 implementation contract
+
+Jira subtask: CTMS-389; parent story: CTMS-284. CTMS-093 is the specification ID.
+
+Authentication: JWT plus the Camper role. The caller must be the linked
+`booking_members.user_id`; owning the group booking alone does not authorize
+reviews for another member. Booking, participation, Trip and reviewer identities
+are resolved by the backend. `porterId` always refers to `users.id`, never to an
+assignment request or a separate assignment identifier.
+
+| Method | Route (including global prefix) | Input / output |
+| --- | --- | --- |
+| GET | `/api/bookings/:bookingId/porter-reviews/context` | Own participation eligibility, `serverTime`, `completedAt`, `expiresAt`, assigned Porter names and `canCreate`, plus own reviews and `canEdit` |
+| POST | `/api/bookings/:bookingId/porter-reviews` | `{ porterId, rating, comment? }`; returns the persisted review (201) |
+| PATCH | `/api/porter-reviews/:reviewId` | `{ rating, comment?, expectedRevision }`; returns the updated review (200) |
+
+All timestamps are ISO 8601 UTC with `Z`. The review response contains
+`id, bookingId, memberId, reviewerId, tripId, porterId, rating, comment,
+revision, moderationStatus, editExpiresAt, createdAt, updatedAt`. IDs are internal
+references; clients must show the provided Porter name, never a UUID fallback.
+Context adds `porterName` (nullable) and `canEdit` to each own review. A missing
+name means unavailable display information, not permission to show an ID.
+
+Context `eligible` means completed participation inside the creation window with
+at least one current assignment. Per-Porter `canCreate` additionally rejects an
+existing review. `reviews[].canEdit` is independent of current assignments.
+Generic ineligibility reasons are `PARTICIPATION_NOT_COMPLETED`,
+`WINDOW_EXPIRED` and `NO_ELIGIBLE_ASSIGNMENT`; the API does not disclose
+assignment history or other users' reviews.
+
+#### Eligibility and assignment changes
+
+- Creation requires a completed booking, a linked member in `joined` status,
+  a check-in no later than completion, no departure, and non-future completion.
+- Only `trip_porters.status = assigned` on this exact Trip qualifies for a new
+  review. Pending reconfirmation, unassigned rows and request-only records do not.
+  The current data model has no authoritative historical assignment intervals.
+- A Porter removed before creation cannot be newly reviewed, including removal
+  during the Trip. This is an approved limitation of using current assignments.
+- A review validly created before assignment removal is retained, remains editable
+  until its original deadline, and contributes to ratings unless hidden or its
+  participation becomes ineligible. Assignment removal or re-assignment does not
+  create a second review opportunity.
+- Both creation and editing close at `booking.completed_at + 24 hours`
+  (exclusive). A persisted `editExpiresAt` preserves the original deadline;
+  creation/edit timestamps never extend it. PostgreSQL comparisons account for
+  the millisecond precision of Node.js dates.
+- The 24-hour rule for both operations and retention after removal are decisions
+  approved during CTMS-389 implementation, not inferred from request timestamps.
+
+#### Input and persistence
+
+Rating is an integer 1–5. Comment is optional, at most 2,000 Unicode characters
+after trimming outer whitespace; blank becomes null. Inner text and markup are
+preserved, never interpreted as HTML. Clients must render user text safely.
+On PATCH, omitting comment preserves it; null or blank clears it. Unknown fields,
+including target/author/Trip/member changes, are rejected.
+
+`porter_reviews` has a unique `(member_id, reviewer_id, porter_id)` constraint,
+restricting foreign keys and `moderation_status` restricted to `visible|hidden`.
+Assignment is checked under a shared row lock during creation. Participation
+writes are serialized; edits additionally lock the review and compare
+`expectedRevision`. The clock is read after lock waits. Review, immutable
+`porter_review_revisions` snapshots and identity/version-only audit records commit
+atomically. Audit does not copy private comment content.
+
+The internal `PorterReviewsRepository.ratingSummary(manager, porterId)` query is
+the aggregate input for CTMS-413. It returns `{ porterId, ratingAverage,
+ratingCount }`, with null average and zero count when empty. It counts each
+current review once, excludes hidden reviews and ineligible participation, and
+does not require a still-active assignment. Expiry ends editing, not the rating's
+validity. No public reputation endpoint or moderation action is introduced here.
+
+| HTTP | Code / meaning |
+| --- | --- |
+| 401 | Authentication required |
+| 403 | Camper role required |
+| 404 | `PORTER_REVIEW_NOT_FOUND`: missing/out-of-scope booking, linked participation, assignment or own review; identical response |
+| 409 | `PARTICIPATION_NOT_COMPLETED`, `WINDOW_EXPIRED`, `DUPLICATE_REVIEW`, `REVIEW_EDIT_CLOSED`, or `STALE_REVISION` |
+| 422 | Invalid UUID/body/rating/comment/revision or unexpected fields |
+
+Clients map these codes to natural Vietnamese feedback. CTMS-390 supplies UI;
+CTMS-413 supplies reputation presentation/integration. Assignment creation,
+Trip/Route behavior, AI analysis and moderation workflows remain outside CTMS-389.
+Jira dependency direction discrepancies were observed during planning; Jira is
+read-only and has not been changed.
 
 ## 10. Error & Edge Cases
 
