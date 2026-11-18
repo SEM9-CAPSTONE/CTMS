@@ -7,7 +7,7 @@ import { HttpError } from "../../../core/api/httpClient";
 import { toast } from "../../../shared/components/Toast";
 import { sourceSchema } from "../schema/source.schema";
 import { survivalDocumentsService as service } from "../services/survival-documents.service";
-import type { DocumentDetail, SourceMetadata } from "../types";
+import type { DocumentDetail, EditDraft, EditorSection, SourceMetadata } from "../types";
 import { SurvivalDocumentsPage } from "./SurvivalDocumentsPage";
 
 vi.mock("../../admin-layout/components/AdminLayout", () => ({
@@ -118,6 +118,63 @@ describe("CTMS-050 Admin source management", () => {
 		quality_report: null,
 		automatic_recovery_pending: false,
 	};
+
+	it("opens the version editor and requires explicit confirmation before creating a PDF", async () => {
+		vi.mocked(service.detail).mockResolvedValue(published);
+		vi.spyOn(service, "chunkSets").mockResolvedValue([]);
+		const section: EditorSection = {
+			id: "section-a",
+			heading: "Chuẩn bị",
+			items: [{ kind: "paragraph", text: "Kiểm tra điều kiện trước khi xuất phát.", rows: [] }],
+			pages: [1],
+			source: { versionNumber: 1 },
+		};
+		const snapshot = {
+			title: metadata.sourceTitle,
+			baseSections: [section],
+			sections: [section],
+			changes: [],
+		};
+		const draft: EditDraft = { id: "edit-draft", revision: 1, confirmedRevision: null, snapshot };
+		const start = vi.spyOn(service, "startEdit").mockResolvedValue(draft);
+		const basis = "Đã kiểm tra nội dung và điều kiện áp dụng.";
+		const verify = vi.spyOn(service, "confirmEdit").mockResolvedValue({
+			...draft,
+			revision: 2,
+			confirmedRevision: 2,
+			snapshot: { ...snapshot, reviewBasis: basis },
+		});
+		const save = vi
+			.spyOn(service, "commitEdit")
+			.mockResolvedValue({ document: doc, versionId: doc.versions[0].id });
+		const panel = await detail();
+		await userEvent.click(panel.getByRole("button", { name: "Tạo phiên bản mới" }));
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Chỉnh sửa từ phiên bản hiện tại" })
+		);
+		const dialog = within(
+			await screen.findByRole("dialog", { name: "Chỉnh sửa từ phiên bản hiện tại" })
+		);
+		await userEvent.click(dialog.getByRole("button", { name: "Chuẩn bị bản nháp" }));
+		expect(start).toHaveBeenCalledWith(doc.id, doc.revision);
+		const commit = await dialog.findByRole("button", { name: "Tạo bản nháp PDF" });
+		expect(commit).toBeDisabled();
+		await userEvent.type(dialog.getByRole("textbox", { name: "Căn cứ xác nhận nội dung" }), basis);
+		await userEvent.click(dialog.getByRole("button", { name: "Xác nhận nội dung" }));
+		expect(verify).toHaveBeenCalledWith(
+			doc.id,
+			draft.id,
+			expect.objectContaining({ expectedRevision: 1, reviewBasis: basis })
+		);
+		await waitFor(() => expect(commit).toBeEnabled());
+		await userEvent.click(commit);
+		expect(save).toHaveBeenCalledWith(
+			doc.id,
+			draft.id,
+			expect.objectContaining({ expectedRevision: 2 })
+		);
+		expect(service.action).not.toHaveBeenCalled();
+	});
 
 	it("polls for active chunks after publication without a start button", async () => {
 		vi.mocked(service.detail).mockResolvedValue(published);

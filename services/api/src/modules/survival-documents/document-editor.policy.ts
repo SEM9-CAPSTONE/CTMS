@@ -22,6 +22,7 @@ export interface EditorSection extends ExtractedSection {
 		versionId: string;
 		versionNumber: number;
 		checksum: string;
+		sharedContext?: string[];
 	} | null;
 	edited?: boolean;
 }
@@ -52,11 +53,36 @@ export const fingerprint = (input: unknown) =>
 	createHash("sha256").update(JSON.stringify(input)).digest("hex");
 const nameKey = (name: string) =>
 	name.normalize("NFC").trim().replace(/\s+/g, " ").toLocaleLowerCase("vi");
+const sharedWarningHeading =
+	/^(?:cảnh báo|lưu ý an toàn|điều kiện áp dụng|điều kiện tiên quyết|warnings?|precautions?|prerequisites?)(?: chung)?[.:]?$/iu;
+
+function quantitativeText(section: EditorSection) {
+	return nameKey(
+		section.items
+			.filter(({ kind }) => kind !== "heading")
+			.map((item) => (item.kind === "table" ? item.rows.flat().join(" ") : item.text))
+			.join(" ")
+	);
+}
+
+function hasConflictingAmount(section: EditorSection, previousSections: EditorSection[]) {
+	const text = quantitativeText(section);
+	if (text.length < 15 || !/\p{Nd}/u.test(text)) return false;
+	const shape = (value: string) => value.replace(/\p{Nd}+(?:[.,]\p{Nd}+)*/gu, "#");
+	const template = shape(text);
+	return previousSections.some((previous) => {
+		const body = quantitativeText(previous);
+		return body !== text && shape(body) === template;
+	});
+}
 
 export function sourceSections(
 	sections: ExtractedSection[],
 	version: SourceVersion
 ): EditorSection[] {
+	const sharedContext = sections
+		.filter((section) => sharedWarningHeading.test(nameKey(section.heading)))
+		.map((section) => fingerprint(section.items));
 	return sections.map((section) => ({
 		...section,
 		id: fingerprint([version.id, section.item_refs]),
@@ -65,8 +91,21 @@ export function sourceSections(
 			versionId: version.id,
 			versionNumber: version.versionNumber,
 			checksum: version.checksum,
+			...(sharedContext.length ? { sharedContext } : {}),
 		},
 	}));
+}
+
+export function assertEditorContext(sections: EditorSection[]) {
+	const retained = new Set(sections.map((section) => section.fingerprint));
+	if (
+		sections.some((section) =>
+			section.source?.sharedContext?.some((context) => !retained.has(context))
+		)
+	)
+		throw invalidSource(
+			"Bản nháp đang thiếu mục cảnh báo hoặc điều kiện áp dụng đi kèm. Hãy khôi phục đầy đủ các mục liên quan trước khi xác nhận."
+		);
 }
 
 export function oneSection(sections: EditorSection[], heading: string): EditorSection {
@@ -147,6 +186,10 @@ export function applyEditorOperations(
 		if (sections.some((section) => nameKey(section.heading) === nameKey(next.heading)))
 			throw invalidSource(
 				"Bản nháp có mục cùng tên. Hãy chỉ rõ mục cần thay thế hoặc đổi tên mục mới."
+			);
+		if (hasConflictingAmount(next, sections))
+			throw invalidSource(
+				"Hai mục có cùng nội dung hướng dẫn nhưng số liệu khác nhau. Hãy chỉ rõ mục cần thay thế."
 			);
 		insert(next, op.action === EditAction.REPLACE ? index : op.position);
 	}

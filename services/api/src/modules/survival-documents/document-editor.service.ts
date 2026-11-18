@@ -8,6 +8,7 @@ import {
 	type ExtractedSection,
 	applyEditorOperations,
 	assertAdaptationGrants,
+	assertEditorContext,
 	fingerprint,
 	oneSection,
 	sourceSections,
@@ -200,6 +201,7 @@ export class DocumentEditorService {
 		if (reviewBasis.length < 10)
 			throw invalidSource("Hãy ghi căn cứ kiểm tra nội dung và điều kiện áp dụng.");
 		const { snapshot } = draft;
+		assertEditorContext(snapshot.sections);
 		if (
 			snapshot.title === snapshot.baseTitle &&
 			fingerprint(snapshot.sections) === fingerprint(snapshot.baseSections)
@@ -231,6 +233,7 @@ export class DocumentEditorService {
 		if (draft.revision !== dto.expectedRevision || draft.confirmedRevision !== draft.revision)
 			sourceConflict();
 		const { title, sections, baseChecksum, reviewBasis } = draft.snapshot;
+		assertEditorContext(sections);
 		const checksums = [
 			...new Set([
 				baseChecksum,
