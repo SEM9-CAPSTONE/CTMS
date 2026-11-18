@@ -9,6 +9,7 @@ from typing import TypeVar
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from pydantic import ValidationError
 
+from app.document_editor import EditorSection
 from app.knowledge_ingestion import InvalidEmbedding, InvalidPdf, InvalidQuery, KnowledgeIngestionService, ModelBusy
 from app.knowledge_models import (
     MAX_CONTEXT_BLOCKS, MAX_CONTEXT_BLOCK_BYTES, MAX_PDF_BYTES, ContextTokenRequest, ContextTokenResponse,
@@ -51,6 +52,16 @@ def ingest(request: IngestionRequest, service: KnowledgeIngestionService = Depen
 @app.post("/knowledge-chunks/prepare", response_model=PreparedIngestionResponse, dependencies=[Depends(require_token)])
 def prepare_chunks(request: IngestionRequest, service: KnowledgeIngestionService = Depends(get_service)) -> PreparedIngestionResponse:
     return run_ingestion(service.prepare, request)
+
+
+@app.post("/document-editor/extract", response_model=list[EditorSection], dependencies=[Depends(require_token)])
+def extract_editor_content(request: IngestionRequest, service: KnowledgeIngestionService = Depends(get_service)):
+    try:
+        return service.editor_content(request)
+    except (InvalidPdf, ValidationError):
+        raise HTTPException(422, detail={"code": "editor_extraction_unverified"}) from None
+    except Exception:
+        raise HTTPException(502, detail={"code": "editor_extraction_failed"}) from None
 
 
 def run_ingestion(operation: Callable[[IngestionRequest], IngestionResult], request: IngestionRequest) -> IngestionResult:

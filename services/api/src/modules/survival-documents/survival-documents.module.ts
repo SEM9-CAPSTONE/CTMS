@@ -1,5 +1,7 @@
 import { Module } from "@nestjs/common";
 import { MulterModule } from "@nestjs/platform-express";
+import { DocumentEditorController } from "./document-editor.controller";
+import { DocumentEditorService } from "./document-editor.service";
 import { sourceMaxBytes } from "./pdf-file-validator";
 import { PdfSourceService } from "./pdf-source.service";
 import { SourceFilesService } from "./source-files.service";
@@ -17,10 +19,11 @@ import { SurvivalSourceReader } from "./survival-source-reader.service";
 			useFactory: () => ({ limits: { fileSize: sourceMaxBytes() + 1, files: 1, fields: 2 } }),
 		}),
 	],
-	controllers: [SurvivalDocumentsController],
+	controllers: [SurvivalDocumentsController, DocumentEditorController],
 	providers: [
 		SurvivalDocumentsRepository,
 		SurvivalDocumentsService,
+		DocumentEditorService,
 		PdfSourceService,
 		SourceFilesService,
 		SourceUploadCleanupService,

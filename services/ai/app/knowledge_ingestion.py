@@ -107,6 +107,17 @@ class KnowledgeIngestionService:
         )
 
     def prepare(self, request: IngestionRequest) -> PreparedIngestionResponse:
+        result, _, _ = self._prepare(request)
+        return result
+
+    def editor_content(self, request: IngestionRequest):
+        from app.document_editor import extract_sections
+        result, document, native_pages = self._prepare(request)
+        if result.quality.status != "PASSED":
+            raise InvalidPdf("editor_extraction_unverified")
+        return extract_sections(document, native_pages, request.title)
+
+    def _prepare(self, request: IngestionRequest):
         try:
             pdf = base64.b64decode(request.pdf_base64, validate=True)
         except ValueError as error:
@@ -158,12 +169,13 @@ class KnowledgeIngestionService:
                                                        request.title, len(native_pages), request.configuration.max_tokens)
                 issues.extend(chunk_issues)
                 issues.extend(compare_pdf_text(native_pages, prepared))
-            return PreparedIngestionResponse(
+            result = PreparedIngestionResponse(
                 **request.model_dump(exclude={"pdf_base64", "title"}),
                 quality=QualityReport(status="NEEDS_REVIEW" if issues else "PASSED",
                                       issues=sorted(set(issues)), page_count=len(native_pages)),
                 chunks=[] if issues else prepared,
             )
+            return result, conversion.document, native_pages
 
 
 def validate_embeddings(vectors: list[list[float]], count: int, dimensions: int) -> None:
