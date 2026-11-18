@@ -102,7 +102,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 	beforeEach(async () => {
 		// Only this feature's queue is used by these serial integration tests.
 		await db.query(
-			"TRUNCATE knowledge_chunk_event_receipts,knowledge_chunk_publications,knowledge_chunks,knowledge_chunk_sets"
+			"TRUNCATE knowledge_chunk_event_receipts,knowledge_chunk_publications,knowledge_chunks,knowledge_chunk_sets,knowledge_embeddings"
 		);
 		await db.query(
 			"INSERT INTO knowledge_chunk_event_receipts(event_id) SELECT id FROM survival_document_outbox"
@@ -342,6 +342,60 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 				first.id,
 			])
 		).toEqual([{ source_version: 1 }]);
+		expect(
+			await db.query("SELECT id FROM knowledge_embeddings WHERE document_id=$1", [v1.id])
+		).toHaveLength(2);
+	});
+	it("reuses an inline historical vector and encodes only changed input through the worker", async () => {
+		const v1 = await publish(await draft());
+		await enqueue(v1);
+		const first = await claim();
+		const oldOutput = output(first);
+		await repo.finish(first, oldOutput);
+		const previous = await repo.readCurrent(v1.id);
+		// Simulate chunk rows written before shared storage was introduced.
+		await db.query(
+			`UPDATE knowledge_chunks c SET embedding=e.embedding,embedding_id=NULL
+			FROM knowledge_embeddings e WHERE c.embedding_id=e.id AND c.chunk_set_id=$1`,
+			[first.id]
+		);
+		await db.query("DELETE FROM knowledge_embeddings WHERE document_id=$1", [v1.id]);
+
+		const v2 = await publish(await draft(v1));
+		const second = await enqueue(v2);
+		const prepared = output(second);
+		prepared.quality.page_count = 2;
+		prepared.chunks[0].locations[0].page = 2;
+		prepared.chunks[1].embedding_text = `passage: Updated heading\n${prepared.chunks[1].content}`;
+		const config = app.get(ConfigService);
+		const get = config.get.bind(config);
+		const configSpy = jest
+			.spyOn(config, "get")
+			.mockImplementation((key: string) =>
+				key === "KNOWLEDGE_SERVICE_TOKEN" ? "test-token" : get(key)
+			);
+		const fetcher = jest
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(Response.json(prepared))
+			.mockResolvedValueOnce(Response.json({ embeddings: [prepared.chunks[1].embedding] }));
+		try {
+			expect(await worker.processOne()).toBe(true);
+			expect(fetcher).toHaveBeenCalledTimes(2);
+			expect(String(fetcher.mock.calls[1][0])).toMatch(/\/passage-embeddings$/);
+			expect(JSON.parse(String(fetcher.mock.calls[1][1]?.body)).passages).toEqual([
+				prepared.chunks[1].embedding_text,
+			]);
+			const [updated] = await repo.readCurrent(v1.id);
+			expect(updated).toMatchObject({
+				document_version_id: second.document_version_id,
+				embedding: previous[0].embedding,
+				metadata: { locations: [expect.objectContaining({ page: 2 })] },
+			});
+			expect(updated.id).not.toBe(previous[0].id);
+		} finally {
+			configSpy.mockRestore();
+			fetcher.mockRestore();
+		}
 	});
 	it("rejects obsolete output when publication races with completion", async () => {
 		const doc = await publish(await draft());
@@ -376,6 +430,9 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			expect(await storedStatus(set.id)).toBe(ChunkSetStatus.RUNNING);
 			expect(
 				await db.query("SELECT id FROM knowledge_chunks WHERE chunk_set_id=$1", [set.id])
+			).toEqual([]);
+			expect(
+				await db.query("SELECT id FROM knowledge_embeddings WHERE document_id=$1", [doc.id])
 			).toEqual([]);
 			expect(await repo.readCurrent(doc.id)).toEqual([]);
 		} finally {
@@ -642,7 +699,12 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		const v2 = await publish(await draft(v1), false);
 		await enqueue(v2);
 		const second = await claim();
-		await repo.finish(second, output(second));
+		const replacement = output(second);
+		replacement.chunks[1].embedding_text = `passage: New heading\n${replacement.chunks[1].content}`;
+		await repo.finish(second, replacement);
+		expect(
+			await db.query("SELECT id FROM knowledge_embeddings WHERE document_id=$1", [v1.id])
+		).toHaveLength(3);
 		expect(await repo.cleanupHistory(7)).toEqual({ deleted: 0, retainedByDependency: 0 });
 		await db.query(
 			"UPDATE knowledge_chunk_sets SET completed_at=now()-interval '8 days' WHERE id=$1",
@@ -681,6 +743,9 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			expect(firstCleanup.deleted + secondCleanup.deleted + afterReaders.deleted).toBe(1);
 			expect(currentChunks).toHaveLength(2);
 			for (const chunk of currentChunks) expect(chunk.chunk_set_id).toBe(second.id);
+			expect(
+				await db.query("SELECT id FROM knowledge_embeddings WHERE document_id=$1", [v1.id])
+			).toHaveLength(2);
 			expect(await repo.cleanupHistory(7)).toEqual({ deleted: 0, retainedByDependency: 0 });
 			expect(
 				await db.query("SELECT id FROM knowledge_chunks WHERE chunk_set_id=$1", [first.id])
@@ -896,12 +961,15 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 
 			it("rejects a selection that leaves out part of a PDF item", async () => {
 				const set = await ready(await publish(await draft()));
-				await db.query("UPDATE knowledge_chunks SET embedding=$2 WHERE chunk_set_id=$1", [
-					set.id,
-					Array.from({ length: configuration.embedding_dimensions }, (_, index) =>
-						Number(index === 0)
-					),
-				]);
+				await db.query(
+					"UPDATE knowledge_chunks SET embedding=$2,embedding_id=NULL WHERE chunk_set_id=$1",
+					[
+						set.id,
+						Array.from({ length: configuration.embedding_dimensions }, (_, index) =>
+							Number(index === 0)
+						),
+					]
+				);
 				await db.query(
 					"UPDATE knowledge_chunks SET metadata=jsonb_set(metadata,'{locations,0,item_ref}',to_jsonb($2::text)) WHERE chunk_set_id=$1 AND chunk_index=1",
 					[set.id, "#/texts/0"]
@@ -1113,7 +1181,8 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			});
 			const loser = first.id === winner ? second.id : first.id;
 			await db.query(
-				"UPDATE knowledge_chunks SET embedding=ARRAY['NaN'::float8] || embedding[2:384] WHERE chunk_set_id=$1 AND chunk_index=0",
+				`UPDATE knowledge_embeddings e SET embedding=ARRAY['NaN'::float8] || e.embedding[2:384]
+				 FROM knowledge_chunks c WHERE c.embedding_id=e.id AND c.chunk_set_id=$1 AND c.chunk_index=0`,
 				[winner]
 			);
 			expect(await retrieve()).toMatchObject({

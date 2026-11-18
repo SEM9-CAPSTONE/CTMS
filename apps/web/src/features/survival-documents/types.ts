@@ -34,6 +34,7 @@ export interface SourceRights {
 }
 export interface SourceVersion {
 	id: string;
+	composed?: boolean;
 	documentId: string;
 	versionNumber: number;
 	revision: number;
@@ -81,6 +82,48 @@ export interface DocumentDetail extends SurvivalDocument {
 	}>;
 }
 export type PdfSource = { kind: "upload"; file: File } | { kind: "url"; sourceUrl: string };
+export type EditAction = "KEEP" | "REPLACE" | "REMOVE" | "RESTORE" | "INSERT" | "REORDER";
+export interface EditorSection {
+	id: string;
+	heading: string;
+	pages: number[];
+	edited?: boolean;
+	source: { versionNumber: number } | null;
+	items: Array<{
+		kind: "heading" | "paragraph" | "list" | "table";
+		text: string;
+		rows: string[][];
+	}>;
+}
+export interface EditDraft {
+	id: string;
+	revision: number;
+	confirmedRevision: number | null;
+	snapshot: {
+		title: string;
+		baseSections: EditorSection[];
+		sections: EditorSection[];
+		reviewBasis?: string;
+		changes: Array<{ heading: string; action: EditAction; version?: number; position?: number }>;
+	};
+}
+export interface EditorRevision {
+	expectedRevision: number;
+	requestId: string;
+}
+export interface EditPlan extends EditorRevision {
+	title?: string;
+	instruction?: string;
+	operations?: Array<{
+		action: EditAction;
+		targetId?: string;
+		fromVersionId?: string;
+		fromSectionId?: string;
+		position?: number;
+		heading?: string;
+		text?: string;
+	}>;
+}
 export interface SourceFilters {
 	page: number;
 	limit: number;

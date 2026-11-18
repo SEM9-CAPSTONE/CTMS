@@ -109,6 +109,154 @@ describe("CTMS-050 PostgreSQL integration + real guarded HTTP", () => {
 			.send({ expectedRevision: version.revision, ...extra })
 			.expect(status);
 	}
+	it("composes the confirmed V3 once, retains lineage, and publishes through CTMS-050", async () => {
+		const draft = await create();
+		const v1 = (await action(draft, "publish", { rights: fictionalRights }))
+			.body as SourceTestDetail;
+		const uploaded = (
+			await request(app.getHttpServer())
+				.post(`${endpoint}/${draft.id}/versions`)
+				.set("Authorization", token("admin"))
+				.field("expectedDocumentRevision", String(v1.revision))
+				.field("metadata", JSON.stringify(fictionalMetadata))
+				.attach("file", uniqueFictionalPdf(), `replacement-${randomUUID()}.pdf`)
+				.expect(201)
+		).body as SourceTestDetail;
+		const v2 = (await action(uploaded, "publish", { rights: fictionalRights }))
+			.body as SourceTestDetail;
+		const route = `${endpoint}/${draft.id}/edit-drafts`;
+		const access = token("admin");
+		const tempKeys = ["KNOWLEDGE_SERVICE_TOKEN", "SURVIVAL_EDITOR_APPROVED_SHA256"] as const;
+		const previous = tempKeys.map((key) => process.env[key]);
+		process.env.KNOWLEDGE_SERVICE_TOKEN = "editor-integration-token";
+		process.env.SURVIVAL_EDITOR_APPROVED_SHA256 = "";
+		const sections = (labels: string) =>
+			[...labels].map((heading, i) => ({
+				heading,
+				items: [{ kind: "paragraph", text: heading, rows: [] }],
+				pages: [1],
+				item_refs: [`#/texts/${i}`],
+			}));
+		const composed = uniqueFictionalPdf();
+		const fetcher = jest.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+			if (String(input).endsWith("/compose")) {
+				const payload = JSON.parse(String(init?.body));
+				expect(
+					payload.sections.map((section: { heading: string }) => section.heading).join("")
+				).toBe("ABCDG");
+				return new Response(new Uint8Array(composed), {
+					headers: { "Content-Type": "application/pdf" },
+				});
+			}
+			return Response.json(
+				sections(JSON.parse(String(init?.body)).source_version === 1 ? "ABCDE" : "ABDFG")
+			);
+		});
+		try {
+			await request(app.getHttpServer())
+				.post(route)
+				.send({ expectedDocumentRevision: v2.revision })
+				.expect(401);
+			await request(app.getHttpServer())
+				.post(route)
+				.set("Authorization", token("camper"))
+				.send({ expectedDocumentRevision: v2.revision })
+				.expect(403);
+			const start = (
+				await request(app.getHttpServer())
+					.post(route)
+					.set("Authorization", access)
+					.send({ expectedDocumentRevision: v2.revision })
+					.expect(201)
+			).body;
+			const edit = `${route}/${start.id}`;
+			const planPayload = {
+				expectedRevision: start.revision,
+				requestId: randomUUID(),
+				instruction:
+					"Khôi phục phần C đã có trong phiên bản 1, loại bỏ phần F của phiên bản 2, giữ nguyên những nội dung còn lại.",
+			};
+			const proposed = (
+				await request(app.getHttpServer())
+					.post(`${edit}/plan`)
+					.set("Authorization", access)
+					.send(planPayload)
+					.expect(201)
+			).body;
+			expect(
+				proposed.snapshot.sections.map((section: { heading: string }) => section.heading).join("")
+			).toBe("ABCDG");
+			await request(app.getHttpServer())
+				.post(`${edit}/plan`)
+				.set("Authorization", access)
+				.send({ ...planPayload, requestId: randomUUID() })
+				.expect(409);
+			await request(app.getHttpServer())
+				.post(`${edit}/commit`)
+				.set("Authorization", access)
+				.send({ expectedRevision: proposed.revision, requestId: randomUUID() })
+				.expect(409);
+			const confirmed = (
+				await request(app.getHttpServer())
+					.patch(edit)
+					.set("Authorization", access)
+					.send({
+						expectedRevision: proposed.revision,
+						requestId: randomUUID(),
+						reviewBasis: "Đã đối chiếu đầy đủ nội dung và cảnh báo của từng mục.",
+					})
+					.expect(200)
+			).body;
+			const materialize = { expectedRevision: confirmed.revision, requestId: randomUUID() };
+			await request(app.getHttpServer())
+				.post(`${edit}/commit`)
+				.set("Authorization", access)
+				.send(materialize)
+				.expect(422);
+			process.env.SURVIVAL_EDITOR_APPROVED_SHA256 = [
+				v1.versions[0].checksum,
+				v2.versions[0].checksum,
+			].join(",");
+			const [one, two] = await Promise.all(
+				[1, 2].map(() =>
+					request(app.getHttpServer())
+						.post(`${edit}/commit`)
+						.set("Authorization", access)
+						.send(materialize)
+						.expect(201)
+				)
+			);
+			const v3 = one.body.document as SourceTestDetail;
+			expect(one.body.versionId).toEqual(two.body.versionId);
+			expect(v3.versions).toHaveLength(3);
+			expect(v3.currentPublishedVersionId).toEqual(v2.currentPublishedVersionId);
+			expect(v3.versions[0].status).toBe(DocumentStatus.DRAFT);
+			await action(v3, "publish", {}, 422);
+			await action(v3, "publish", { confirmSource: true });
+			const lineage = (
+				await request(app.getHttpServer())
+					.get(`${endpoint}/${draft.id}/versions/${one.body.versionId}/editor-lineage`)
+					.set("Authorization", access)
+					.expect(200)
+			).body;
+			expect(lineage.sections[2]).toMatchObject({
+				heading: "C",
+				source: { versionId: v1.versions[0].id, checksum: v1.versions[0].checksum },
+			});
+			expect(
+				await db.query(
+					"SELECT version_id FROM survival_document_outbox WHERE version_id=$1 AND event_type='published_version_changed'",
+					[one.body.versionId]
+				)
+			).toEqual([{ version_id: one.body.versionId }]);
+		} finally {
+			fetcher.mockRestore();
+			tempKeys.forEach((key, i) => {
+				if (previous[i] === undefined) delete process.env[key];
+				else process.env[key] = previous[i];
+			});
+		}
+	});
 	it("permanently deletes the document and all versions, preserves audit, and releases its PDF keys", async () => {
 		const bytes = uniqueFictionalPdf();
 		const filename = `delete-${randomUUID()}.pdf`;

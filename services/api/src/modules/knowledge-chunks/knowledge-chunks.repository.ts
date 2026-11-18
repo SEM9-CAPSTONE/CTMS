@@ -4,7 +4,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { DataSource, type EntityManager, QueryFailedError } from "typeorm";
 import { isEligiblePublishedSource, sourceContentIssue } from "../survival-documents/source-policy";
 import { type SourceVersion, VERSION_SELECT } from "../survival-documents/survival-documents.types";
-import { validateChunkOutput } from "./knowledge-chunks.policy";
+import { isValidEmbedding, validateChunkOutput } from "./knowledge-chunks.policy";
 import {
 	type ChunkConfiguration,
 	type ChunkFailure,
@@ -34,6 +34,14 @@ const dueRecoveries = `
 	WHERE s.status='FAILED' AND s.retryable_failure AND s.recovery_round<${MAX_RECOVERY_ROUNDS}
 	  AND s.config_hash=$1 AND s.next_attempt_at<=clock_timestamp()
 	ORDER BY s.next_attempt_at,s.id`;
+const embeddingInputHash = "encode(sha256(convert_to(embedding_text,'UTF8')),'hex')";
+
+function validStoredEmbedding(column: string, dimensions: string): string {
+	return `array_ndims(${column})=1 AND cardinality(${column})=${dimensions}
+		AND NOT EXISTS (SELECT 1 FROM unnest(${column}) AS v(value)
+			WHERE value IS NULL OR value IN ('NaN'::float8,'Infinity'::float8,'-Infinity'::float8))
+		AND EXISTS (SELECT 1 FROM unnest(${column}) AS v(value) WHERE value<>0)`;
+}
 
 @Injectable()
 export class KnowledgeChunksRepository {
@@ -225,6 +233,14 @@ export class KnowledgeChunksRepository {
 							replacement.versionNumber,
 						]
 					);
+					if (removed.length) {
+						await manager.query(
+							`DELETE FROM knowledge_embeddings e WHERE e.document_id=$1 AND NOT EXISTS (
+								SELECT 1 FROM knowledge_chunks c WHERE c.embedding_id=e.id
+							)`,
+							[candidate.document_id]
+						);
+					}
 					return removed.length;
 				});
 			} catch (error) {
@@ -292,6 +308,44 @@ export class KnowledgeChunksRepository {
 		return rows.length === 1;
 	}
 
+	async reusableEmbeddings(set: ChunkSet, inputs: string[]): Promise<Map<string, number[]>> {
+		if (!inputs.length) return new Map();
+		const dimensions = set.configuration.embedding_dimensions;
+		const rows: Array<{ embedding_text: string; embedding: unknown }> = await this.db.query(
+			`WITH requested AS (
+				SELECT embedding_text,${embeddingInputHash} AS input_hash
+				FROM unnest($1::text[]) AS requested(embedding_text)
+			), candidates AS (
+				SELECT r.embedding_text,e.embedding,0 AS priority,e.id
+				FROM requested r JOIN knowledge_embeddings e
+				  ON e.document_id=$2 AND e.config_hash=$3 AND e.input_hash=r.input_hash AND e.embedding_text=r.embedding_text
+				UNION ALL
+				SELECT r.embedding_text,c.embedding,1,c.id
+				FROM knowledge_chunk_sets s JOIN knowledge_chunks c ON c.chunk_set_id=s.id
+				JOIN requested r ON r.embedding_text=c.embedding_text
+				WHERE s.document_id=$2 AND s.config_hash=$3 AND s.configuration=$4::jsonb
+				  AND s.status='READY' AND s.document_version_id<>$5 AND c.embedding IS NOT NULL
+			)
+			SELECT DISTINCT ON (embedding_text) embedding_text,embedding FROM candidates
+			WHERE ${validStoredEmbedding("embedding", "$6")}
+			ORDER BY embedding_text,priority,id`,
+			[
+				inputs,
+				set.document_id,
+				set.config_hash,
+				JSON.stringify(set.configuration),
+				set.document_version_id,
+				dimensions,
+			]
+		);
+		const vectors = new Map<string, number[]>();
+		for (const row of rows) {
+			if (isValidEmbedding(row.embedding, dimensions))
+				vectors.set(row.embedding_text, row.embedding);
+		}
+		return vectors;
+	}
+
 	async finish(set: ChunkSet, result: ChunkOutput | ChunkFailure): Promise<boolean> {
 		return this.db.transaction(async (manager) => {
 			const source = await this.source(manager, set.document_id, set.document_version_id);
@@ -333,20 +387,50 @@ export class KnowledgeChunksRepository {
 				error = status === ChunkSetStatus.NEEDS_REVIEW ? "extraction_needs_review" : null;
 			}
 			if (output && status === ChunkSetStatus.READY) {
+				const embeddings = output.chunks.map(({ chunk_index, embedding_text, embedding }) => ({
+					chunk_index,
+					embedding_text,
+					embedding,
+				}));
+				const chunks = output.chunks.map(({ embedding, ...chunk }) => chunk);
 				await manager.query(
-					`INSERT INTO knowledge_chunks(chunk_set_id,document_version_id,source_version,locale,chunk_index,content,embedding_text,metadata,embedding)
-				 SELECT $1,$2,$3,$4,c.chunk_index,c.content,c.embedding_text,
-				 jsonb_build_object('headings',c.headings,'locations',c.locations,'token_count',c.token_count,'source_title',$6::text),c.embedding
-				 FROM jsonb_to_recordset($5::jsonb) AS c(chunk_index integer,content text,embedding_text text,headings jsonb,locations jsonb,token_count integer,embedding double precision[])`,
+					`INSERT INTO knowledge_embeddings AS e(document_id,config_hash,input_hash,embedding_text,embedding)
+					 SELECT DISTINCT ON (embedding_text) $1,$2,${embeddingInputHash},embedding_text,embedding
+					 FROM jsonb_to_recordset($3::jsonb) AS c(chunk_index integer,embedding_text text,embedding float8[])
+					 ORDER BY embedding_text,chunk_index
+					 ON CONFLICT(document_id,config_hash,input_hash) DO UPDATE SET embedding=excluded.embedding
+					 WHERE e.embedding_text=excluded.embedding_text AND NOT (${validStoredEmbedding("e.embedding", "$4")})`,
+					[
+						set.document_id,
+						current.config_hash,
+						JSON.stringify(embeddings),
+						current.configuration.embedding_dimensions,
+					]
+				);
+				const inserted: Array<{ id: string }> = await manager.query(
+					`WITH chunks AS (
+						SELECT c.*,${embeddingInputHash} AS input_hash
+						FROM jsonb_to_recordset($5::jsonb) AS c(chunk_index integer,content text,embedding_text text,headings jsonb,locations jsonb,token_count integer)
+					 )
+					 INSERT INTO knowledge_chunks(chunk_set_id,document_version_id,source_version,locale,chunk_index,content,embedding_text,metadata,embedding_id)
+					 SELECT $1,$2,$3,$4,c.chunk_index,c.content,c.embedding_text,
+					 jsonb_build_object('headings',c.headings,'locations',c.locations,'token_count',c.token_count,'source_title',$6::text),e.id
+					 FROM chunks c JOIN knowledge_embeddings e
+					   ON e.document_id=$7 AND e.config_hash=$8 AND e.input_hash=c.input_hash AND e.embedding_text=c.embedding_text
+					 RETURNING id`,
 					[
 						set.id,
 						set.document_version_id,
 						set.source_version,
 						set.locale,
-						JSON.stringify(output.chunks),
+						JSON.stringify(chunks),
 						source?.metadata.sourceTitle,
+						set.document_id,
+						current.config_hash,
 					]
 				);
+				if (inserted.length !== output.chunks.length)
+					throw new Error("Incomplete knowledge embedding mappings");
 			}
 			await manager.query(
 				`UPDATE knowledge_chunk_sets s SET status=$2::varchar,error_code=$3,quality_report=$4::jsonb,
@@ -431,7 +515,9 @@ export class KnowledgeChunksRepository {
 			)
 				return [];
 			const chunks: StoredKnowledgeChunk[] = await manager.query(
-				"SELECT * FROM knowledge_chunks WHERE chunk_set_id=$1 ORDER BY chunk_index FOR SHARE",
+				`SELECT c.*,COALESCE(e.embedding,c.embedding) AS embedding
+				 FROM knowledge_chunks c LEFT JOIN knowledge_embeddings e ON e.id=c.embedding_id
+				 WHERE c.chunk_set_id=$1 ORDER BY c.chunk_index FOR SHARE OF c`,
 				[publication.chunk_set_id]
 			);
 			return chunks.length === publication.chunk_count ? chunks : [];

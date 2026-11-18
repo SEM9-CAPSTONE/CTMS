@@ -1,6 +1,6 @@
 """CTMS-051 internal ingestion contract. No LLM or generated source context."""
 
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -17,6 +17,7 @@ MAX_CONTEXT_BLOCK_BYTES = 16_384
 MAX_PDF_BYTES = 52_428_800
 MAX_CHUNKS = 10_000
 MAX_PAGES = 1_000
+MAX_PASSAGE_BATCH = 128
 
 
 class IngestionConfiguration(BaseModel):
@@ -72,14 +73,28 @@ class QualityReport(BaseModel):
     page_count: int
 
 
-class IngestionResponse(BaseModel):
+class PreparedIngestionResponse(BaseModel):
     document_version_id: UUID
     source_version: int
     checksum: str
     locale: str
     configuration: IngestionConfiguration
     quality: QualityReport
+    chunks: list[PreparedChunk]
+
+
+class IngestionResponse(PreparedIngestionResponse):
     chunks: list[EmbeddedChunk]
+
+
+class PassageEmbeddingRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+    configuration: IngestionConfiguration
+    passages: list[Annotated[str, Field(pattern=r"^passage: ")]] = Field(min_length=1, max_length=MAX_PASSAGE_BATCH)
+
+
+class PassageEmbeddingResponse(BaseModel):
+    embeddings: list[list[float]]
 
 
 class QueryEmbeddingRequest(BaseModel):

@@ -126,7 +126,8 @@ export class KnowledgeChunksWorker implements OnModuleInit, OnModuleDestroy {
 					set,
 					source.bytes,
 					source.manifest.metadata.sourceTitle,
-					abort.signal
+					abort.signal,
+					(inputs) => this.repository.reusableEmbeddings(set, inputs)
 				);
 			} catch (error) {
 				const failure =

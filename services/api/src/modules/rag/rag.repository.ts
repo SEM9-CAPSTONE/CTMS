@@ -160,9 +160,11 @@ export class RagRepository {
 					GROUP BY s.id,s.chunk_count
 					HAVING count(*)=s.chunk_count AND min(c.chunk_index)=0 AND max(c.chunk_index)=s.chunk_count-1
 				), eligible_chunks AS MATERIALIZED (
-					SELECT c.id,c.chunk_set_id,c.chunk_index,c.content,c.metadata,c.embedding
+					SELECT c.id,c.chunk_set_id,c.chunk_index,c.content,c.metadata,v.embedding
 					FROM complete_sets s JOIN knowledge_chunks c ON c.chunk_set_id=s.id
-					WHERE array_ndims(c.embedding)=1 AND cardinality(c.embedding)=$4
+					LEFT JOIN knowledge_embeddings e ON e.id=c.embedding_id
+					CROSS JOIN LATERAL (SELECT COALESCE(e.embedding,c.embedding) AS embedding) v
+					WHERE array_ndims(v.embedding)=1 AND cardinality(v.embedding)=$4
 						AND octet_length(c.content)<=$5 AND octet_length(c.metadata::text)<=$5
 				)
 				SELECT c.id,c.chunk_set_id,c.chunk_index,c.content,c.metadata,
