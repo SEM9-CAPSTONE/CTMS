@@ -54,3 +54,29 @@ export interface PorterRatingSummary {
 }
 
 export type PorterReviewParticipation = ReviewParticipation;
+
+export interface PorterParticipationCandidate extends PorterReviewParticipation {
+	completedAt: Date;
+	tripTitle: string;
+	startsAt: Date;
+	hasAssignedPorter: boolean;
+}
+
+export interface PorterReviewParticipationItem {
+	bookingId: string;
+	tripId: string;
+	tripTitle: string;
+	startsAt: Date;
+	completedAt: Date;
+	expiresAt: Date | null;
+	eligible: boolean;
+	reason: PorterReviewIneligibleReason | null;
+}
+
+export interface PorterReviewParticipationPage {
+	serverTime: Date;
+	page: number;
+	limit: number;
+	hasMore: boolean;
+	items: PorterReviewParticipationItem[];
+}

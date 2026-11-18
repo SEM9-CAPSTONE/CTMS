@@ -4,14 +4,18 @@ import { ConflictException, Injectable, NotFoundException } from "@nestjs/common
 import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../auth/entities/audit-log.entity";
 import type { CreatePorterReviewDto, UpdatePorterReviewDto } from "./dto/porter-review.dto";
-import { canEditPorterReview, porterReviewEligibility } from "./porter-reviews.policy";
+import {
+	canEditPorterReview,
+	porterReviewCreationEligibility,
+	porterReviewEligibility,
+} from "./porter-reviews.policy";
 // biome-ignore lint/style/useImportType: Nest runtime injection metadata
 import { PorterReviewsRepository } from "./porter-reviews.repository";
-import {
-	type PorterReviewContext,
-	PorterReviewIneligibleReason,
-	type PorterReviewParticipation,
-	type PorterReviewRecord,
+import type {
+	PorterReviewContext,
+	PorterReviewParticipation,
+	PorterReviewParticipationPage,
+	PorterReviewRecord,
 } from "./porter-reviews.types";
 
 @Injectable()
@@ -20,6 +24,31 @@ export class PorterReviewsService {
 		private readonly dataSource: DataSource,
 		private readonly reviews: PorterReviewsRepository
 	) {}
+
+	participations(
+		userId: string,
+		page: number,
+		limit: number
+	): Promise<PorterReviewParticipationPage> {
+		return this.dataSource.transaction(async (manager) => {
+			const serverTime = await this.reviews.now(manager);
+			const rows = await this.reviews.participations(manager, userId, serverTime, page, limit);
+			return {
+				serverTime,
+				page,
+				limit,
+				hasMore: rows.length > limit,
+				items: rows.slice(0, limit).map((row) => ({
+					bookingId: row.bookingId,
+					tripId: row.tripId,
+					tripTitle: row.tripTitle,
+					startsAt: row.startsAt,
+					completedAt: row.completedAt,
+					...porterReviewCreationEligibility(row, serverTime, row.hasAssignedPorter),
+				})),
+			};
+		});
+	}
 
 	context(userId: string, bookingId: string): Promise<PorterReviewContext> {
 		return this.dataSource.transaction(async (manager) => {
@@ -31,17 +60,13 @@ export class PorterReviewsService {
 				own.map((review) => review.porterId)
 			);
 			const now = await this.reviews.now(manager);
-			const eligibility = porterReviewEligibility(participation, now);
+			const eligibility = porterReviewCreationEligibility(participation, now, porters.length > 0);
 			return {
 				bookingId,
 				tripId: participation.tripId,
 				serverTime: now,
 				completedAt: participation.completedAt,
 				...eligibility,
-				eligible: eligibility.eligible && porters.length > 0,
-				reason:
-					eligibility.reason ??
-					(porters.length ? null : PorterReviewIneligibleReason.NO_ELIGIBLE_ASSIGNMENT),
 				porters: porters.map((porter) => ({
 					...porter,
 					canCreate:

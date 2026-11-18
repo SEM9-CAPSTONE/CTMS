@@ -6,6 +6,7 @@ import '../../../core/api/api_exception.dart';
 import '../data/reviews_api.dart';
 import '../domain/review_models.dart';
 import 'review_form.dart';
+import '../../porter_reviews/presentation/porter_review_entry_button.dart';
 
 class TripReviewsScreen extends ConsumerStatefulWidget {
   const TripReviewsScreen({super.key, required this.booking});
@@ -173,6 +174,11 @@ class _TripReviewsScreenState extends ConsumerState<TripReviewsScreen>
                 const SizedBox(height: 8),
                 if (widget.booking.hostName != null)
                   Text('Host: ${widget.booking.hostName}'),
+                const SizedBox(height: 16),
+                PorterReviewEntryButton(
+                  bookingId: widget.booking.id,
+                  tripTitle: widget.booking.title,
+                ),
                 const SizedBox(height: 16),
                 if (loading) const LinearProgressIndicator(),
                 if (error != null)

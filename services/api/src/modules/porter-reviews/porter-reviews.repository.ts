@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import type { EntityManager } from "typeorm";
 import type {
 	AssignedReviewPorter,
+	PorterParticipationCandidate,
 	PorterRatingSummary,
 	PorterReviewParticipation,
 	PorterReviewRecord,
@@ -14,6 +15,32 @@ const REVIEW_COLUMNS = `id, booking_id AS "bookingId", member_id AS "memberId",
 
 @Injectable()
 export class PorterReviewsRepository {
+	async participations(
+		manager: EntityManager,
+		userId: string,
+		now: Date,
+		page: number,
+		limit: number
+	): Promise<PorterParticipationCandidate[]> {
+		// Never broaden Booking ownership reads: this projection contains only own review participation.
+		return manager.query(
+			`SELECT b.id AS "bookingId", m.id AS "memberId", m.user_id AS "reviewerId",
+			b.trip_id AS "tripId", t.host_id AS "hostId", b.status AS "bookingStatus",
+			b.completed_at AS "completedAt", m.member_status AS "memberStatus",
+			m.checked_in_at AS "checkedInAt", m.left_at AS "leftAt",
+			t.title AS "tripTitle", t.starts_at AS "startsAt",
+			EXISTS (SELECT 1 FROM trip_porters tp WHERE tp.trip_id=b.trip_id
+				AND tp.status='assigned') AS "hasAssignedPorter"
+			FROM bookings b JOIN booking_members m ON m.booking_id=b.id
+			JOIN trips t ON t.id=b.trip_id
+			WHERE m.user_id=$1 AND b.status='completed' AND m.member_status='joined'
+			AND m.checked_in_at IS NOT NULL AND m.checked_in_at<=b.completed_at
+			AND m.left_at IS NULL AND b.completed_at<=$2
+			ORDER BY b.completed_at DESC, b.id ASC, m.id ASC LIMIT $3 OFFSET $4`,
+			[userId, now, limit + 1, (page - 1) * limit]
+		);
+	}
+
 	async participation(
 		manager: EntityManager,
 		userId: string,

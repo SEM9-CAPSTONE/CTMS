@@ -6310,6 +6310,85 @@ export async function seedTripReviewScenarios(ds = dataSource, titlesOnly = fals
 	});
 }
 
+/** CTMS-390: opt-in Android review scenarios using existing local accounts. */
+async function seedPorterReviewScenarios(ds = dataSource): Promise<void> {
+	if (process.env.NODE_ENV === "production") throw new Error("Local review data only");
+	const database = new URL(process.env.DATABASE_URL ?? "postgresql://localhost/ctms");
+	if (!["localhost", "127.0.0.1", "[::1]"].includes(database.hostname)) {
+		throw new Error("Porter review scenarios require a local database");
+	}
+	if (!ds.isInitialized) await ds.initialize();
+	await ds.transaction(async (manager) => {
+		const accounts: Array<{ id: string; role: string }> = await manager.query(
+			`SELECT id, role FROM users WHERE status='active' AND
+			(email, role::text) IN (('host@ctms.local','host'),('camper@ctms.local','camper'),
+				('porter@ctms.local','porter'))`
+		);
+		const host = accounts.find((account) => account.role === "host");
+		const camper = accounts.find((account) => account.role === "camper");
+		const porter = accounts.find((account) => account.role === "porter");
+		if (!host || !camper || !porter)
+			throw new Error("Existing Host, Camper and Porter accounts are required");
+		const routes: Array<{ id: string }> = await manager.query(
+			"SELECT id FROM trekking_routes WHERE host_id=$1 AND name ILIKE '%Sơn Trà%' ORDER BY created_at,id LIMIT 1",
+			[host.id]
+		);
+		const route = routes[0];
+		if (!route) throw new Error("An existing Sơn Trà route owned by the local Host is required");
+		const scenarios = [
+			{ key: 1, title: "Trekking Sơn Trà – Đón bình minh", hours: 1, status: "assigned" },
+			{ key: 2, title: "Trekking Sơn Trà – Lối mòn ven biển", hours: 2, status: "unassigned" },
+			{ key: 3, title: "Trekking Sơn Trà – Đỉnh Bàn Cờ", hours: 48, status: "assigned" },
+		];
+		for (const scenario of scenarios) {
+			const tripId = `d3900000-0000-4000-8000-00000000000${scenario.key}`;
+			const bookingId = `d3900000-0000-4000-8001-00000000000${scenario.key}`;
+			const memberId = `d3900000-0000-4000-8002-00000000000${scenario.key}`;
+			await manager.query(
+				`INSERT INTO trips (id,host_id,route_id,title,trip_type,duration_nights,starts_at,ends_at,
+					meeting_point,booking_deadline,capacity_min,capacity_max,seats_taken,price_per_person,status)
+				VALUES ($1,$2,$3,$4,'day_trip',0,now()-make_interval(hours=>$5)-interval '4 hours',
+					now()-make_interval(hours=>$5),ST_GeogFromText('POINT(108.28 16.12)'),
+					now()-make_interval(hours=>$5)-interval '1 day',1,10,1,0,'completed')
+				ON CONFLICT (id) DO NOTHING`,
+				[tripId, host.id, route.id, scenario.title, scenario.hours]
+			);
+			await manager.query(
+				`INSERT INTO bookings (id,trip_id,user_id,num_people,status,payment_status,completed_at,
+					trip_starts_at_snapshot,trip_ends_at_snapshot)
+				SELECT $1,t.id,$2,1,'completed','not_required',t.ends_at,t.starts_at,t.ends_at
+				FROM trips t WHERE t.id=$3 ON CONFLICT (id) DO NOTHING`,
+				[bookingId, camper.id, tripId]
+			);
+			await manager.query(
+				`INSERT INTO booking_members (id,booking_id,user_id,is_primary,member_status,checked_in_at)
+				SELECT $1,b.id,$2,true,'joined',b.trip_starts_at_snapshot FROM bookings b WHERE b.id=$3
+				ON CONFLICT (id) DO NOTHING`,
+				[memberId, camper.id, bookingId]
+			);
+			await manager.query(
+				"INSERT INTO trip_porters (trip_id,porter_id,status) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING",
+				[tripId, porter.id, scenario.status]
+			);
+			if (scenario.key === 1) continue;
+			// The retained scenario represents a review left before the assignment was removed.
+			await manager.query(
+				`WITH inserted AS (
+					INSERT INTO porter_reviews (booking_id,member_id,reviewer_id,trip_id,porter_id,
+						rating,comment,edit_expires_at,created_at,updated_at)
+					SELECT b.id,$2,$3,b.trip_id,$4,5,'Anh Sơn hướng dẫn kỹ ở đoạn dốc và chờ cả đoàn tập hợp.',
+						date_trunc('milliseconds',b.completed_at + interval '24 hours'),
+						b.completed_at + interval '5 minutes', b.completed_at + interval '5 minutes'
+					FROM bookings b WHERE b.id=$1 ON CONFLICT DO NOTHING RETURNING *
+				)
+				INSERT INTO porter_review_revisions (review_id,revision,rating,comment,recorded_at)
+				SELECT id,revision,rating,comment,updated_at FROM inserted`,
+				[bookingId, memberId, camper.id, porter.id]
+			);
+		}
+	});
+}
+
 /** CTMS-412: additive source evidence for multi-batch analysis; never seeds AI output. */
 export async function seedReviewAnalysisScenarios(
 	ds = dataSource,
@@ -8455,6 +8534,14 @@ export async function runMasterSeed(): Promise<void> {
 	if (standaloneSeed) {
 		try {
 			await standaloneSeed();
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
+	if (process.argv.includes("--porter-reviews-only")) {
+		try {
+			await seedPorterReviewScenarios();
 		} finally {
 			if (dataSource.isInitialized) await dataSource.destroy();
 		}

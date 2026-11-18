@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/widgets/ctms_scaffold.dart';
 import '../../offline_packages/presentation/saved_offline_packages_screen.dart';
 import '../../trip_reviews/presentation/review_bookings_tab.dart';
+import '../../porter_reviews/presentation/porter_review_entry_button.dart';
 
 class CamperTripsScreen extends StatelessWidget {
   const CamperTripsScreen({super.key});
@@ -44,9 +45,23 @@ class CamperTripsScreen extends StatelessWidget {
         children: [
           ReviewBookingsTab(upcomingTrips: true),
           ReviewBookingsTab(),
-          ReviewBookingsTab(tripHistory: true),
+          _HistoryWithPorterReviews(),
         ],
       ),
     ),
+  );
+}
+
+class _HistoryWithPorterReviews extends StatelessWidget {
+  const _HistoryWithPorterReviews();
+  @override
+  Widget build(BuildContext context) => const Column(
+    children: [
+      Padding(
+        padding: EdgeInsets.fromLTRB(20, 16, 20, 0),
+        child: PorterReviewEntryButton(),
+      ),
+      Expanded(child: ReviewBookingsTab(tripHistory: true)),
+    ],
   );
 }

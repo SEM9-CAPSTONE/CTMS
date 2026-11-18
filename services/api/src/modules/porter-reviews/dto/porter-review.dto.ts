@@ -1,7 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { Transform } from "class-transformer";
-import { IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from "class-validator";
+import { IsInt, IsOptional, IsString, IsUUID, Max, Min } from "class-validator";
 import { PORTER_REVIEW_COMMENT_MAX_LENGTH } from "../porter-reviews.types";
+import { PorterCommentLength } from "./porter-comment-length";
 
 export class PorterReviewContentDto {
 	@ApiProperty({ minimum: 1, maximum: 5 })
@@ -16,7 +17,7 @@ export class PorterReviewContentDto {
 	)
 	@IsOptional()
 	@IsString()
-	@MaxLength(PORTER_REVIEW_COMMENT_MAX_LENGTH)
+	@PorterCommentLength()
 	comment?: string | null;
 }
 

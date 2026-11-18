@@ -46,3 +46,18 @@ export function canEditPorterReview(
 		now < review.editExpiresAt
 	);
 }
+
+export function porterReviewCreationEligibility(
+	participation: PorterReviewParticipation,
+	now: Date,
+	hasAssignment: boolean
+) {
+	const eligibility = porterReviewEligibility(participation, now);
+	return {
+		...eligibility,
+		eligible: eligibility.eligible && hasAssignment,
+		reason:
+			eligibility.reason ??
+			(hasAssignment ? null : PorterReviewIneligibleReason.NO_ELIGIBLE_ASSIGNMENT),
+	};
+}

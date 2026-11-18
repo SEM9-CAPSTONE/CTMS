@@ -46,3 +46,24 @@ export class PorterReviewContextResponseDto implements PorterReviewContext {
 	@ApiProperty({ type: [EligibleReviewPorterDto] }) porters!: EligibleReviewPorterDto[];
 	@ApiProperty({ type: [OwnPorterReviewResponseDto] }) reviews!: OwnPorterReviewResponseDto[];
 }
+
+export class PorterReviewParticipationItemDto {
+	@ApiProperty({ format: "uuid" }) bookingId!: string;
+	@ApiProperty({ format: "uuid" }) tripId!: string;
+	@ApiProperty() tripTitle!: string;
+	@ApiProperty({ type: String, format: "date-time" }) startsAt!: Date;
+	@ApiProperty({ type: String, format: "date-time" }) completedAt!: Date;
+	@ApiProperty({ type: String, format: "date-time", nullable: true }) expiresAt!: Date | null;
+	@ApiProperty() eligible!: boolean;
+	@ApiProperty({ enum: PorterReviewIneligibleReason, nullable: true })
+	reason!: PorterReviewIneligibleReason | null;
+}
+
+export class PorterReviewParticipationPageDto {
+	@ApiProperty({ type: String, format: "date-time" }) serverTime!: Date;
+	@ApiProperty({ minimum: 1 }) page!: number;
+	@ApiProperty({ minimum: 1, maximum: 50 }) limit!: number;
+	@ApiProperty() hasMore!: boolean;
+	@ApiProperty({ type: [PorterReviewParticipationItemDto] })
+	items!: PorterReviewParticipationItemDto[];
+}
