@@ -141,6 +141,7 @@ assignment request or a separate assignment identifier.
 
 | Method | Route (including global prefix) | Input / output |
 | --- | --- | --- |
+| GET | `/api/porter-reviews/participations` | Paginated completed review participations for the signed-in Camper, including linked guests |
 | GET | `/api/bookings/:bookingId/porter-reviews/context` | Own participation eligibility, `serverTime`, `completedAt`, `expiresAt`, assigned Porter names and `canCreate`, plus own reviews and `canEdit` |
 | POST | `/api/bookings/:bookingId/porter-reviews` | `{ porterId, rating, comment? }`; returns the persisted review (201) |
 | PATCH | `/api/porter-reviews/:reviewId` | `{ rating, comment?, expectedRevision }`; returns the updated review (200) |
@@ -158,6 +159,17 @@ existing review. `reviews[].canEdit` is independent of current assignments.
 Generic ineligibility reasons are `PARTICIPATION_NOT_COMPLETED`,
 `WINDOW_EXPIRED` and `NO_ELIGIBLE_ASSIGNMENT`; the API does not disclose
 assignment history or other users' reviews.
+
+CTMS-390 adds the participation list so group members can select a trip without
+access to the booking owner's order. It accepts `page` (default 1, maximum
+10,000) and `limit` (default 10, maximum 50). Results sort by `completedAt`
+descending and booking ID ascending for ties. The response contains
+`serverTime`, `page`, `limit`, `hasMore`, and `items`. Each item contains
+`bookingId`, `tripId`, `tripTitle`, `startsAt`, `completedAt`, `expiresAt`,
+`eligible`, and `reason`. The list uses the same database clock and creation
+eligibility policy as context. Expired items remain selectable to view past
+reviews. An account without completed participation receives an empty list.
+The 401, 403 and 422 rules below also apply to this endpoint.
 
 #### Eligibility and assignment changes
 
@@ -181,7 +193,7 @@ assignment history or other users' reviews.
 
 #### Input and persistence
 
-Rating is an integer 1–5. Comment is optional, at most 2,000 Unicode characters
+Rating is an integer 1–5. Comment is optional, at most 2,000 Unicode code points
 after trimming outer whitespace; blank becomes null. Inner text and markup are
 preserved, never interpreted as HTML. Clients must render user text safely.
 On PATCH, omitting comment preserves it; null or blank clears it. Unknown fields,
@@ -210,7 +222,13 @@ validity. No public reputation endpoint or moderation action is introduced here.
 | 409 | `PARTICIPATION_NOT_COMPLETED`, `WINDOW_EXPIRED`, `DUPLICATE_REVIEW`, `REVIEW_EDIT_CLOSED`, or `STALE_REVISION` |
 | 422 | Invalid UUID/body/rating/comment/revision or unexpected fields |
 
-Clients map these codes to natural Vietnamese feedback. CTMS-390 supplies UI;
+CTMS-390 uses the context flags to control submission. The countdown uses the
+server timestamp and elapsed time, and requests fresh context when the display
+reaches zero. Drafts are held in screen memory per account, booking and Porter.
+A stale revision requires comparison with the latest saved review before retry,
+a duplicate opens the saved review, and a closed window puts the review in
+read-only mode. After an interrupted write, the client reads context before
+allowing an explicit retry. Clients map these codes to natural Vietnamese feedback.
 CTMS-413 supplies reputation presentation/integration. Assignment creation,
 Trip/Route behavior, AI analysis and moderation workflows remain outside CTMS-389.
 Jira dependency direction discrepancies were observed during planning; Jira is

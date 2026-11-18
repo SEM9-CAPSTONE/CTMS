@@ -7,6 +7,7 @@ import {
 	ParseUUIDPipe,
 	Patch,
 	Post,
+	Query,
 	Req,
 	UseGuards,
 } from "@nestjs/common";
@@ -16,8 +17,11 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { UserRole } from "../users/entities/user.entity";
+// biome-ignore lint/style/useImportType: runtime DTO validation
+import { PorterParticipationsQueryDto } from "./dto/porter-participations-query.dto";
 import {
 	PorterReviewContextResponseDto,
+	PorterReviewParticipationPageDto,
 	PorterReviewResponseDto,
 } from "./dto/porter-review-response.dto";
 // biome-ignore lint/style/useImportType: runtime DTO validation
@@ -45,6 +49,18 @@ interface AuthenticatedRequest {
 @ApiResponse({ status: 422, description: "Invalid input" })
 export class PorterReviewsController {
 	constructor(private readonly reviews: PorterReviewsService) {}
+
+	@Get("porter-reviews/participations")
+	@ApiResponse({ status: 200, type: PorterReviewParticipationPageDto })
+	@ApiOperation({
+		summary: "List own completed review participations, including linked group members",
+	})
+	participations(
+		@Req() request: AuthenticatedRequest,
+		@Query() query: PorterParticipationsQueryDto
+	) {
+		return this.reviews.participations(request.user.userId, query.page, query.limit);
+	}
 
 	@Get("bookings/:bookingId/porter-reviews/context")
 	@ApiResponse({ status: 200, type: PorterReviewContextResponseDto })
