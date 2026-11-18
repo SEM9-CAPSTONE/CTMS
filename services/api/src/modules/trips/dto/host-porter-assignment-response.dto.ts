@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { TripPorterStatus } from "../../profiles/entities/trip-porter.entity";
+import { ReviewReputationDto } from "../../review-reputation/review-reputation.dto";
 import { TripStatus } from "../entities/trip.entity";
 
 export class HostPorterAssignmentDto {
@@ -14,6 +15,9 @@ export class HostPorterAssignmentDto {
 
 	@ApiProperty({ enum: TripPorterStatus })
 	status!: TripPorterStatus;
+
+	@ApiPropertyOptional({ type: ReviewReputationDto })
+	reputation?: ReviewReputationDto;
 
 	@ApiPropertyOptional({ nullable: true })
 	assignedAt!: Date | null;

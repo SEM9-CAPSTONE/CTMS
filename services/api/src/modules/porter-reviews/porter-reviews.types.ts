@@ -1,3 +1,4 @@
+import type { ReviewReputation } from "../review-reputation/review-reputation";
 import type { ReviewParticipation } from "../trip-reviews/trip-reviews.types";
 
 export const PORTER_REVIEW_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -33,6 +34,7 @@ export interface AssignedReviewPorter {
 export interface PorterReviewView extends PorterReviewRecord {
 	porterName: string | null;
 	canEdit: boolean;
+	reputation: ReviewReputation;
 }
 
 export interface PorterReviewContext {
@@ -43,14 +45,12 @@ export interface PorterReviewContext {
 	expiresAt: Date | null;
 	eligible: boolean;
 	reason: PorterReviewIneligibleReason | null;
-	porters: Array<AssignedReviewPorter & { canCreate: boolean }>;
+	porters: Array<AssignedReviewPorter & { canCreate: boolean; reputation: ReviewReputation }>;
 	reviews: PorterReviewView[];
 }
 
-export interface PorterRatingSummary {
+export interface PorterRatingSummary extends ReviewReputation {
 	porterId: string;
-	ratingAverage: number | null;
-	ratingCount: number;
 }
 
 export type PorterReviewParticipation = ReviewParticipation;

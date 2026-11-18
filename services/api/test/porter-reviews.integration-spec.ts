@@ -6,6 +6,7 @@ import request from "supertest";
 import { DataSource } from "typeorm";
 import { AppModule } from "../src/modules/app.module";
 import { PorterReviewsRepository } from "../src/modules/porter-reviews/porter-reviews.repository";
+import { readReviewReputations } from "../src/modules/review-reputation/review-reputation";
 import { User, UserRole, UserStatus } from "../src/modules/users/entities/user.entity";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
 import { assertSafeTestDatabase } from "./support/assert-safe-test-database";
@@ -177,6 +178,334 @@ describe("CTMS-389 Porter reviews (real PostgreSQL and HTTP)", () => {
 		expect(res.body.serverTime).toMatch(/Z$/);
 		expect(Date.parse(res.body.expiresAt) - Date.parse(res.body.completedAt)).toBe(86400000);
 	});
+
+	describe("CTMS-413 context-bound reputation", () => {
+		const empty = { ratingAverage: null, ratingCount: 0 };
+		const rated = { ratingAverage: 4, ratingCount: 1 };
+		const get = (path: string, actor?: User) => {
+			const call = request(app.getHttpServer()).get(`/api/${path}`);
+			return actor ? call.set("Authorization", auth(actor)) : call;
+		};
+		const byPorter = (rows: Array<{ porterId: string }>, id: string) =>
+			rows.find(({ porterId }) => porterId === id);
+		const aggregateCalls = (spy: jest.SpyInstance) =>
+			spy.mock.calls.filter(([sql]) => String(sql).includes('AS "ratingCount"'));
+
+		it("requires authentication for a published Trip and returns empty reputation only to allowed viewers", async () => {
+			await db.query("UPDATE trips SET status='published' WHERE id=$1", [tripId]);
+			try {
+				await get(`trips/${tripId}`).expect(401);
+				const signedIn = await get(`trips/${tripId}`, outsider).expect(200);
+				expect(signedIn.body.hostReputation).toEqual(empty);
+				expect(Object.keys(signedIn.body.hostReputation).sort()).toEqual([
+					"ratingAverage",
+					"ratingCount",
+				]);
+				expect((await get(`trips/${tripId}`, host).expect(200)).body).not.toHaveProperty(
+					"hostReputation"
+				);
+				const reviewContext = await context().expect(200);
+				expect(reviewContext.body.porters).toHaveLength(2);
+				for (const person of reviewContext.body.porters) {
+					expect(person.reputation).toEqual(empty);
+				}
+			} finally {
+				await db.query("UPDATE trips SET status='completed' WHERE id=$1", [tripId]);
+			}
+		});
+
+		it("publishes only Host-target ratings and keeps separate roles, edits, and moderation", async () => {
+			await db.query("INSERT INTO user_roles(user_id,role) VALUES ($1,'porter')", [host.id]);
+			await db.query(
+				"INSERT INTO trip_porters(trip_id,porter_id,status) VALUES ($1,$2,'assigned')",
+				[tripId, host.id]
+			);
+			try {
+				await create({ porterId: host.id, rating: 2 }).expect(201);
+				await db.query(
+					`INSERT INTO trip_reviews(booking_id,member_id,reviewer_id,trip_id,host_id,target,target_id,rating)
+					 VALUES ($1,$2,$3,$4,$5,'trip',$4,1),($1,$2,$3,$4,$5,'host',$5,4)`,
+					[bookingId, memberId, camper.id, tripId, host.id]
+				);
+				const detail = () => get(`trips/${tripId}`, outsider).expect(200);
+				expect((await detail()).body.hostReputation).toEqual(rated);
+				expect(byPorter((await context().expect(200)).body.porters, host.id)).toMatchObject({
+					reputation: { ratingAverage: 2, ratingCount: 1 },
+				});
+				await get(`trips/${tripId}`).expect(401);
+				expect((await get(`trips/${tripId}`, host).expect(200)).body).not.toHaveProperty(
+					"hostReputation"
+				);
+				await db.query(
+					"UPDATE trip_reviews SET rating=5,revision=2 WHERE booking_id=$1 AND target='host'",
+					[bookingId]
+				);
+				expect((await detail()).body.hostReputation).toEqual({ ratingAverage: 5, ratingCount: 1 });
+				await db.query(
+					"UPDATE trip_reviews SET moderation_status='hidden' WHERE booking_id=$1 AND target='host'",
+					[bookingId]
+				);
+				expect((await detail()).body.hostReputation).toEqual(empty);
+				await db.query(
+					"UPDATE trip_reviews SET moderation_status='visible' WHERE booking_id=$1 AND target='host'",
+					[bookingId]
+				);
+				expect((await detail()).body.hostReputation).toEqual({ ratingAverage: 5, ratingCount: 1 });
+			} finally {
+				await db.query("DELETE FROM trip_reviews WHERE booking_id=$1", [bookingId]);
+				await db.query("DELETE FROM trip_porters WHERE trip_id=$1 AND porter_id=$2", [
+					tripId,
+					host.id,
+				]);
+				await db.query("DELETE FROM user_roles WHERE user_id=$1 AND role='porter'", [host.id]);
+			}
+		});
+
+		it("keeps a common 404 for missing and inaccessible Trip and review context", async () => {
+			await db.query("UPDATE trips SET status='draft' WHERE id=$1", [tripId]);
+			try {
+				const missingTrip = await get(`trips/${randomUUID()}`, outsider).expect(404);
+				const restrictedTrip = await get(`trips/${tripId}`, outsider).expect(404);
+				expect(restrictedTrip.body).toEqual(missingTrip.body);
+				const missingContext = await context(outsider, randomUUID()).expect(404);
+				const restrictedContext = await context(outsider).expect(404);
+				expect(restrictedContext.body).toEqual(missingContext.body);
+			} finally {
+				await db.query("UPDATE trips SET status='completed' WHERE id=$1", [tripId]);
+			}
+		});
+
+		it("returns a removed Porter's reputation only through the Camper's own saved review", async () => {
+			await create().expect(201);
+			await db.query(
+				"UPDATE trip_porters SET status='unassigned' WHERE trip_id=$1 AND porter_id=$2",
+				[tripId, porter.id]
+			);
+			const result = await context().expect(200);
+			expect(byPorter(result.body.porters, porter.id)).toBeUndefined();
+			expect(byPorter(result.body.reviews, porter.id)).toMatchObject({ reputation: rated });
+			expect(byPorter(result.body.porters, secondPorter.id)).toMatchObject({ reputation: empty });
+		});
+
+		it("restores a hidden Porter vote exactly once in the review context", async () => {
+			const saved = await create().expect(201);
+			await db.query("UPDATE porter_reviews SET moderation_status='hidden' WHERE id=$1", [
+				saved.body.id,
+			]);
+			expect(byPorter((await context().expect(200)).body.porters, porter.id)).toMatchObject({
+				reputation: empty,
+			});
+			await db.query("UPDATE porter_reviews SET moderation_status='visible' WHERE id=$1", [
+				saved.body.id,
+			]);
+			expect(byPorter((await context().expect(200)).body.porters, porter.id)).toMatchObject({
+				reputation: rated,
+			});
+		});
+
+		it("batches rated and unrated current assignments and omits historical assignments", async () => {
+			await create().expect(201);
+			const list = () => get("trips/porter-assignments", host).expect(200);
+			const spy = jest.spyOn(db, "query");
+			const result = await list();
+			const assignments = result.body.find(({ id }: { id: string }) => id === tripId).assignments;
+			expect(byPorter(assignments, porter.id)).toMatchObject({ reputation: rated });
+			expect(byPorter(assignments, secondPorter.id)).toMatchObject({ reputation: empty });
+			expect(aggregateCalls(spy)).toHaveLength(1);
+			await db.query(
+				"UPDATE trip_porters SET status='unassigned' WHERE trip_id=$1 AND porter_id=$2",
+				[tripId, secondPorter.id]
+			);
+			spy.mockClear();
+			const updated = await list();
+			const updatedAssignments = updated.body.find(
+				({ id }: { id: string }) => id === tripId
+			).assignments;
+			expect(byPorter(updatedAssignments, secondPorter.id)).not.toHaveProperty("reputation");
+			expect(aggregateCalls(spy)).toHaveLength(1);
+		});
+
+		it("batches pending invitations and omits reputation after an invitation is declined", async () => {
+			await create().expect(201);
+			await db.query(
+				`INSERT INTO porter_requests(trip_id,porter_id,requested_by,requested_role,status,expires_at)
+				 VALUES ($1,$2,$3,'support','pending',now()+interval '1 hour'),
+				        ($1,$4,$3,'support','pending',now()+interval '1 hour')`,
+				[tripId, porter.id, host.id, secondPorter.id]
+			);
+			try {
+				const list = () => get("trips/porter-requests/host", host).expect(200);
+				const spy = jest.spyOn(db, "query");
+				const two = (await list()).body;
+				expect(byPorter(two, porter.id)).toMatchObject({ reputation: rated });
+				expect(byPorter(two, secondPorter.id)).toMatchObject({ reputation: empty });
+				expect(
+					Object.keys(
+						two.find((row: { porterId: string }) => row.porterId === porter.id).reputation
+					).sort()
+				).toEqual(["ratingAverage", "ratingCount"]);
+				expect(aggregateCalls(spy)).toHaveLength(1);
+				await db.query(
+					"UPDATE porter_requests SET status='declined' WHERE trip_id=$1 AND porter_id=$2",
+					[tripId, secondPorter.id]
+				);
+				spy.mockClear();
+				expect(byPorter((await list()).body, secondPorter.id)).not.toHaveProperty("reputation");
+				expect(aggregateCalls(spy)).toHaveLength(1);
+			} finally {
+				await db.query("DELETE FROM porter_requests WHERE trip_id=$1", [tripId]);
+			}
+		});
+
+		it("retains visible votes for inactive reviewers and retains restrictive reviewer foreign keys", async () => {
+			await create().expect(201);
+			try {
+				for (const status of [UserStatus.SUSPENDED, UserStatus.DELETED]) {
+					await db.query("UPDATE users SET status=$2 WHERE id=$1", [camper.id, status]);
+					expect(await summary()).toMatchObject(rated);
+				}
+				await expect(db.query("DELETE FROM users WHERE id=$1", [camper.id])).rejects.toMatchObject({
+					driverError: { code: "23503" },
+				});
+				const constraints = await db.query(
+					`SELECT conrelid::regclass::text AS "table"
+					 FROM pg_constraint
+					 WHERE conrelid IN ('trip_reviews'::regclass,'porter_reviews'::regclass)
+					   AND confrelid='users'::regclass AND confdeltype='r'
+					   AND pg_get_constraintdef(oid) LIKE 'FOREIGN KEY (reviewer_id)%'
+					 ORDER BY 1`
+				);
+				expect(constraints).toEqual([{ table: "porter_reviews" }, { table: "trip_reviews" }]);
+			} finally {
+				await db.query("UPDATE users SET status=$2 WHERE id=$1", [camper.id, UserStatus.ACTIVE]);
+			}
+		});
+
+		it("averages a Porter's eligible votes across different Trips and Campers", async () => {
+			await create().expect(201);
+			const secondTrip = randomUUID();
+			const secondBooking = randomUUID();
+			await db.query(
+				`INSERT INTO trips(id,host_id,route_id,title,trip_type,duration_nights,starts_at,ends_at,
+				    meeting_point,booking_deadline,capacity_min,capacity_max,seats_taken,price_per_person,status)
+				 SELECT $2,host_id,route_id,'Trekking bán đảo Sơn Trà',trip_type,duration_nights,starts_at,ends_at,
+				    meeting_point,booking_deadline,capacity_min,capacity_max,seats_taken,price_per_person,status
+				 FROM trips WHERE id=$1`,
+				[tripId, secondTrip]
+			);
+			try {
+				await db.query(
+					`INSERT INTO bookings(id,trip_id,user_id,num_people,status,payment_status,completed_at)
+					 VALUES ($1,$2,$3,1,'completed','not_required',now()-interval '2 hours')`,
+					[secondBooking, secondTrip, outsider.id]
+				);
+				await db.query(
+					`INSERT INTO booking_members(booking_id,user_id,is_primary,member_status,checked_in_at)
+					 VALUES ($1,$2,true,'joined',now()-interval '2 days')`,
+					[secondBooking, outsider.id]
+				);
+				await db.query(
+					"INSERT INTO trip_porters(trip_id,porter_id,status) VALUES ($1,$2,'assigned')",
+					[secondTrip, porter.id]
+				);
+				const saved = await create(
+					{ porterId: porter.id, rating: 5 },
+					outsider,
+					secondBooking
+				).expect(201);
+				const result = await context().expect(200);
+				expect(byPorter(result.body.porters, porter.id)).toMatchObject({
+					reputation: { ratingAverage: 4.5, ratingCount: 2 },
+				});
+				await edit(saved.body.id, { expectedRevision: 1, rating: 2 }, outsider).expect(200);
+				expect(await summary()).toMatchObject({ ratingAverage: 3, ratingCount: 2 });
+			} finally {
+				await db.query(
+					"DELETE FROM porter_review_revisions WHERE review_id IN (SELECT id FROM porter_reviews WHERE booking_id=$1)",
+					[secondBooking]
+				);
+				await db.query("DELETE FROM porter_reviews WHERE booking_id=$1", [secondBooking]);
+				await db.query("DELETE FROM booking_members WHERE booking_id=$1", [secondBooking]);
+				await db.query("DELETE FROM bookings WHERE id=$1", [secondBooking]);
+				await db.query("DELETE FROM trip_porters WHERE trip_id=$1", [secondTrip]);
+				await db.query("DELETE FROM trips WHERE id=$1", [secondTrip]);
+			}
+		});
+
+		it("uses the reputation indexes for selective batches on larger PostgreSQL fixtures", async () => {
+			const runner = db.createQueryRunner();
+			await runner.connect();
+			await runner.startTransaction();
+			try {
+				// Session-local copies preserve production indexes without retaining synthetic data.
+				await runner.query(
+					"CREATE TEMP TABLE booking_members (LIKE public.booking_members INCLUDING DEFAULTS INCLUDING INDEXES) ON COMMIT DROP"
+				);
+				await runner.query(
+					`INSERT INTO booking_members(id,booking_id,user_id,is_primary,member_status,checked_in_at)
+					 SELECT gen_random_uuid(),$1,gen_random_uuid(),false,'joined',now()-interval '2 days'
+					 FROM generate_series(1,12000)
+					 UNION ALL SELECT id,booking_id,user_id,is_primary,member_status,checked_in_at
+					 FROM public.booking_members WHERE id=$2`,
+					[bookingId, memberId]
+				);
+				await runner.query("ANALYZE booking_members");
+				for (const [role, subjectId] of [
+					["host", host.id],
+					["porter", porter.id],
+				] as const) {
+					const table = role === "host" ? "trip_reviews" : "porter_reviews";
+					const extraColumns =
+						role === "host" ? "host_id,target,target_id" : "porter_id,edit_expires_at";
+					const extraValues =
+						role === "host"
+							? "subject_id,'host',subject_id"
+							: "subject_id,b.completed_at+interval '24 hours'";
+					await runner.query(
+						`CREATE TEMP TABLE ${table} (LIKE public.${table} INCLUDING DEFAULTS INCLUDING INDEXES) ON COMMIT DROP`
+					);
+					await runner.query(
+						`INSERT INTO ${table}(booking_id,member_id,reviewer_id,trip_id,rating,${extraColumns})
+						 SELECT b.id,subjects.id,subjects.user_id,b.trip_id,4,${extraValues}
+						 FROM bookings b CROSS JOIN (
+						  SELECT id,user_id,CASE WHEN id=$2 THEN $3::uuid ELSE gen_random_uuid() END AS subject_id
+						  FROM booking_members WHERE booking_id=$1
+						 ) subjects WHERE b.id=$1`,
+						[bookingId, memberId, subjectId]
+					);
+					await runner.query(`ANALYZE ${table}`);
+					const explain = jest
+						.spyOn(runner.manager, "query")
+						.mockImplementationOnce(async (sql, args) => {
+							const plan: Array<{ "QUERY PLAN": string }> = await runner.query(
+								`EXPLAIN (ANALYZE, BUFFERS) ${sql}`,
+								args
+							);
+							const output = plan.map((row) => row["QUERY PLAN"]).join("\n");
+							console.info(`CTMS-413 ${role}, 12001 reviews, 2 subjects:\n${output}`);
+							expect(output).toMatch(
+								new RegExp(
+									`(?:Index Scan|Bitmap Heap Scan) on ${table}|Index Scan using \\S+ on ${table}`
+								)
+							);
+							expect(output).toMatch(
+								new RegExp(
+									`(?:Index Cond|Recheck Cond):.*${role === "host" ? "host_id" : "porter_id"} = ANY`
+								)
+							);
+							return [];
+						});
+					await readReviewReputations(runner.manager, role, [subjectId, randomUUID()]);
+					expect(explain).toHaveBeenCalledTimes(1);
+					explain.mockRestore();
+				}
+			} finally {
+				await runner.rollbackTransaction();
+				await runner.release();
+			}
+		});
+	});
+
 	it("creates one review per actual Porter and preserves normalized source comments", async () => {
 		// Force sub-millisecond completion precision to regress the PostgreSQL/JS deadline mismatch.
 		await db.query(

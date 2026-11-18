@@ -1,4 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
+import { ReviewReputationDto } from "../../review-reputation/review-reputation.dto";
 import {
 	PORTER_REVIEW_COMMENT_MAX_LENGTH,
 	type PorterReviewContext,
@@ -26,12 +27,14 @@ export class PorterReviewResponseDto implements PorterReviewRecord {
 export class OwnPorterReviewResponseDto extends PorterReviewResponseDto {
 	@ApiProperty({ type: String, nullable: true }) porterName!: string | null;
 	@ApiProperty() canEdit!: boolean;
+	@ApiProperty({ type: ReviewReputationDto }) reputation!: ReviewReputationDto;
 }
 
 export class EligibleReviewPorterDto {
 	@ApiProperty({ format: "uuid" }) porterId!: string;
 	@ApiProperty({ type: String, nullable: true }) porterName!: string | null;
 	@ApiProperty() canCreate!: boolean;
+	@ApiProperty({ type: ReviewReputationDto }) reputation!: ReviewReputationDto;
 }
 
 export class PorterReviewContextResponseDto implements PorterReviewContext {

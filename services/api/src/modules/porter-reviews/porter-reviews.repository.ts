@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import type { EntityManager } from "typeorm";
+import { readReviewReputations, reputationFor } from "../review-reputation/review-reputation";
 import type {
 	AssignedReviewPorter,
 	PorterParticipationCandidate,
@@ -151,22 +152,7 @@ export class PorterReviewsRepository {
 
 	/** Internal input for CTMS-413; never expose private review content through aggregates. */
 	async ratingSummary(manager: EntityManager, porterId: string): Promise<PorterRatingSummary> {
-		// PostgreSQL completion timestamps can have microseconds; persisted JS deadlines have milliseconds.
-		const [summary]: PorterRatingSummary[] = await manager.query(
-			`SELECT $1::uuid AS "porterId", avg(r.rating)::float8 AS "ratingAverage",
-			count(r.id)::int AS "ratingCount"
-			FROM porter_reviews r JOIN booking_members m ON m.id = r.member_id
-			JOIN bookings b ON b.id = m.booking_id
-			WHERE r.porter_id = $1 AND r.moderation_status = 'visible'
-			AND m.user_id = r.reviewer_id AND b.id = r.booking_id AND b.trip_id = r.trip_id
-			AND b.status = 'completed' AND m.member_status = 'joined' AND m.left_at IS NULL
-			AND m.checked_in_at <= b.completed_at
-			AND r.created_at >= date_trunc('milliseconds', b.completed_at)
-			AND r.created_at < b.completed_at + interval '24 hours'
-			AND date_trunc('milliseconds', r.edit_expires_at) =
-			date_trunc('milliseconds', b.completed_at + interval '24 hours')`,
-			[porterId]
-		);
-		return summary;
+		const summaries = await readReviewReputations(manager, "porter", [porterId]);
+		return { porterId, ...reputationFor(summaries, porterId) };
 	}
 }

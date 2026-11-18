@@ -7,4 +7,6 @@ export const dataSourceOptions: DataSourceOptions = {
 	migrations: [`${__dirname}/../../migrations/*{.ts,.js}`],
 	synchronize: false,
 	migrationsRun: true,
+	// Transactional migrations remain atomic; concurrent indexes opt out individually.
+	migrationsTransactionMode: "each",
 };
