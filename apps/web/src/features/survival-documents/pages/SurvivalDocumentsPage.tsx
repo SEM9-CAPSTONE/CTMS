@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "../../../shared/components/Toast";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
 import { SourceDetail } from "../components/SourceDetail";
 import { SourceDocumentTable } from "../components/SourceDocumentTable";
@@ -138,6 +139,20 @@ export function SurvivalDocumentsPage({
 					<VersionCompositionEditor
 						document={mode.document}
 						onClose={() => setComposing(false)}
+						onSaved={async (document, version, publish) => {
+							setComposing(false);
+							setMode(null);
+							await state.refresh();
+							openDocument(document.id, version.id);
+							if (publish)
+								await actOnVersion(
+									version,
+									"publish",
+									{ expectedRevision: version.revision },
+									true
+								);
+							else toast.success("Đã tạo bản nháp PDF.");
+						}}
 					/>
 				)}
 				{mode && !composing && (

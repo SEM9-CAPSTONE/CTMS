@@ -34,6 +34,7 @@ export interface SourceRights {
 }
 export interface SourceVersion {
 	id: string;
+	composed?: boolean;
 	documentId: string;
 	versionNumber: number;
 	revision: number;

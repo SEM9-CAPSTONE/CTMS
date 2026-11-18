@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { invalidSource } from "./dto/source.dto";
-import { type SourceVersion } from "./survival-documents.types";
+import { Classification, type SourceVersion } from "./survival-documents.types";
 
 export interface EditorItem {
 	kind: "heading" | "paragraph" | "list" | "table";
@@ -45,6 +45,7 @@ export interface EditOperation {
 	text?: string;
 }
 
+export const versionAttribution = "Tài liệu do CTMS biên soạn từ các nguồn đã xác minh.";
 const critical =
 	/cảnh báo|nguy hiểm|điều kiện|chỉ áp dụng|không được|chống chỉ định|warning|danger|only if|do not|unless/iu;
 export const fingerprint = (input: unknown) =>
@@ -158,4 +159,44 @@ export function applyEditorOperations(
 			throw invalidSource("Vị trí mục nằm ngoài thứ tự tài liệu.");
 		sections.splice(position, 0, section);
 	}
+}
+
+export function isMedicalSource(classification: Classification) {
+	return (
+		classification === Classification.FIRST_AID ||
+		classification === Classification.MEDICAL_REFERENCE
+	);
+}
+
+function configuredChecksum(key: string, checksum: string) {
+	return (
+		/^[a-f0-9]{64}$/.test(checksum) &&
+		(process.env[key] ?? "")
+			.toLowerCase()
+			.split(",")
+			.some((value) => value.trim() === checksum)
+	);
+}
+
+export function assertAdaptationGrants(checksums: string[]): void {
+	if (
+		!checksums.length ||
+		checksums.some((checksum) => !configuredChecksum("SURVIVAL_EDITOR_APPROVED_SHA256", checksum))
+	)
+		throw invalidSource(
+			"Chưa có xác nhận quyền biên soạn, lưu trữ và xử lý cho tất cả phiên bản PDF được sử dụng."
+		);
+}
+
+export function assertComposedMedicalReview(
+	classification: Classification,
+	checksum: string
+): void {
+	if (
+		isMedicalSource(classification) &&
+		!configuredChecksum("SURVIVAL_EDITOR_MEDICAL_APPROVED_SHA256", checksum)
+	)
+		throw invalidSource(
+			"PDF biên soạn cần được chuyên gia xác nhận theo đúng tệp này trước khi xuất bản."
+		);
 }

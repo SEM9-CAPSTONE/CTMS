@@ -19,6 +19,7 @@ import { DocumentEditorService } from "./document-editor.service";
 // biome-ignore lint/style/useImportType: runtime DTO validation metadata
 import {
 	ConfirmDocumentEditDto,
+	EditorRevisionDto,
 	PlanDocumentEditDto,
 	StartDocumentEditDto,
 } from "./dto/document-editor.dto";
@@ -72,5 +73,20 @@ export class DocumentEditorController {
 		@Body() dto: ConfirmDocumentEditDto
 	) {
 		return this.editor.confirm(actor.userId, id, draftId, dto);
+	}
+
+	@Get("versions/:versionId/editor-lineage")
+	lineage(@Param("id", uuid) id: string, @Param("versionId", uuid) versionId: string) {
+		return this.editor.lineage(id, versionId);
+	}
+
+	@Post("edit-drafts/:draftId/commit")
+	commit(
+		@CurrentUser() actor: AuthenticatedUser,
+		@Param("id", uuid) id: string,
+		@Param("draftId", uuid) draftId: string,
+		@Body() dto: EditorRevisionDto
+	) {
+		return this.editor.commit(actor.userId, id, draftId, dto);
 	}
 }

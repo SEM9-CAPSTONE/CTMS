@@ -9,6 +9,7 @@ import type {
 	EditAction,
 	EditDraft,
 	EditorSection,
+	SourceVersion,
 } from "../../types";
 
 const actions: Record<EditAction, string> = {
@@ -75,8 +76,9 @@ function SectionContent({ section }: { section: EditorSection }) {
 interface Props {
 	document: DocumentDetail;
 	onClose: () => void;
+	onSaved: (document: DocumentDetail, version: SourceVersion, publish: boolean) => Promise<void>;
 }
-export function VersionCompositionEditor({ document, onClose }: Props) {
+export function VersionCompositionEditor({ document, onClose, onSaved }: Props) {
 	const [draft, setDraft] = useState<EditDraft>();
 	const [title, setTitle] = useState("");
 	const [instruction, setInstruction] = useState("");
@@ -96,6 +98,7 @@ export function VersionCompositionEditor({ document, onClose }: Props) {
 	const versions = document.versions.filter((item) => item.id !== current?.id && item.publishedAt);
 	const selectedHistory = historical.find((section) => section.id === restore);
 	const usesHistory = action === "RESTORE" || (action === "REPLACE" && !!restore);
+	const confirmed = draft?.confirmedRevision === draft?.revision;
 
 	function request(name: string, payload?: unknown) {
 		const key = JSON.stringify([name, draft?.revision, payload]);
@@ -184,6 +187,17 @@ export function VersionCompositionEditor({ document, onClose }: Props) {
 			})
 		);
 		toast.success("Đã xác nhận nội dung bản nháp.");
+	}
+
+	async function commit(publish: boolean) {
+		if (!draft) return;
+		const saved = await service.commitEdit(document.id, draft.id, {
+			expectedRevision: draft.revision,
+			requestId: request("commit"),
+		});
+		const version = saved.document.versions.find(({ id }) => id === saved.versionId);
+		if (!version) throw new Error("Không tìm thấy phiên bản PDF đã tạo.");
+		await onSaved(saved.document, version, publish);
 	}
 
 	return (
@@ -421,6 +435,30 @@ export function VersionCompositionEditor({ document, onClose }: Props) {
 									onClick={() => void run(confirm)}
 								>
 									Xác nhận nội dung
+								</button>
+								<button
+									type="button"
+									className={SOURCE_BUTTON}
+									disabled={
+										!confirmed ||
+										basis.trim() !== draft.snapshot.reviewBasis ||
+										title !== draft.snapshot.title
+									}
+									onClick={() => void run(() => commit(false))}
+								>
+									Tạo bản nháp PDF
+								</button>
+								<button
+									type="button"
+									className={SOURCE_BUTTON}
+									disabled={
+										!confirmed ||
+										basis.trim() !== draft.snapshot.reviewBasis ||
+										title !== draft.snapshot.title
+									}
+									onClick={() => void run(() => commit(true))}
+								>
+									Xuất bản
 								</button>
 							</div>
 						</section>

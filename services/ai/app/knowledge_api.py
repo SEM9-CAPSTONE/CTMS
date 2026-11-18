@@ -9,7 +9,7 @@ from typing import TypeVar
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from pydantic import ValidationError
 
-from app.document_editor import EditorSection
+from app.document_editor import ComposeRequest, EditorSection, compose_pdf
 from app.knowledge_ingestion import InvalidEmbedding, InvalidPdf, InvalidQuery, KnowledgeIngestionService, ModelBusy
 from app.knowledge_models import (
     MAX_CONTEXT_BLOCKS, MAX_CONTEXT_BLOCK_BYTES, MAX_PDF_BYTES, ContextTokenRequest, ContextTokenResponse,
@@ -62,6 +62,16 @@ def extract_editor_content(request: IngestionRequest, service: KnowledgeIngestio
         raise HTTPException(422, detail={"code": "editor_extraction_unverified"}) from None
     except Exception:
         raise HTTPException(502, detail={"code": "editor_extraction_failed"}) from None
+
+
+@app.post("/document-editor/compose", dependencies=[Depends(require_token)])
+def compose_document(request: ComposeRequest) -> Response:
+    try:
+        return Response(compose_pdf(request), media_type="application/pdf")
+    except InvalidPdf:
+        raise HTTPException(422, detail={"code": "editor_pdf_unverified"}) from None
+    except Exception:
+        raise HTTPException(502, detail={"code": "editor_composition_failed"}) from None
 
 
 def run_ingestion(operation: Callable[[IngestionRequest], IngestionResult], request: IngestionRequest) -> IngestionResult:

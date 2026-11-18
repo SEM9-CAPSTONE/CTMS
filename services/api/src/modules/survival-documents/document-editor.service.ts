@@ -7,9 +7,11 @@ import {
 	type EditorSection,
 	type ExtractedSection,
 	applyEditorOperations,
+	assertAdaptationGrants,
 	fingerprint,
 	oneSection,
 	sourceSections,
+	versionAttribution,
 } from "./document-editor.policy";
 import type {
 	ConfirmDocumentEditDto,
@@ -17,13 +19,17 @@ import type {
 	PlanDocumentEditDto,
 } from "./dto/document-editor.dto";
 import { invalidSource } from "./dto/source.dto";
+import { sourceMaxBytes, validatePdf } from "./pdf-file-validator";
 // biome-ignore lint/style/useImportType: Nest injection
 import { SourceFilesService } from "./source-files.service";
 import { isEligibleSourceContent } from "./source-policy";
 // biome-ignore lint/style/useImportType: Nest injection
 import { SurvivalDocumentsRepository, sourceConflict } from "./survival-documents.repository";
+// biome-ignore lint/style/useImportType: Nest injection
+import { SurvivalDocumentsService } from "./survival-documents.service";
 import {
 	DocumentStatus,
+	type SourceMetadata,
 	type SourceVersion,
 	VERSION_SELECT,
 } from "./survival-documents.types";
@@ -58,6 +64,7 @@ export class DocumentEditorService {
 	constructor(
 		private readonly repo: SurvivalDocumentsRepository,
 		private readonly files: SourceFilesService,
+		private readonly documents: SurvivalDocumentsService
 	) {}
 
 	async begin(actor: string, documentId: string, expectedRevision: number) {
@@ -111,6 +118,29 @@ export class DocumentEditorService {
 
 	async preview(actor: string, documentId: string, draftId: string) {
 		return this.read(this.repo.db.manager, actor, documentId, draftId);
+	}
+
+	async lineage(documentId: string, versionId: string) {
+		await this.repo.version(this.repo.db.manager, documentId, versionId);
+		const [draft]: EditDraft[] = await this.repo.db.query(
+			`${draftSelect} WHERE document_id=$1 AND materialized_version_id=$2`,
+			[documentId, versionId]
+		);
+		if (!draft) throw new NotFoundException({ message: "Phiên bản này không có hồ sơ biên soạn." });
+		return {
+			baseVersionId: draft.baseVersionId,
+			reviewBasis: draft.snapshot.reviewBasis,
+			sections: draft.snapshot.sections.map(
+				({ heading, source, pages, item_refs, fingerprint, edited }) => ({
+					heading,
+					source,
+					pages,
+					item_refs,
+					fingerprint,
+					edited: edited === true,
+				})
+			),
+		};
 	}
 
 	async plan(actor: string, documentId: string, draftId: string, dto: PlanDocumentEditDto) {
@@ -185,6 +215,81 @@ export class DocumentEditorService {
 			true,
 			"edit_confirm"
 		);
+	}
+
+	async commit(actor: string, documentId: string, draftId: string, dto: EditorRevisionDto) {
+		const draft = await this.preview(actor, documentId, draftId);
+		const changeHash = fingerprint(["commit", dto]);
+		if (draft.materializedVersionId) {
+			if (!(await this.replayed(this.repo.db.manager, draftId, dto.requestId, changeHash)))
+				sourceConflict();
+			return {
+				document: await this.documents.detail(documentId),
+				versionId: draft.materializedVersionId,
+			};
+		}
+		if (draft.revision !== dto.expectedRevision || draft.confirmedRevision !== draft.revision)
+			sourceConflict();
+		const { title, sections, baseChecksum, reviewBasis } = draft.snapshot;
+		const checksums = [
+			...new Set([
+				baseChecksum,
+				...sections.flatMap((section) => (section.source ? [section.source.checksum] : [])),
+			]),
+		];
+		assertAdaptationGrants(checksums);
+		const base = await this.repo.version(this.repo.db.manager, documentId, draft.baseVersionId);
+		const response = await this.post("compose", {
+			title,
+			sections: sections.map(({ heading, items }) => ({ heading, items })),
+		});
+		if (Number(response.headers.get("content-length")) > sourceMaxBytes())
+			throw invalidSource("Tệp PDF vượt quá dung lượng cho phép.");
+		const bytes = Buffer.from(await response.arrayBuffer());
+		const filename = `CTMS-bien-soan-${base.versionNumber + 1}-${fingerprint([draftId, draft.revision]).slice(0, 12)}.pdf`;
+		const pdf = { ...(await validatePdf(bytes, filename)), bytes };
+		const metadata: SourceMetadata = {
+			sourceTitle: title,
+			publisher: "CTMS",
+			classification: base.metadata.classification,
+			locale: base.metadata.locale,
+			adaptationDisclaimer: versionAttribution,
+			attribution: versionAttribution,
+			licenseType: "Quyền biên soạn nội bộ",
+			changeSummary: reviewBasis,
+			permissionEvidence:
+				"Đã xác nhận quyền biên soạn nội bộ cho đúng các PDF nguồn trong hồ sơ biên soạn.",
+		};
+		const document = await this.documents
+			.storeComposedDraft(
+				actor,
+				documentId,
+				draft.baseRevision,
+				metadata,
+				pdf,
+				async (manager, versionId) => {
+					const current = await this.read(manager, actor, documentId, draftId);
+					if (
+						current.revision !== dto.expectedRevision ||
+						current.confirmedRevision !== current.revision ||
+						current.materializedVersionId
+					)
+						sourceConflict();
+					assertAdaptationGrants(checksums);
+					await manager.query(
+						"UPDATE survival_document_edit_drafts SET materialized_version_id=$2 WHERE id=$1",
+						[draftId, versionId]
+					);
+					await this.record(manager, draftId, dto.requestId, changeHash);
+				}
+			)
+			.catch(async (error: unknown) => {
+				if (!(await this.replayed(this.repo.db.manager, draftId, dto.requestId, changeHash)))
+					throw error;
+				return this.documents.detail(documentId);
+			});
+		const saved = await this.preview(actor, documentId, draftId);
+		return { document, versionId: saved.materializedVersionId };
 	}
 
 	private async read(
@@ -458,7 +563,7 @@ export class DocumentEditorService {
 		return json;
 	}
 
-	private async post(path: "extract", body: object): Promise<Response> {
+	private async post(path: "extract" | "compose", body: object): Promise<Response> {
 		const token = process.env.KNOWLEDGE_SERVICE_TOKEN;
 		const unavailable = () =>
 			new ServiceUnavailableException({
@@ -476,7 +581,9 @@ export class DocumentEditorService {
 		});
 		if (response.status === 422)
 			throw invalidSource(
-				"Không thể đọc cấu trúc PDF đủ tin cậy. Hãy dùng tệp PDF hoặc URL mới."
+				path === "extract"
+					? "Không thể đọc cấu trúc PDF đủ tin cậy. Hãy dùng tệp PDF hoặc URL mới."
+					: "Không thể tạo PDF bảo toàn nội dung đã xác nhận."
 			);
 		if (!response.ok) throw unavailable();
 		return response;
