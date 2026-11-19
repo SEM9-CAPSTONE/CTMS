@@ -19,6 +19,7 @@ import {
 } from "../../emergency-broadcasts";
 import { MemberLastLocationsCard } from "../../member-locations/components/MemberLastLocationsCard";
 import { DepartureBlockStatus } from "../../offline-package-policy/components/DepartureBlockStatus";
+import { ReputationRefreshNotice } from "../../review-reputation/ReputationRefreshNotice";
 import { TeamScheduleProgressCard } from "../../schedule-progress/components/TeamScheduleProgressCard";
 import { HostTripSettlementCard } from "../../settlements/components/HostTripSettlementCard";
 import { TripIncidentsPanel } from "../../trip-incidents";
@@ -305,7 +306,7 @@ export function TripDetailPage({
 					</div>
 				)}
 
-				{!isLoading && !isNotFound && error && (
+				{!isLoading && !isNotFound && error && !trip && (
 					<div
 						role="alert"
 						className="rounded-3xl border border-rose-200 bg-rose-50 p-8 text-center text-rose-800 shadow-sm"
@@ -354,11 +355,17 @@ export function TripDetailPage({
 				)}
 
 				{!isLoading &&
-					!error &&
 					trip &&
 					!bookingRestoreError &&
 					(!isRestoringBooking || temporaryBooking) && (
 						<>
+							{error && (
+								<ReputationRefreshNotice
+									error={error}
+									hasData={true}
+									onRetry={() => void retry(true)}
+								/>
+							)}
 							{isRosterVisible && (
 								<div className="mb-6 flex gap-2 border-b border-[#dfe8df]">
 									<button

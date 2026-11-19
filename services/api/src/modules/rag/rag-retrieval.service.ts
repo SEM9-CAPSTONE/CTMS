@@ -63,13 +63,13 @@ export class RagRetrievalService {
 			};
 		};
 
-		if (!(await this.repository.hasEligibleCorpus(locale, settings))) {
+		if (!(await this.repository.hasEligibleCorpus(settings))) {
 			return insufficient("NO_MATCH");
 		}
 		const vector = await this.embedding.embed(question.trim(), settings.providerTimeoutMs);
-		const search = await this.repository.search(locale, vector, settings);
+		const search = await this.repository.search(vector, settings);
 		candidateCount = search.candidateCount;
-		const ranked = selectRagChunks(question, search.candidates, settings);
+		const ranked = selectRagChunks({ question, locale }, search.candidates, settings);
 		if (!ranked.length) return insufficient("NO_MATCH");
 		const blocks = contextBlocks(ranked);
 		if (!blocks.length) return insufficient("CONTEXT_BUDGET");
@@ -81,11 +81,7 @@ export class RagRetrievalService {
 		const sources = [
 			...new Map(selectedChunks.map((chunk) => [chunk.source.chunkSetId, chunk.source])).values(),
 		];
-		const eligibility = await this.repository.revalidate(
-			selectedChunks,
-			locale,
-			settings.databaseTimeoutMs
-		);
+		const eligibility = await this.repository.revalidate(selectedChunks, settings);
 		if (eligibility !== "CURRENT") return insufficient(eligibility);
 
 		const resultMetrics = metrics(selectedCount);

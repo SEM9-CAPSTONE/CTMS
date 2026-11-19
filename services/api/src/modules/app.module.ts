@@ -25,6 +25,7 @@ import { OfflinePackagesModule } from "./offline-packages/offline-packages.modul
 import { OverbookingEvaluationModule } from "./overbooking-evaluation/overbooking-evaluation.module";
 import { PerformanceReportsModule } from "./performance-reports/performance-reports.module";
 import { PorterLevelsModule } from "./porter-levels/porter-levels.module";
+import { PorterReviewsModule } from "./porter-reviews/porter-reviews.module";
 import { ProfilesModule } from "./profiles/profiles.module";
 import { RagModule } from "./rag/rag.module";
 import { RealtimeEvaluationModule } from "./realtime-evaluation/realtime-evaluation.module";
@@ -71,6 +72,7 @@ import { WeatherModule } from "./weather/weather.module";
 		IncidentsModule,
 		ProfilesModule,
 		PorterLevelsModule,
+		PorterReviewsModule,
 		RealtimeModule,
 		RouteSafetyModule,
 		SafetyEventsModule,

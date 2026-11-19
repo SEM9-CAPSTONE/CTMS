@@ -90,22 +90,14 @@ export function SourceDetail({
 							onSelectVersion={onSelectVersion}
 						/>
 					</div>
-					{isCurrent && (
+					{version.status !== "DRAFT" && (
 						<SourceChunkingStatus
 							key={version.id}
 							documentId={document.id}
 							versionId={version.id}
-							eligible={document.processingSyncStatus === "REGENERATION_NEEDED"}
+							current={isCurrent}
+							eligible={isCurrent && document.processingSyncStatus === "REGENERATION_NEEDED"}
 							blockedReason={document.processingBlockedReason}
-							onApproveProcessing={
-								document.canApproveProcessing
-									? () =>
-											void onAction(version, "approve-processing", {
-												expectedRevision: version.revision,
-											})
-									: undefined
-							}
-							busy={busy}
 						/>
 					)}
 					{error && (

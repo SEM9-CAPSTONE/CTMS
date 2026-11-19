@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -19,12 +19,17 @@ import {
 	type ChunkOutput,
 	type ChunkSet,
 	ChunkSetStatus,
+	IngestionError,
+	MAX_ATTEMPTS,
+	MAX_RECOVERY_ROUNDS,
 } from "../src/modules/knowledge-chunks/knowledge-chunks.types";
 import { KnowledgeChunksWorker } from "../src/modules/knowledge-chunks/knowledge-chunks.worker";
 import { RagEmbeddingProvider } from "../src/modules/rag/rag-embedding.provider";
 import { RagRetrievalService } from "../src/modules/rag/rag-retrieval.service";
 import { RagConfig } from "../src/modules/rag/rag.config";
+import { RagRepository } from "../src/modules/rag/rag.repository";
 import { Classification } from "../src/modules/survival-documents/survival-documents.types";
+import { SurvivalSourceReader } from "../src/modules/survival-documents/survival-source-reader.service";
 import { UserRole, UserStatus } from "../src/modules/users/entities/user.entity";
 import { assertSafeTestDatabase } from "./support/assert-safe-test-database";
 import { providerInferenceTraceFixture } from "./support/inference-trace-fixture";
@@ -97,7 +102,10 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 	beforeEach(async () => {
 		// Only this feature's queue is used by these serial integration tests.
 		await db.query(
-			"TRUNCATE knowledge_chunk_event_receipts,knowledge_chunk_publications,knowledge_chunks,knowledge_chunk_sets"
+			"TRUNCATE knowledge_chunk_event_receipts,knowledge_chunk_publications,knowledge_chunks,knowledge_chunk_sets,knowledge_embeddings"
+		);
+		await db.query(
+			"INSERT INTO knowledge_chunk_event_receipts(event_id) SELECT id FROM survival_document_outbox"
 		);
 	});
 	afterAll(async () => {
@@ -107,35 +115,51 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 	});
 	async function draft(
 		previous?: SourceTestDetail,
-		classification = Classification.TREKKING_SAFETY
+		classification = Classification.TREKKING_SAFETY,
+		locale = fictionalMetadata.locale
 	): Promise<SourceTestDetail> {
 		const upload = request(app.getHttpServer())
 			.post(previous ? `${endpoint}/${previous.id}/versions` : endpoint)
 			.set("Authorization", auth)
-			.field("metadata", JSON.stringify({ ...fictionalMetadata, classification }));
+			.field(
+				"metadata",
+				JSON.stringify({ ...fictionalMetadata, classification, locale, originalLocale: locale })
+			);
 		if (previous) upload.field("expectedDocumentRevision", String(previous.revision));
 		return (await upload.attach("file", uniqueFictionalPdf(), `${randomUUID()}.pdf`).expect(201))
 			.body as SourceTestDetail;
 	}
-	async function publish(
-		doc: SourceTestDetail,
-		rights = true,
-		approveProcessing = false
-	): Promise<SourceTestDetail> {
+	async function publish(doc: SourceTestDetail, rights = true): Promise<SourceTestDetail> {
 		return (
 			await request(app.getHttpServer())
 				.post(`${endpoint}/${doc.id}/versions/${doc.versions[0].id}/publish`)
 				.set("Authorization", auth)
 				.send({
 					expectedRevision: doc.versions[0].revision,
-					...(approveProcessing ? { approveProcessing } : {}),
 					...(rights ? { rights: fictionalRights } : {}),
 				})
 				.expect(201)
 		).body as SourceTestDetail;
 	}
 	async function enqueue(doc: SourceTestDetail): Promise<ChunkSet> {
-		return repo.enqueue(doc.id, doc.versions[0].id, configuration);
+		await repo.consumeEvents(configuration);
+		const [set]: ChunkSet[] = await db.query(
+			"SELECT * FROM knowledge_chunk_sets WHERE document_version_id=$1",
+			[doc.versions[0].id]
+		);
+		expect(set).toBeDefined();
+		return set;
+	}
+	async function replayPublication(versionId: string): Promise<void> {
+		const receipts: Array<{ event_id: string }> = await db.query(
+			`WITH replay AS (
+			   DELETE FROM knowledge_chunk_event_receipts r USING survival_document_outbox e
+			   WHERE r.event_id=e.id AND e.version_id=$1 AND e.event_type='published_version_changed'
+			   RETURNING r.event_id
+			 ) SELECT event_id FROM replay`,
+			[versionId]
+		);
+		expect(receipts).toHaveLength(1);
 	}
 	function output(set: ChunkSet): ChunkOutput {
 		return {
@@ -163,7 +187,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		};
 	}
 	async function claim(): Promise<ChunkSet> {
-		const set = await repo.claim();
+		const set = await repo.claim(configuration);
 		if (!set) throw new Error("Expected queued ingestion");
 		return set;
 	}
@@ -172,41 +196,49 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			.status as ChunkSetStatus;
 	}
 
-	it("allows only active Admin and eligible exact-version publications", async () => {
+	it("guards exact-version status and rejects manual enqueue", async () => {
 		const doc = await draft();
-		await request(app.getHttpServer()).post(chunkEndpoint(doc)).expect(401);
+		await request(app.getHttpServer()).get(chunkEndpoint(doc)).expect(401);
 		await request(app.getHttpServer())
-			.post(chunkEndpoint(doc))
+			.get(chunkEndpoint(doc))
 			.set("Authorization", camperAuth)
 			.expect(403);
-		await request(app.getHttpServer())
-			.post(chunkEndpoint(doc))
-			.set("Authorization", auth)
-			.expect(409);
 		const unverified = await publish(await draft(undefined, Classification.FIRST_AID), false);
+		await repo.consumeEvents(configuration);
 		await request(app.getHttpServer())
-			.post(chunkEndpoint(unverified))
+			.get(chunkEndpoint(unverified))
 			.set("Authorization", auth)
-			.expect(409);
+			.expect(200, []);
 		const valid = await publish(doc, false);
 		await request(app.getHttpServer())
 			.post(chunkEndpoint(valid))
 			.set("Authorization", auth)
-			.expect(202);
-		await request(app.getHttpServer())
+			.expect(404);
+		await repo.consumeEvents(configuration);
+		const status = await request(app.getHttpServer())
 			.get(chunkEndpoint(valid))
 			.set("Authorization", auth)
 			.expect(200);
+		expect(status.body).toMatchObject([
+			{ document_version_id: valid.versions[0].id, status: ChunkSetStatus.PENDING },
+		]);
 		await request(app.getHttpServer())
 			.get(`${endpoint}/${valid.id}/versions/${randomUUID()}/chunk-sets`)
 			.set("Authorization", auth)
 			.expect(404);
 	});
-	it("enqueues idempotently under concurrent requests and claims at most once", async () => {
+	it("replays publication idempotently and claims at most once", async () => {
 		const doc = await publish(await draft());
-		const sets = await Promise.all([enqueue(doc), enqueue(doc), enqueue(doc)]);
-		expect(new Set(sets.map((set) => set.id)).size).toBe(1);
-		const claims = await Promise.all([repo.claim(), repo.claim(), repo.claim()]);
+		const initial = await enqueue(doc);
+		await replayPublication(initial.document_version_id);
+		await Promise.all([repo.consumeEvents(configuration), repo.consumeEvents(configuration)]);
+		const summaries = await repo.status(doc.id, initial.document_version_id);
+		expect(summaries).toMatchObject([{ id: initial.id, status: ChunkSetStatus.PENDING }]);
+		const claims = await Promise.all([
+			repo.claim(configuration),
+			repo.claim(configuration),
+			repo.claim(configuration),
+		]);
 		expect(claims.filter(Boolean)).toHaveLength(1);
 		const set = claims.find((item): item is ChunkSet => item !== null);
 		if (!set) throw new Error("Missing claim");
@@ -259,7 +291,10 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			.set("Authorization", auth)
 			.expect(200);
 		expect(status.body[0].quality_report.issues).toContain("missing_critical_pdf_text");
-		expect((await enqueue(doc)).status).toBe(ChunkSetStatus.PENDING);
+		await replayPublication(set.document_version_id);
+		expect((await enqueue(doc)).status).toBe(ChunkSetStatus.NEEDS_REVIEW);
+		expect(await repo.hasRecoverableFailures(configuration)).toBe(false);
+		expect(await repo.claim(configuration)).toBeNull();
 	});
 	it("fences expired workers after a lease is reclaimed", async () => {
 		const doc = await publish(await draft());
@@ -269,6 +304,9 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			"UPDATE knowledge_chunk_sets SET lease_until=now()-interval '1 second' WHERE id=$1",
 			[old.id]
 		);
+		expect(await repo.claim(configuration)).toBeNull();
+		expect(await storedStatus(old.id)).toBe(ChunkSetStatus.PENDING);
+		await db.query("UPDATE knowledge_chunk_sets SET next_attempt_at=now() WHERE id=$1", [old.id]);
 		const replacement = await claim();
 		expect(replacement.lease_token).not.toBe(old.lease_token);
 		expect(await repo.heartbeat(old)).toBe(false);
@@ -304,6 +342,60 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 				first.id,
 			])
 		).toEqual([{ source_version: 1 }]);
+		expect(
+			await db.query("SELECT id FROM knowledge_embeddings WHERE document_id=$1", [v1.id])
+		).toHaveLength(2);
+	});
+	it("reuses an inline historical vector and encodes only changed input through the worker", async () => {
+		const v1 = await publish(await draft());
+		await enqueue(v1);
+		const first = await claim();
+		const oldOutput = output(first);
+		await repo.finish(first, oldOutput);
+		const previous = await repo.readCurrent(v1.id);
+		// Simulate chunk rows written before shared storage was introduced.
+		await db.query(
+			`UPDATE knowledge_chunks c SET embedding=e.embedding,embedding_id=NULL
+			FROM knowledge_embeddings e WHERE c.embedding_id=e.id AND c.chunk_set_id=$1`,
+			[first.id]
+		);
+		await db.query("DELETE FROM knowledge_embeddings WHERE document_id=$1", [v1.id]);
+
+		const v2 = await publish(await draft(v1));
+		const second = await enqueue(v2);
+		const prepared = output(second);
+		prepared.quality.page_count = 2;
+		prepared.chunks[0].locations[0].page = 2;
+		prepared.chunks[1].embedding_text = `passage: Updated heading\n${prepared.chunks[1].content}`;
+		const config = app.get(ConfigService);
+		const get = config.get.bind(config);
+		const configSpy = jest
+			.spyOn(config, "get")
+			.mockImplementation((key: string) =>
+				key === "KNOWLEDGE_SERVICE_TOKEN" ? "test-token" : get(key)
+			);
+		const fetcher = jest
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(Response.json(prepared))
+			.mockResolvedValueOnce(Response.json({ embeddings: [prepared.chunks[1].embedding] }));
+		try {
+			expect(await worker.processOne()).toBe(true);
+			expect(fetcher).toHaveBeenCalledTimes(2);
+			expect(String(fetcher.mock.calls[1][0])).toMatch(/\/passage-embeddings$/);
+			expect(JSON.parse(String(fetcher.mock.calls[1][1]?.body)).passages).toEqual([
+				prepared.chunks[1].embedding_text,
+			]);
+			const [updated] = await repo.readCurrent(v1.id);
+			expect(updated).toMatchObject({
+				document_version_id: second.document_version_id,
+				embedding: previous[0].embedding,
+				metadata: { locations: [expect.objectContaining({ page: 2 })] },
+			});
+			expect(updated.id).not.toBe(previous[0].id);
+		} finally {
+			configSpy.mockRestore();
+			fetcher.mockRestore();
+		}
 	});
 	it("rejects obsolete output when publication races with completion", async () => {
 		const doc = await publish(await draft());
@@ -339,6 +431,9 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			expect(
 				await db.query("SELECT id FROM knowledge_chunks WHERE chunk_set_id=$1", [set.id])
 			).toEqual([]);
+			expect(
+				await db.query("SELECT id FROM knowledge_embeddings WHERE document_id=$1", [doc.id])
+			).toEqual([]);
 			expect(await repo.readCurrent(doc.id)).toEqual([]);
 		} finally {
 			await db.query("ALTER TABLE knowledge_chunks DROP CONSTRAINT ctms51_test_failure");
@@ -367,7 +462,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			generate.mockRestore();
 		}
 	});
-	it("queues a previously skipped publication after Admin approves it from the document detail", async () => {
+	it("reconciles an old receipt once the same publication has a verified source", async () => {
 		const doc = await publish(await draft(), false);
 		const version = doc.versions[0];
 		const approval = `${endpoint}/${doc.id}/versions/${version.id}/approve-processing`;
@@ -381,39 +476,110 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			expect(await repo.status(doc.id, version.id)).toEqual([]);
 			await request(app.getHttpServer())
 				.post(approval)
-				.set("Authorization", camperAuth)
-				.send({ expectedRevision: version.revision })
-				.expect(403);
-			const approved = await request(app.getHttpServer())
-				.post(approval)
 				.set("Authorization", auth)
 				.send({ expectedRevision: version.revision })
-				.expect(201);
-			expect(approved.body).toMatchObject({
-				canApproveProcessing: false,
-				processingSyncStatus: "REGENERATION_NEEDED",
-				versions: [
-					{ id: version.id, checksum: version.checksum, publishedAt: version.publishedAt },
-				],
-			});
-			await repo.consumeEvents(configuration);
-			await repo.consumeEvents(configuration);
-			expect(await repo.status(doc.id, version.id)).toEqual([
-				expect.objectContaining({ status: ChunkSetStatus.PENDING }),
-			]);
-			const generate = jest.spyOn(provider, "generate").mockImplementation(async (set) => {
-				expect(set.document_version_id).toBe(version.id);
-				return output(set);
-			});
-			try {
-				expect(await worker.processOne()).toBe(true);
-				expect(await repo.readCurrent(doc.id)).toHaveLength(2);
-			} finally {
-				generate.mockRestore();
-			}
+				.expect(404);
 		} finally {
 			hosts.restore();
 		}
+		const checksums = jest.replaceProperty(
+			process.env,
+			"SURVIVAL_KNOWLEDGE_APPROVED_SHA256",
+			version.checksum
+		);
+		try {
+			await repo.reconcile(configuration);
+			expect(await repo.status(doc.id, version.id)).toEqual([
+				expect.objectContaining({ status: ChunkSetStatus.PENDING }),
+			]);
+		} finally {
+			checksums.restore();
+		}
+	});
+	it("backs off failed worker calls, checks service recovery and resumes after a worker restart", async () => {
+		const doc = await publish(await draft());
+		const set = await enqueue(doc);
+		const restart = () =>
+			new KnowledgeChunksWorker(
+				repo,
+				provider,
+				app.get(SurvivalSourceReader),
+				app.get(ConfigService)
+			);
+		const reconcile = jest.spyOn(repo, "reconcile").mockResolvedValue({
+			candidates: 0,
+			queued: 0,
+			skipped: [],
+			lastDocumentId: null,
+		});
+		const availability = jest
+			.spyOn(provider, "isAvailable")
+			.mockResolvedValueOnce(false)
+			.mockResolvedValue(true);
+		const generate = jest
+			.spyOn(provider, "generate")
+			.mockRejectedValue(new IngestionError("ingestion_transport", true));
+		const due = () =>
+			db.query("UPDATE knowledge_chunk_sets SET next_attempt_at=now() WHERE id=$1", [set.id]);
+		try {
+			for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+				await worker.processOne();
+				const [state] = await repo.status(doc.id, set.document_version_id);
+				expect(state).toMatchObject({
+					attempts: attempt,
+					status: attempt < MAX_ATTEMPTS ? ChunkSetStatus.PENDING : ChunkSetStatus.FAILED,
+					automatic_recovery_pending: attempt === MAX_ATTEMPTS,
+				});
+				const [schedule]: Array<{ wait: number }> = await db.query(
+					"SELECT extract(epoch FROM (next_attempt_at-clock_timestamp()))::float AS wait FROM knowledge_chunk_sets WHERE id=$1",
+					[set.id]
+				);
+				expect(schedule.wait).toBeGreaterThan([25, 55, 890][attempt - 1]);
+				expect(await worker.processOne()).toBe(false);
+				await due();
+			}
+			await restart().tick();
+			expect(await storedStatus(set.id)).toBe(ChunkSetStatus.FAILED);
+			expect(generate).toHaveBeenCalledTimes(MAX_ATTEMPTS);
+			generate.mockImplementation(async (claim) => output(claim));
+			await Promise.all([restart().tick(), restart().tick()]);
+			expect(generate).toHaveBeenCalledTimes(MAX_ATTEMPTS + 1);
+			expect(await repo.readCurrent(doc.id)).toHaveLength(2);
+			const [state] = await repo.status(doc.id, set.document_version_id);
+			expect(state).toMatchObject({ status: ChunkSetStatus.READY, attempts: 1, active: true });
+		} finally {
+			generate.mockRestore();
+			availability.mockRestore();
+			reconcile.mockRestore();
+		}
+	});
+	it("caps recovery rounds and keeps a failed replacement out of current retrieval", async () => {
+		const first = await publish(await draft());
+		const ready = await enqueue(first);
+		await repo.finish(await claim(), output(ready));
+		const second = await publish(await draft(first));
+		const failed = await enqueue(second);
+		for (let round = 0; round <= MAX_RECOVERY_ROUNDS; round++) {
+			for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+				await repo.finish(await claim(), { error: "ingestion_http_502", retryable: true });
+				await db.query("UPDATE knowledge_chunk_sets SET next_attempt_at=now() WHERE id=$1", [
+					failed.id,
+				]);
+			}
+			await Promise.all([repo.recoverFailed(configuration), repo.recoverFailed(configuration)]);
+		}
+		const [state] = await repo.status(second.id, failed.document_version_id);
+		expect(state).toMatchObject({
+			status: ChunkSetStatus.FAILED,
+			automatic_recovery_pending: false,
+		});
+		expect(await repo.hasRecoverableFailures(configuration)).toBe(false);
+		expect(await repo.readCurrent(first.id)).toEqual([]);
+		expect(
+			await db.query("SELECT chunk_set_id FROM knowledge_chunk_publications WHERE document_id=$1", [
+				first.id,
+			])
+		).toEqual([{ chunk_set_id: ready.id }]);
 	});
 	it("cancels work after archive and removes derived rows on document deletion", async () => {
 		const doc = await publish(await draft());
@@ -468,10 +634,10 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		await db.query(
 			`
 			INSERT INTO knowledge_chunk_sets(document_id,document_version_id,source_version,checksum,locale,configuration,config_hash,status)
-			SELECT d.id,v.id,v.version_number,v.checksum,v.metadata->>'locale','{}','fixture','FAILED'
+			SELECT d.id,v.id,v.version_number,v.checksum,v.metadata->>'locale','{}',$2,'FAILED'
 			FROM survival_documents d JOIN survival_document_versions v ON v.id=d.current_published_version_id
 			WHERE d.id<>ALL($1::uuid[])`,
-			[ids]
+			[ids, createHash("sha256").update(JSON.stringify(configuration)).digest("hex")]
 		);
 		await db.query(
 			"INSERT INTO knowledge_chunk_event_receipts(event_id) SELECT id FROM survival_document_outbox ON CONFLICT DO NOTHING"
@@ -481,6 +647,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		expect(await repo.reconcile(configuration)).toEqual({
 			candidates: 1,
 			queued: 0,
+			lastDocumentId: blocked.id,
 			skipped: [
 				{ versionId: blocked.versions[0].id, reason: expect.stringContaining("chuyên môn") },
 			],
@@ -532,7 +699,12 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		const v2 = await publish(await draft(v1), false);
 		await enqueue(v2);
 		const second = await claim();
-		await repo.finish(second, output(second));
+		const replacement = output(second);
+		replacement.chunks[1].embedding_text = `passage: New heading\n${replacement.chunks[1].content}`;
+		await repo.finish(second, replacement);
+		expect(
+			await db.query("SELECT id FROM knowledge_embeddings WHERE document_id=$1", [v1.id])
+		).toHaveLength(3);
 		expect(await repo.cleanupHistory(7)).toEqual({ deleted: 0, retainedByDependency: 0 });
 		await db.query(
 			"UPDATE knowledge_chunk_sets SET completed_at=now()-interval '8 days' WHERE id=$1",
@@ -571,6 +743,9 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			expect(firstCleanup.deleted + secondCleanup.deleted + afterReaders.deleted).toBe(1);
 			expect(currentChunks).toHaveLength(2);
 			for (const chunk of currentChunks) expect(chunk.chunk_set_id).toBe(second.id);
+			expect(
+				await db.query("SELECT id FROM knowledge_embeddings WHERE document_id=$1", [v1.id])
+			).toHaveLength(2);
 			expect(await repo.cleanupHistory(7)).toEqual({ deleted: 0, retainedByDependency: 0 });
 			expect(
 				await db.query("SELECT id FROM knowledge_chunks WHERE chunk_set_id=$1", [first.id])
@@ -584,11 +759,8 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 	});
 	describe("CTMS-068 RAG service boundary", () => {
 		const question = { question: "Nguồn thử nghiệm", locale: "vi" };
-		const retrieve = () =>
-			rag.retrieve(
-				{ userId: camper, roles: [UserRole.CAMPER], status: UserStatus.ACTIVE },
-				question
-			);
+		const retrieve = (input = question) =>
+			rag.retrieve({ userId: camper, roles: [UserRole.CAMPER], status: UserStatus.ACTIVE }, input);
 
 		beforeEach(() => {
 			ragProvider.embed
@@ -599,17 +771,29 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 					)
 				);
 			ragProvider.countPrefixes.mockReset().mockResolvedValue([30]);
-			const settings = new RagConfig(new ConfigService({ RAG_MIN_SCORE: "0.8" })).settings();
+			const settings = new RagConfig(
+				new ConfigService({
+					RAG_MIN_SCORE: "0.8",
+					RAG_LOCALES: "vi,en",
+					RAG_SOURCE_LOCALES: "vi,en",
+				})
+			).settings();
 			jest.spyOn(ragConfig, "settings").mockReturnValue(settings);
+			jest.spyOn(ragConfig, "sourceLocales").mockReturnValue(settings.sourceLocales);
 		});
 
 		afterEach(() => jest.restoreAllMocks());
 
-		async function ready(doc: SourceTestDetail) {
+		async function ready(doc: SourceTestDetail, content?: string) {
 			await enqueue(doc);
 			const set = await claim();
 			expect(set.document_version_id).toBe(doc.versions[0].id);
-			expect(await repo.finish(set, output(set))).toBe(true);
+			const generated = output(set);
+			if (content) {
+				generated.chunks[0].content = content;
+				generated.chunks[0].embedding_text = `passage: ${content}`;
+			}
+			expect(await repo.finish(set, generated)).toBe(true);
 			return set;
 		}
 
@@ -648,10 +832,10 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 				});
 			});
 
-			it("answers from a PDF approved at publication without a configured source host", async () => {
+			it("answers from a PDF with recorded provenance and rights without a configured source host", async () => {
 				const hosts = jest.replaceProperty(process.env, "SURVIVAL_KNOWLEDGE_APPROVED_HOSTS", "");
 				try {
-					const doc = await publish(await draft(), false, true);
+					const doc = await publish(await draft());
 					await ready(doc);
 					const answer = await postAnswer(randomUUID()).expect(200);
 					expect(answer.body).toMatchObject({
@@ -661,6 +845,46 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 				} finally {
 					hosts.restore();
 				}
+			});
+
+			it("answers in Vietnamese from English evidence and keeps its citations after withdrawal", async () => {
+				const doc = await publish(await draft(undefined, Classification.TREKKING_SAFETY, "en"));
+				const content = "Read the map legend and check your compass before choosing a route.";
+				const set = await ready(doc, content);
+				const requestId = randomUUID();
+				const ask = () => postAnswer(requestId, camperAuth, "Đọc bản đồ và la bàn thế nào?");
+				const answer = await ask().expect(200);
+				expect(answer.body).toMatchObject({
+					status: "ANSWERED",
+					answer: expect.stringContaining("Hãy xem chú giải"),
+					sources: [
+						{
+							documentVersionId: set.document_version_id,
+							sourceVersion: set.source_version,
+							locale: "en",
+							locations: [{ page: 1, itemRef: "#/texts/0" }],
+						},
+					],
+				});
+				expect(JSON.parse(generationProvider.generate.mock.calls[0][0])).toMatchObject({
+					locale: "vi",
+					evidence: [{ locale: "en", content }],
+				});
+				const [stored] = await db.query("SELECT generation FROM ai_answers WHERE id=$1", [
+					answer.body.answerId,
+				]);
+				expect(stored.generation.trace).toMatchObject({
+					responseLocale: "vi",
+					sourceLocales: ["en"],
+				});
+				expect((await ask().expect(200)).body).toEqual(answer.body);
+				await archive(doc);
+				expect((await ask().expect(200)).body.status).toBe("INSUFFICIENT_CONTEXT");
+				const historical = await request(app.getHttpServer())
+					.get(`/api/ai/answers/${answer.body.answerId}/sources`)
+					.set("Authorization", camperAuth)
+					.expect(200);
+				expect(historical.body.sources).toEqual(answer.body.sources);
 			});
 
 			it("persists exact provenance once across concurrent POSTs and retries, and restricts source access", async () => {
@@ -737,12 +961,15 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 
 			it("rejects a selection that leaves out part of a PDF item", async () => {
 				const set = await ready(await publish(await draft()));
-				await db.query("UPDATE knowledge_chunks SET embedding=$2 WHERE chunk_set_id=$1", [
-					set.id,
-					Array.from({ length: configuration.embedding_dimensions }, (_, index) =>
-						Number(index === 0)
-					),
-				]);
+				await db.query(
+					"UPDATE knowledge_chunks SET embedding=$2,embedding_id=NULL WHERE chunk_set_id=$1",
+					[
+						set.id,
+						Array.from({ length: configuration.embedding_dimensions }, (_, index) =>
+							Number(index === 0)
+						),
+					]
+				);
 				await db.query(
 					"UPDATE knowledge_chunks SET metadata=jsonb_set(metadata,'{locations,0,item_ref}',to_jsonb($2::text)) WHERE chunk_set_id=$1 AND chunk_index=1",
 					[set.id, "#/texts/0"]
@@ -805,6 +1032,51 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			);
 		});
 
+		it("searches across an eligible mixed corpus with a global candidate limit", async () => {
+			const en = await ready(
+				await publish(await draft(undefined, Classification.TREKKING_SAFETY, "en")),
+				"Read the map legend. Pack your compass."
+			);
+			const vi = await ready(
+				await publish(await draft()),
+				"Xem chú giải bản đồ và kiểm tra la bàn."
+			);
+			ragProvider.countPrefixes.mockResolvedValue([20, 40]);
+			const result = await retrieve({ question: "Cách đọc bản đồ và la bàn?", locale: "vi" });
+			expect(result).toMatchObject({
+				status: "GROUNDED",
+				metrics: { candidateCount: 4, selectedCount: 2 },
+				sources: expect.arrayContaining([
+					expect.objectContaining({ locale: "en", chunkSetId: en.id }),
+					expect.objectContaining({ locale: "vi", chunkSetId: vi.id }),
+				]),
+			});
+			const original = result.selectedChunks.find(({ source }) => source.locale === "en");
+			if (!original) throw new Error("Expected the original English chunk");
+			const relabeled = { ...original, source: { ...original.source, locale: "vi" } };
+			await expect(
+				app.get(RagRepository).revalidate([relabeled], ragConfig.settings())
+			).resolves.toBe("SOURCE_CHANGED");
+			const settings = { ...ragConfig.settings(), maxCandidates: 3 };
+			jest.spyOn(ragConfig, "settings").mockReturnValue(settings);
+			await expect(retrieve()).rejects.toMatchObject({ response: { code: "RAG_CORPUS_LIMIT" } });
+		});
+
+		it("rejects an unreviewed medical PDF in a different language", async () => {
+			const unreviewed = await publish(
+				await draft(undefined, Classification.FIRST_AID, "en"),
+				false
+			);
+			await repo.consumeEvents(configuration);
+			expect(await repo.status(unreviewed.id, unreviewed.versions[0].id)).toEqual([]);
+			expect(await retrieve({ question: "Sơ cứu bong gân thế nào?", locale: "vi" })).toMatchObject({
+				status: "INSUFFICIENT_CONTEXT",
+				reason: "NO_MATCH",
+				sources: [],
+			});
+			expect(ragProvider.embed).not.toHaveBeenCalled();
+		});
+
 		it("serves only active READY versions with verified provenance, fencing V1 during V2 rebuild", async () => {
 			const v1 = await publish(await draft());
 			const s1 = await ready(v1);
@@ -836,10 +1108,11 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 
 		it("drops the entire snapshot if one selected publication is withdrawn during tokenization", async () => {
 			const first = await publish(await draft());
-			const second = await publish(await draft());
 			await ready(first);
-			await enqueue(second);
+			const second = await publish(await draft());
+			const queuedSecond = await enqueue(second);
 			const set = await claim();
+			expect(set.id).toBe(queuedSecond.id);
 			const generated = output(set);
 			generated.chunks[0].content += " nguồn thứ hai";
 			generated.chunks[0].embedding_text += " nguồn thứ hai";
@@ -886,7 +1159,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		});
 
 		it("fails closed when the approved-host policy is removed", async () => {
-			await ready(await publish(await draft()));
+			await ready(await publish(await draft(), false));
 			const hosts = process.env.SURVIVAL_KNOWLEDGE_APPROVED_HOSTS;
 			process.env.SURVIVAL_KNOWLEDGE_APPROVED_HOSTS = "";
 			try {
@@ -908,7 +1181,8 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			});
 			const loser = first.id === winner ? second.id : first.id;
 			await db.query(
-				"UPDATE knowledge_chunks SET embedding=ARRAY['NaN'::float8] || embedding[2:384] WHERE chunk_set_id=$1 AND chunk_index=0",
+				`UPDATE knowledge_embeddings e SET embedding=ARRAY['NaN'::float8] || e.embedding[2:384]
+				 FROM knowledge_chunks c WHERE c.embedding_id=e.id AND c.chunk_set_id=$1 AND c.chunk_index=0`,
 				[winner]
 			);
 			expect(await retrieve()).toMatchObject({

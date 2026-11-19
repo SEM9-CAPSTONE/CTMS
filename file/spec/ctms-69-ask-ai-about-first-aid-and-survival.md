@@ -26,6 +26,7 @@ Acceptance Criteria:
 | PB AC-6 | Source provenance used by the answer remains available for CTMS-071.          |
 | Jira AC-1 | Camper can submit first-aid and survival questions in the existing AI Chat interface. |
 | Jira AC-2 | Online AI uses the approved CTMS knowledge base and RAG when available. |
+| Jira AC-2 / BR-549 | A grounded online answer can use approved foreign-language evidence and is verified in the requested response locale. |
 | Jira AC-3 | Offline AI can generate natural-language answers with an installed local model. |
 | Jira AC-4 | General offline AI Chat works without a Trip Offline Package. |
 | Jira AC-5 | Offline inference does not call remote APIs or cloud LLM services. |
@@ -110,6 +111,8 @@ On-device generation requires an active model installed on a compatible device. 
 | BR-517 | Each newly persisted Online answer must record the actual inference conditions that produced that answer. |
 | BR-518 | A versioned input referenced by an Inference Trace must resolve to its exact immutable artifact or be marked unavailable. |
 | BR-519 | Each completed Local turn must capture its actual inference conditions on-device as part of that turn. |
+| BR-549 | A grounded Online response must be verified in the requested response locale. |
+| BR-550 | Online citations retain the original locale of the source version cited. |
 
 BR-249's knowledge-base and operational latency requirements apply to the online path.
 Its safety requirements apply in both modes. CTMS-098 owns the approved release thresholds.
@@ -167,9 +170,10 @@ When a model is missing, the Camper may start the model download while online. S
 ## 9. API / Integration Contract
 
 An active Camper submits `{ question, locale, requestId }` to `POST /api/ai/answers`.
-CTMS-068 provides the current eligible evidence. The server-side model synthesizes a
-natural-language answer and identifies the chunks used. The service checks grounding
-and retention of material warnings. The API checks the cited IDs and revalidates the
+CTMS-068 provides current eligible evidence, including evidence in other supported languages.
+The server-side model synthesizes an answer in the requested locale and identifies the chunks used.
+The service verifies grounding, language and retention of material warnings against the original passages.
+The API checks the cited IDs and revalidates the
 retrieval snapshot before storing and returning the answer. Replaying a request uses
 the same request ID and remains subject to the source and ownership checks. The
 Flutter client updates the same chat turn when the retry completes.
@@ -182,6 +186,7 @@ error codes. The answer owner can read recorded source metadata for 30 days thro
 The [source panel in CTMS-071](ctms-71-view-knowledge-sources-for-ai-answers.md)
 uses the citations returned with the completed chat reply. The source endpoint reads
 historical snapshots for the owner and omits entries with unavailable provenance.
+A citation keeps the source's original locale, title, exact version, page and chunk references.
 A POST replay with incomplete cited provenance returns `INSUFFICIENT_CONTEXT`.
 
 A local reply uses the local turn identity and has no server answer ID. Pretrained-only
@@ -224,6 +229,8 @@ See the [implementation and verification contract](../../docs/features/CTMS-069-
 | Jira AC-1 | Signed-in Camper submits a first-aid question in the existing chat | The existing chat accepts the question | Flutter widget |
 | Jira AC-1 / BR-172 | Unauthenticated or unauthorized caller submits a question | Reject the request | HTTP E2E |
 | Jira AC-2 / BR-488 | Current approved chunks support a survival answer | Natural-language synthesis retains the approved evidence and warnings | API E2E / Python |
+| BR-549 | Vietnamese answer with English evidence, or a draft whose translation loses a material warning | Accept the supported Vietnamese answer or withhold the unverified draft | PostgreSQL integration / Python |
+| BR-550 | Retrieve historical citations for a Vietnamese answer supported by an English document | Preserve the recorded English locale, exact version and page references | HTTP E2E |
 | Jira AC-2 / BR-249 | Evidence is withdrawn or the draft adds an unsupported claim | Withhold the grounded answer | PostgreSQL integration / Python |
 | Jira AC-3 / BR-493 | A compatible device has an active model | Generate an eligible answer in airplane mode | Device trial |
 | Jira AC-3 / BR-492 | The downloaded model has the wrong checksum | Reject activation | Flutter unit |

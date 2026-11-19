@@ -29,18 +29,7 @@ export const sourceSchema = z.object({
 		"FIRST_AID",
 	]),
 	locale,
-	originalLocale: optionalText(locale),
-	sourcePublishedAt: optionalText(z.string().date()),
-	retrievedAt: optionalText(z.string().date()),
-	licenseType: optionalText(z.string().trim().min(2).max(250)),
-	licenseUrl: optionalText(https),
-	permissionEvidence: optionalText(
-		z.string().trim().min(10, "Mô tả rõ minh chứng quyền sử dụng").max(5000)
-	),
 	changeSummary: optionalText(z.string().trim().min(3).max(2000)),
-	attribution: optionalText(z.string().trim().min(3).max(2000)),
-	originalVersionId: optionalText(z.string().trim().uuid()),
-	adaptationDisclaimer: optionalText(z.string().trim().min(10).max(3000)),
 });
 
 export function documentEditorSchema(maxBytes?: number) {

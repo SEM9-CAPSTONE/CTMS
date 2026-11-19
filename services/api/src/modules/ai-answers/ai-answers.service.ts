@@ -145,7 +145,6 @@ export class AiAnswersService {
 				const cited = verified.cited.map(evidenceRef);
 				const saved = await this.evidence.withCurrentEvidence(
 					retrieved,
-					locale,
 					this.remaining(startedAt),
 					(manager) => {
 						if (signal.aborted) throw aiUnavailable("AI_TIMEOUT");
@@ -171,6 +170,8 @@ export class AiAnswersService {
 									schemaVersion: TRACE_SCHEMA_VERSION,
 									retrievalSettings: rag.retrievalSettings,
 									safetyPolicyVersion: answerSafetyV1.version,
+									responseLocale: locale,
+									sourceLocales: [...new Set(retrieved.map(({ source }) => source.locale))],
 								},
 							},
 							rag.retrievalConfigVersion
@@ -247,7 +248,6 @@ export class AiAnswersService {
 			(await withinDeadline(
 				this.evidence.withCurrentEvidence(
 					row.retrieved_evidence,
-					row.locale,
 					1500,
 					async () => answered(row),
 					cited

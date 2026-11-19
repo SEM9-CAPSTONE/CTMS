@@ -102,8 +102,8 @@ it("requests trace metadata over the authenticated internal generation contract"
 function setup() {
 	const rag = { retrieve: jest.fn().mockResolvedValue(grounded(chunk, unused)) };
 	const evidence = {
-		withCurrentEvidence: jest.fn(
-			async (_refs, _locale, _timeout, work: (tx: EntityManager) => unknown) => work(manager)
+		withCurrentEvidence: jest.fn(async (_refs, _timeout, work: (tx: EntityManager) => unknown) =>
+			work(manager)
 		),
 	};
 	const provider = { generate: jest.fn().mockResolvedValue(selection) };
@@ -243,6 +243,8 @@ describe("CTMS-069 survival answers", () => {
 			schemaVersion: 1,
 			retrievalSettings,
 			safetyPolicyVersion: answerSafetyV1.version,
+			responseLocale: "vi",
+			sourceLocales: ["vi"],
 		});
 		expect(saved.retrieval_config_version).toBe(retrievalConfigVersion);
 		expect(resolveAnswerSafetyArtifact(saved.generation.trace.safetyPolicyVersion)).toBe(
@@ -258,8 +260,9 @@ describe("CTMS-069 survival answers", () => {
 		expect(JSON.parse(provider.generate.mock.calls[0][0])).toEqual({
 			question: input.question,
 			locale: "vi",
-			evidence: [chunk, unused].map(({ chunkId, headings, content }) => ({
+			evidence: [chunk, unused].map(({ chunkId, source, headings, content }) => ({
 				chunkId,
+				locale: source.locale,
 				headings,
 				content,
 			})),

@@ -85,6 +85,29 @@ function renderPage(props: ComponentProps<typeof HostPorterRequestsPage> = {}) {
 }
 
 describe("HostPorterRequestsPage", () => {
+	it("shows names and authoritative rated/unrated invitations without private contacts", async () => {
+		vi.spyOn(tripsService, "getHostPorterRequests").mockResolvedValue([
+			{
+				...pendingRequest,
+				porterDisplayName: "Nguyễn Minh Sơn",
+				reputation: { ratingAverage: 4.25, ratingCount: 12 },
+			},
+			{
+				...pendingRequest,
+				id: "request-2",
+				porterId: "porter-2",
+				porterDisplayName: "Trần Quốc Huy",
+				reputation: { ratingAverage: null, ratingCount: 0 },
+			},
+		]);
+		renderPage({ initialView: "requests" });
+		expect(await screen.findByText("Nguyễn Minh Sơn")).toBeInTheDocument();
+		expect(
+			screen.getByRole("img", { name: "Điểm uy tín 4,3 trên 5, 12 đánh giá" })
+		).toBeInTheDocument();
+		expect(screen.getByText("Trần Quốc Huy")).toBeInTheDocument();
+		expect(screen.getByRole("img", { name: "Chưa có đánh giá" })).toBeInTheDocument();
+	});
 	beforeEach(() => {
 		vi.clearAllMocks();
 		window.history.replaceState({}, "", "/host/porter");
@@ -121,7 +144,7 @@ describe("HostPorterRequestsPage", () => {
 
 	it("loads the assigned view and shows the backend's empty assignment history", async () => {
 		renderPage({ initialView: "assigned" });
-		expect(screen.getByRole("heading", { name: "Porter đã phân công" })).toBeInTheDocument();
+		expect(screen.getByRole("heading", { name: "Người hỗ trợ đã phân công" })).toBeInTheDocument();
 		expect(await screen.findByText("Chưa có lịch sử phân công Porter.")).toBeInTheDocument();
 		expect(tripsService.getHostPorterAssignments).toHaveBeenCalledOnce();
 		expect(screen.queryByTestId("available-porters-panel")).not.toBeInTheDocument();

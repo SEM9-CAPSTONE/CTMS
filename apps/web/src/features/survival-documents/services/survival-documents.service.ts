@@ -3,6 +3,10 @@ import { httpClient } from "../../../core/api/httpClient";
 import type {
 	DocumentDetail,
 	DocumentListItem,
+	EditDraft,
+	EditPlan,
+	EditorRevision,
+	EditorSection,
 	SourceAction,
 	SourceChunkSet,
 	SourceDecision,
@@ -20,10 +24,21 @@ export const survivalDocumentsService = {
 			maxBytes?: number;
 		}>(endpoints.ROOT, { ...filters, search: filters.search || undefined }),
 	detail: (id: string) => httpClient.get<DocumentDetail>(endpoints.DETAIL(id)),
+	startEdit: (id: string, expectedDocumentRevision: number) =>
+		httpClient.post<EditDraft>(endpoints.EDIT_DRAFTS(id), { expectedDocumentRevision }),
+	editorContent: (id: string, versionId: string) =>
+		httpClient.get<EditorSection[]>(endpoints.VERSION(id, versionId, "editor-content")),
+	planEdit: (id: string, draftId: string, payload: EditPlan) =>
+		httpClient.post<EditDraft>(`${endpoints.EDIT_DRAFT(id, draftId)}/plan`, payload),
+	confirmEdit: (id: string, draftId: string, payload: EditorRevision & { reviewBasis: string }) =>
+		httpClient.patch<EditDraft>(endpoints.EDIT_DRAFT(id, draftId), payload),
+	commitEdit: (id: string, draftId: string, payload: EditorRevision) =>
+		httpClient.post<{ document: DocumentDetail; versionId: string }>(
+			`${endpoints.EDIT_DRAFT(id, draftId)}/commit`,
+			payload
+		),
 	chunkSets: (id: string, versionId: string) =>
 		httpClient.get<SourceChunkSet[]>(endpoints.VERSION(id, versionId, "chunk-sets")),
-	retryChunking: (id: string, versionId: string) =>
-		httpClient.post<SourceChunkSet>(endpoints.VERSION(id, versionId, "chunk-sets")),
 	remove: (id: string, expectedRevision: number) =>
 		httpClient.delete<void>(`${endpoints.DETAIL(id)}?expectedRevision=${expectedRevision}`),
 	upload: (metadata: SourceMetadata, file: File, document?: DocumentDetail) => {

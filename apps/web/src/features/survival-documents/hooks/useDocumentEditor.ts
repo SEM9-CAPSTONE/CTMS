@@ -20,14 +20,6 @@ interface DocumentEditorOptions {
 	) => Promise<void>;
 }
 
-const vietnameseDate = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" });
-
-function dateInputValue(value?: string) {
-	if (!value || /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-	const date = new Date(value);
-	return Number.isNaN(date.getTime()) ? undefined : vietnameseDate.format(date);
-}
-
 export function useDocumentEditor({
 	initial,
 	editing,
@@ -36,27 +28,23 @@ export function useDocumentEditor({
 	onSubmit,
 }: DocumentEditorOptions) {
 	const submitting = useRef(false);
-	const publicationDate = dateInputValue(initial?.sourcePublishedAt);
-	const retrievalDate = dateInputValue(initial?.retrievedAt);
 	const form = useForm<DocumentEditorValues, undefined, ValidatedEditorValues>({
 		resolver: zodResolver(documentEditorSchema(maxBytes)),
 		defaultValues: {
 			method: editing ? "edit" : "upload",
 			sourceUrl: "",
 			metadata: {
-				sourceTitle: "",
-				classification: "TREKKING_SAFETY",
-				...initial,
+				sourceTitle: initial?.sourceTitle ?? "",
+				classification: initial?.classification ?? "TREKKING_SAFETY",
 				locale: initial?.locale && (editing || initial.locale === "en") ? initial.locale : "vi",
-				sourcePublishedAt: publicationDate,
-				retrievedAt: retrievalDate,
+				publisher: initial?.publisher,
+				changeSummary: initial?.changeSummary,
+				sourceUrl: editing ? undefined : initial?.sourceUrl,
 			},
 		},
 	});
 	const method = useWatch({ control: form.control, name: "method" });
 	const file = useWatch({ control: form.control, name: "file" });
-	const locale = useWatch({ control: form.control, name: "metadata.locale" });
-	const originalLocale = useWatch({ control: form.control, name: "metadata.originalLocale" });
 	function selectSource(next: PdfSource["kind"]) {
 		if (next === method) return;
 		form.setValue("method", next);
@@ -73,15 +61,9 @@ export function useDocumentEditor({
 				switch (values.method) {
 					case "edit":
 						await onSubmit({
+							...initial,
 							...values.metadata,
-							sourcePublishedAt:
-								values.metadata.sourcePublishedAt === publicationDate
-									? initial?.sourcePublishedAt
-									: values.metadata.sourcePublishedAt,
-							retrievedAt:
-								values.metadata.retrievedAt === retrievalDate
-									? initial?.retrievedAt
-									: values.metadata.retrievedAt,
+							sourceUrl: initial?.sourceUrl,
 						});
 						break;
 					case "upload":
@@ -111,6 +93,5 @@ export function useDocumentEditor({
 		selectSource,
 		submit: save(),
 		preparePublication: save(true),
-		translated: !!originalLocale && locale !== originalLocale,
 	};
 }

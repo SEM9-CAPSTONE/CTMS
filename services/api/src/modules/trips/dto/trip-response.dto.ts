@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { ReviewReputationDto } from "../../review-reputation/review-reputation.dto";
 import { TrekkingRouteDifficulty } from "../../trekking-routes/entities/trekking-route.entity";
 import { RiskLevel } from "../../weather/entities/weather-risk-assessment.entity";
 import type { WaypointType } from "../entities/trip-waypoint.entity";
@@ -239,6 +240,9 @@ export class TripResponseDto {
 
 	@ApiProperty()
 	hostId!: string;
+
+	@ApiPropertyOptional({ type: ReviewReputationDto })
+	hostReputation?: ReviewReputationDto;
 
 	@ApiPropertyOptional({ type: TripHostDto, nullable: true })
 	host?: TripHostDto | null;

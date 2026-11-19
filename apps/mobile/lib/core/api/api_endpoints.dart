@@ -5,6 +5,7 @@ class ApiEndpoints {
 
   static const auth = AuthEndpoints();
   static const bookings = BookingEndpoints();
+  static const porterReviews = PorterReviewEndpoints();
   static const trekking = TrekkingEndpoints();
   static const trips = TripEndpoints();
   static const weather = WeatherEndpoints();
@@ -53,6 +54,15 @@ class BookingEndpoints {
   String review(String id) => '/trip-reviews/$id';
   String completeTripBookings(String tripId) =>
       '/bookings/trip/$tripId/complete-all';
+}
+
+class PorterReviewEndpoints {
+  const PorterReviewEndpoints();
+  String get participations => '/porter-reviews/participations';
+  String context(String bookingId) =>
+      '/bookings/$bookingId/porter-reviews/context';
+  String create(String bookingId) => '/bookings/$bookingId/porter-reviews';
+  String update(String reviewId) => '/porter-reviews/$reviewId';
 }
 
 class TrekkingEndpoints {

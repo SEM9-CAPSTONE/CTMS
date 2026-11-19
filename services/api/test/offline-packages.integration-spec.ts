@@ -6,6 +6,7 @@ import { CreateKnowledgeChunks1794100000000 } from "../src/migrations/1794100000
 import { CreateOfflinePackages1794200000000 } from "../src/migrations/1794200000000-CreateOfflinePackages";
 import { CreatePackageActivationPolicy1795100000000 } from "../src/migrations/1795100000000-CreatePackageActivationPolicy";
 import { TrackOfflinePackageImpacts1796600000000 } from "../src/migrations/1796600000000-TrackOfflinePackageImpacts";
+import { ApproveSurvivalDocumentProcessing1796700000000 } from "../src/migrations/1796700000000-ApproveSurvivalDocumentProcessing";
 import { KnowledgeChunksRepository } from "../src/modules/knowledge-chunks/knowledge-chunks.repository";
 import { OfflinePackagesRepository } from "../src/modules/offline-packages/offline-packages.repository";
 import { OfflinePackagesService } from "../src/modules/offline-packages/offline-packages.service";
@@ -356,11 +357,16 @@ describe("CTMS-052 PostgreSQL publication, fencing and immutable artifacts", () 
 				reviewed_by text, reviewed_at timestamptz, published_by text DEFAULT 'fixture-admin',
 				published_at timestamptz DEFAULT now(), reason text, UNIQUE(document_id,id)
 			);
-			CREATE TABLE survival_document_outbox(id uuid PRIMARY KEY);
+			CREATE TABLE survival_document_outbox(
+				id uuid PRIMARY KEY,
+				event_type varchar(40) NOT NULL
+				  CHECK(event_type IN ('published_version_changed','source_unavailable','document_deleted'))
+			);
 		`);
 		const runner = db.createQueryRunner();
 		try {
 			await new CreateKnowledgeChunks1794100000000().up(runner);
+			await new ApproveSurvivalDocumentProcessing1796700000000().up(runner);
 		} finally {
 			await runner.release();
 		}

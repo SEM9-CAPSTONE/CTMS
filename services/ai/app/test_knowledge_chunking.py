@@ -155,6 +155,14 @@ def test_missing_provenance_and_headerless_tables_require_review():
     assert "table_header_unverified" in issues
 
 
+def test_out_of_range_provenance_returns_a_quality_issue():
+    document = doc()
+    text(document, "Fictional text with an invalid page location.", page=3)
+    chunks, issues = split(document)
+    assert "invalid_source_page" in issues
+    assert not chunks[0].locations
+
+
 def test_independent_pdf_crosscheck_blocks_lost_warnings_and_ocr_only_pages():
     document = doc()
     text(document, "Fictional ordinary content.")

@@ -8,6 +8,7 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { DataSource } from "typeorm";
 import { providerInferenceTraceFixture } from "../../../test/support/inference-trace-fixture";
+import { RagConfig } from "../rag/rag.config";
 import { RagRepository } from "../rag/rag.repository";
 import type { RagEvidenceRef } from "../rag/rag.types";
 import { Classification } from "../survival-documents/survival-documents.types";
@@ -96,12 +97,19 @@ describe("CTMS-073 investigation policies", () => {
 				sourceTitle: "Tài liệu bị giới hạn truy cập",
 			},
 		};
-		const rag = new RagRepository(new DataSource({ type: "postgres" }));
-		jest
-			.spyOn(rag, "resolveInvestigationEvidence")
-			.mockResolvedValue([
-				{ ...source, headings: [], score: 1, content: "Đọc chú giải bản đồ trước khi chọn đường." },
-			]);
+		const rag = new RagRepository(
+			new DataSource({ type: "postgres" }),
+			new RagConfig(new ConfigService())
+		);
+		const english = { ...source, source: { ...source.source, locale: "en" } };
+		jest.spyOn(rag, "resolveInvestigationEvidence").mockResolvedValue([
+			{
+				...english,
+				headings: [],
+				score: 1,
+				content: "Read the map legend before choosing a route.",
+			},
+		]);
 		const settings = {
 			AI_INVESTIGATION_PROVIDER_ENABLED: "true",
 			AI_SURVIVAL_SERVICE_TOKEN: "private-token",
@@ -120,8 +128,8 @@ describe("CTMS-073 investigation policies", () => {
 				locale: "vi",
 				question: "Đọc bản đồ thế nào?",
 				answer: "Xác định điểm xuất phát.",
-				retrieved_evidence: [source, restricted],
-				cited_chunk_ids: [source.chunkId],
+				retrieved_evidence: [english, restricted],
+				cited_chunk_ids: [english.chunkId],
 			},
 		};
 		const job: Job = {
@@ -137,9 +145,13 @@ describe("CTMS-073 investigation policies", () => {
 			const withoutExcerpt = await analyzer.analyze(job, snapshot, null);
 			expect(withoutExcerpt.issues[0].classification).toBe("UNDETERMINED");
 			const body = String(fetch.mock.calls[0][1]?.body);
+			expect(JSON.parse(body)).toMatchObject({
+				trace: { responseLocale: "vi" },
+				sources: [{ locale: "en" }, { status: "UNAVAILABLE" }],
+			});
 			expect(body).not.toContain(restricted.source.sourceTitle);
 			expect(body).not.toContain(source.source.documentId);
-			expect(body).not.toContain("Đọc chú giải");
+			expect(body).not.toContain("Read the map legend");
 			expect(JSON.parse(body)).toMatchObject({
 				sources: [
 					{ evidenceId: 1, cited: true, status: "AVAILABLE" },
@@ -149,7 +161,7 @@ describe("CTMS-073 investigation policies", () => {
 			settings.AI_INVESTIGATION_SOURCE_EXCERPTS_ENABLED = "true";
 			const withExcerpt = await analyzer.analyze(job, snapshot, null);
 			expect(withExcerpt.issues[0].classification).toBe("UNSUPPORTED_CLAIM");
-			expect(String(fetch.mock.calls[1][1]?.body)).toContain("Đọc chú giải");
+			expect(String(fetch.mock.calls[1][1]?.body)).toContain("Read the map legend");
 		} finally {
 			fetch.mockRestore();
 		}

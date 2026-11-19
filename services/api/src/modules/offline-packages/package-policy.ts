@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import { ChunkSetStatus } from "../knowledge-chunks/knowledge-chunks.types";
 import { isSafetyGeometry } from "../route-safety/safety-input";
-import { isEligiblePublishedSource } from "../survival-documents/source-policy";
+import {
+	isConfiguredKnowledgeSource,
+	isEligiblePublishedSource,
+} from "../survival-documents/source-policy";
 import { isCanonicalLineStringCoordinates } from "../trekking-routes/validators/line-string.validator";
 import { WaypointType } from "../trips/entities/trip-waypoint.entity";
 import { TripStatus, TripType } from "../trips/entities/trip.entity";
@@ -209,7 +212,11 @@ export class ApprovedGuidanceSelector {
 					Date.parse(unit.approval.approvedAt) > now
 				)
 					return false;
-				if (!isEligiblePublishedSource(unit.source, unit.currentPublishedVersionId)) return false;
+				if (
+					!isEligiblePublishedSource(unit.source, unit.currentPublishedVersionId) ||
+					!isConfiguredKnowledgeSource(unit.source)
+				)
+					return false;
 				if (
 					unit.chunkSet.status !== ChunkSetStatus.READY ||
 					unit.chunkSet.id !== unit.currentChunkSetId ||

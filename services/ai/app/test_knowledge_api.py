@@ -32,6 +32,20 @@ def test_authentication_and_configuration_required(monkeypatch):
     assert client.post("/knowledge-chunks", headers={"X-CTMS-Knowledge-Token": "wrong"}, json=payload()).status_code == 401
     monkeypatch.delenv("KNOWLEDGE_SERVICE_TOKEN")
     assert client.post("/knowledge-chunks", json=payload()).status_code == 503
+    assert client.get("/readiness").status_code == 503
+
+
+def test_readiness_checks_authentication_without_loading_the_model():
+    assert client.get("/readiness").status_code == 401
+    response = client.get("/readiness", headers={"X-CTMS-Knowledge-Token": "test-token"})
+    assert response.status_code == 204
+    assert not response.content
+
+
+def test_read_error_returns_a_stable_issue():
+    response = client.post("/knowledge-chunks", headers={"X-CTMS-Knowledge-Token": "test-token"}, json=payload())
+    assert response.status_code == 422
+    assert response.json()["detail"] == {"code": "invalid_pdf", "issue": "pdf_text_read_failed"}
 
 
 def test_rejects_configuration_drift_before_processing():
@@ -76,3 +90,27 @@ def test_checksum_or_invalid_pdf_rejected_before_loading_models():
     with pytest.raises(InvalidPdf):
         service.generate(IngestionRequest(**body))
     service._load.assert_not_called()
+
+
+def test_private_split_ingestion_routes_keep_extraction_and_encoding_separate():
+    body = payload()
+    headers = {"X-CTMS-Knowledge-Token": "test-token"}
+    service = MagicMock()
+    service.prepare.return_value = {key: value for key, value in body.items() if key not in {"title", "pdf_base64"}}
+    service.prepare.return_value.update(quality={"status": "NEEDS_REVIEW", "issues": ["missing_critical_pdf_text"], "page_count": 1}, chunks=[])
+    service.embed_passages.return_value = [[1.0] + [0.0] * 383]
+    app.dependency_overrides[get_service] = lambda: service
+
+    assert client.post("/knowledge-chunks/prepare", json=body).status_code == 401
+    prepared = client.post("/knowledge-chunks/prepare", headers=headers, json=body)
+    assert prepared.status_code == 200
+    assert prepared.json()["quality"]["status"] == "NEEDS_REVIEW"
+    service.generate.assert_not_called()
+    service.embed_passages.assert_not_called()
+
+    passages = {"configuration": body["configuration"], "passages": ["passage: a"]}
+    assert client.post("/passage-embeddings", json=passages).status_code == 401
+    assert client.post("/passage-embeddings", headers=headers, json={**passages, "passages": ["query: a"]}).status_code == 422
+    embedded = client.post("/passage-embeddings", headers=headers, json=passages)
+    assert embedded.status_code == 200
+    service.embed_passages.assert_called_once_with(["passage: a"], 384)

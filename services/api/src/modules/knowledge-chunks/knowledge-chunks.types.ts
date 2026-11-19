@@ -5,6 +5,11 @@ export const EMBEDDING_DIMENSIONS = 384;
 export const MAX_TOKENS = 480;
 export const MAX_CHUNKS = 10000;
 export const MAX_ATTEMPTS = 3;
+export const RETRY_BASE_SECONDS = 30;
+export const MAX_RECOVERY_ROUNDS = 2;
+export const RECOVERY_DELAY_SECONDS = [15 * 60, 60 * 60] as const;
+export const RECOVERY_POLL_MS = 60_000;
+export const QUEUE_BATCH_SIZE = 20;
 export const LEASE_SECONDS = 120;
 export const HEARTBEAT_MS = 20000;
 export const POLL_MS = 3000;
@@ -46,6 +51,7 @@ export interface ChunkSet {
 	config_hash: string;
 	status: ChunkSetStatus;
 	attempts: number;
+	recovery_round: number;
 	lease_token: string | null;
 }
 export interface ChunkSetSummary {
@@ -57,7 +63,8 @@ export interface ChunkSetSummary {
 	status: ChunkSetStatus;
 	attempts: number;
 	error_code: string | null;
-	quality_report: ChunkOutput["quality"] | null;
+	automatic_recovery_pending: boolean;
+	quality_report: ChunkOutput["quality"] | UnreadablePdfReport | null;
 	configuration: ChunkConfiguration;
 	chunk_count: number;
 	created_at: string;
@@ -85,28 +92,53 @@ export interface ChunkLocation {
 	item_ref: string;
 	bbox: { l: number; t: number; r: number; b: number; coord_origin: string };
 }
-export interface GeneratedChunk {
+export interface PreparedChunk {
 	chunk_index: number;
 	content: string;
 	embedding_text: string;
 	token_count: number;
 	headings: string[];
 	locations: ChunkLocation[];
+}
+export interface GeneratedChunk extends PreparedChunk {
 	embedding: number[];
 }
-export interface ChunkOutput {
+export interface PreparedChunkOutput {
 	document_version_id: string;
 	source_version: number;
 	checksum: string;
 	locale: string;
 	configuration: ChunkConfiguration;
 	quality: { status: "PASSED" | "NEEDS_REVIEW"; issues: string[]; page_count: number };
+	chunks: PreparedChunk[];
+}
+export interface ChunkOutput extends PreparedChunkOutput {
 	chunks: GeneratedChunk[];
 }
+export const PDF_READ_ISSUES = [
+	"pdf_encrypted",
+	"pdf_page_limit_exceeded",
+	"pdf_no_pages",
+	"pdf_text_read_failed",
+] as const;
+
+type UnreadablePdfReport = {
+	status: "NEEDS_REVIEW";
+	issues: [(typeof PDF_READ_ISSUES)[number]];
+	page_count: null;
+};
+
+export interface ChunkFailure {
+	error: string;
+	retryable: boolean;
+	quality?: UnreadablePdfReport;
+}
+
 export class IngestionError extends Error {
 	constructor(
 		readonly code: string,
-		readonly retryable = false
+		readonly retryable = false,
+		readonly quality?: UnreadablePdfReport
 	) {
 		super(code);
 	}

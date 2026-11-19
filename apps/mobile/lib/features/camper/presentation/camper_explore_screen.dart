@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../review_reputation/host_reputation_panel.dart';
+import '../../auth/application/auth_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -376,7 +378,7 @@ class _ExploreTripCard extends StatelessWidget {
                 onPressed: () async {
                   await Navigator.of(context).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => _PublishedTripDetails(
+                      builder: (_) => PublishedTripDetailsScreen(
                         tripId: trip.id,
                         showRecommendationReason: fromRecommendation,
                       ),
@@ -393,8 +395,9 @@ class _ExploreTripCard extends StatelessWidget {
   }
 }
 
-class _PublishedTripDetails extends ConsumerWidget {
-  const _PublishedTripDetails({
+class PublishedTripDetailsScreen extends ConsumerWidget {
+  const PublishedTripDetailsScreen({
+    super.key,
     required this.tripId,
     this.showRecommendationReason = false,
   });
@@ -406,22 +409,28 @@ class _PublishedTripDetails extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final details = ref.watch(publishedTripDetailsProvider(tripId));
     final accountId = ref.watch(offlinePackageAccountProvider);
+    final viewer = ref.watch(
+      authControllerProvider.select((state) => state.valueOrNull?.id),
+    );
+    final retained = visibleTrip(details, viewer);
 
     return CtmsScaffold(
       title: 'Chi tiết chuyến đi',
-      body: details.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) => CtmsEmptyState(
-          icon: Icons.cloud_off_outlined,
-          title: 'Không tải được chi tiết chuyến đi',
-          action: CtmsButton(
-            label: 'Thử lại',
-            onPressed: () =>
-                ref.invalidate(publishedTripDetailsProvider(tripId)),
-          ),
-        ),
-        data: (trip) => _buildDetails(context, trip, accountId),
-      ),
+      body: retained != null
+          ? _buildDetails(context, retained, accountId)
+          : details.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (_, _) => CtmsEmptyState(
+                icon: Icons.cloud_off_outlined,
+                title: 'Không tải được chi tiết chuyến đi',
+                action: CtmsButton(
+                  label: 'Thử lại',
+                  onPressed: () =>
+                      ref.invalidate(publishedTripDetailsProvider(tripId)),
+                ),
+              ),
+              data: (trip) => _buildDetails(context, trip, accountId),
+            ),
     );
   }
 
@@ -454,6 +463,7 @@ class _PublishedTripDetails extends ConsumerWidget {
         const SizedBox(height: AppSpacing.md),
         Text(trip.title, style: AppTypography.h2),
         const SizedBox(height: AppSpacing.md),
+        HostReputationPanel(tripId: trip.id),
         if (showRecommendationReason)
           TripRecommendationExplanationCard(tripId: trip.id),
         if (description != null && description.isNotEmpty) ...[

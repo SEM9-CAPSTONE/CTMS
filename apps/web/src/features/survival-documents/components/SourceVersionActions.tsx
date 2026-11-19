@@ -35,7 +35,7 @@ export function SourceVersionActions({
 	}
 	return (
 		<div className="flex flex-wrap items-center justify-end gap-2">
-			{version.status === "DRAFT" && (
+			{version.status === "DRAFT" && !version.composed && (
 				<button
 					type="button"
 					className={SOURCE_BUTTON}

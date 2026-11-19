@@ -91,9 +91,71 @@ One review contributes at most once.
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+CTMS-413 adds a numeric reputation projection to existing authenticated reads.
+
+| Viewer | Existing API | Added field |
+| --- | --- | --- |
+| Camper with access to Trip details | `GET /api/trips/:tripId` | `hostReputation` |
+| Host on their own Trips | `GET /api/trips/porter-assignments` | `assignments[].reputation` for assigned Porters |
+| Host on their own Trips | `GET /api/trips/porter-requests/host` | `reputation` for pending invitations |
+| Camper with access to their review context | `GET /api/bookings/:bookingId/porter-reviews/context` | `porters[].reputation` for current assignments and `reviews[].reputation` for the caller's own reviews, including removed assignments |
+
+Trip detail requires authentication even for published Trips. A signed-in Camper
+can receive Host reputation whenever the existing Trip detail rules permit access.
+The existing detail and context lookups return the same 404 for absent and
+inaccessible resources. The list APIs scope records by the authenticated Host.
+
+An authorized target without eligible reviews returns
+`{"reputation":{"ratingAverage":null,"ratingCount":0}}`. In another context,
+such as a declined invitation, the entire field is omitted, for example
+`{"status":"declined"}` (other existing fields omitted here for brevity).
+An eligible aggregate may be `{"ratingAverage":4.333333333333333,"ratingCount":3}`.
+The client formats the rating. The API returns the unrounded average.
+
+The aggregate reads the current rating from each visible, eligible review.
+Host reputation uses only `trip_reviews` with the Host target within the original
+72-hour creation window. Porter reputation reads `porter_reviews` within the
+original 24-hour creation window. These are distinct aggregates even when the
+same account holds both roles. Valid Porter reviews remain eligible after the
+assignment is removed. An eligible review counts immediately, including while
+it can still be edited. Edits, hiding and restoring change the next read, and
+revisions never add additional votes. Lists batch aggregates for distinct
+subjects. CTMS-413 adds a partial Host index for visible Host-target reviews.
+The earlier Host moderation index covers hidden rows only. Porter aggregation
+uses its existing visible-review index.
+The Host index migration creates and drops the index concurrently. The shared
+TypeORM configuration uses one transaction per migration; this migration opts
+out so PostgreSQL can build its index while allowing writes. A retry removes
+an invalid index left by an interrupted build before rebuilding it.
+To revert this concurrent index migration, run
+`pnpm --filter @ctms/api run migration:revert --transaction none`.
+The installed TypeORM revert path starts a transaction even when this
+migration declares `transaction = false`, so rollback requires that option.
+
+The projection contains only average and count. AI insights, review content,
+reviewer identities and moderation notes are excluded. One eligible review is
+enough to display a rating, so the average can equal that review's rating.
+A suspended or soft-deleted reviewer retains eligible, visible contributions.
+The reviewer foreign keys restrict hard deletion while referenced reviews exist.
 
 ## 10. Error & Edge Cases
+
+CTMS-414 supplements the Host invitation list from CTMS-413 with
+`porterDisplayName` (string or null) on rows whose Trip is still owned by the
+authenticated Host. The existing list query joins the person's display name;
+it does not add per-person queries or contact information. Other response
+contexts omit the field. Existing authorization and reputation eligibility
+are unchanged.
+
+Client presentation uses Vietnamese decimal formatting, one fractional digit,
+and decimal half-up rounding (4.25 becomes 4,3; 4.35 becomes 4,4; 5 becomes 5,0).
+Count is always shown beside a numeric rating, including one review.
+An omitted reputation block is not a zero-rating state.
+Network/5xx refresh failures retain existing data marked as not updated;
+401/403/404 responses clear it. Account changes discard cached data and late
+responses. Host management is web-only; Flutter serves Camper and Porter.
+AI insight presentation remains conditional on an authorized data source,
+which the numeric CTMS-413 projection does not provide.
 
 | Case                        | Expected Behavior           |
 | --------------------------- | --------------------------- |

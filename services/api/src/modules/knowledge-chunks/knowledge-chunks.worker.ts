@@ -1,4 +1,10 @@
-import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from "@nestjs/common";
+import {
+	Injectable,
+	Logger,
+	type OnModuleDestroy,
+	type OnModuleInit,
+	ServiceUnavailableException,
+} from "@nestjs/common";
 // biome-ignore lint/style/useImportType: Nest injection
 import { ConfigService } from "@nestjs/config";
 // biome-ignore lint/style/useImportType: Nest injection
@@ -9,10 +15,14 @@ import { KnowledgeChunksProvider } from "./knowledge-chunks.provider";
 import { KnowledgeChunksRepository } from "./knowledge-chunks.repository";
 import {
 	CLEANUP_INTERVAL_MS,
+	type ChunkFailure,
+	type ChunkOutput,
 	DEFAULT_RETENTION_DAYS,
 	HEARTBEAT_MS,
 	IngestionError,
 	POLL_MS,
+	QUEUE_BATCH_SIZE,
+	RECOVERY_POLL_MS,
 } from "./knowledge-chunks.types";
 
 @Injectable()
@@ -20,6 +30,9 @@ export class KnowledgeChunksWorker implements OnModuleInit, OnModuleDestroy {
 	private timer?: NodeJS.Timeout;
 	private busy = false;
 	private nextCleanupAt = 0;
+	private nextRecoveryAt = 0;
+	private nextReconciliationAt = 0;
+	private reconciliationCursor: string | null = null;
 	private readonly logger = new Logger(KnowledgeChunksWorker.name);
 	constructor(
 		private readonly repository: KnowledgeChunksRepository,
@@ -42,7 +55,26 @@ export class KnowledgeChunksWorker implements OnModuleInit, OnModuleDestroy {
 		if (this.busy) return;
 		this.busy = true;
 		try {
-			await this.repository.consumeEvents(this.provider.configuration());
+			const configuration = this.provider.configuration();
+			await this.repository.consumeEvents(configuration);
+			if (Date.now() >= this.nextReconciliationAt) {
+				const { candidates, lastDocumentId } = await this.repository.reconcile(
+					configuration,
+					this.reconciliationCursor,
+					QUEUE_BATCH_SIZE
+				);
+				this.reconciliationCursor = candidates === QUEUE_BATCH_SIZE ? lastDocumentId : null;
+				if (!this.reconciliationCursor) this.nextReconciliationAt = Date.now() + RECOVERY_POLL_MS;
+			}
+			if (Date.now() >= this.nextRecoveryAt) {
+				this.nextRecoveryAt = Date.now() + RECOVERY_POLL_MS;
+				if (
+					(await this.repository.hasRecoverableFailures(configuration)) &&
+					(await this.provider.isAvailable())
+				) {
+					await this.repository.recoverFailed(configuration);
+				}
+			}
 			await this.processOne();
 			await this.cleanupWhenDue();
 		} catch {
@@ -69,15 +101,12 @@ export class KnowledgeChunksWorker implements OnModuleInit, OnModuleDestroy {
 				this.logger.log(
 					`Knowledge history cleanup deleted ${result.deleted} sets and retained ${result.retainedByDependency} with dependencies`
 				);
-		} catch (error) {
-			this.logger.error(
-				"Knowledge history cleanup failed",
-				error instanceof Error ? error.stack : undefined
-			);
+		} catch {
+			this.logger.error("Knowledge history cleanup failed");
 		}
 	}
 	async processOne(): Promise<boolean> {
-		const set = await this.repository.claim();
+		const set = await this.repository.claim(this.provider.configuration());
 		if (!set) return false;
 		const abort = new AbortController();
 		const heartbeat = setInterval(() => {
@@ -90,18 +119,29 @@ export class KnowledgeChunksWorker implements OnModuleInit, OnModuleDestroy {
 		}, HEARTBEAT_MS);
 		heartbeat.unref();
 		try {
-			const source = await this.reader.readPublished(set.document_version_id);
-			const output = await this.provider.generate(
-				set,
-				source.bytes,
-				source.manifest.metadata.sourceTitle,
-				abort.signal
-			);
-			await this.repository.finish(set, output);
-		} catch (error) {
-			const failure =
-				error instanceof IngestionError ? error : new IngestionError("source_or_ingestion_failed");
-			await this.repository.finish(set, { error: failure.code, retryable: failure.retryable });
+			let result: ChunkOutput | ChunkFailure;
+			try {
+				const source = await this.reader.readPublished(set.document_version_id);
+				result = await this.provider.generate(
+					set,
+					source.bytes,
+					source.manifest.metadata.sourceTitle,
+					abort.signal,
+					(inputs) => this.repository.reusableEmbeddings(set, inputs)
+				);
+			} catch (error) {
+				const failure =
+					error instanceof IngestionError
+						? error
+						: new IngestionError(
+								error instanceof ServiceUnavailableException
+									? "source_file_unavailable"
+									: "source_or_ingestion_failed",
+								true
+							);
+				result = { error: failure.code, retryable: failure.retryable, quality: failure.quality };
+			}
+			await this.repository.finish(set, result);
 		} finally {
 			clearInterval(heartbeat);
 		}

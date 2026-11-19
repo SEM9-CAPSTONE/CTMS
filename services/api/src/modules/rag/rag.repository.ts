@@ -13,7 +13,8 @@ import {
 	type SourceVersion,
 	VERSION_SELECT,
 } from "../survival-documents/survival-documents.types";
-import type { RagSettings } from "./rag.config";
+// biome-ignore lint/style/useImportType: Nest injection
+import { RagConfig, type RagSettings } from "./rag.config";
 import { MAX_BLOCK_BYTES, type RagChunk, type RagEvidenceRef, type RagSource } from "./rag.types";
 
 const MAX_PAGE_COUNT = 1000;
@@ -132,23 +133,22 @@ function toSource(version: Publication): RagSource {
 
 @Injectable()
 export class RagRepository {
-	constructor(private readonly db: DataSource) {}
+	constructor(
+		private readonly db: DataSource,
+		private readonly config: RagConfig
+	) {}
 
-	async hasEligibleCorpus(locale: string, settings: RagSettings): Promise<boolean> {
+	async hasEligibleCorpus(settings: RagSettings): Promise<boolean> {
 		return this.read(settings.databaseTimeoutMs, async (manager) => {
-			const { candidateCount } = await this.boundedCorpus(manager, locale, settings.maxCandidates);
+			const { candidateCount } = await this.boundedCorpus(manager, settings);
 			return candidateCount > 0;
 		});
 	}
 
 	/** Read a single corpus snapshot. Embeddings stay in PostgreSQL. */
-	async search(locale: string, embedding: number[], settings: RagSettings) {
+	async search(embedding: number[], settings: RagSettings) {
 		return this.read(settings.databaseTimeoutMs, async (manager) => {
-			const { publications, candidateCount } = await this.boundedCorpus(
-				manager,
-				locale,
-				settings.maxCandidates
-			);
+			const { publications, candidateCount } = await this.boundedCorpus(manager, settings);
 			if (!candidateCount) return { candidates: [], candidateCount };
 			const bySet = new Map(publications.map((set) => [set.chunkSetId, set]));
 			const sources = new Map(publications.map((set) => [set.chunkSetId, toSource(set)]));
@@ -160,9 +160,11 @@ export class RagRepository {
 					GROUP BY s.id,s.chunk_count
 					HAVING count(*)=s.chunk_count AND min(c.chunk_index)=0 AND max(c.chunk_index)=s.chunk_count-1
 				), eligible_chunks AS MATERIALIZED (
-					SELECT c.id,c.chunk_set_id,c.chunk_index,c.content,c.metadata,c.embedding
+					SELECT c.id,c.chunk_set_id,c.chunk_index,c.content,c.metadata,v.embedding
 					FROM complete_sets s JOIN knowledge_chunks c ON c.chunk_set_id=s.id
-					WHERE array_ndims(c.embedding)=1 AND cardinality(c.embedding)=$4
+					LEFT JOIN knowledge_embeddings e ON e.id=c.embedding_id
+					CROSS JOIN LATERAL (SELECT COALESCE(e.embedding,c.embedding) AS embedding) v
+					WHERE array_ndims(v.embedding)=1 AND cardinality(v.embedding)=$4
 						AND octet_length(c.content)<=$5 AND octet_length(c.metadata::text)<=$5
 				)
 				SELECT c.id,c.chunk_set_id,c.chunk_index,c.content,c.metadata,
@@ -183,7 +185,7 @@ export class RagRepository {
 					embedding,
 					EMBEDDING.embedding_dimensions,
 					MAX_BLOCK_BYTES,
-					settings.minScore,
+					Math.min(settings.minScore, settings.crossLingualMinScore),
 					Math.min(settings.maxCandidates, MAX_RANKED_ROWS),
 					Math.hypot(...embedding),
 				]
@@ -201,22 +203,21 @@ export class RagRepository {
 	/** A fresh snapshot after token counting is the final eligibility decision point. */
 	async revalidate(
 		chunks: RagChunk[],
-		locale: string,
-		timeoutMs: number
+		settings: RagSettings
 	): Promise<"CURRENT" | "SOURCE_CHANGED" | "INCOMPLETE_EVIDENCE"> {
-		return this.read(timeoutMs, (manager) =>
-			this.checkEvidence(manager, chunks.map(evidenceRef), locale)
+		return this.read(settings.databaseTimeoutMs, (manager) =>
+			this.checkEvidence(manager, chunks.map(evidenceRef), settings.sourceLocales)
 		);
 	}
 
 	/** Resolve only exact recorded artifacts that remain published and permitted for internal RAG use. */
-	async resolveInvestigationEvidence(refs: RagEvidenceRef[], locale: string) {
+	async resolveInvestigationEvidence(refs: RagEvidenceRef[]) {
 		if (!refs.length) return [];
 		return this.read(2000, async (manager) => {
 			const documentIds = [...new Set(refs.map(({ source }) => source.documentId))];
 			const publications = await this.publications(
 				manager,
-				locale,
+				this.config.sourceLocales(),
 				documentIds.length,
 				documentIds
 			);
@@ -249,7 +250,6 @@ export class RagRepository {
 	/** Serializes the final consumer write with publication, withdrawal and chunk activation. */
 	async withCurrentEvidence<T>(
 		evidence: RagEvidenceRef[],
-		locale: string,
 		timeoutMs: number,
 		work: (manager: EntityManager) => Promise<T>,
 		cited: RagEvidenceRef[] = evidence
@@ -262,10 +262,11 @@ export class RagRepository {
 				"SELECT id FROM survival_documents WHERE id=ANY($1::uuid[]) ORDER BY id FOR SHARE",
 				[documentIds]
 			);
-			if ((await this.checkEvidence(manager, evidence, locale)) !== "CURRENT") return null;
+			const sourceLocales = this.config.sourceLocales();
+			if ((await this.checkEvidence(manager, evidence, sourceLocales)) !== "CURRENT") return null;
 			if (
 				cited.length !== evidence.length &&
-				(await this.checkEvidence(manager, cited, locale)) !== "CURRENT"
+				(await this.checkEvidence(manager, cited, sourceLocales)) !== "CURRENT"
 			)
 				return null;
 			return work(manager);
@@ -275,10 +276,15 @@ export class RagRepository {
 	private async checkEvidence(
 		manager: EntityManager,
 		chunks: RagEvidenceRef[],
-		locale: string
+		sourceLocales: string[]
 	): Promise<"CURRENT" | "SOURCE_CHANGED" | "INCOMPLETE_EVIDENCE"> {
 		const documentIds = [...new Set(chunks.map((chunk) => chunk.source.documentId))];
-		const current = await this.publications(manager, locale, documentIds.length, documentIds);
+		const current = await this.publications(
+			manager,
+			sourceLocales,
+			documentIds.length,
+			documentIds
+		);
 		const chunkIds = chunks.map((chunk) => chunk.chunkId);
 		const bySet = new Map(current.map((set) => [set.chunkSetId, set]));
 		const rows: Omit<CandidateRow, "score">[] = await manager.query(
@@ -347,8 +353,11 @@ export class RagRepository {
 		}
 	}
 
-	private async boundedCorpus(manager: EntityManager, locale: string, maxCandidates: number) {
-		const publications = await this.publications(manager, locale, maxCandidates + 1);
+	private async boundedCorpus(
+		manager: EntityManager,
+		{ sourceLocales, maxCandidates }: RagSettings
+	) {
+		const publications = await this.publications(manager, sourceLocales, maxCandidates + 1);
 		const candidateCount = publications.reduce((count, set) => count + set.chunkCount, 0);
 		if (candidateCount > maxCandidates) {
 			throw new ServiceUnavailableException({ code: "RAG_CORPUS_LIMIT" });
@@ -358,7 +367,7 @@ export class RagRepository {
 
 	private async publications(
 		manager: EntityManager,
-		locale: string,
+		sourceLocales: string[],
 		limit: number,
 		documentIds: string[] | null = null
 	): Promise<Publication[]> {
@@ -371,7 +380,7 @@ export class RagRepository {
 			JOIN (${VERSION_SELECT}) v ON v.id=d.current_published_version_id AND v."documentId"=d.id
 			WHERE v.status=$1 AND v."publishedAt" IS NOT NULL AND s.status=$2
 				AND s.document_version_id=v.id AND s.source_version=v."versionNumber"
-				AND s.checksum=v.checksum AND s.locale=v.metadata->>'locale' AND s.locale=$3
+				AND s.checksum=v.checksum AND s.locale=v.metadata->>'locale' AND s.locale=ANY($3::text[])
 				AND s.configuration=$4::jsonb
 				AND s.quality_report->>'status'='PASSED' AND s.quality_report->'issues'='[]'::jsonb
 				AND ($5::uuid[] IS NULL OR d.id=ANY($5))
@@ -379,7 +388,7 @@ export class RagRepository {
 			[
 				DocumentStatus.PUBLISHED,
 				ChunkSetStatus.READY,
-				locale,
+				sourceLocales,
 				JSON.stringify(EMBEDDING),
 				documentIds,
 				limit,

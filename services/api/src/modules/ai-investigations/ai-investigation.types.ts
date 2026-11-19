@@ -47,6 +47,7 @@ export type SourceObservation = {
 		title: string;
 		checksum: string;
 		classification: string;
+		locale: string;
 	};
 };
 

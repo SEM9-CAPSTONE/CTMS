@@ -1,14 +1,18 @@
+import { useState } from "react";
+import { toast } from "../../../shared/components/Toast";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
 import { SourceDetail } from "../components/SourceDetail";
 import { SourceDocumentTable } from "../components/SourceDocumentTable";
 import { SourceFilters } from "../components/SourceFilters";
 import { DocumentEditor } from "../components/editor/DocumentEditor";
+import { VersionCompositionEditor } from "../components/editor/VersionCompositionEditor";
 import { SOURCE_BUTTON } from "../constants";
 import { useSourceWorkspace } from "../hooks/useSourceWorkspace";
 
 export function SurvivalDocumentsPage({
 	onLogout,
 }: { onLogout?: (allDevices: boolean) => Promise<void> }) {
+	const [composing, setComposing] = useState(false);
 	const {
 		state,
 		filters,
@@ -131,7 +135,27 @@ export function SurvivalDocumentsPage({
 						onDelete={deleteDocument}
 					/>
 				)}
-				{mode && (
+				{composing && mode?.kind === "version" && (
+					<VersionCompositionEditor
+						document={mode.document}
+						onClose={() => setComposing(false)}
+						onSaved={async (document, version, publish) => {
+							setComposing(false);
+							setMode(null);
+							await state.refresh();
+							openDocument(document.id, version.id);
+							if (publish)
+								await actOnVersion(
+									version,
+									"publish",
+									{ expectedRevision: version.revision },
+									true
+								);
+							else toast.success("Đã tạo bản nháp PDF.");
+						}}
+					/>
+				)}
+				{mode && !composing && (
 					<DocumentEditor
 						key={`${mode.kind}-${mode.kind === "edit" ? mode.version.id : "new"}`}
 						initial={formMetadata}
@@ -144,6 +168,11 @@ export function SurvivalDocumentsPage({
 						onOpenDuplicate={openDuplicate}
 						onSubmit={save}
 						onSourceChange={resetPdfError}
+						onComposeVersion={
+							mode.kind === "version" && mode.document.currentPublishedVersionId
+								? () => setComposing(true)
+								: undefined
+						}
 					/>
 				)}
 			</div>

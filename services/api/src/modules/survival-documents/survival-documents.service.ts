@@ -2,6 +2,11 @@ import { randomUUID } from "node:crypto";
 import { ConflictException, Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
 import { type EntityManager, QueryFailedError } from "typeorm";
 import {
+	assertAdaptationGrants,
+	assertComposedMedicalReview,
+	isMedicalSource,
+} from "./document-editor.policy";
+import {
 	type EditSourceDto,
 	type ImportSourceDto,
 	type ListSourcesDto,
@@ -17,7 +22,6 @@ import { type PdfSource, PdfSourceService } from "./pdf-source.service";
 // biome-ignore lint/style/useImportType: Nest injection
 import { SourceFilesService } from "./source-files.service";
 import {
-	SOURCE_NOT_APPROVED,
 	assertApprovedSource,
 	assertRights,
 	isEligiblePublishedSource,
@@ -33,6 +37,8 @@ import { SurvivalDocumentsRepository, sourceConflict } from "./survival-document
 import {
 	type DocumentListItem,
 	DocumentStatus,
+	MedicalStatus,
+	RightsStatus,
 	type SourceMetadata,
 	type SourceVersion,
 	UNREVIEWED_RIGHTS,
@@ -43,7 +49,6 @@ import {
 type VersionChange =
 	| { action: "metadata"; dto: EditSourceDto }
 	| { action: "publish"; dto: PublishSourceDto }
-	| { action: "approve-processing"; dto: RevisionDto }
 	| { action: "archive"; dto: RevisionDto };
 
 @Injectable()
@@ -128,9 +133,18 @@ export class SurvivalDocumentsService {
 				(version) => version.id === document.currentPublishedVersionId
 			);
 			const processingBlockedReason = published ? sourceContentIssue(published) : null;
+			const composedVersions: Array<{ id: string }> = await manager.query(
+				`SELECT materialized_version_id AS id FROM survival_document_edit_drafts
+				 WHERE document_id=$1 AND materialized_version_id IS NOT NULL`,
+				[id]
+			);
+			const composed = new Set(composedVersions.map((version) => version.id));
 			return {
 				...document,
-				versions: versions.map(publicVersion),
+				versions: versions.map((version) => ({
+					...publicVersion(version),
+					...(composed.has(version.id) ? { composed: true } : {}),
+				})),
 				history,
 				processingSyncStatus: isEligiblePublishedSource(
 					published,
@@ -139,9 +153,6 @@ export class SurvivalDocumentsService {
 					? ("REGENERATION_NEEDED" as const)
 					: ("NOT_PROCESSED" as const),
 				processingBlockedReason,
-				canApproveProcessing:
-					published?.status === DocumentStatus.PUBLISHED &&
-					processingBlockedReason === SOURCE_NOT_APPROVED,
 			};
 		});
 	}
@@ -191,13 +202,33 @@ export class SurvivalDocumentsService {
 	private requireDocumentRevision(id?: string, expectedDocumentRevision?: number): void {
 		if (id && !expectedDocumentRevision) throw invalidSource("Thiếu số đối chiếu tài liệu.");
 	}
+	async storeComposedDraft(
+		actorId: string,
+		documentId: string,
+		expectedRevision: number,
+		metadata: SourceMetadata,
+		stored: PdfSource,
+		finalize: (manager: EntityManager, versionId: string) => Promise<void>
+	) {
+		validatePublishedSourceMetadata(metadata);
+		return this.storeDraft(
+			actorId,
+			metadata,
+			stored,
+			"compose",
+			documentId,
+			expectedRevision,
+			finalize
+		);
+	}
 	private async storeDraft(
 		actorId: string,
 		metadata: SourceMetadata,
 		stored: PdfSource,
-		action: "upload" | "import_url",
+		action: "upload" | "import_url" | "compose",
 		id?: string,
-		expectedDocumentRevision?: number
+		expectedDocumentRevision?: number,
+		finalize?: (manager: EntityManager, versionId: string) => Promise<void>
 	) {
 		const { checksum, originalFilename } = stored;
 		await this.repo.assertPdfIsNew(this.repo.db.manager, checksum, originalFilename, id);
@@ -264,6 +295,7 @@ export class SurvivalDocumentsService {
 					"UPDATE survival_document_uploads SET version_id=$2 WHERE file_ref=$1",
 					[fileRef, versionId]
 				);
+				await finalize?.(manager, versionId);
 				await this.repo.audit(
 					manager,
 					actorId,
@@ -379,10 +411,24 @@ export class SurvivalDocumentsService {
 			const document = await this.repo.document(manager, documentId, true);
 			const before = await this.repo.version(manager, documentId, versionId);
 			if (before.revision !== dto.expectedRevision) sourceConflict();
+			const [composition]: Array<{
+				baseVersionId: string;
+				snapshot: {
+					baseChecksum: string;
+					sections: Array<{ source?: { checksum: string } }>;
+					reviewBasis: string;
+				};
+			}> = await manager.query(
+				`SELECT base_version_id AS "baseVersionId",snapshot
+				FROM survival_document_edit_drafts WHERE document_id=$1 AND materialized_version_id=$2`,
+				[documentId, versionId]
+			);
 			let status = before.status;
 			switch (action) {
 				case "metadata": {
 					if (status !== DocumentStatus.DRAFT) sourceConflict();
+					if (composition)
+						throw invalidSource("Thông tin PDF biên soạn được lưu cùng bản nháp đã xác nhận.");
 					const metadata = dto.metadata;
 					validateSourceMetadata(metadata);
 					await this.original(manager, metadata);
@@ -404,23 +450,56 @@ export class SurvivalDocumentsService {
 				}
 				case "publish": {
 					if (status !== DocumentStatus.DRAFT) sourceConflict();
+					if (composition) {
+						if (document.currentPublishedVersionId !== composition.baseVersionId) sourceConflict();
+						if (dto.confirmSource !== true)
+							throw invalidSource("Hãy xác nhận xuất bản đúng bản PDF đã biên soạn.");
+						const { baseChecksum, sections } = composition.snapshot;
+						assertAdaptationGrants([
+							baseChecksum,
+							...sections.flatMap((section) => (section.source ? [section.source.checksum] : [])),
+						]);
+						assertComposedMedicalReview(before.metadata.classification, before.checksum);
+						dto.rights = {
+							rightsReviewStatus: RightsStatus.PERMITTED,
+							sourceReviewConfirmed: true,
+							internalRagUseAllowed: true,
+							offlineRedistributionAllowed: false,
+							translationAllowed: false,
+							medicalContentReviewStatus: isMedicalSource(before.metadata.classification)
+								? MedicalStatus.APPROVED
+								: MedicalStatus.NOT_REVIEWED,
+							evidence: before.metadata.permissionEvidence ?? "",
+						};
+					}
 					const newer: Array<{ id: string }> = await manager.query(
 						"SELECT id FROM survival_document_versions WHERE document_id=$1 AND version_number>$2 AND published_at IS NOT NULL",
 						[documentId, before.versionNumber]
 					);
 					if (newer.length) sourceConflict();
-					const rights = dto.rights ?? before.rights;
+					const confirmSource =
+						dto.confirmSource === true &&
+						before.rights.rightsReviewStatus === RightsStatus.NOT_REVIEWED;
+					const rights =
+						dto.rights ??
+						(confirmSource ? { ...before.rights, sourceReviewConfirmed: true } : before.rights);
 					if (dto.rights) {
 						validatePublicationMetadata(before.metadata);
 						assertRights(before.metadata, dto.rights);
 					} else {
 						validatePublishedSourceMetadata(before.metadata);
 					}
-					const processingApprovedAt = dto.approveProcessing ? new Date().toISOString() : null;
-					const publication = { ...before, rights, processingApprovedAt };
+					const publishedAt = new Date().toISOString();
+					const publication = {
+						...before,
+						rights,
+						publishedBy: actorId,
+						publishedAt,
+						reviewedBy: dto.rights ? actorId : before.reviewedBy,
+						reviewedAt: dto.rights ? publishedAt : before.reviewedAt,
+					};
 					assertApprovedSource(publication);
 					const processingIssue = sourceContentIssue(publication);
-					if (dto.approveProcessing && processingIssue) throw invalidSource(processingIssue);
 					await this.original(manager, before.metadata);
 					await this.files.read(before);
 					if (document.currentPublishedVersionId) {
@@ -448,10 +527,9 @@ export class SurvivalDocumentsService {
 						`UPDATE survival_document_versions
 						 SET published_by=$2,published_at=now(),rights=$3::jsonb,
 						 reviewed_by=CASE WHEN $4 THEN $2 ELSE reviewed_by END,
-						 reviewed_at=CASE WHEN $4 THEN now() ELSE reviewed_at END,
-						 processing_approved_at=$5
+						 reviewed_at=CASE WHEN $4 THEN now() ELSE reviewed_at END
 						 WHERE id=$1`,
-						[versionId, actorId, JSON.stringify(rights), !!dto.rights, processingApprovedAt]
+						[versionId, actorId, JSON.stringify(rights), !!dto.rights]
 					);
 					await manager.query(
 						"UPDATE survival_documents SET current_published_version_id=$2 WHERE id=$1",
@@ -465,24 +543,6 @@ export class SurvivalDocumentsService {
 						"published_version_changed",
 						processingIssue === null
 					);
-					break;
-				}
-				case "approve-processing": {
-					if (
-						status !== DocumentStatus.PUBLISHED ||
-						document.currentPublishedVersionId !== versionId
-					)
-						sourceConflict();
-					if (before.processingApprovedAt) return;
-					const approved = { ...before, processingApprovedAt: new Date().toISOString() };
-					const issue = sourceContentIssue(approved);
-					if (issue) throw invalidSource(issue);
-					await this.files.read(before);
-					await manager.query(
-						"UPDATE survival_document_versions SET processing_approved_at=$2 WHERE id=$1",
-						[versionId, approved.processingApprovedAt]
-					);
-					await this.event(manager, documentId, approved, null, "processing_approved");
 					break;
 				}
 				case "archive":
@@ -503,7 +563,7 @@ export class SurvivalDocumentsService {
 			await manager.query(
 				`UPDATE survival_document_versions SET status=$2::varchar,revision=revision+1,
 				 reason=CASE WHEN $2::varchar='PUBLISHED' THEN $3::varchar ELSE COALESCE($3::varchar,reason) END WHERE id=$1`,
-				[versionId, status, action === "approve-processing" ? before.reason : (dto.reason ?? null)]
+				[versionId, status, dto.reason ?? null]
 			);
 			await manager.query(
 				"UPDATE survival_documents SET revision=revision+1,updated_at=now() WHERE id=$1",
@@ -526,11 +586,7 @@ export class SurvivalDocumentsService {
 		documentId: string,
 		version: SourceVersion,
 		previousId: string | null,
-		type:
-			| "published_version_changed"
-			| "processing_approved"
-			| "source_unavailable"
-			| "document_deleted",
+		type: "published_version_changed" | "source_unavailable" | "document_deleted",
 		canProcess = false
 	): Promise<void> {
 		await manager.query(

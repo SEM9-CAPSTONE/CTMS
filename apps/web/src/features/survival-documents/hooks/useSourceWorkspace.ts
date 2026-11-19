@@ -10,6 +10,7 @@ import type {
 	SourceDecision,
 	SourceFilters,
 	SourceMetadata,
+	SourceRights,
 	SourceVersion,
 } from "../types";
 import { useSurvivalDocuments } from "./useSurvivalDocuments";
@@ -17,6 +18,30 @@ type FormMode =
 	| { kind: "create" }
 	| { kind: "version"; document: DocumentDetail; version: SourceVersion }
 	| { kind: "edit"; version: SourceVersion };
+
+function publicationRights(metadata: SourceMetadata): SourceRights | undefined {
+	const { attribution, classification, licenseType, locale, originalLocale, permissionEvidence } =
+		metadata;
+	if (
+		!attribution ||
+		!licenseType ||
+		!permissionEvidence ||
+		classification === "FIRST_AID" ||
+		classification === "MEDICAL_REFERENCE" ||
+		(originalLocale && originalLocale !== locale)
+	)
+		return;
+	return {
+		rightsReviewStatus: "PERMITTED",
+		sourceReviewConfirmed: true,
+		internalRagUseAllowed: true,
+		offlineRedistributionAllowed: false,
+		translationAllowed: false,
+		medicalContentReviewStatus: "NOT_REVIEWED",
+		evidence: permissionEvidence,
+	};
+}
+
 export function useSourceWorkspace() {
 	const [filters, setFilters] = useState<SourceFilters>({
 		page: 1,
@@ -71,17 +96,23 @@ export function useSourceWorkspace() {
 	) {
 		setNotice("");
 		try {
+			const decision =
+				action === "publish"
+					? {
+							...payload,
+							confirmSource: true,
+							rights: publicationRights(version.metadata) ?? payload.rights,
+						}
+					: payload;
 			await state.action.mutateAsync({
 				documentId: version.documentId,
 				versionId: version.id,
 				action,
-				payload: action === "publish" ? { ...payload, approveProcessing: true } : payload,
+				payload: decision,
 			});
 			if (action === "publish") {
 				openDocument(null);
 				toast.success("Đã xuất bản tài liệu.");
-			} else if (action === "approve-processing") {
-				toast.success("Đã cho phép xử lý tài liệu.");
 			} else {
 				setNotice("Đã ngừng sử dụng tài liệu.");
 			}
@@ -89,11 +120,6 @@ export function useSourceWorkspace() {
 			if (savedFromEditor) {
 				const message = error instanceof Error ? error.message : "Vui lòng thử lại.";
 				toast.error(message, "Đã lưu bản nháp. Xuất bản chưa thành công.");
-			} else if (action === "approve-processing") {
-				toast.error(
-					error instanceof Error ? error.message : "Vui lòng thử lại.",
-					"Chưa thể cho phép xử lý tài liệu."
-				);
 			}
 		}
 	}
@@ -147,8 +173,12 @@ export function useSourceWorkspace() {
 		const { sourceTitle, classification, locale, publisher } = mode.version.metadata;
 		formMetadata = { sourceTitle, classification, locale, publisher };
 	}
-	const formError =
+	const mutationError =
 		mode?.kind === "edit" ? state.edit.error : (state.upload.error ?? state.importUrl.error);
+	const formError =
+		mutationError instanceof HttpError && mutationError.status === 413
+			? new Error("Tệp PDF vượt quá dung lượng cho phép.")
+			: mutationError;
 	const duplicate =
 		formError instanceof HttpError && formError.status === 409
 			? duplicatePdfSchema.safeParse(formError.errorData)

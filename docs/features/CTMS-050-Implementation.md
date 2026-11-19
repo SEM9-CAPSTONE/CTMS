@@ -25,11 +25,21 @@ The service checks for conflicts before creating a storage reservation. Within a
 
 - A local upload requires PDF MIME and a safe PDF filename. Both methods validate the PDF header, EOF marker and size, then parse the document with `pdf-lib` and require at least one page. Standard compressed object streams (`/ObjStm`) are supported. The safety checks inspect parsed dictionaries, arrays and stream dictionaries, including objects expanded from compressed streams, and reject encryption, active scripts, launch actions and embedded files. Action names are checked with PDF's case sensitivity after decoding name escapes. Raw image and text stream bytes are not scanned for action names: a coincidental `/aa` or `/JavaScript` byte sequence inside image data is not a PDF action. This is a document structure and policy check, not a malware scanner. Validation preserves the original bytes; SHA-256 is calculated over the original file.
 - A URL import permits public HTTPS on the default port, with a DNS hostname and without embedded credentials. The API checks DNS and IP ranges at each hop, pins the connection to a checked address while validating the TLS certificate, and permits up to three redirects within a 15-second total timeout. Requests identify the client as `CTMS-PDF-Importer/1.0`; some public servers reject requests without a User-Agent. The download must return HTTP 200 and identity encoding. A failed source response reports its HTTP status. The API enforces the size limit while reading the response and validates the bytes independently of the response MIME and path extension.
-- `SURVIVAL_DOCUMENT_MAX_BYTES` defaults to 10 MiB and supports a maximum of 50 MiB. `SURVIVAL_DOCUMENT_STORAGE_ROOT` defaults to `.private-survival-documents` under the API working directory and must be outside the public upload root. The authenticated file endpoint verifies size and SHA-256 before serving the bytes.
+- `SURVIVAL_DOCUMENT_MAX_BYTES` defaults to 50 MiB (52,428,800 bytes) and can be lowered per environment. The limit applies to both uploaded and imported PDF bytes. Nginx allows up to 51 MiB on the multipart upload routes to accommodate form metadata and multipart boundaries. `SURVIVAL_DOCUMENT_STORAGE_ROOT` defaults to `.private-survival-documents` under the API working directory and must be outside the public upload root. The authenticated file endpoint verifies size and SHA-256 before serving the bytes.
 
 ## Publication and downstream use
 
-A draft holds a PDF and the minimum metadata. Publishing checks the draft revision, metadata and stored bytes. The Admin UI requests processing approval for the exact version during publication. Admin can also approve a current publication from its detail view. The API records `processing_approved_at` and the actor, version and checksum in the audit trail. Configured HTTPS hostnames and SHA-256 digests remain supported for existing integrations. URL imports record the final download URL. The worker queues eligible versions from publication and processing approval events. The optional API rights payload requires exact-version licence, evidence and attribution. Medical and translation safeguards still apply. Separate grants are required to distribute or translate the original PDF.
+### Version composition
+
+The editor groups native PDF content into top-level heading sections. Nested headings, paragraphs, numbered items and simple tables remain in the section. The private Ingestion service runs CTMS-051 extraction gates first and checks that the editable structure covers native text on every page. Scanned PDFs, diagrams, ambiguous table structures, unsupported text and oversized drafts use the existing PDF/URL path.
+
+`survival_document_edit_drafts` stores base identity and revision, structured sections, proposed changes, confirmation, and the generated version ID. Sections keep exact source checksum, version, page and item references and a content fingerprint. `survival_document_edit_requests` makes write retries converge on one change or generated version. Draft operations and PDF creation use the existing document lock and audit history. A composition is rendered as a complete PDF with CTMS attribution and verified before it goes through existing file admission and duplicate checks.
+
+`SURVIVAL_EDITOR_APPROVED_SHA256` lists exact source PDF checksums with reviewed permission for CTMS to compose, store and process a derived PDF. A deployment records the grant before adding the checksum. `SURVIVAL_EDITOR_MEDICAL_APPROVED_SHA256` lists final composed PDF checksums explicitly approved by a specialist. Both lists are comma-separated and default to empty. The Ingestion image installs a Unicode font. `SURVIVAL_EDITOR_FONT_PATH` can point to a compatible TrueType font for a local installation.
+
+Phase 5 verification includes `document-editor.policy.spec.ts`, the guarded HTTP composition flow in `survival-documents.integration-spec.ts`, and `app/test_document_editor.py` in the Ingestion environment. Run the existing CTMS-051 knowledge and RAG suites on the same test database. Real-corpus evaluation uses the approved document-version and page annotations described in [CTMS-051 retrieval acceptance](CTMS-051-Implementation.md#retrieval-acceptance). Recall@5, grounding and citation correctness require a labeled representative corpus.
+
+A draft holds a PDF and the minimum metadata. Publishing checks the draft revision, metadata, stored bytes and source verification. The Admin web **Xuất bản** action sends `confirmSource: true`. For a source without a rights review, the API records `sourceReviewConfirmed` on the exact version and retains the publisher, publication time and checksum in the publication record. The publish audit includes the confirmation flag and checksum. Verification can also use configured exact HTTPS hostnames, configured PDF SHA-256 digests, or recorded source and internal-use rights for the exact version. URL imports record the final download URL. The worker queues eligible versions from the durable publication event. The optional rights payload requires exact-version licence, evidence and attribution. Medical and translation safeguards still apply. Separate grants are required to distribute or translate the original PDF.
 
 | Action | Transition | Effect |
 | --- | --- | --- |
@@ -48,7 +58,7 @@ Publication rejects older drafts when a newer version has already been published
 | Table or field | Behavior |
 | --- | --- |
 | `survival_documents` | Stable UUID, document revision, monotonic version count, nullable current published version, creator and timestamps. `expectedDocumentRevision` is required for another version. |
-| `survival_document_versions` | Version UUID, parent document, sequential version number, immutable file reference, SHA-256, size, original filename and MIME. Stores version revision, status, metadata, rights, reviewer and publisher, timestamps, processing approval time and lifecycle reason. `expectedRevision` is required to edit, publish, approve processing or archive. |
+| `survival_document_versions` | Version UUID, parent document, sequential version number, immutable file reference, SHA-256, size, original filename and MIME. Stores version revision, status, metadata, rights, reviewer and publisher, timestamps and lifecycle reason. `expectedRevision` is required to edit, publish or archive. The legacy processing-approval timestamp is retained for historical reads. |
 | `metadata` | Required draft fields are `sourceTitle`, `classification` and `locale`. Optional fields include publisher, original language/version, HTTPS source and license URLs, publication/retrieval dates, license type, permission evidence, attribution, change summary and adaptation disclaimer. URL import records the supplied URL and server retrieval timestamp. |
 | `rights` | Review status is `NOT_REVIEWED`, `REVIEW_REQUIRED`, `PERMITTED` or `RESTRICTED`. Stores confirmation and use flags for AI, offline distribution and translation, medical review status `NOT_REVIEWED`, `APPROVED` or `REJECTED`, and exact-version evidence. |
 | `survival_document_uploads` | Durable reservation links to its version on commit. Compensation removes unlinked reservations and files after failures. Hourly cleanup retries unlinked reservations older than 24 hours with database row locks. |
@@ -73,7 +83,7 @@ Routes use `/api/admin/survival-documents` as the base and require JWT authentic
 | POST | `/:id/versions/import-url` | JSON URL import with `expectedDocumentRevision`. |
 | GET | `/:id/versions/:versionId/file` | Admin-only PDF attachment with checksum verification, no-store and nosniff headers. |
 | PATCH | `/:id/versions/:versionId/metadata` | `{ expectedRevision, metadata }` with the full updated draft metadata. |
-| POST | `/:id/versions/:versionId/publish` | `{ expectedRevision, rights?, reason? }`. The Admin UI sends the revision only. Optional rights supplied by API callers are verified against version metadata. |
+| POST | `/:id/versions/:versionId/publish` | `{ expectedRevision, rights?, reason? }`. Rights supplied on publication are verified against exact-version metadata. |
 | POST | `/:id/versions/:versionId/archive` | `{ expectedRevision, reason }` with a nonblank reason. |
 
 Use the latest revision returned by the API. Invalid metadata, PDF or rights can return HTTP 422, oversized files return HTTP 413, and stale revisions or illegal transitions return HTTP 409 with `SOURCE_CONFLICT`. Duplicate responses use the specific codes in the ingestion table.
@@ -91,7 +101,7 @@ Example URL import body with minimum metadata. For a local upload, send the same
 }
 ```
 
-Example API publication with optional verified rights for a fictional non-medical source. Direct Admin publication sends only the latest `expectedRevision`.
+Example API publication with verified rights for a fictional non-medical source. For a source covered by configuration, a publish request can use the latest `expectedRevision` alone.
 
 ```json
 {

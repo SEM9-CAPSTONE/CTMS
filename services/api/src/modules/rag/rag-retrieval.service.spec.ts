@@ -16,7 +16,7 @@ import type { RagChunk } from "./rag.types";
 const actor = { userId: "camper", roles: [UserRole.CAMPER], status: UserStatus.ACTIVE };
 const query = { question: "Cách kiểm tra lều trại?", locale: "vi" };
 
-function chunk(chunkId: string, content: string, score = 0.95): RagChunk {
+function chunk(chunkId: string, content: string, score = 0.95, locale = "vi"): RagChunk {
 	return {
 		chunkId,
 		chunkIndex: 0,
@@ -30,7 +30,7 @@ function chunk(chunkId: string, content: string, score = 0.95): RagChunk {
 			sourceVersion: 1,
 			checksum: "a".repeat(64),
 			chunkSetId: "set",
-			locale: "vi",
+			locale,
 			sourceTitle: "Fixture",
 			classification: Classification.TREKKING_SAFETY,
 			embeddingModel: EMBEDDING_MODEL,
@@ -118,10 +118,60 @@ describe("RagRetrievalService", () => {
 			metrics: { candidateCount: 4, selectedCount: 1 },
 		});
 		expect(JSON.parse(result.context)).toEqual([
-			{ chunkId: "a", headings: [], content: evidence.content },
+			{ chunkId: "a", locale: "vi", headings: [], content: evidence.content },
 		]);
 		expect(count).toHaveBeenCalledWith([result.context.slice(1, -1)], 2500);
-		expect(revalidate).toHaveBeenCalledWith([evidence], "vi", 2000);
+		expect(revalidate).toHaveBeenCalledWith(
+			[evidence],
+			expect.objectContaining({ sourceLocales: ["vi", "vi-VN", "en"], databaseTimeoutMs: 2000 })
+		);
+	});
+
+	it.each([
+		["vi", "en", "Đọc bản đồ và la bàn thế nào?", "Read the map and compass before the hike."],
+		["en", "vi", "How do I use a map and compass?", "Đọc bản đồ và la bàn trước chuyến đi."],
+		["vi", "vi-VN", "Đọc bản đồ và la bàn thế nào?", "Đọc bản đồ và la bàn trước chuyến đi."],
+		["en", "en", "How do I use a map and compass?", "Read the map and compass before the hike."],
+	] as const)(
+		"retrieves %s to %s and keeps the source locale",
+		async (locale, sourceLocale, question, content) => {
+			const { service, search } = setup({ RAG_LOCALES: locale, RAG_SOURCE_LOCALES: sourceLocale });
+			const evidence = chunk("passage", content, 0.93, sourceLocale);
+			search.mockResolvedValue({ candidates: [evidence], candidateCount: 1 });
+			expect(await service.retrieve(actor, { question, locale })).toMatchObject({
+				status: "GROUNDED",
+				selectedChunks: [evidence],
+				sources: [{ locale: sourceLocale }],
+			});
+			expect(search).toHaveBeenCalledWith(
+				[1],
+				expect.objectContaining({ sourceLocales: [sourceLocale] })
+			);
+		}
+	);
+
+	it("selects a mixed corpus and rejects a high-score heading-only or partial concept match", async () => {
+		const { service, search, count } = setup({ RAG_CROSS_LINGUAL_MIN_SCORE: "0.87" });
+		const vi = chunk("vi", "Đọc bản đồ và la bàn trước chuyến đi.", 0.91);
+		const en = chunk("en", "Check the map and compass before leaving.", 0.9, "en");
+		en.source = { ...en.source, documentId: "en", chunkSetId: "en" };
+		const headingOnly = {
+			...chunk("noise", "Check the weather.", 1, "en"),
+			headings: ["Map and compass"],
+		};
+		const candidates = [
+			headingOnly,
+			chunk("partial", "Carry a map on every hike.", 0.99, "en"),
+			chunk("disallowed", "Map and compass.", 0.98, "en-GB"),
+			vi,
+			en,
+			chunk("weak", "Carry a map and compass.", 0.86, "en"),
+		];
+		count.mockResolvedValue([9, 20]);
+		search.mockResolvedValue({ candidates, candidateCount: candidates.length });
+		expect(
+			await service.retrieve(actor, { ...query, question: "Đọc bản đồ và la bàn thế nào?" })
+		).toMatchObject({ selectedChunks: [vi, en], sources: [vi.source, en.source] });
 	});
 
 	it("applies both server-owned Top-K and source limits before tokenization", async () => {
@@ -214,4 +264,14 @@ describe("RagRetrievalService", () => {
 			expect(embed).not.toHaveBeenCalled();
 		}
 	);
+});
+
+it("applies independent score floors after matching question and source languages", async () => {
+	const { service, search } = setup();
+	const vi = chunk("vi", "Đọc bản đồ và la bàn.", 0.79);
+	const en = chunk("en", "Read the map and compass.", 0.76, "en");
+	search.mockResolvedValue({ candidates: [vi, en], candidateCount: 2 });
+	expect(
+		await service.retrieve(actor, { ...query, question: "Đọc bản đồ và la bàn thế nào?" })
+	).toMatchObject({ selectedChunks: [en] });
 });
