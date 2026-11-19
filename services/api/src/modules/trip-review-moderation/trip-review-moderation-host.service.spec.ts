@@ -326,4 +326,127 @@ describe("TripReviewModerationHostService", () => {
 			);
 		});
 	});
+
+	describe("getModerationDetail", () => {
+		const detailRow = {
+			id: "rev-detail-1",
+			tripId: "trip-1",
+			tripTitle: "Khám phá bán đảo Sơn Trà",
+			reviewerId: "camper-1",
+			reviewerName: "Nguyễn Minh Anh",
+			hostId: "host-1",
+			rating: 2,
+			comment: "Nội dung bị gắn cờ",
+			images: ["/uploads/trip-reviews/evidence.jpg"],
+			revision: 2,
+			createdAt: new Date("2026-11-18T10:00:00Z"),
+			moderationStatus: "hidden",
+			imageStorageState: "quarantined",
+			hiddenReason: "profanity_or_insult",
+			hiddenAt: new Date("2026-11-18T11:00:00Z"),
+			firstHiddenAt: new Date("2026-11-18T11:00:00Z"),
+			hiddenSource: "ai",
+			moderationVerificationStatus: "verified",
+		};
+
+		it("returns full moderation detail for the owning host", async () => {
+			mockDataSource.query
+				.mockResolvedValueOnce([detailRow])
+				.mockResolvedValueOnce([
+					{
+						id: "flag-1",
+						reviewId: "rev-detail-1",
+						flagType: "profanity_or_insult",
+						channel: "text",
+						detectionSource: "model",
+						confidence: 0.91,
+						evidence: "Ngôn từ xúc phạm",
+						quote: "nội dung vi phạm",
+						targetImageIndex: null,
+						createdAt: new Date("2026-11-18T11:00:00Z"),
+					},
+				])
+				.mockResolvedValueOnce([]) // admin reports
+				.mockResolvedValueOnce([]); // latest decisions
+
+			const detail = await service.getModerationDetail("host-1", "rev-detail-1");
+			expect(detail.reviewId).toBe("rev-detail-1");
+			expect(detail.hiddenSource).toBe("ai");
+			expect(detail.moderationVerificationStatus).toBe("verified");
+			expect(detail.adminActioned).toBe(false);
+			expect(detail.activeFlags).toHaveLength(1);
+			expect(detail.activeFlags[0].confidence).toBe(0.91);
+		});
+
+		it("throws ForbiddenException when another host requests the review detail", async () => {
+			mockDataSource.query.mockResolvedValueOnce([detailRow]);
+
+			await expect(service.getModerationDetail("other-host", "rev-detail-1")).rejects.toThrow(
+				ForbiddenException
+			);
+		});
+
+		it("throws NotFoundException when the review does not exist", async () => {
+			mockDataSource.query.mockResolvedValueOnce([]);
+
+			await expect(service.getModerationDetail("host-1", "missing-review")).rejects.toThrow(
+				NotFoundException
+			);
+		});
+	});
+
+	describe("unverified fallback decisions", () => {
+		const unverifiedReview = {
+			id: "rev-unv-1",
+			tripId: "trip-1",
+			tripTitle: "Chuyến đi test",
+			reviewerId: "camper-1",
+			hostId: "host-1",
+			rating: 2,
+			comment: "Nội dung chưa xác minh",
+			images: [],
+			revision: 1,
+			createdAt: new Date(),
+			moderationStatus: "visible",
+			imageStorageState: "live",
+			hiddenReason: null,
+			moderationVerificationStatus: "unverified",
+		};
+
+		it("allows host to hide an unverified review without requiring active AI flags", async () => {
+			mockManager.query
+				.mockResolvedValueOnce([unverifiedReview])
+				.mockResolvedValueOnce([]) // resolve active flags
+				.mockResolvedValueOnce([{ id: "decision-unv-hide", created_at: new Date() }])
+				.mockResolvedValueOnce([]); // UPDATE trip_reviews
+
+			const result = await service.recordDecision("host-1", "rev-unv-1", {
+				expectedRevision: 1,
+				decision: ModerationDecisionAction.HIDE,
+				reason: "profanity_or_insult",
+			});
+
+			expect(result.decision).toBe("hide");
+			expect(result.moderationStatus).toBe("hidden");
+		});
+
+		it("marks unverified review as verified when host keeps it", async () => {
+			mockManager.query
+				.mockResolvedValueOnce([unverifiedReview])
+				.mockResolvedValueOnce([]) // resolve active flags
+				.mockResolvedValueOnce([{ id: "decision-unv-keep", created_at: new Date() }])
+				.mockResolvedValueOnce([]); // UPDATE moderation_verification_status = 'verified'
+
+			const result = await service.recordDecision("host-1", "rev-unv-1", {
+				expectedRevision: 1,
+				decision: ModerationDecisionAction.KEEP,
+			});
+
+			expect(result.decision).toBe("keep");
+			expect(mockManager.query).toHaveBeenCalledWith(
+				expect.stringContaining("moderation_verification_status = 'verified'"),
+				["rev-unv-1"]
+			);
+		});
+	});
 });

@@ -46,6 +46,23 @@ export class TripReviewModerationHostController {
 		return this.service.getQueue(req.user.userId, query);
 	}
 
+	@Get(":reviewId/moderation-detail")
+	@ApiOperation({
+		summary: "Get single-review moderation detail for notification deep-link handling",
+	})
+	@ApiResponse({
+		status: 200,
+		description: "Returns review moderation detail with flags, status, and latest decision",
+	})
+	@ApiResponse({ status: 403, description: "Host does not own this trip" })
+	@ApiResponse({ status: 404, description: "Review not found" })
+	async getModerationDetail(
+		@Req() req: AuthenticatedRequest,
+		@Param("reviewId", ID_PIPE) reviewId: string
+	) {
+		return this.service.getModerationDetail(req.user.userId, reviewId);
+	}
+
 	@Post(":reviewId/decisions")
 	@ApiOperation({ summary: "Record host moderation decision (keep, hide, or restore)" })
 	@ApiResponse({

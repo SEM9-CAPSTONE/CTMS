@@ -6,6 +6,8 @@ const REVIEW_COLUMNS = `id, booking_id AS "bookingId", member_id AS "memberId",
 	reviewer_id AS "reviewerId", trip_id AS "tripId", host_id AS "hostId", target,
 	target_id AS "targetId", rating, comment, images, revision,
 	moderation_status AS "moderationStatus", hidden_reason AS "hiddenReason",
+	first_hidden_at AS "firstHiddenAt", hidden_source AS "hiddenSource",
+	moderation_verification_status AS "moderationVerificationStatus",
 	image_storage_state AS "imageStorageState",
 	created_at AS "createdAt", updated_at AS "updatedAt"`;
 
