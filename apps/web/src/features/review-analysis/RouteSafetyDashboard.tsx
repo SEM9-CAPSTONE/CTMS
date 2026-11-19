@@ -1,12 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import {
 	AlertCircle,
-	AlertTriangle,
 	ChevronDown,
 	ChevronLeft,
 	ChevronRight,
 	ChevronUp,
-	HelpCircle,
 	Info,
 	Loader2,
 	Quote,
@@ -75,12 +73,12 @@ export function RouteSafetyDashboard({
 			{/* Mandatory Safety Copywriting Disclaimer Banner */}
 			<div
 				role="note"
-				className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-xs text-amber-950 sm:text-sm"
+				className="flex items-start gap-3 rounded-2xl border border-[#dfe8df] bg-[#f9faf8] p-4 text-xs text-[#374151] sm:text-sm"
 			>
-				<Info className="mt-0.5 size-5 shrink-0 text-amber-700" />
+				<Info className="mt-0.5 size-5 shrink-0 text-[#164027]" />
 				<div>
-					<p className="font-semibold text-amber-900">Lưu ý quan trọng</p>
-					<p className="mt-0.5 leading-5">{routeSafetyDisclaimer}</p>
+					<p className="font-semibold text-[#10221b]">Lưu ý quan trọng</p>
+					<p className="mt-0.5 leading-5 text-[#4b5563]">{routeSafetyDisclaimer}</p>
 				</div>
 			</div>
 
@@ -94,10 +92,6 @@ export function RouteSafetyDashboard({
 							📍 Dữ liệu gộp trên toàn bộ cung đường
 						</span>
 					</div>
-					<p className="mt-1 text-xs text-[#4b5563]">
-						Phân tích các phản ánh của người tham gia về sự cố và lưu ý phòng ngừa theo từng cung
-						đường.
-					</p>
 				</div>
 				{embedded && (
 					<button
@@ -214,22 +208,23 @@ export function RouteSafetyDashboard({
 									</div>
 
 									{/* Distinct Reviews Metrics */}
-									<div className="mt-3 flex flex-wrap gap-2.5 pt-2 border-t border-[#e6eee6] text-xs">
-										<span className="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 px-2.5 py-1 font-medium text-rose-900">
-											<span className="font-bold">{route.totalDistinctReviewsWithIncidents}</span>{" "}
+									<div className="mt-3 flex flex-wrap gap-2 pt-2 border-t border-[#dfe8df] text-xs">
+										<span className="inline-flex items-center gap-1.5 rounded-lg border border-[#dfe8df] bg-[#f9faf8] px-2.5 py-1 font-medium text-[#374151]">
+											<strong className="font-bold text-[#10221b]">
+												{route.totalDistinctReviewsWithIncidents}
+											</strong>{" "}
 											đánh giá mô tả sự cố
 										</span>
-										<span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1 font-medium text-amber-900">
-											<span className="font-bold">{route.totalDistinctReviewsWithWarnings}</span>{" "}
+										<span className="inline-flex items-center gap-1.5 rounded-lg border border-[#dfe8df] bg-[#f9faf8] px-2.5 py-1 font-medium text-[#374151]">
+											<strong className="font-bold text-[#10221b]">
+												{route.totalDistinctReviewsWithWarnings}
+											</strong>{" "}
 											đánh giá có cảnh báo phòng ngừa
-										</span>
-										<span className="text-[11px] text-[#728070] self-center">
-											(Mỗi đánh giá có thể đề cập nhiều vấn đề, không cộng dồn các mục)
 										</span>
 									</div>
 
 									{!route.hasSufficientSample && (
-										<p className="mt-3 rounded-lg bg-amber-50 p-2.5 text-xs text-amber-900">
+										<p className="mt-3 rounded-lg border border-amber-200 bg-amber-50/80 p-2.5 text-xs text-amber-900">
 											Cần tối thiểu {threshold} đánh giá hợp lệ để dữ liệu có độ đại diện cao hơn.
 											Hiện tại số liệu chỉ phản ánh ghi nhận ban đầu.
 										</p>
@@ -239,10 +234,32 @@ export function RouteSafetyDashboard({
 								{/* Signals List */}
 								{isRouteOpen && (
 									<div className="divide-y divide-[#dfe8df] p-4 sm:p-5">
-										<p className="pb-3 text-[11px] italic text-[#556955]">
-											* Thanh phân bố thể hiện tỷ lệ giữa các phản ánh sự cố thực tế và cảnh báo
-											phòng ngừa, không đo lường mức độ nghiêm trọng.
-										</p>
+										{/* Clear Mini Legend */}
+										<div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-[#dfe8df] bg-[#f9faf8] px-3.5 py-2 text-xs text-[#4b5563]">
+											<span className="font-bold text-[#10221b]">Quy ước màu:</span>
+											<span className="inline-flex items-center gap-1.5 font-medium text-rose-900">
+												<span
+													className="size-2.5 rounded-full bg-rose-600 shrink-0"
+													aria-hidden="true"
+												/>
+												<span>Sự cố thực tế (Đỏ)</span>
+											</span>
+											<span className="inline-flex items-center gap-1.5 font-medium text-emerald-900">
+												<span
+													className="size-2.5 rounded-full bg-emerald-600 shrink-0"
+													aria-hidden="true"
+												/>
+												<span>Lưu ý phòng ngừa (Xanh)</span>
+											</span>
+											<span className="inline-flex items-center gap-1.5 font-medium text-slate-700">
+												<span
+													className="size-2.5 rounded-full bg-slate-400 shrink-0"
+													aria-hidden="true"
+												/>
+												<span>Chưa xác định (Xám)</span>
+											</span>
+										</div>
+
 										{route.incidentSignals.map((signal: IncidentSignalSummary) => {
 											const key = `${route.routeId}-${signal.category}`;
 											const isQuotesOpen = !!expandedQuotes[key];
@@ -252,22 +269,26 @@ export function RouteSafetyDashboard({
 											return (
 												<div key={signal.category} className="py-3.5 first:pt-0 last:pb-0">
 													<div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-														<div className="w-full space-y-1">
+														<div className="w-full space-y-2">
 															<div className="flex items-center gap-2">
 																<span className="text-sm font-bold text-[#10221b]">
 																	{incidentTypeLabels[signal.category] || signal.category}
 																</span>
-																<span className="text-xs text-[#728070]">
+																<span className="text-xs text-[#667a6d]">
 																	({totalMentions} lượt nhắc)
 																</span>
 															</div>
 
-															{/* Stacked Visual Distribution Bar - full width */}
+															{/* Semantic Distribution Bar: Đỏ - Xanh - Xám */}
 															{totalMentions > 0 && (
-																<div className="my-2 flex h-2 w-full overflow-hidden rounded-full bg-[#f0f3ed]">
+																<div
+																	className="my-1.5 flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full bg-[#f1f5f1] p-0.5"
+																	title={`Tổng cộng: ${totalMentions} lượt nhắc`}
+																>
 																	{signal.occurredCount > 0 && (
 																		<div
-																			className="bg-[#c2410c] transition-all"
+																			className="h-full rounded-full bg-rose-600 transition-all hover:opacity-90 cursor-help"
+																			title={`${incidentOccurrenceLabels.yes}: ${signal.occurredCount} (${Math.round((signal.occurredCount / totalMentions) * 100)}%)`}
 																			style={{
 																				width: `${(signal.occurredCount / totalMentions) * 100}%`,
 																			}}
@@ -275,7 +296,8 @@ export function RouteSafetyDashboard({
 																	)}
 																	{signal.warningCount > 0 && (
 																		<div
-																			className="bg-[#0284c7] transition-all"
+																			className="h-full rounded-full bg-emerald-600 transition-all hover:opacity-90 cursor-help"
+																			title={`${incidentOccurrenceLabels.warning}: ${signal.warningCount} (${Math.round((signal.warningCount / totalMentions) * 100)}%)`}
 																			style={{
 																				width: `${(signal.warningCount / totalMentions) * 100}%`,
 																			}}
@@ -283,7 +305,8 @@ export function RouteSafetyDashboard({
 																	)}
 																	{signal.unknownCount > 0 && (
 																		<div
-																			className="bg-[#64748b] transition-all"
+																			className="h-full rounded-full bg-slate-400 transition-all hover:opacity-90 cursor-help"
+																			title={`${incidentOccurrenceLabels.unknown}: ${signal.unknownCount} (${Math.round((signal.unknownCount / totalMentions) * 100)}%)`}
 																			style={{
 																				width: `${(signal.unknownCount / totalMentions) * 100}%`,
 																			}}
@@ -292,28 +315,35 @@ export function RouteSafetyDashboard({
 																</div>
 															)}
 
-															{/* 3 Strict Occurred States */}
-															<div className="flex flex-wrap gap-x-4 gap-y-1 text-xs pt-1">
-																<span className="flex items-center gap-1.5 text-[#7c2d12] font-medium">
-																	<AlertTriangle className="size-3.5 text-[#c2410c]" />
-																	{incidentOccurrenceLabels.yes}:{" "}
-																	<strong className="font-bold text-[#431407]">
+															{/* 3 Strict Occurred States: Đỏ (Rose) - Xanh (Emerald) - Xám (Slate) */}
+															<div className="flex flex-wrap items-center gap-2 pt-0.5 text-xs">
+																<span className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-100 px-2.5 py-1 font-medium text-rose-900">
+																	<span
+																		className="size-2 rounded-full bg-rose-600 shrink-0"
+																		aria-hidden="true"
+																	/>
+																	<span>{incidentOccurrenceLabels.yes}:</span>
+																	<strong className="font-bold text-rose-950">
 																		{signal.occurredCount}
 																	</strong>
 																</span>
-
-																<span className="flex items-center gap-1.5 text-sky-800 font-medium">
-																	<Info className="size-3.5 text-[#0284c7]" />
-																	{incidentOccurrenceLabels.warning}:{" "}
-																	<strong className="font-bold text-sky-950">
+																<span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-100 px-2.5 py-1 font-medium text-emerald-900">
+																	<span
+																		className="size-2 rounded-full bg-emerald-600 shrink-0"
+																		aria-hidden="true"
+																	/>
+																	<span>{incidentOccurrenceLabels.warning}:</span>
+																	<strong className="font-bold text-emerald-950">
 																		{signal.warningCount}
 																	</strong>
 																</span>
-
-																<span className="flex items-center gap-1.5 text-[#334155] font-medium">
-																	<HelpCircle className="size-3.5 text-[#64748b]" />
-																	{incidentOccurrenceLabels.unknown}:{" "}
-																	<strong className="font-bold text-[#0f172a]">
+																<span className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-100 px-2.5 py-1 font-medium text-slate-700">
+																	<span
+																		className="size-2 rounded-full bg-slate-400 shrink-0"
+																		aria-hidden="true"
+																	/>
+																	<span>{incidentOccurrenceLabels.unknown}:</span>
+																	<strong className="font-bold text-slate-900">
 																		{signal.unknownCount}
 																	</strong>
 																</span>
@@ -321,8 +351,8 @@ export function RouteSafetyDashboard({
 
 															{/* Severity Breakdown */}
 															{signal.occurredCount > 0 && (
-																<div className="flex flex-wrap items-center gap-1.5 pt-1.5 text-[11px] text-[#53674d]">
-																	<span className="font-medium text-[#728070]">Mức độ xảy ra:</span>
+																<div className="flex flex-wrap items-center gap-1.5 pt-0.5 text-xs text-[#667a6d]">
+																	<span>Mức độ xảy ra:</span>
 																	{(["minor", "moderate", "severe", "unknown"] as const).map(
 																		(sev: IncidentSeverity) => {
 																			const count = signal.severityBreakdown[sev] ?? 0;
@@ -330,7 +360,7 @@ export function RouteSafetyDashboard({
 																			return (
 																				<span
 																					key={sev}
-																					className="rounded-md bg-slate-100 px-2 py-0.5 font-medium text-slate-800"
+																					className="rounded-md border border-[#dfe8df] bg-[#f9faf8] px-2 py-0.5 text-xs font-medium text-[#374151]"
 																				>
 																					{incidentSeverityLabels[sev]}: {count}
 																				</span>
@@ -346,10 +376,10 @@ export function RouteSafetyDashboard({
 															<button
 																type="button"
 																onClick={() => toggleQuotes(key)}
-																className="inline-flex items-center gap-1 self-start rounded-lg border border-[#dfe8df] bg-white px-2.5 py-1 text-xs font-semibold text-[#164027] hover:bg-[#edf4e8]"
+																className="inline-flex shrink-0 items-center gap-1 self-start rounded-xl border border-[#dfe8df] bg-white px-2.5 py-1 text-xs font-semibold text-[#164027] hover:bg-[#edf4e8] transition"
 															>
-																<Quote className="size-3" />
-																<span>{signal.sampleQuotes.length} trích dẫn mẫu</span>
+																<Quote className="size-3 text-[#164027]" />
+																<span>{signal.sampleQuotes.length} trích dẫn</span>
 																{isQuotesOpen ? (
 																	<ChevronUp className="size-3.5" />
 																) : (
@@ -363,7 +393,7 @@ export function RouteSafetyDashboard({
 													{isQuotesOpen && signal.sampleQuotes.length > 0 && (
 														<div className="mt-3 space-y-2 rounded-xl border border-[#dfe8df] bg-[#fcfdfb] p-3 text-xs">
 															<p className="font-semibold text-[#53674d]">
-																Trích dẫn mẫu từ nội dung đánh giá:
+																Trích dẫn từ nội dung đánh giá:
 															</p>
 															<ul className="space-y-1.5">
 																{signal.sampleQuotes.map((q, idx) => (
@@ -377,9 +407,6 @@ export function RouteSafetyDashboard({
 																	</li>
 																))}
 															</ul>
-															<p className="text-[11px] text-[#728070]">
-																(Tối đa 3 trích dẫn mẫu tiêu biểu do hệ thống tổng hợp)
-															</p>
 														</div>
 													)}
 												</div>

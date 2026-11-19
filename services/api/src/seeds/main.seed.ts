@@ -382,6 +382,14 @@ export async function seedFinancialAdjustments(): Promise<void> {
 					"UPDATE host_wallets SET balance = balance + $1, updated_at = now() WHERE id = $2 RETURNING balance",
 					[net.toFixed(2), walletId]
 				);
+				let balanceAfter = credited.length > 0 ? credited[0].balance : null;
+				if (!balanceAfter) {
+					const w: Array<{ balance: string }> = await manager.query(
+						"SELECT balance FROM host_wallets WHERE id = $1",
+						[walletId]
+					);
+					balanceAfter = w.length > 0 ? w[0].balance : net.toFixed(2);
+				}
 				await manager.query(
 					`INSERT INTO wallet_transactions (id, wallet_id, settlement_id, trip_id, type,
 				 base_amount, fee_amount, net_amount, balance_after, description, created_at)
@@ -396,7 +404,7 @@ export async function seedFinancialAdjustments(): Promise<void> {
 						fee.toFixed(2),
 						net.toFixed(2),
 						scenario.title,
-						credited[0].balance,
+						balanceAfter,
 						paidOut ? 5 : 3,
 					]
 				);
@@ -431,6 +439,14 @@ export async function seedFinancialAdjustments(): Promise<void> {
 						"UPDATE host_wallets SET balance = balance - $1, updated_at = now() WHERE id = $2 RETURNING balance",
 						[net.toFixed(2), walletId]
 					);
+					let debitedBalanceAfter = debited.length > 0 ? debited[0].balance : null;
+					if (!debitedBalanceAfter) {
+						const w: Array<{ balance: string }> = await manager.query(
+							"SELECT balance FROM host_wallets WHERE id = $1",
+							[walletId]
+						);
+						debitedBalanceAfter = w.length > 0 ? w[0].balance : "0.00";
+					}
 					await manager.query(
 						`INSERT INTO wallet_transactions (id, wallet_id, payout_id, trip_id, type,
 					 net_amount, balance_after, description, created_at)
@@ -442,7 +458,7 @@ export async function seedFinancialAdjustments(): Promise<void> {
 							payoutId,
 							tripId,
 							(-net).toFixed(2),
-							debited[0].balance,
+							debitedBalanceAfter,
 						]
 					);
 				}
@@ -1670,6 +1686,27 @@ export type PorterSeedAvailability = "available" | "unavailable";
 export type PorterSeedProficiency = "learning" | "proficient" | "expert";
 export type PorterSeedUserStatus = "active" | "suspended";
 
+export const PORTER_STANDARD_SKILLS = {
+	BASIC_PREPARATION: "Chuẩn bị hành trang",
+	GROUP_FOLLOWING: "Đi theo đoàn",
+	ROUTE_NAVIGATION: "Định hướng trên tuyến",
+	BASIC_FIRST_AID: "Sơ cứu cơ bản",
+	ITINERARY_PLANNING: "Lập kế hoạch hành trình",
+	RESCUE_COORDINATION: "Điều phối cứu hộ",
+} as const;
+
+export interface PorterSeedCertificate {
+	type: "wfa" | "rescue" | "guide_card" | "other";
+	name: string;
+	certificateNumber?: string;
+	issuedBy: string;
+	issueDaysAgo?: number;
+	expiryDaysFromNow: number;
+	fileUrl: string;
+	status: "pending" | "verified" | "rejected";
+	rejectionReason?: string;
+}
+
 export interface PorterSeedFixture {
 	key: string;
 	email: string;
@@ -1688,6 +1725,8 @@ export interface PorterSeedFixture {
 		timesLed: number;
 		routeNames: readonly PorterSeedRouteName[];
 	} | null;
+	certificates?: readonly PorterSeedCertificate[];
+	skills?: readonly string[];
 	conflictingTripTitle?: string;
 }
 
@@ -1748,6 +1787,38 @@ export const PORTER_SEED_FIXTURES: readonly PorterSeedFixture[] = [
 			timesLed: 28,
 			routeNames: PORTER_SEED_ROUTE_NAMES,
 		},
+		certificates: [
+			{
+				type: "wfa",
+				name: "Sơ cấp cứu nơi hoang dã WFA",
+				certificateNumber: "WFA-VN-2024-019",
+				issuedBy: "Hội Chữ thập đỏ Việt Nam",
+				issueDaysAgo: 180,
+				expiryDaysFromNow: 520,
+				fileUrl: "/uploads/certificates/cert-wfa-demo.png",
+				status: "verified",
+			},
+			{
+				type: "rescue",
+				name: "Kỹ thuật cứu hộ đường sông và suối thác",
+				certificateNumber: "RIVER-RES-005",
+				issuedBy: "Trung tâm Đào tạo Cứu hộ Đường thủy",
+				issueDaysAgo: 100,
+				expiryDaysFromNow: 200,
+				fileUrl: "/uploads/certificates/cert-river-rescue-demo.png",
+				status: "rejected",
+				rejectionReason:
+					"Ảnh chụp chứng chỉ bị mờ góc dưới bên phải, không đọc được số hiệu và ngày cấp. Vui lòng chụp lại rõ nét cả 4 góc.",
+			},
+		],
+		skills: [
+			PORTER_STANDARD_SKILLS.ROUTE_NAVIGATION,
+			PORTER_STANDARD_SKILLS.BASIC_FIRST_AID,
+			PORTER_STANDARD_SKILLS.BASIC_PREPARATION,
+			PORTER_STANDARD_SKILLS.GROUP_FOLLOWING,
+			PORTER_STANDARD_SKILLS.ITINERARY_PLANNING,
+			PORTER_STANDARD_SKILLS.RESCUE_COORDINATION,
+		],
 	},
 	{
 		key: "proficient-lead",
@@ -1767,6 +1838,28 @@ export const PORTER_SEED_FIXTURES: readonly PorterSeedFixture[] = [
 			timesLed: 9,
 			routeNames: PORTER_SEED_ROUTE_NAMES,
 		},
+		certificates: [
+			{
+				type: "wfa",
+				name: "Sơ cấp cứu nơi hoang dã WFA",
+				certificateNumber: "WFA-VN-2025-042",
+				issuedBy: "Viện Cứu hộ & Hoang dã Việt Nam",
+				issueDaysAgo: 60,
+				expiryDaysFromNow: 640,
+				fileUrl: "/uploads/certificates/cert-wfa-demo.png",
+				status: "verified",
+			},
+			{
+				type: "other",
+				name: "Kỹ năng sinh tồn và định vị rừng sâu",
+				certificateNumber: "SURV-VN-2026-11",
+				issuedBy: "Hiệp hội Kỹ năng Dã ngoại",
+				issueDaysAgo: 15,
+				expiryDaysFromNow: 365,
+				fileUrl: "/uploads/certificates/cert-survival-demo.png",
+				status: "pending",
+			},
+		],
 	},
 	{
 		key: "learning-support",
@@ -1786,6 +1879,18 @@ export const PORTER_SEED_FIXTURES: readonly PorterSeedFixture[] = [
 			timesLed: 0,
 			routeNames: PORTER_SEED_ROUTE_NAMES,
 		},
+		certificates: [
+			{
+				type: "wfa",
+				name: "Sơ cấp cứu cơ bản (WFA)",
+				certificateNumber: "WFA-VN-2023-007",
+				issuedBy: "Viện Sơ cứu Y tế Cộng đồng",
+				issueDaysAgo: 730,
+				expiryDaysFromNow: -30,
+				fileUrl: "/uploads/certificates/cert-wfa-expired.png",
+				status: "verified",
+			},
+		],
 	},
 	{
 		key: "support-no-qualification",
@@ -1820,6 +1925,38 @@ export const PORTER_SEED_FIXTURES: readonly PorterSeedFixture[] = [
 			timesLed: 41,
 			routeNames: PORTER_SEED_ROUTE_NAMES,
 		},
+		certificates: [
+			{
+				type: "wfa",
+				name: "Sơ cấp cứu nơi hoang dã WFA",
+				certificateNumber: "WFA-VN-2025-089",
+				issuedBy: "Viện Cứu hộ & Hoang dã Việt Nam",
+				issueDaysAgo: 120,
+				expiryDaysFromNow: 550,
+				fileUrl: "/uploads/certificates/cert-wfa-demo.png",
+				status: "verified",
+			},
+			{
+				type: "rescue",
+				name: "Cứu hộ địa hình núi dốc",
+				certificateNumber: "RESCUE-MT-104",
+				issuedBy: "Hội Cứu nạn Ngoài trời Quốc gia",
+				issueDaysAgo: 90,
+				expiryDaysFromNow: 430,
+				fileUrl: "/uploads/certificates/cert-mountain-rescue-demo.png",
+				status: "verified",
+			},
+			{
+				type: "guide_card",
+				name: "Thẻ hướng dẫn viên du lịch quốc tế",
+				certificateNumber: "HDV-QT-7749",
+				issuedBy: "Tổng cục Du lịch",
+				issueDaysAgo: 300,
+				expiryDaysFromNow: 695,
+				fileUrl: "/uploads/certificates/cert-guide-license-demo.png",
+				status: "verified",
+			},
+		],
 	},
 	{
 		key: "unavailable",
@@ -1993,13 +2130,24 @@ export async function cleanDatabase(ds = dataSource): Promise<void> {
 		SELECT string_agg(quote_ident(tablename), ', ') as tablenames
 		FROM pg_tables
 		WHERE schemaname = 'public' 
-		  AND tablename NOT IN ('migrations', 'spatial_ref_sys')
+		  AND tablename NOT IN ('migrations', 'spatial_ref_sys', 'geo_areas')
 	`);
 
 	if (tablesRes.length > 0 && tablesRes[0]?.tablenames) {
 		const tableList = tablesRes[0].tablenames;
 		console.log("[cleanDatabase] 🧹 Truncating all user tables with CASCADE...");
 		await ds.query(`TRUNCATE TABLE ${tableList} RESTART IDENTITY CASCADE`);
+		await ds.query(`
+			INSERT INTO "geo_areas" ("code", "province_code", "province_name", "name", "sort_order") VALUES
+			('DNG-HOA-VANG', '48', 'Thành phố Đà Nẵng', 'Huyện Hòa Vang', 1),
+			('DNG-LIEN-CHIEU', '48', 'Thành phố Đà Nẵng', 'Quận Liên Chiểu', 2),
+			('DNG-NGU-HANH-SON', '48', 'Thành phố Đà Nẵng', 'Quận Ngũ Hành Sơn', 3),
+			('DNG-HAI-CHAU', '48', 'Thành phố Đà Nẵng', 'Quận Hải Châu', 4),
+			('DNG-THANH-KHE', '48', 'Thành phố Đà Nẵng', 'Quận Thanh Khê', 5),
+			('DNG-CAM-LE', '48', 'Thành phố Đà Nẵng', 'Quận Cẩm Lệ', 6),
+			('DNG-SON-TRA', '48', 'Thành phố Đà Nẵng', 'Quận Sơn Trà', 7)
+			ON CONFLICT ("code") DO NOTHING
+		`);
 		console.log(
 			`[cleanDatabase] ✅ Successfully wiped ${tableList.split(",").length} tables clean (RESTART IDENTITY CASCADE).\n`
 		);
@@ -2622,11 +2770,11 @@ export async function seedDevTrips(): Promise<void> {
 					"https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80",
 				tripType: "day_trip",
 				durationNights: 0,
-				startsAt: inDays(4, 7),
-				endsAt: inDays(4, 16),
+				startsAt: inDays(8, 7),
+				endsAt: inDays(8, 16),
 				meetingPointGeom: "SRID=4326;POINT(108.260 16.110)",
-				meetingAt: inDays(4, 6),
-				bookingDeadline: inDays(3, 18),
+				meetingAt: inDays(8, 6),
+				bookingDeadline: inDays(7, 18),
 				capacityMin: 5,
 				capacityMax: 20,
 				seatsTaken: 8,
@@ -4379,7 +4527,10 @@ export const PORTER_LEVEL_DEMO_CRITERIA = {
 		name: "Học việc",
 		minExperienceYears: 0,
 		minTimesLed: 0,
-		requiredSkills: ["Chuẩn bị hành trang", "Đi theo đoàn"],
+		requiredSkills: [
+			PORTER_STANDARD_SKILLS.BASIC_PREPARATION,
+			PORTER_STANDARD_SKILLS.GROUP_FOLLOWING,
+		],
 		requiredCertifications: [],
 		responsibilities: "Hỗ trợ chuẩn bị và theo đoàn dưới sự hướng dẫn của người hỗ trợ phụ trách.",
 	},
@@ -4387,16 +4538,23 @@ export const PORTER_LEVEL_DEMO_CRITERIA = {
 		name: "Thành thạo",
 		minExperienceYears: 2,
 		minTimesLed: 10,
-		requiredSkills: ["Định hướng trên tuyến", "Sơ cứu cơ bản"],
-		requiredCertifications: ["Sơ cứu cơ bản"],
+		requiredSkills: [
+			PORTER_STANDARD_SKILLS.ROUTE_NAVIGATION,
+			PORTER_STANDARD_SKILLS.BASIC_FIRST_AID,
+		],
+		requiredCertifications: ["wfa"],
 		responsibilities: "Hỗ trợ điều phối đoàn, kiểm tra trang bị và xử lý tình huống thông thường.",
 	},
 	expert: {
 		name: "Chuyên gia",
 		minExperienceYears: 5,
 		minTimesLed: 25,
-		requiredSkills: ["Lập kế hoạch hành trình", "Điều phối cứu hộ", "Sơ cứu cơ bản"],
-		requiredCertifications: ["Sơ cứu cơ bản", "Cứu hộ địa hình"],
+		requiredSkills: [
+			PORTER_STANDARD_SKILLS.ITINERARY_PLANNING,
+			PORTER_STANDARD_SKILLS.RESCUE_COORDINATION,
+			PORTER_STANDARD_SKILLS.BASIC_FIRST_AID,
+		],
+		requiredCertifications: ["wfa", "rescue"],
 		responsibilities: "Phụ trách tuyến và phối hợp xử lý tình huống khẩn cấp.",
 	},
 } as const;
@@ -4696,7 +4854,45 @@ async function seedPorterProfileAndAssignments(routeIds: Record<string, string>)
 			]
 		);
 
-		if (fixture.key === "expert-lead") {
+		// Seed porter certificates (CTMS-138)
+		await dataSource.query('DELETE FROM "porter_certificates" WHERE "porter_id" = $1', [porterId]);
+		if (fixture.certificates && fixture.certificates.length > 0) {
+			for (const cert of fixture.certificates) {
+				const isVerified = cert.status === "verified";
+				const isRejected = cert.status === "rejected";
+				await dataSource.query(
+					`INSERT INTO "porter_certificates" (
+						porter_id, type, name, certificate_number,
+						issued_by, issued_date, expiry_date, file_url,
+						status, rejection_reason, verified_by, verified_at
+					) VALUES (
+						$1, $2, $3, $4,
+						$5,
+						CASE WHEN $6::int IS NOT NULL THEN (CURRENT_DATE - ($6 || ' days')::interval)::date ELSE NULL END,
+						(CURRENT_DATE + ($7 || ' days')::interval)::date,
+						$8, $9, $10,
+						$11,
+						CASE WHEN $12::boolean THEN NOW() ELSE NULL END
+					)`,
+					[
+						porterId,
+						cert.type,
+						cert.name,
+						cert.certificateNumber ?? null,
+						cert.issuedBy,
+						cert.issueDaysAgo ?? null,
+						cert.expiryDaysFromNow,
+						cert.fileUrl,
+						cert.status,
+						cert.rejectionReason ?? null,
+						isVerified || isRejected ? adminId : null,
+						isVerified || isRejected,
+					]
+				);
+			}
+		}
+
+		if (fixture.profile) {
 			await dataSource.query(
 				`INSERT INTO "porter_verifications" (porter_id, status, submitted_at, reviewed_at)
 				 VALUES ($1, 'approved', now(), now())
@@ -4705,6 +4901,18 @@ async function seedPorterProfileAndAssignments(routeIds: Record<string, string>)
 					reviewed_at = COALESCE("porter_verifications".reviewed_at, now()),
 					rejection_reason = NULL`,
 				[porterId]
+			);
+		}
+
+		if (fixture.skills && fixture.skills.length > 0) {
+			await dataSource.query(
+				`INSERT INTO "porter_level_evidence" (porter_id, skills, version)
+				 VALUES ($1, $2, 1)
+				 ON CONFLICT (porter_id) DO UPDATE SET
+					skills = EXCLUDED.skills,
+					version = "porter_level_evidence".version + 1,
+					updated_at = NOW()`,
+				[porterId, fixture.skills]
 			);
 		}
 
@@ -4747,6 +4955,42 @@ async function seedPorterProfileAndAssignments(routeIds: Record<string, string>)
 				 ON CONFLICT (trip_id, porter_id) DO UPDATE SET status = 'assigned'`,
 				[tripId, porterId]
 			);
+		}
+
+		// Seed completed led trips for expert-lead (Nguyễn Minh Sơn) so "Lịch sử chuyến đã dẫn" and Host assignment views have data
+		if (fixture.key === "expert-lead") {
+			const completedTripRows: Array<{ id: string; host_id: string }> = await dataSource.query(
+				`SELECT id, host_id FROM trips WHERE status = 'completed' AND title IN (
+					'Sơn Trà – Bình minh trên đỉnh Bàn Cờ',
+					'Sơn Trà – Dạo bước dưới tán rừng',
+					'Trekking Sơn Trà Hoàn Thành - Demo Khiếu Nại',
+					'Chèo SUP Hồ Hòa Trung - Đang giữ 72h',
+					'Chèo kayak sông Cu Đê – Hòa Bắc'
+				) LIMIT 5`
+			);
+
+			for (const cTrip of completedTripRows) {
+				await dataSource.query(
+					`INSERT INTO "trip_porters" (trip_id, porter_id, status)
+					 VALUES ($1, $2, 'assigned')
+					 ON CONFLICT (trip_id, porter_id) DO UPDATE SET status = 'assigned'`,
+					[cTrip.id, porterId]
+				);
+
+				await dataSource.query(
+					`INSERT INTO "porter_requests" (
+						id, trip_id, porter_id, requested_by, requested_role, status, note, expires_at, responded_at, created_at, updated_at
+					) VALUES (
+						gen_random_uuid(), $1, $2, $3, 'lead', 'accepted',
+						'Phụ trách trưởng đoàn dẫn đường và an toàn cho chuyến đi.',
+						NOW() + interval '2 days',
+						NOW() - interval '5 days',
+						NOW() - interval '7 days',
+						NOW() - interval '5 days'
+					) ON CONFLICT (id) DO NOTHING`,
+					[cTrip.id, porterId, cTrip.host_id]
+				);
+			}
 		}
 	}
 }

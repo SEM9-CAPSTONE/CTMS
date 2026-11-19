@@ -89,7 +89,7 @@ describe("PorterProfileForm & PorterProfileHeader", () => {
 			/>
 		);
 
-		const expInput = screen.getByLabelText(/Số năm kinh nghiệm Porter/i);
+		const expInput = screen.getByLabelText(/Số năm kinh nghiệm/i);
 		expect(expInput).toHaveValue(0);
 
 		await user.click(screen.getByTestId("save-porter-profile-button"));
@@ -132,7 +132,7 @@ describe("PorterProfileForm & PorterProfileHeader", () => {
 
 		render(<FormWrapper onSave={onSave} />);
 
-		const expInput = screen.getByLabelText(/Số năm kinh nghiệm Porter/i);
+		const expInput = screen.getByLabelText(/Số năm kinh nghiệm/i);
 		fireEvent.change(expInput, { target: { value: "-5" } });
 		fireEvent.submit(screen.getByTestId("porter-profile-form"));
 

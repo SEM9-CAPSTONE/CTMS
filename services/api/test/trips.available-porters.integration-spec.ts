@@ -279,6 +279,8 @@ describe("CTMS-200 available Porters (integration, real Postgres)", () => {
 				"availabilityStatus",
 				"ratingAvg",
 				"completedTrips",
+				"certificates",
+				"certifications",
 			].sort()
 		);
 

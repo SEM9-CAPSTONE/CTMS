@@ -7,8 +7,9 @@ import { type PorterProfileFormValues, porterProfileSchema } from "../schema/por
 import { porterProfileService } from "../services/porter-profile.service";
 import type { PorterProfile, UpdatePorterProfileInput } from "../types";
 
-const LOAD_ERROR_MESSAGE = "Không thể tải hồ sơ Porter. Vui lòng kiểm tra kết nối và thử lại.";
-const SAVE_ERROR_MESSAGE = "Không thể lưu hồ sơ Porter. Vui lòng kiểm tra lại thông tin.";
+const LOAD_ERROR_MESSAGE =
+	"Không thể tải hồ sơ người hỗ trợ. Vui lòng kiểm tra kết nối và thử lại.";
+const SAVE_ERROR_MESSAGE = "Không thể lưu hồ sơ người hỗ trợ. Vui lòng kiểm tra lại thông tin.";
 
 interface BackendValidationError {
 	field: string;
@@ -69,10 +70,10 @@ function mapProfileError(error: unknown): string {
 		return "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
 	}
 	if (error.status === 403) {
-		return "Bạn không có quyền cập nhật hồ sơ Porter.";
+		return "Bạn không có quyền cập nhật hồ sơ người hỗ trợ.";
 	}
 	if (error.status === 404) {
-		return "Không tìm thấy hồ sơ Porter.";
+		return "Không tìm thấy hồ sơ người hỗ trợ.";
 	}
 	if (error.status === 409) {
 		return "Hồ sơ đã được chỉnh sửa ở phiên khác. Dữ liệu mới nhất đã được tải lại.";
@@ -168,7 +169,7 @@ export function usePorterProfile() {
 			const updated = await porterProfileService.updateProfile(payload);
 			setProfile(updated);
 			form.reset(formValuesFromProfile(updated));
-			setSaveSuccessMessage("Hồ sơ Porter đã được lưu thành công!");
+			setSaveSuccessMessage("Hồ sơ người hỗ trợ đã được lưu thành công!");
 			setTimeout(() => setSaveSuccessMessage(null), 4000);
 		} catch (err) {
 			if (err instanceof HttpError) {

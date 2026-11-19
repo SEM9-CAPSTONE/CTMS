@@ -4,6 +4,7 @@ import {
 	Check,
 	ClipboardCheck,
 	LockKeyhole,
+	ShieldCheck,
 	TicketX,
 } from "lucide-react";
 import { guardedNavigation } from "../../core/navigation-guard";
@@ -17,7 +18,13 @@ interface Props {
 
 export function NotificationRow({ item, onRead, onNavigate }: Props) {
 	const href = item.href === undefined ? (item.tripId ? `/trips/${item.tripId}` : null) : item.href;
-	const icons = { departure: CalendarClock, booking: TicketX, review: ClipboardCheck };
+	const icons = {
+		departure: CalendarClock,
+		booking: TicketX,
+		review: ClipboardCheck,
+		level: ShieldCheck,
+		trip: CalendarClock,
+	};
 	const Icon = href ? icons[item.kind] : LockKeyhole;
 	const content = (
 		<>

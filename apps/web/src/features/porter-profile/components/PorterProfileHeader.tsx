@@ -21,7 +21,7 @@ export function PorterProfileHeader({ profile }: PorterProfileHeaderProps) {
 					<div>
 						<div className="flex items-center gap-2.5">
 							<h1 className="text-2xl font-extrabold tracking-tight text-[#10221b] sm:text-3xl">
-								Hồ sơ nghề nghiệp Porter
+								Hồ sơ người hỗ trợ
 							</h1>
 							<span
 								data-testid="profile-persistence-badge"
@@ -43,7 +43,7 @@ export function PorterProfileHeader({ profile }: PorterProfileHeaderProps) {
 							</span>
 						</div>
 						<p className="mt-1 text-sm text-[#627769]">
-							Quản lý kinh nghiệm, ngôn ngữ, trạng thái nhận ca và năng lực theo từng tuyến.
+							Quản lý kinh nghiệm, ngôn ngữ và trạng thái nhận ca.
 						</p>
 					</div>
 				</div>
