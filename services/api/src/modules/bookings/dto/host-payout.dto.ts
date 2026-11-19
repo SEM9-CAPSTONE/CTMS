@@ -76,6 +76,7 @@ export class HostWalletResponseDto {
 		feeAmount: string;
 		netAmount: string;
 		balanceAfter: string;
+		tripTitle: string | null;
 		description: string;
 		createdAt: Date;
 	}>;

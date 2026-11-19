@@ -12,7 +12,11 @@ import { TrekkingRouteStatus } from "../../trekking-routes/entities/trekking-rou
 import { UserRole } from "../../users/entities/user.entity";
 import type { WeatherSnapshotResponseDto } from "../dto/weather-snapshot-response.dto";
 import type { WeatherSnapshot } from "../entities/weather-snapshot.entity";
-import { WEATHER_PROVIDER, type WeatherProvider } from "../providers/weather-provider.interface";
+import {
+	WEATHER_PROVIDER,
+	type WeatherProvider,
+	WeatherProviderError,
+} from "../providers/weather-provider.interface";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { WeatherSnapshotsRepository } from "../repositories/weather-snapshots.repository";
 
@@ -92,7 +96,7 @@ export class WeatherService {
 			// a reading.
 			await this.weatherSnapshotsRepository.createFailed({ routeId, errorMessage: message });
 			throw new ServiceUnavailableException(
-				"Weather provider is currently unavailable. The failed attempt has been recorded."
+				"Hiện chưa thể tải thông tin thời tiết. Vui lòng thử lại sau."
 			);
 		}
 	}
@@ -133,6 +137,7 @@ export class WeatherService {
 			try {
 				return await this.weatherProvider.fetchCurrent(latitude, longitude);
 			} catch (error) {
+				if (error instanceof WeatherProviderError && !error.retryable) throw error;
 				lastError = error;
 				if (attempt < MAX_ATTEMPTS - 1) {
 					await sleep(BACKOFF_MS[attempt]);

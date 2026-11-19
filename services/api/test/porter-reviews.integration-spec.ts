@@ -327,6 +327,7 @@ describe("CTMS-389 Porter reviews (real PostgreSQL and HTTP)", () => {
 
 		it("batches pending invitations and omits reputation after an invitation is declined", async () => {
 			await create().expect(201);
+			await db.query("UPDATE users SET full_name='Trần Quốc Huy' WHERE id=$1", [secondPorter.id]);
 			await db.query(
 				`INSERT INTO porter_requests(trip_id,porter_id,requested_by,requested_role,status,expires_at)
 				 VALUES ($1,$2,$3,'support','pending',now()+interval '1 hour'),
@@ -337,8 +338,21 @@ describe("CTMS-389 Porter reviews (real PostgreSQL and HTTP)", () => {
 				const list = () => get("trips/porter-requests/host", host).expect(200);
 				const spy = jest.spyOn(db, "query");
 				const two = (await list()).body;
-				expect(byPorter(two, porter.id)).toMatchObject({ reputation: rated });
-				expect(byPorter(two, secondPorter.id)).toMatchObject({ reputation: empty });
+				expect(byPorter(two, porter.id)).toMatchObject({
+					reputation: rated,
+					porterDisplayName: "Nguyễn Minh Sơn",
+				});
+				expect(byPorter(two, secondPorter.id)).toMatchObject({
+					reputation: empty,
+					porterDisplayName: "Trần Quốc Huy",
+				});
+				for (const row of two) {
+					expect(row).not.toHaveProperty("email");
+					expect(row).not.toHaveProperty("phone");
+				}
+				expect(
+					spy.mock.calls.filter(([sql]) => String(sql).includes('AS "porterDisplayName"'))
+				).toHaveLength(1);
 				expect(
 					Object.keys(
 						two.find((row: { porterId: string }) => row.porterId === porter.id).reputation
@@ -352,8 +366,17 @@ describe("CTMS-389 Porter reviews (real PostgreSQL and HTTP)", () => {
 				spy.mockClear();
 				expect(byPorter((await list()).body, secondPorter.id)).not.toHaveProperty("reputation");
 				expect(aggregateCalls(spy)).toHaveLength(1);
+				const otherHost = await account(UserRole.HOST);
+				expect((await get("trips/porter-requests/host", otherHost).expect(200)).body).toEqual([]);
+				await get(`trips/${tripId}/porter-requests`, otherHost).expect(403);
+				const porterList = await get("trips/porter-requests/mine", porter).expect(200);
+				// Names supplement the Host list only, not the Porter's existing response.
+				for (const row of porterList.body) expect(row).not.toHaveProperty("porterDisplayName");
 			} finally {
 				await db.query("DELETE FROM porter_requests WHERE trip_id=$1", [tripId]);
+				await db.query("UPDATE users SET full_name='Nguyễn Minh Sơn' WHERE id=$1", [
+					secondPorter.id,
+				]);
 			}
 		});
 

@@ -186,6 +186,28 @@ void main() {
   }
 
   testWidgets(
+    'opens the keyboard on tap and sends typed input on native iOS',
+    (tester) async {
+      await open(tester);
+      await tester.tap(find.byType(TextField));
+      await tester.pump();
+      expect(tester.testTextInput.isVisible, isTrue);
+
+      tester.testTextInput.enterText(question);
+      await tester.testTextInput.receiveAction(TextInputAction.send);
+      await tester.pumpAndSettle();
+      expect(
+        transport.requests.single.data,
+        containsPair('question', question),
+      );
+      transport.reply(0, answered);
+      await tester.pumpAndSettle();
+      expect(find.text(answerText), findsOneWidget);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
+
+  testWidgets(
     'uses authenticated API, disables duplicate sends and keeps source metadata',
     (tester) async {
       await open(tester);

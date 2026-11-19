@@ -37,7 +37,8 @@ describe("HostWalletPage", () => {
 					feeAmount: "500000.00",
 					netAmount: "9500000.00",
 					balanceAfter: "9500000.00",
-					description: "Quyết toán chuyến đi: Trekking Fansipan",
+					tripTitle: "Khám phá bán đảo Sơn Trà",
+					description: "Quyết toán thành công chuyến đi #a1736fee-62be-4991-9478-a62288e9b80a",
 					createdAt: "2030-05-15T12:00:00Z",
 				},
 			],
@@ -48,7 +49,10 @@ describe("HostWalletPage", () => {
 		expect(await screen.findByText("Ví Host & Quản lý Doanh thu")).toBeInTheDocument();
 		expect((await screen.findAllByText(/9\.500\.000/)).length).toBeGreaterThanOrEqual(1);
 		expect(screen.getByText("Rút toàn bộ số dư")).toBeInTheDocument();
-		expect(screen.getByText("Quyết toán chuyến đi: Trekking Fansipan")).toBeInTheDocument();
+		expect(
+			screen.getByText("Quyết toán thành công chuyến đi: Khám phá bán đảo Sơn Trà")
+		).toBeInTheDocument();
+		expect(screen.queryByText(/a1736fee/)).not.toBeInTheDocument();
 		expect(screen.getByText("Cộng tiền quyết toán chuyến đi")).toBeInTheDocument();
 	});
 

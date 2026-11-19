@@ -2,6 +2,11 @@ import { randomUUID } from "node:crypto";
 import { ConflictException, Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
 import { type EntityManager, QueryFailedError } from "typeorm";
 import {
+	assertAdaptationGrants,
+	assertComposedMedicalReview,
+	isMedicalSource,
+} from "./document-editor.policy";
+import {
 	type EditSourceDto,
 	type ImportSourceDto,
 	type ListSourcesDto,
@@ -32,6 +37,7 @@ import { SurvivalDocumentsRepository, sourceConflict } from "./survival-document
 import {
 	type DocumentListItem,
 	DocumentStatus,
+	MedicalStatus,
 	RightsStatus,
 	type SourceMetadata,
 	type SourceVersion,
@@ -127,9 +133,18 @@ export class SurvivalDocumentsService {
 				(version) => version.id === document.currentPublishedVersionId
 			);
 			const processingBlockedReason = published ? sourceContentIssue(published) : null;
+			const composedVersions: Array<{ id: string }> = await manager.query(
+				`SELECT materialized_version_id AS id FROM survival_document_edit_drafts
+				 WHERE document_id=$1 AND materialized_version_id IS NOT NULL`,
+				[id]
+			);
+			const composed = new Set(composedVersions.map((version) => version.id));
 			return {
 				...document,
-				versions: versions.map(publicVersion),
+				versions: versions.map((version) => ({
+					...publicVersion(version),
+					...(composed.has(version.id) ? { composed: true } : {}),
+				})),
 				history,
 				processingSyncStatus: isEligiblePublishedSource(
 					published,
@@ -187,13 +202,33 @@ export class SurvivalDocumentsService {
 	private requireDocumentRevision(id?: string, expectedDocumentRevision?: number): void {
 		if (id && !expectedDocumentRevision) throw invalidSource("Thiếu số đối chiếu tài liệu.");
 	}
+	async storeComposedDraft(
+		actorId: string,
+		documentId: string,
+		expectedRevision: number,
+		metadata: SourceMetadata,
+		stored: PdfSource,
+		finalize: (manager: EntityManager, versionId: string) => Promise<void>
+	) {
+		validatePublishedSourceMetadata(metadata);
+		return this.storeDraft(
+			actorId,
+			metadata,
+			stored,
+			"compose",
+			documentId,
+			expectedRevision,
+			finalize
+		);
+	}
 	private async storeDraft(
 		actorId: string,
 		metadata: SourceMetadata,
 		stored: PdfSource,
-		action: "upload" | "import_url",
+		action: "upload" | "import_url" | "compose",
 		id?: string,
-		expectedDocumentRevision?: number
+		expectedDocumentRevision?: number,
+		finalize?: (manager: EntityManager, versionId: string) => Promise<void>
 	) {
 		const { checksum, originalFilename } = stored;
 		await this.repo.assertPdfIsNew(this.repo.db.manager, checksum, originalFilename, id);
@@ -260,6 +295,7 @@ export class SurvivalDocumentsService {
 					"UPDATE survival_document_uploads SET version_id=$2 WHERE file_ref=$1",
 					[fileRef, versionId]
 				);
+				await finalize?.(manager, versionId);
 				await this.repo.audit(
 					manager,
 					actorId,
@@ -375,10 +411,24 @@ export class SurvivalDocumentsService {
 			const document = await this.repo.document(manager, documentId, true);
 			const before = await this.repo.version(manager, documentId, versionId);
 			if (before.revision !== dto.expectedRevision) sourceConflict();
+			const [composition]: Array<{
+				baseVersionId: string;
+				snapshot: {
+					baseChecksum: string;
+					sections: Array<{ source?: { checksum: string } }>;
+					reviewBasis: string;
+				};
+			}> = await manager.query(
+				`SELECT base_version_id AS "baseVersionId",snapshot
+				FROM survival_document_edit_drafts WHERE document_id=$1 AND materialized_version_id=$2`,
+				[documentId, versionId]
+			);
 			let status = before.status;
 			switch (action) {
 				case "metadata": {
 					if (status !== DocumentStatus.DRAFT) sourceConflict();
+					if (composition)
+						throw invalidSource("Thông tin PDF biên soạn được lưu cùng bản nháp đã xác nhận.");
 					const metadata = dto.metadata;
 					validateSourceMetadata(metadata);
 					await this.original(manager, metadata);
@@ -400,6 +450,28 @@ export class SurvivalDocumentsService {
 				}
 				case "publish": {
 					if (status !== DocumentStatus.DRAFT) sourceConflict();
+					if (composition) {
+						if (document.currentPublishedVersionId !== composition.baseVersionId) sourceConflict();
+						if (dto.confirmSource !== true)
+							throw invalidSource("Hãy xác nhận xuất bản đúng bản PDF đã biên soạn.");
+						const { baseChecksum, sections } = composition.snapshot;
+						assertAdaptationGrants([
+							baseChecksum,
+							...sections.flatMap((section) => (section.source ? [section.source.checksum] : [])),
+						]);
+						assertComposedMedicalReview(before.metadata.classification, before.checksum);
+						dto.rights = {
+							rightsReviewStatus: RightsStatus.PERMITTED,
+							sourceReviewConfirmed: true,
+							internalRagUseAllowed: true,
+							offlineRedistributionAllowed: false,
+							translationAllowed: false,
+							medicalContentReviewStatus: isMedicalSource(before.metadata.classification)
+								? MedicalStatus.APPROVED
+								: MedicalStatus.NOT_REVIEWED,
+							evidence: before.metadata.permissionEvidence ?? "",
+						};
+					}
 					const newer: Array<{ id: string }> = await manager.query(
 						"SELECT id FROM survival_document_versions WHERE document_id=$1 AND version_number>$2 AND published_at IS NOT NULL",
 						[documentId, before.versionNumber]

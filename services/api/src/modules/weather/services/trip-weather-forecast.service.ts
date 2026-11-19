@@ -30,6 +30,7 @@ import {
 	WEATHER_PROVIDER,
 	type WeatherForecastHour,
 	type WeatherProvider,
+	WeatherProviderError,
 } from "../providers/weather-provider.interface";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import {
@@ -130,7 +131,9 @@ export class TripWeatherForecastService {
 			return await this.computeForecast(trip, trip.hostId, now);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			this.logger.warn(`No trip-date forecast for trip ${tripId}: ${message}`);
+			if (!(error instanceof ServiceUnavailableException)) {
+				this.logger.warn(`No trip-date forecast for trip ${tripId}: ${message}`);
+			}
 			return null;
 		}
 	}
@@ -191,7 +194,7 @@ export class TripWeatherForecastService {
 		);
 		if (hours.length === 0) {
 			throw new ServiceUnavailableException(
-				"Weather provider returned no forecast for the Trip schedule. Please try again."
+				"Chưa có dự báo thời tiết cho thời gian diễn ra chuyến đi. Vui lòng thử lại sau."
 			);
 		}
 
@@ -416,10 +419,13 @@ export class TripWeatherForecastService {
 			);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : "Unknown weather provider error";
-			this.logger.error(`Trip weather forecast failed for trip ${tripId}: ${message}`);
+			// The provider logs an outage once; avoid one error per Trip on search/recommendations.
+			if (!(error instanceof WeatherProviderError) || error.retryable) {
+				this.logger.error(`Trip weather forecast failed for trip ${tripId}: ${message}`);
+			}
 			// BR-229: never fabricate a forecast; nothing is stored for a failed fetch.
 			throw new ServiceUnavailableException(
-				"Weather provider is currently unavailable. Please try again."
+				"Hiện chưa thể tải dự báo thời tiết. Vui lòng thử lại sau."
 			);
 		}
 	}
@@ -430,6 +436,7 @@ export class TripWeatherForecastService {
 			try {
 				return await operation();
 			} catch (error) {
+				if (error instanceof WeatherProviderError && !error.retryable) throw error;
 				lastError = error;
 				if (attempt < MAX_ATTEMPTS - 1) await sleep(BACKOFF_MS[attempt] ?? 1000);
 			}

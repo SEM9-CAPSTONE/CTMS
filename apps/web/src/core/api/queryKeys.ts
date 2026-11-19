@@ -1,4 +1,7 @@
 export const queryKeys = {
+	reputation: {
+		authorized: (scope: readonly unknown[], actor: string) => [...scope, "viewer", actor] as const,
+	},
 	inAppNotifications: {
 		actor: (actor: string) => ["in-app-notifications", actor] as const,
 		list: (actor: string, unread: boolean) =>

@@ -76,9 +76,9 @@ Source update
 
 Existing chunks must not silently change provenance.
 
-V1 remains in history while V2 is generated separately. The active chunk-set pointer changes only after the complete V2 set is persisted. Retrieval consumers must revalidate the current eligible publication; they cannot serve superseded V1 during a V2 rebuild or after stop-use.
+V1 remains in history while V2 gets its own extraction, quality report and chunk set. Compatible vectors can be reused from retained versions of the same document. The active chunk-set pointer changes only after the complete V2 set is persisted. Retrieval consumers must revalidate the current eligible publication; they cannot serve superseded V1 during a V2 rebuild or after stop-use.
 
-The existing worker removes derived sets for superseded versions only after an eligible current active replacement has been READY for `KNOWLEDGE_CHUNK_RETENTION_DAYS` (default 7). Cleanup rechecks identity under the document lock, skips locked documents and leaves sets with restrictive live dependencies in place. Source files, version history and published package snapshots are retained.
+The existing worker removes derived sets for superseded versions only after an eligible current active replacement has been READY for `KNOWLEDGE_CHUNK_RETENTION_DAYS` (default 7). Cleanup rechecks identity under the document lock, skips locked documents and leaves sets with restrictive live dependencies in place. Cleanup deletes shared vectors once the last retained chunk reference is removed. Whole-document deletion removes its shared vectors. Source files, version history and published package snapshots are retained by history cleanup.
 
 The worker periodically reconciles current eligible publications missing a set for the current configuration. It handles already-receipted events and newly verified historical sources. On an isolated local PostgreSQL database ending in `_test`, `pnpm --filter @ctms/api run knowledge:reconcile:test` with `TEST_DATABASE_URL` exercises the same reconciliation.
 
@@ -89,7 +89,7 @@ The worker periodically reconciles current eligible publications missing a set f
 3. Split content according to Technical Design.
 4. Assign deterministic/order-preserving `chunk_index`.
 5. Preserve locale.
-6. Generate embedding.
+6. Resolve each validated chunk's vector from an exact input and configuration match in retained versions of the same document, or encode the distinct inputs that are missing a valid vector.
 7. Associate every chunk with exact source version.
 8. Persist chunk set.
 9. On source update, regenerate against new version.
@@ -120,7 +120,7 @@ Admin endpoints require an active Admin session, under `/api/admin/survival-docu
 | --- | --- |
 | `GET` | HTTP 200 with exact-version chunk-set summaries, state, attempts, automatic recovery indicator, quality issues, configuration and chunk count; HTTP 404 for an unknown document/version pair. |
 
-Publication events enqueue work automatically using consumer-specific receipts. The authenticated internal Python endpoint `POST /knowledge-chunks` accepts exact-version metadata, SHA-256, configuration and PDF bytes as base64. It returns complete chunks and embeddings or a blocking quality result. When the PDF reader cannot establish a page count, the stored quality report contains the issue and a null page count. The worker probes the authenticated `GET /readiness` endpoint before a new recovery round.
+Publication events enqueue work automatically using consumer-specific receipts. The authenticated internal Python endpoint `POST /knowledge-chunks/prepare` accepts exact-version metadata, SHA-256, configuration and PDF bytes as base64. It returns prepared chunks or a blocking quality result. `POST /passage-embeddings` encodes batches of up to 128 distinct cache misses in input order. Both routes use the same ingestion configuration. The existing `POST /knowledge-chunks` still returns complete chunks with vectors for compatibility. When the PDF reader cannot establish a page count, the stored quality report contains the issue and a null page count. The worker probes the authenticated `GET /readiness` endpoint before a new recovery round.
 
 ## 10. Error & Edge Cases
 
@@ -145,6 +145,7 @@ Publication events enqueue work automatically using consumer-specific receipts. 
 | BR-228 | Inspect chunk            | Required fields exist |
 | BR-228 | Source v2 generated      | Chunks reference v2   |
 | BR-228 | Source changes           | Regeneration possible |
+| BR-228 | Version shares exact inputs and has changed heading context | Only misses are encoded. Reused vectors have new chunks with current-version locations. |
 | BR-228 | Concurrent source update | No mixed provenance   |
 | BR-534 | Eligible publication and a rejected publication | Automatic durable delivery only for the committed eligible version |
 | BR-539 | Replayed publication and concurrent consumers | One set for the exact version and configuration |
@@ -160,7 +161,7 @@ Publication events enqueue work automatically using consumer-specific receipts. 
 
 The implemented technical design uses Docling PDF parsing and `HybridChunker`, with the embedding tokenizer and a 480-token total embedding-input budget. Heading context, title and the E5 passage prefix count toward the budget. Merge only adjacent chunks sharing headings/captions; do not split on page boundaries. Preserve tables with Markdown serialization and repeated headers. Preserve ordered procedures together; if a procedure or its critical context must be fragmented, require review. No generated/LLM context and no unconditional token overlap are used.
 
-The initial embedding model is the pinned multilingual `intfloat/multilingual-e5-small` revision, producing 384-dimensional vectors. PostgreSQL stores vectors as `double precision[]`; pgvector indexes and online retrieval belong to CTMS-068. Parser, chunker, model revisions and preprocessing changes require a new pipeline version/configuration identity.
+The initial embedding model is the pinned multilingual `intfloat/multilingual-e5-small` revision, producing 384-dimensional vectors. PostgreSQL stores vectors as `double precision[]`. New chunks reference `knowledge_embeddings` by ID; legacy chunks retain inline vectors and can supply compatible input to a new version. A shared vector is keyed by document ID, configuration hash and SHA-256 of the exact UTF-8 embedding input. The input itself is also checked before reuse. Title and heading changes can produce a miss. Page and chunk indexes are assigned from the current extraction. Parser, chunker, model revisions and preprocessing changes require a new pipeline version/configuration identity.
 
 The first release handles searchable PDFs. OCR-only/blank pages, visual safety content, unverified table headers, missing extracted/native text, missing source locations and low extraction confidence block automatic activation. A report distinguishes observed source conditions such as encryption from extraction or chunking gaps when the evidence supports that distinction. Quality checks are conservative evidence checks, not a guarantee that PDF interpretation is clinically or professionally correct.
 

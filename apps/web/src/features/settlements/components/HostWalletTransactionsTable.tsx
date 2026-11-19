@@ -102,7 +102,7 @@ export function HostWalletTransactionsTable({
 												</span>
 											</td>
 											<td className="py-3.5 px-3 text-[#10221b] max-w-xs truncate">
-												{formatWalletDescription(t.description)}
+												{formatWalletDescription(t.description, t.tripTitle)}
 											</td>
 											<td className="py-3.5 px-3 text-right font-black whitespace-nowrap">
 												<span className={isPositive ? "text-emerald-700" : "text-rose-700"}>

@@ -344,6 +344,8 @@ export interface CreatePorterRequestInput {
 }
 
 export interface PorterRequest {
+	porterDisplayName?: string | null;
+	reputation?: import("../review-reputation/reputation").ReviewReputation;
 	id: string;
 	tripId: string;
 	porterId: string;
@@ -379,6 +381,7 @@ export interface TripHost {
 }
 
 export interface TripDetails {
+	hostReputation?: import("../review-reputation/reputation").ReviewReputation;
 	id: string;
 	hostId: string;
 	host?: TripHost | null;
@@ -478,6 +481,7 @@ export interface PorterTripOperations extends PorterAssignedTrip {
 export type TripPorterAssignmentStatus = "assigned" | "pending_reconfirmation" | "unassigned";
 
 export interface HostPorterAssignment {
+	reputation?: import("../review-reputation/reputation").ReviewReputation;
 	porterId: string;
 	displayName: string | null;
 	email: string | null;

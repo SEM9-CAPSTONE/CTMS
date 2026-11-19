@@ -96,6 +96,7 @@ class _Adapter implements HttpClientAdapter {
         'pagination': {'total': 1, 'totalPages': 1},
       },
       '/api/trips/$_tripId' => _trip(),
+      '/api/trips/$_tripId/images' => <Object?>[],
       '/api/trip-recommendations/trips/$_tripId/explanation' => <String, Object?>{
         'tripTitle': 'Săn mây đỉnh Bà Nà',
         'reasons': ['fitness_match', 'preferred_price'],
@@ -280,6 +281,8 @@ void main() {
       of: find.byType(BottomSheet),
       matching: find.text('Xem chi tiết'),
     );
+    await tester.ensureVisible(sheetDetails);
+    await tester.pumpAndSettle();
     await tester.tap(sheetDetails);
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Quay lại'));
@@ -298,12 +301,13 @@ void main() {
     final adapter = await _pump(tester);
     expect(find.text('Gợi ý chuyến đi dành cho bạn'), findsOneWidget);
     await _openSuggestions(tester);
-    await tester.tap(
-      find.descendant(
-        of: find.byType(BottomSheet),
-        matching: find.text('Xem chi tiết'),
-      ),
+    final sheetDetails = find.descendant(
+      of: find.byType(BottomSheet),
+      matching: find.text('Xem chi tiết'),
     );
+    await tester.ensureVisible(sheetDetails);
+    await tester.pumpAndSettle();
+    await tester.tap(sheetDetails);
     await tester.pumpAndSettle();
     expect(find.text('Vì sao gợi ý chuyến này cho bạn'), findsOneWidget);
     expect(find.text('Phù hợp mức giá bạn chọn · Phù hợp'), findsOneWidget);
@@ -329,6 +333,8 @@ void main() {
     tester,
   ) async {
     final adapter = await _pump(tester);
+    await tester.ensureVisible(find.text('Xem chi tiết').first);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Xem chi tiết').first);
     await tester.pumpAndSettle();
     expect(find.text('Vì sao gợi ý chuyến này cho bạn'), findsNothing);

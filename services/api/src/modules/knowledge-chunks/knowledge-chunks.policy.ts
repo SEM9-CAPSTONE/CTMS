@@ -3,15 +3,25 @@ import {
 	type ChunkSet,
 	IngestionError,
 	MAX_CHUNKS,
+	type PreparedChunkOutput,
 } from "./knowledge-chunks.types";
 
-/** Treat the Python response as untrusted; never accept mismatched provenance or partial vectors. */
-export function validateChunkOutput(raw: unknown, set: ChunkSet): ChunkOutput {
+export function isValidEmbedding(vector: unknown, dimensions: number): vector is number[] {
+	return (
+		Array.isArray(vector) &&
+		vector.length === dimensions &&
+		vector.every((item) => typeof item === "number" && Number.isFinite(item)) &&
+		vector.some((item) => item !== 0)
+	);
+}
+
+/** Validate extraction before any lookup or model call. */
+export function validatePreparedChunkOutput(raw: unknown, set: ChunkSet): PreparedChunkOutput {
 	const invalid = () => {
 		throw new IngestionError("invalid_ingestion_output");
 	};
 	if (!raw || typeof raw !== "object") return invalid();
-	const value = raw as ChunkOutput;
+	const value = raw as PreparedChunkOutput;
 	if (
 		value.document_version_id !== set.document_version_id ||
 		value.source_version !== set.source_version ||
@@ -53,11 +63,7 @@ export function validateChunkOutput(raw: unknown, set: ChunkSet): ChunkOutput {
 			!Array.isArray(chunk.headings) ||
 			chunk.headings.some((heading) => typeof heading !== "string") ||
 			!Array.isArray(chunk.locations) ||
-			!chunk.locations.length ||
-			!Array.isArray(chunk.embedding) ||
-			chunk.embedding.length !== set.configuration.embedding_dimensions ||
-			chunk.embedding.some((item) => typeof item !== "number" || !Number.isFinite(item)) ||
-			!chunk.embedding.some((item) => item !== 0)
+			!chunk.locations.length
 		)
 			return invalid();
 		for (const location of chunk.locations) {
@@ -76,6 +82,18 @@ export function validateChunkOutput(raw: unknown, set: ChunkSet): ChunkOutput {
 			)
 				return invalid();
 		}
+	}
+	return value;
+}
+
+export function validateChunkOutput(raw: unknown, set: ChunkSet): ChunkOutput {
+	const value = validatePreparedChunkOutput(raw, set) as ChunkOutput;
+	if (
+		value.chunks.some(
+			({ embedding }) => !isValidEmbedding(embedding, set.configuration.embedding_dimensions)
+		)
+	) {
+		throw new IngestionError("invalid_ingestion_output");
 	}
 	return value;
 }

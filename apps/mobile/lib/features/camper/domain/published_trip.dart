@@ -1,3 +1,5 @@
+import '../../review_reputation/review_reputation.dart';
+
 class PublishedTrip {
   const PublishedTrip({
     required this.id,
@@ -12,10 +14,19 @@ class PublishedTrip {
     required this.remainingSeats,
     required this.isBookable,
     this.areaName,
+    this.coverImageUrl,
+    this.imageUrls = const [],
+    this.hostReputation,
+    this.hostName,
+    this.loadedForAccount,
   });
 
-  factory PublishedTrip.fromJson(Map<String, Object?> json) {
+  factory PublishedTrip.fromJson(
+    Map<String, Object?> json, {
+    String? loadedForAccount,
+  }) {
     final area = json['area'] as Map<String, Object?>?;
+    final itinerary = json['itinerary'] as Map<String, Object?>?;
     final names = {
       (area?['name'] as String?)?.trim(),
       (area?['provinceName'] as String?)?.trim(),
@@ -33,6 +44,14 @@ class PublishedTrip {
       remainingSeats: (json['remainingSeats'] as num?)?.toInt(),
       isBookable: json['isBookable'] as bool,
       areaName: names.isEmpty ? null : names.join(', '),
+      coverImageUrl: (json['coverImageUrl'] as String?)?.trim(),
+      imageUrls: [
+        for (final image in itinerary?['images'] as List<Object?>? ?? const [])
+          if (image is String && image.trim().isNotEmpty) image.trim(),
+      ],
+      hostReputation: ReviewReputation.fromJson(json['hostReputation']),
+      hostName: (json['host'] as Map?)?['fullName'] as String?,
+      loadedForAccount: loadedForAccount,
     );
   }
 
@@ -48,4 +67,11 @@ class PublishedTrip {
   final int? remainingSeats;
   final bool isBookable;
   final String? areaName;
+  final String? coverImageUrl;
+  final List<String> imageUrls;
+  final ReviewReputation? hostReputation;
+  final String? hostName;
+
+  /// Local ownership metadata; never serialized to the API.
+  final String? loadedForAccount;
 }

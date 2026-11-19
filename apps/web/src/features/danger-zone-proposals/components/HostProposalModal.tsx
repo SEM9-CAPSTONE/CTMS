@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { createPortal } from "react-dom";
 import { Controller, useForm } from "react-hook-form";
 import { Button, Modal } from "../../../shared/components";
 import { SelectField } from "../../../shared/components/SelectField";
@@ -72,7 +73,8 @@ export function HostProposalModal({ route, onClose, onCreated }: Props) {
 		});
 	});
 
-	return (
+	// Escape the route content's stacking context so the sticky heading cannot cover the modal.
+	return createPortal(
 		<Modal
 			isOpen
 			onClose={onClose}
@@ -171,6 +173,7 @@ export function HostProposalModal({ route, onClose, onCreated }: Props) {
 					</Button>
 				</div>
 			</form>
-		</Modal>
+		</Modal>,
+		document.body
 	);
 }

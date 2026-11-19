@@ -92,22 +92,27 @@ export interface ChunkLocation {
 	item_ref: string;
 	bbox: { l: number; t: number; r: number; b: number; coord_origin: string };
 }
-export interface GeneratedChunk {
+export interface PreparedChunk {
 	chunk_index: number;
 	content: string;
 	embedding_text: string;
 	token_count: number;
 	headings: string[];
 	locations: ChunkLocation[];
+}
+export interface GeneratedChunk extends PreparedChunk {
 	embedding: number[];
 }
-export interface ChunkOutput {
+export interface PreparedChunkOutput {
 	document_version_id: string;
 	source_version: number;
 	checksum: string;
 	locale: string;
 	configuration: ChunkConfiguration;
 	quality: { status: "PASSED" | "NEEDS_REVIEW"; issues: string[]; page_count: number };
+	chunks: PreparedChunk[];
+}
+export interface ChunkOutput extends PreparedChunkOutput {
 	chunks: GeneratedChunk[];
 }
 export const PDF_READ_ISSUES = [

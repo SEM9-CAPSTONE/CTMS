@@ -156,6 +156,12 @@ class PorterReviewsController extends ChangeNotifier {
         stale = true;
         final status = failure is ApiException ? failure.statusCode : null;
         inaccessible = status == 404 || status == 403 || status == 401;
+        if (inaccessible) {
+          context = null;
+          porterId = null;
+          _drafts.clear();
+          _pendingWrite = null;
+        }
         error = _message(failure);
       }
       return false;

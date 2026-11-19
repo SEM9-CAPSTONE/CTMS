@@ -10,7 +10,7 @@ from app.knowledge_chunking import compare_pdf_text, low_extraction_confidence, 
 from app.knowledge_models import (
     EMBEDDING_DIMENSIONS, EMBEDDING_MODEL, EMBEDDING_REVISION, MAX_EMBEDDING_TOKENS,
     MAX_PAGES, MAX_PDF_BYTES, EmbeddedChunk,
-    IngestionRequest, IngestionResponse, QualityReport,
+    IngestionRequest, IngestionResponse, PreparedIngestionResponse, QualityReport,
 )
 
 
@@ -87,7 +87,37 @@ class KnowledgeIngestionService:
         finally:
             self._lock.release()
 
+    def embed_passages(self, passages: list[str], dimensions: int) -> list[list[float]]:
+        with self._lock:
+            self._load_model()
+            vectors = self._model.encode(passages, batch_size=16, normalize_embeddings=True,
+                                         show_progress_bar=False).tolist()
+            validate_embeddings(vectors, len(passages), dimensions)
+            return vectors
+
     def generate(self, request: IngestionRequest) -> IngestionResponse:
+        prepared = self.prepare(request)
+        vectors = (self.embed_passages([chunk.embedding_text for chunk in prepared.chunks],
+                                       request.configuration.embedding_dimensions)
+                   if prepared.quality.status == "PASSED" else [])
+        return IngestionResponse(
+            **prepared.model_dump(exclude={"chunks"}),
+            chunks=[EmbeddedChunk(**chunk.model_dump(), embedding=vector)
+                    for chunk, vector in zip(prepared.chunks, vectors, strict=True)],
+        )
+
+    def prepare(self, request: IngestionRequest) -> PreparedIngestionResponse:
+        result, _, _ = self._prepare(request)
+        return result
+
+    def editor_content(self, request: IngestionRequest):
+        from app.document_editor import extract_sections
+        result, document, native_pages = self._prepare(request)
+        if result.quality.status != "PASSED":
+            raise InvalidPdf("editor_extraction_unverified")
+        return extract_sections(document, native_pages, request.title)
+
+    def _prepare(self, request: IngestionRequest):
         try:
             pdf = base64.b64decode(request.pdf_base64, validate=True)
         except ValueError as error:
@@ -139,18 +169,13 @@ class KnowledgeIngestionService:
                                                        request.title, len(native_pages), request.configuration.max_tokens)
                 issues.extend(chunk_issues)
                 issues.extend(compare_pdf_text(native_pages, prepared))
-            vectors = []
-            if not issues:
-                vectors = self._model.encode([chunk.embedding_text for chunk in prepared], batch_size=16,
-                                              normalize_embeddings=True, show_progress_bar=False).tolist()
-                validate_embeddings(vectors, len(prepared), request.configuration.embedding_dimensions)
-            return IngestionResponse(
+            result = PreparedIngestionResponse(
                 **request.model_dump(exclude={"pdf_base64", "title"}),
                 quality=QualityReport(status="NEEDS_REVIEW" if issues else "PASSED",
                                       issues=sorted(set(issues)), page_count=len(native_pages)),
-                chunks=[] if issues else [EmbeddedChunk(**chunk.model_dump(), embedding=vector)
-                                          for chunk, vector in zip(prepared, vectors, strict=True)],
+                chunks=[] if issues else prepared,
             )
+            return result, conversion.document, native_pages
 
 
 def validate_embeddings(vectors: list[list[float]], count: int, dimensions: int) -> None:

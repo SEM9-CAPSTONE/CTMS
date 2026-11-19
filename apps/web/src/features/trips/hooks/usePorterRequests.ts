@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { HttpError, queryKeys } from "../../../core/api";
+import { useAuthorizedRead } from "../../review-reputation/useAuthorizedRead";
 import { tripsService } from "../services/trips.service";
 import type { PorterRequest } from "../types";
 
@@ -36,13 +37,11 @@ export function useHostPorterRequests(tripId: string) {
 }
 
 export function useAllHostPorterRequests() {
-	return useQuery<PorterRequest[], unknown>({
-		queryKey: queryKeys.trips.hostPorterRequests,
-		queryFn: () => tripsService.getHostPorterRequests(),
-		retry: false,
-		staleTime: 15_000,
-		refetchInterval: 15_000,
-	});
+	return useAuthorizedRead<PorterRequest[]>(
+		queryKeys.trips.hostPorterRequests,
+		() => tripsService.getHostPorterRequests(),
+		15_000
+	);
 }
 
 export function useRespondToPorterRequest() {

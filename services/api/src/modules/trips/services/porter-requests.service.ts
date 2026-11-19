@@ -157,6 +157,7 @@ export class PorterRequestsService {
 		const pendingIds = new Set(pending.map(({ id }) => id));
 		return requests.map((request) => ({
 			...toPorterRequestResponse(request),
+			...(request.isOwnedTrip && { porterDisplayName: request.porterDisplayName ?? null }),
 			...(pendingIds.has(request.id) && { reputation: reputationFor(ratings, request.porterId) }),
 		}));
 	}

@@ -29,6 +29,16 @@ The service checks for conflicts before creating a storage reservation. Within a
 
 ## Publication and downstream use
 
+### Version composition
+
+The editor groups native PDF content into top-level heading sections. Nested headings, paragraphs, numbered items and simple tables remain in the section. The private Ingestion service runs CTMS-051 extraction gates first and checks that the editable structure covers native text on every page. Scanned PDFs, diagrams, ambiguous table structures, unsupported text and oversized drafts use the existing PDF/URL path.
+
+`survival_document_edit_drafts` stores base identity and revision, structured sections, proposed changes, confirmation, and the generated version ID. Sections keep exact source checksum, version, page and item references and a content fingerprint. `survival_document_edit_requests` makes write retries converge on one change or generated version. Draft operations and PDF creation use the existing document lock and audit history. A composition is rendered as a complete PDF with CTMS attribution and verified before it goes through existing file admission and duplicate checks.
+
+`SURVIVAL_EDITOR_APPROVED_SHA256` lists exact source PDF checksums with reviewed permission for CTMS to compose, store and process a derived PDF. A deployment records the grant before adding the checksum. `SURVIVAL_EDITOR_MEDICAL_APPROVED_SHA256` lists final composed PDF checksums explicitly approved by a specialist. Both lists are comma-separated and default to empty. The Ingestion image installs a Unicode font. `SURVIVAL_EDITOR_FONT_PATH` can point to a compatible TrueType font for a local installation.
+
+Phase 5 verification includes `document-editor.policy.spec.ts`, the guarded HTTP composition flow in `survival-documents.integration-spec.ts`, and `app/test_document_editor.py` in the Ingestion environment. Run the existing CTMS-051 knowledge and RAG suites on the same test database. Real-corpus evaluation uses the approved document-version and page annotations described in [CTMS-051 retrieval acceptance](CTMS-051-Implementation.md#retrieval-acceptance). Recall@5, grounding and citation correctness require a labeled representative corpus.
+
 A draft holds a PDF and the minimum metadata. Publishing checks the draft revision, metadata, stored bytes and source verification. The Admin web **Xuất bản** action sends `confirmSource: true`. For a source without a rights review, the API records `sourceReviewConfirmed` on the exact version and retains the publisher, publication time and checksum in the publication record. The publish audit includes the confirmation flag and checksum. Verification can also use configured exact HTTPS hostnames, configured PDF SHA-256 digests, or recorded source and internal-use rights for the exact version. URL imports record the final download URL. The worker queues eligible versions from the durable publication event. The optional rights payload requires exact-version licence, evidence and attribution. Medical and translation safeguards still apply. Separate grants are required to distribute or translate the original PDF.
 
 | Action | Transition | Effect |

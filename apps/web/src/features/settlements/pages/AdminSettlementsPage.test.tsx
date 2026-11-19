@@ -1,6 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { toast } from "../../../shared/components/Toast";
 import { AdminSettlementsPage } from "./AdminSettlementsPage";
+
+vi.mock("../../../shared/components/Toast", () => ({
+	toast: { success: vi.fn(), error: vi.fn() },
+}));
 
 vi.mock("../../admin-refunds/hooks/useApproveRefund", () => ({
 	useApproveRefund: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -24,7 +29,13 @@ vi.mock("../../admin-layout/components/AdminLayout", () => ({
 }));
 
 vi.mock("../components/AdminSettlementsTable", () => ({
-	AdminSettlementsTable: () => <div data-testid="settlements-table">Settlements Table</div>,
+	AdminSettlementsTable: ({ onSettle }: { onSettle: (tripId: string) => Promise<void> }) => (
+		<div data-testid="settlements-table">
+			<button type="button" onClick={() => void onSettle("a1736fee-62be-4991-9478-a62288e9b80a")}>
+				Quyết toán
+			</button>
+		</div>
+	),
 }));
 
 vi.mock("../components/AdminPayoutsTable", () => ({
@@ -78,7 +89,16 @@ vi.mock("../../admin-refunds/components/RejectRefundModal", () => ({
 vi.mock("../hooks/useSettlements", () => ({
 	useReconciliationBookings: () => ({ data: { items: [] }, isLoading: false, isError: false }),
 	useAdminSettlements: () => ({
-		data: { items: [], total: 0, totalPages: 1 },
+		data: {
+			items: [
+				{
+					tripId: "a1736fee-62be-4991-9478-a62288e9b80a",
+					tripTitle: "Khám phá bán đảo Sơn Trà",
+				},
+			],
+			total: 1,
+			totalPages: 1,
+		},
 		isLoading: false,
 		refetch: vi.fn(),
 		isFetching: false,
@@ -104,7 +124,7 @@ vi.mock("../hooks/useSettlements", () => ({
 		isPending: false,
 	}),
 	useSettleTrip: () => ({
-		mutateAsync: vi.fn(),
+		mutateAsync: vi.fn().mockResolvedValue({ netAmount: "9500000.00" }),
 		isPending: false,
 	}),
 	useReconcileException: () => ({
@@ -132,6 +152,16 @@ vi.mock("../../admin-refunds/hooks/useAdminRefunds", () => ({
 }));
 
 describe("AdminSettlementsPage", () => {
+	it("uses the trip title in the settlement success toast", async () => {
+		render(<AdminSettlementsPage initialTab="settlements" />);
+		fireEvent.click(screen.getByRole("button", { name: "Quyết toán" }));
+		await waitFor(() =>
+			expect(toast.success).toHaveBeenCalledWith(
+				"Quyết toán thành công chuyến đi “Khám phá bán đảo Sơn Trà”. Đã cộng 9500000.00 ₫ vào ví người tổ chức."
+			)
+		);
+	});
+
 	it("renders page title and 4 tabs without the refund action on the settlement tab", () => {
 		render(<AdminSettlementsPage />);
 
