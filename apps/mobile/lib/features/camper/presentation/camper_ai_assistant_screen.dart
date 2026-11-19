@@ -14,6 +14,7 @@ import '../application/survival_chat_controller.dart';
 import '../data/survival_chat_api.dart';
 import '../data/survival_local_model.dart';
 import 'widgets/ai_answer_feedback_actions.dart';
+import 'widgets/survival_chat_input.dart';
 
 class _ChatMessage {
   const _ChatMessage({
@@ -420,33 +421,15 @@ class _CamperAiAssistantScreenState
                         borderRadius: AppRadius.pillBorderRadius,
                         border: Border.all(color: AppColors.border),
                       ),
-                      child: TextField(
+                      child: SurvivalChatInput(
                         controller: _inputController,
-                        textInputAction: TextInputAction.send,
+                        errorText: _inputError,
                         onChanged: (_) {
                           if (_inputError != null) {
                             setState(() => _inputError = null);
                           }
                         },
                         onSubmitted: _sendMessage,
-                        style: AppTypography.body.copyWith(
-                          color: AppColors.textPrimary,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Hỏi trợ lý sinh tồn...',
-                          errorText: _inputError,
-                          hintStyle: AppTypography.body.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          filled: false,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.lg,
-                            vertical: AppSpacing.sm,
-                          ),
-                        ),
                       ),
                     ),
                   ),
