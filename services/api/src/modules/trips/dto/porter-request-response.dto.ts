@@ -37,6 +37,12 @@ export class PorterRequestAssignmentDto {
 }
 
 export class PorterRequestResponseDto {
+	@ApiPropertyOptional({
+		nullable: true,
+		description: "Display name on the owning Host's invitation list only",
+	})
+	porterDisplayName?: string | null;
+
 	@ApiPropertyOptional({ type: ReviewReputationDto })
 	reputation?: ReviewReputationDto;
 

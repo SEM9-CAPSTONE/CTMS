@@ -13,6 +13,8 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../../shared/components/Button";
 import { ConfirmModal } from "../../../shared/components/ConfirmModal";
+import { ReputationRefreshNotice } from "../../review-reputation/ReputationRefreshNotice";
+import { ReputationSummary } from "../../review-reputation/ReputationSummary";
 import { AvailablePortersPanel } from "../components/AvailablePortersPanel";
 import { PorterRequestCard } from "../components/PorterRequestCard";
 import { formatDateRange } from "../components/TripCard";
@@ -143,14 +145,11 @@ function HostRequestList() {
 					Đang tải yêu cầu...
 				</div>
 			)}
-			{!showInitialLoading && error && (
-				<div
-					role="alert"
-					className="rounded-3xl border border-rose-200 bg-rose-50 p-5 text-sm font-bold text-rose-900"
-				>
-					{error}
-				</div>
-			)}
+			<ReputationRefreshNotice
+				error={query.error}
+				hasData={requests.length > 0}
+				onRetry={() => void query.refetch()}
+			/>
 			{mutationError && !cancelRequest && (
 				<div
 					role="alert"
@@ -312,7 +311,7 @@ function HostAssignedPortersList({ trip }: { trip: HostPorterAssignmentTrip }) {
 				<div className="flex flex-wrap items-center justify-between gap-3">
 					<h2 className="flex items-center gap-2 text-base font-extrabold text-[#10221b]">
 						<UserRound className="size-5 text-[#164027]" />
-						Porter đã phân công ({trip.assignments.length})
+						Người hỗ trợ đã phân công ({trip.assignments.length})
 					</h2>
 					{getAssignmentTripTiming(trip) === "upcoming" && (
 						<Button
@@ -342,13 +341,13 @@ function HostAssignedPortersList({ trip }: { trip: HostPorterAssignmentTrip }) {
 						{trip.assignments.map((assignment) => (
 							<li
 								key={assignment.porterId}
-								className="grid min-h-28 gap-4 rounded-xl border border-[#dfe8df] bg-[#fbfcfb] p-5 md:grid-cols-[56px_minmax(0,1fr)_190px_auto] md:items-center"
+								className="grid min-h-28 gap-3 rounded-xl border border-[#dfe8df] bg-[#fbfcfb] p-5 sm:grid-cols-[56px_minmax(0,1fr)] sm:items-center"
 							>
 								<div className="flex size-14 items-center justify-center rounded-full bg-[#edf1ef] text-[#405148]">
 									<UserRound className="size-7" />
 								</div>
 								<div className="min-w-0">
-									<h3 className="truncate text-sm font-extrabold text-[#10221b]">
+									<h3 className="break-words text-sm font-extrabold text-[#10221b]">
 										{assignment.displayName?.trim() || "Chưa cập nhật tên người dẫn đường"}
 									</h3>
 									{assignment.email && (
@@ -356,12 +355,13 @@ function HostAssignedPortersList({ trip }: { trip: HostPorterAssignmentTrip }) {
 											{assignment.email}
 										</span>
 									)}
+									<ReputationSummary value={assignment.reputation} />
 								</div>
-								<div className="border-[#e2e9e3] text-xs text-[#55685a] md:border-l md:pl-5">
+								<div className="text-xs text-[#55685a] sm:col-start-2">
 									<span className="block font-bold text-[#10221b]">Thời điểm phân công</span>
 									<span className="mt-1 block">{formatAssignmentTime(assignment.assignedAt)}</span>
 								</div>
-								<div className="flex flex-wrap items-center gap-2 md:justify-end">
+								<div className="flex flex-wrap items-center gap-2 sm:col-start-2">
 									<span className="inline-flex items-center gap-1.5 rounded-full bg-[#edf5ee] px-3 py-2 text-xs font-bold text-[#164027]">
 										<CheckCircle2 className="size-3.5" />
 										{assignmentStatusLabels[assignment.status]}
@@ -468,26 +468,39 @@ export function HostPorterRequestsPage({
 	return (
 		<div className="min-h-screen bg-[#f4f7f2] px-4 py-8 sm:px-6">
 			<div className="mx-auto max-w-[1440px] space-y-6">
-				<header className="rounded-3xl border border-[#dfe8df] bg-white p-6 shadow-sm">
-					<div className="flex items-center gap-3">
-						{onBackHome && (
-							<button
-								type="button"
-								aria-label="Quay về Host Dashboard"
-								title="Quay về Host Dashboard"
-								onClick={onBackHome}
-								className="rounded-xl border border-[#d8e2da] p-2.5 text-[#164027] transition hover:bg-[#f6f9f6]"
+				<header className="sticky top-0 z-20 rounded-3xl border border-[#dfe8df] bg-white p-6 shadow-sm">
+					<div className="flex flex-wrap items-center justify-between gap-3">
+						<div className="flex min-w-0 flex-1 items-center gap-3">
+							{onBackHome && (
+								<button
+									type="button"
+									aria-label="Quay về Host Dashboard"
+									title="Quay về Host Dashboard"
+									onClick={onBackHome}
+									className="shrink-0 rounded-xl border border-[#d8e2da] p-2.5 text-[#164027] transition hover:bg-[#f6f9f6]"
+								>
+									<ArrowLeft className="size-5" />
+								</button>
+							)}
+							<h1 className="text-left text-2xl font-extrabold text-[#10221b]">
+								{activeTab === "find"
+									? "Tìm người hỗ trợ chuyến đi"
+									: activeTab === "requests"
+										? "Yêu cầu đã gửi"
+										: "Người hỗ trợ đã phân công"}
+							</h1>
+						</div>
+						{activeTab === "assigned" && (
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => void assignmentTripsQuery.refetch()}
+								className="shrink-0 gap-2"
+								disabled={assignmentTripsQuery.isFetching}
 							>
-								<ArrowLeft className="size-5" />
-							</button>
+								<RefreshCw className="size-4" /> Cập nhật uy tín
+							</Button>
 						)}
-						<h1 className="text-2xl font-extrabold text-[#10221b]">
-							{activeTab === "find"
-								? "Tìm người hỗ trợ chuyến đi"
-								: activeTab === "requests"
-									? "Yêu cầu đã gửi"
-									: "Porter đã phân công"}
-						</h1>
 					</div>
 				</header>
 
@@ -599,116 +612,123 @@ export function HostPorterRequestsPage({
 				{activeTab === "requests" && <HostRequestList />}
 
 				{activeTab === "assigned" && (
-					<div className="grid items-start gap-5 lg:grid-cols-[380px_minmax(0,1fr)] xl:grid-cols-[420px_minmax(0,1fr)]">
-						<section className="rounded-2xl border border-[#dfe8df] bg-white p-5 shadow-sm">
-							<h2 className="text-lg font-extrabold text-[#10221b]">Danh sách chuyến đi</h2>
-							{isLoading ? (
-								<div className="mt-4 flex items-center gap-2 text-xs font-semibold text-[#667a6d]">
-									<Loader2 className="size-4 animate-spin" />
-									Đang tải chuyến đi...
-								</div>
-							) : error ? (
-								<div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-800">
-									<p>{error}</p>
-									<Button size="sm" variant="outline" className="mt-3" onClick={refetchTrips}>
-										Tải lại
-									</Button>
-								</div>
-							) : trips.length === 0 ? (
-								<p className="mt-4 text-xs font-semibold text-[#667a6d]">
-									Chưa có lịch sử phân công Porter.
-								</p>
-							) : (
-								<div className="mt-4 space-y-3">
-									<div className="relative">
-										<Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#667a6d]" />
-										<input
-											type="search"
-											value={tripSearch}
-											onChange={(event) => setTripSearch(event.target.value)}
-											placeholder="Tìm theo tên chuyến đi"
-											className="w-full rounded-xl border border-[#cbd9cd] bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/15"
-										/>
+					<>
+						<ReputationRefreshNotice
+							error={assignmentTripsQuery.error}
+							hasData={Boolean(assignmentTripsQuery.data)}
+							onRetry={() => void assignmentTripsQuery.refetch()}
+						/>
+						<div className="grid items-start gap-5 lg:grid-cols-[380px_minmax(0,1fr)] xl:grid-cols-[420px_minmax(0,1fr)]">
+							<section className="rounded-2xl border border-[#dfe8df] bg-white p-5 shadow-sm">
+								<h2 className="text-lg font-extrabold text-[#10221b]">Danh sách chuyến đi</h2>
+								{isLoading ? (
+									<div className="mt-4 flex items-center gap-2 text-xs font-semibold text-[#667a6d]">
+										<Loader2 className="size-4 animate-spin" />
+										Đang tải chuyến đi...
 									</div>
-									<div
-										className="grid grid-cols-2 gap-2 xl:grid-cols-4"
-										aria-label="Lọc chuyến đi theo thời gian"
-									>
-										{assignmentTripFilters.map((filter) => (
-											<button
-												key={filter.value}
-												type="button"
-												onClick={() => setAssignmentTripFilter(filter.value)}
-												className={`rounded-lg px-2 py-2 text-xs font-bold transition ${
-													assignmentTripFilter === filter.value
-														? "bg-[#164027] text-white"
-														: "bg-[#f1f5f0] text-[#55685a] hover:bg-[#e6eee7]"
-												}`}
-											>
-												{filter.label}
-											</button>
-										))}
+								) : error && !assignmentTripsQuery.data ? (
+									<div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-800">
+										<p>{error}</p>
+										<Button size="sm" variant="outline" className="mt-3" onClick={refetchTrips}>
+											Tải lại
+										</Button>
 									</div>
-									{filteredAssignmentTrips.length === 0 ? (
-										<p className="rounded-xl border border-dashed border-[#cbd9cd] p-4 text-center text-xs font-semibold text-[#667a6d]">
-											Không tìm thấy chuyến đi.
-										</p>
-									) : (
-										<ul className="space-y-2">
-											{filteredAssignmentTrips.map((trip) => {
-												const isSelected = trip.id === selectedTripId;
-												const timing = assignmentTripTimingMeta[getAssignmentTripTiming(trip)];
-												return (
-													<li key={trip.id}>
-														<button
-															type="button"
-															onClick={() => {
-																setSelectedTripId(trip.id);
-																syncSelectedTripToUrl(trip.id, activeTab);
-															}}
-															className={`w-full rounded-xl border p-3 text-left transition ${
-																isSelected
-																	? "border-[#164027] bg-[#edf5ee]"
-																	: "border-[#dfe8df] hover:border-[#9fb4a3] hover:bg-[#f8faf8]"
-															}`}
-														>
-															<div className="flex items-start justify-between gap-3">
-																<span className="min-w-0 truncate text-sm font-extrabold text-[#10221b]">
-																	{trip.title}
+								) : trips.length === 0 ? (
+									<p className="mt-4 text-xs font-semibold text-[#667a6d]">
+										Chưa có lịch sử phân công Porter.
+									</p>
+								) : (
+									<div className="mt-4 space-y-3">
+										<div className="relative">
+											<Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#667a6d]" />
+											<input
+												type="search"
+												value={tripSearch}
+												onChange={(event) => setTripSearch(event.target.value)}
+												placeholder="Tìm theo tên chuyến đi"
+												className="w-full rounded-xl border border-[#cbd9cd] bg-white py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/15"
+											/>
+										</div>
+										<div
+											className="grid grid-cols-2 gap-2 xl:grid-cols-4"
+											aria-label="Lọc chuyến đi theo thời gian"
+										>
+											{assignmentTripFilters.map((filter) => (
+												<button
+													key={filter.value}
+													type="button"
+													onClick={() => setAssignmentTripFilter(filter.value)}
+													className={`rounded-lg px-2 py-2 text-xs font-bold transition ${
+														assignmentTripFilter === filter.value
+															? "bg-[#164027] text-white"
+															: "bg-[#f1f5f0] text-[#55685a] hover:bg-[#e6eee7]"
+													}`}
+												>
+													{filter.label}
+												</button>
+											))}
+										</div>
+										{filteredAssignmentTrips.length === 0 ? (
+											<p className="rounded-xl border border-dashed border-[#cbd9cd] p-4 text-center text-xs font-semibold text-[#667a6d]">
+												Không tìm thấy chuyến đi.
+											</p>
+										) : (
+											<ul className="space-y-2">
+												{filteredAssignmentTrips.map((trip) => {
+													const isSelected = trip.id === selectedTripId;
+													const timing = assignmentTripTimingMeta[getAssignmentTripTiming(trip)];
+													return (
+														<li key={trip.id}>
+															<button
+																type="button"
+																onClick={() => {
+																	setSelectedTripId(trip.id);
+																	syncSelectedTripToUrl(trip.id, activeTab);
+																}}
+																className={`w-full rounded-xl border p-3 text-left transition ${
+																	isSelected
+																		? "border-[#164027] bg-[#edf5ee]"
+																		: "border-[#dfe8df] hover:border-[#9fb4a3] hover:bg-[#f8faf8]"
+																}`}
+															>
+																<div className="flex items-start justify-between gap-3">
+																	<span className="min-w-0 truncate text-sm font-extrabold text-[#10221b]">
+																		{trip.title}
+																	</span>
+																	<span
+																		className={`shrink-0 rounded-md px-2 py-1 text-[11px] font-extrabold ${timing.className}`}
+																	>
+																		{timing.label}
+																	</span>
+																</div>
+																<div className="mt-2 flex items-center justify-between gap-3 text-xs font-semibold text-[#667a6d]">
+																	<span className="inline-flex items-center gap-1.5">
+																		<CalendarDays className="size-3.5" />
+																		{formatAssignmentTripDateRange(trip.startsAt, trip.endsAt)}
+																	</span>
+																	<ChevronRight className="size-4 shrink-0" />
+																</div>
+																<span className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-[#55685a]">
+																	<UserRound className="size-3.5" />
+																	{trip.assignedPorterCount} người hỗ trợ
 																</span>
-																<span
-																	className={`shrink-0 rounded-md px-2 py-1 text-[11px] font-extrabold ${timing.className}`}
-																>
-																	{timing.label}
-																</span>
-															</div>
-															<div className="mt-2 flex items-center justify-between gap-3 text-xs font-semibold text-[#667a6d]">
-																<span className="inline-flex items-center gap-1.5">
-																	<CalendarDays className="size-3.5" />
-																	{formatAssignmentTripDateRange(trip.startsAt, trip.endsAt)}
-																</span>
-																<ChevronRight className="size-4 shrink-0" />
-															</div>
-															<span className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-[#55685a]">
-																<UserRound className="size-3.5" />
-																{trip.assignedPorterCount} Porter
-															</span>
-														</button>
-													</li>
-												);
-											})}
-										</ul>
-									)}
-								</div>
-							)}
-						</section>
+															</button>
+														</li>
+													);
+												})}
+											</ul>
+										)}
+									</div>
+								)}
+							</section>
 
-						{displayedAssignmentTrip ? (
-							<HostAssignedPortersList trip={displayedAssignmentTrip} />
-						) : (
-							!isLoading && !error && <EmptyFutureTab title="Chọn chuyến đi để xem Porter" />
-						)}
-					</div>
+							{displayedAssignmentTrip ? (
+								<HostAssignedPortersList trip={displayedAssignmentTrip} />
+							) : (
+								!isLoading && !error && <EmptyFutureTab title="Chọn chuyến đi để xem Porter" />
+							)}
+						</div>
+					</>
 				)}
 			</div>
 		</div>

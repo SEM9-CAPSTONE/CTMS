@@ -24,6 +24,7 @@ import type { BookingDetails } from "../../booking-details/types";
 import { InitializeBookingMembersPanel } from "../../booking-members/components/InitializeBookingMembersPanel";
 import type { InitializeBookingMembersResponse } from "../../booking-members/types";
 import { PackingListModal } from "../../packing-list/components/PackingListModal";
+import { ReputationSummary } from "../../review-reputation/ReputationSummary";
 import { HostWeatherDecisionCard } from "../../weather-decisions/components/HostWeatherDecisionCard";
 import { useTripDatesWeatherForecast } from "../hooks/useTripDatesWeatherForecast";
 import { type BookTripResponse, type TripDetails, formatTripStatus } from "../types";
@@ -748,7 +749,7 @@ export function TripDetailView({
 								</div>
 								<div className="min-w-0 flex-1">
 									<h4 className="truncate text-sm font-extrabold text-[#10221b]">
-										{trip.host?.fullName || "Host uy tín CTMS"}
+										{trip.host?.fullName || "Chưa cập nhật tên chủ chuyến"}
 									</h4>
 									<div className="mt-0.5 flex items-center gap-1.5">
 										<span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">
@@ -763,6 +764,8 @@ export function TripDetailView({
 									"{trip.host.bio}"
 								</p>
 							)}
+
+							<ReputationSummary value={trip.hostReputation} />
 
 							<div className="mt-3.5 space-y-1.5 border-t border-[#edf3ed] pt-3 text-xs text-[#667a6d]">
 								{trip.host?.email && (

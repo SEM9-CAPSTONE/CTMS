@@ -12,6 +12,7 @@ import '../../../core/widgets/ctms_section_card.dart';
 import '../application/porter_reviews_controller.dart';
 import '../porter_review_strings.dart';
 import 'porter_review_form.dart';
+import '../../review_reputation/reputation_summary.dart';
 
 class PorterReviewsScreen extends ConsumerStatefulWidget {
   const PorterReviewsScreen({super.key, this.bookingId, this.tripTitle});
@@ -322,6 +323,10 @@ class _PorterReviewsScreenState extends ConsumerState<PorterReviewsScreen>
                           },
                   ),
                 const SizedBox(height: AppSpacing.md),
+                if (person?.reputation != null) ...[
+                  ReputationSummary(value: person!.reputation),
+                  const SizedBox(height: AppSpacing.md),
+                ],
                 if (person != null && controller.draft != null)
                   PorterReviewForm(
                     key: ValueKey('form:${controller.bookingId}:${person.id}'),

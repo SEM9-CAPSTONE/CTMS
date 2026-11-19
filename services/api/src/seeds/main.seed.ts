@@ -8520,9 +8520,128 @@ export async function seedInAppNotificationScenarios(ds: DataSource = dataSource
 	);
 }
 
+/** Additive reputation scenarios in the default main seed and the targeted rerun. */
+async function seedReputationScenarios(ds = dataSource): Promise<void> {
+	if (process.env.NODE_ENV === "production") throw new Error("Local reputation data only");
+	const database = new URL(process.env.DATABASE_URL ?? "postgresql://localhost/ctms");
+	if (!["localhost", "127.0.0.1", "[::1]", "postgres"].includes(database.hostname)) {
+		throw new Error("Reputation scenarios require a local database");
+	}
+	if (!ds.isInitialized) await ds.initialize();
+	await ds.transaction(async (manager) => {
+		const accounts: Array<{ id: string; email: string }> = await manager.query(
+			"SELECT id,email FROM users WHERE status='active' AND email IN ('host@ctms.local','camper@ctms.local','porter@ctms.local')"
+		);
+		const host = accounts.find((person) => person.email === "host@ctms.local");
+		const camper = accounts.find((person) => person.email === "camper@ctms.local");
+		const porter = accounts.find((person) => person.email === "porter@ctms.local");
+		if (!host || !camper || !porter) throw new Error("Existing local accounts required");
+		await manager.query(
+			"UPDATE users SET full_name='Nguyễn Thị Mai' WHERE id=$1 AND full_name='Host Ban Mai'",
+			[host.id]
+		);
+		const routes: Array<{ id: string }> = await manager.query(
+			"SELECT id FROM trekking_routes WHERE host_id=$1 ORDER BY (name ILIKE '%Sơn Trà%') DESC,created_at,id LIMIT 1",
+			[host.id]
+		);
+		if (!routes[0]) throw new Error("An existing Host route is required");
+		const others: Array<{ id: string }> = await manager.query(
+			"SELECT id FROM users WHERE role='porter' AND status='active' AND id<>$1 ORDER BY created_at,id LIMIT 1",
+			[porter.id]
+		);
+		if (others[0]) {
+			await manager.query(
+				"UPDATE users SET full_name='Trần Quốc Huy' WHERE id=$1 AND full_name ~ '^Porter [0-9]+$'",
+				[others[0].id]
+			);
+		}
+		for (const scenario of [
+			{ key: 1, title: "Sơn Trà – Bình minh trên đỉnh Bàn Cờ", status: "assigned", rating: 4 },
+			{ key: 2, title: "Sơn Trà – Dạo bước dưới tán rừng", status: "unassigned", rating: 5 },
+		]) {
+			const trip = `d4140000-0000-4000-8000-00000000000${scenario.key}`;
+			const booking = `d4140000-0000-4000-8001-00000000000${scenario.key}`;
+			const member = `d4140000-0000-4000-8002-00000000000${scenario.key}`;
+			await manager.query(
+				`INSERT INTO trips(id,host_id,route_id,title,trip_type,duration_nights,starts_at,ends_at,
+				meeting_point,booking_deadline,capacity_min,capacity_max,seats_taken,price_per_person,status)
+				VALUES($1,$2,$3,$4,'day_trip',0,now()-interval '6 hours',now()-interval '2 hours',
+				ST_GeogFromText('POINT(108.28 16.12)'),now()-interval '2 days',1,12,1,0,'completed')
+				ON CONFLICT(id) DO NOTHING`,
+				[trip, host.id, routes[0].id, scenario.title]
+			);
+			await manager.query(
+				`INSERT INTO bookings(id,trip_id,user_id,num_people,status,payment_status,completed_at,
+				trip_starts_at_snapshot,trip_ends_at_snapshot)
+				SELECT $1,id,$2,1,'completed','not_required',ends_at,starts_at,ends_at FROM trips WHERE id=$3
+				ON CONFLICT(id) DO NOTHING`,
+				[booking, camper.id, trip]
+			);
+			await manager.query(
+				`INSERT INTO booking_members(id,booking_id,user_id,is_primary,member_status,checked_in_at)
+				SELECT $1,id,$2,true,'joined',trip_starts_at_snapshot FROM bookings WHERE id=$3
+				ON CONFLICT(id) DO NOTHING`,
+				[member, camper.id, booking]
+			);
+			for (const person of [porter, ...(scenario.key === 1 ? others : [])]) {
+				await manager.query(
+					"INSERT INTO trip_porters(trip_id,porter_id,status) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
+					[trip, person.id, scenario.status]
+				);
+			}
+			await manager.query(
+				`WITH saved AS (
+				INSERT INTO porter_reviews(booking_id,member_id,reviewer_id,trip_id,porter_id,rating,comment,
+				edit_expires_at,created_at,updated_at)
+				SELECT id,$2,$3,trip_id,$4,$5,'Hướng dẫn rõ ràng, luôn chờ cả đoàn ở điểm nghỉ.',
+				date_trunc('milliseconds',completed_at+interval '24 hours'),
+				completed_at+interval '5 minutes',completed_at+interval '5 minutes' FROM bookings WHERE id=$1
+				ON CONFLICT DO NOTHING RETURNING *)
+				INSERT INTO porter_review_revisions(review_id,revision,rating,comment,recorded_at)
+				SELECT id,revision,rating,comment,updated_at FROM saved`,
+				[booking, member, camper.id, porter.id, scenario.rating]
+			);
+			await manager.query(
+				`INSERT INTO trip_reviews(booking_id,member_id,reviewer_id,trip_id,host_id,target,target_id,
+				rating,comment,created_at,updated_at)
+				SELECT id,$2,$3,trip_id,$4,'host',$4,$5,'Tổ chức chu đáo, lịch trình phù hợp với cả đoàn.',
+				completed_at+interval '5 minutes',completed_at+interval '5 minutes'
+				FROM bookings WHERE id=$1 ON CONFLICT DO NOTHING`,
+				[booking, member, camper.id, host.id, scenario.rating]
+			);
+		}
+		const invitationTrip = "d4140000-0000-4000-8000-000000000003";
+		await manager.query(
+			`INSERT INTO trips(id,host_id,route_id,title,trip_type,duration_nights,starts_at,ends_at,
+			meeting_point,booking_deadline,capacity_min,capacity_max,seats_taken,price_per_person,status)
+			VALUES($1,$2,$3,'Sơn Trà – Hẹn mùa lá mới','day_trip',0,now()+interval '7 days',
+			now()+interval '7 days 6 hours',ST_GeogFromText('POINT(108.28 16.12)'),
+			now()+interval '5 days',1,12,0,0,'published') ON CONFLICT(id) DO NOTHING`,
+			[invitationTrip, host.id, routes[0].id]
+		);
+		for (const person of [porter, ...others]) {
+			await manager.query(
+				`INSERT INTO porter_requests(trip_id,porter_id,requested_by,requested_role,note,status,expires_at)
+				SELECT $1,$2,$3,'support','Hỗ trợ đoàn trên tuyến rừng và nhắc cả đoàn tại các điểm nghỉ.',
+				'pending',now()+interval '2 days'
+				WHERE NOT EXISTS(SELECT 1 FROM porter_requests WHERE trip_id=$1 AND porter_id=$2)`,
+				[invitationTrip, person.id, host.id]
+			);
+		}
+	});
+}
+
 export async function runMasterSeed(): Promise<void> {
 	if (process.env.NODE_ENV === "production") {
 		throw new Error("[seed:master] Refusing to run seed script in production environment!");
+	}
+	if (process.argv.includes("--reputation-only")) {
+		try {
+			await seedReputationScenarios();
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
 	}
 	const standaloneSeed = process.argv.includes("--financial-adjustments-only")
 		? seedFinancialAdjustments
@@ -8779,6 +8898,11 @@ export async function runMasterSeed(): Promise<void> {
 		console.log("👉 [16/16] Seeding safety hotspots (CTMS-116/117/118)...");
 		await seedSafetyHotspotScenarios(dataSource);
 		console.log("✅ Step 16 completed.\n");
+
+		// Run after accounts, routes and review sources; reruns preserve existing user changes.
+		console.log("👉 [17/17] Seeding Host and Porter reputation scenarios...");
+		await seedReputationScenarios(dataSource);
+		console.log("✅ Step 17 completed.\n");
 
 		const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(2);
 

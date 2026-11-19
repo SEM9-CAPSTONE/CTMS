@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_client.dart';
 import '../../../core/api/api_endpoints.dart';
 import '../domain/published_trip.dart';
+import '../../auth/application/auth_controller.dart';
 
 typedef ExploreTripsQuery = ({
   String search,
@@ -19,11 +20,26 @@ typedef ExploreTripsPage = ({
 
 final publishedTripDetailsProvider = FutureProvider.autoDispose
     .family<PublishedTrip, String>((ref, tripId) async {
+      final account = ref.watch(
+        authControllerProvider.select((state) => state.valueOrNull?.id),
+      );
+      var active = true;
+      ref.onDispose(() {
+        active = false;
+      });
       final client = ref.watch(apiClientProvider);
       final response = await client.get<Map<String, Object?>>(
         ApiEndpoints.trips.getById(tripId),
+        expectedUserId: account,
       );
-      final trip = PublishedTrip.fromJson(response.data!);
+      if (!active ||
+          ref.read(authControllerProvider).valueOrNull?.id != account) {
+        throw const FormatException('Phiên đăng nhập đã thay đổi.');
+      }
+      final trip = PublishedTrip.fromJson(
+        response.data!,
+        loadedForAccount: account,
+      );
       if (trip.id != tripId) {
         throw const FormatException('Dữ liệu không khớp với chuyến đi.');
       }
