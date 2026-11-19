@@ -278,3 +278,17 @@ Approved contract: `docs/features/ctms-387-review-intelligence-moderation-contra
 5. **Physical File Quarantine**: Hiding a review isolates image files to `uploads/quarantine/`, preventing direct public access while retaining inspection access for authorized Hosts.
 6. **Admin Override Precedence**: If a review has an associated `content_reports` record with status `actioned`, a Host `restore` action logs the decision but preserves `moderation_status = 'hidden'` with `adminActionedOverride: true`.
 7. **Strict Analytics Filtering**: Layer 3 dashboards include only `target = 'trip'` reviews with `moderation_status = 'visible'`. Safety aggregates enforce `COUNT(DISTINCT review_id)`.
+
+## 16. Extension — CTMS-411 (2026-11-20): AI Auto-Hide Moderation & 24-Hour Post-Hide Edit Window
+
+- **Post-Hide Supplementary Edit Window (24 hours)**:
+  - `trip_reviews` adds `first_hidden_at timestamptz` (set once via `COALESCE(first_hidden_at, clock_timestamp())` on the first transition to `moderation_status = 'hidden'`; never renewed on subsequent edits, re-scans, or hides).
+  - Reviews that have never been hidden retain the original `[created_at, created_at + 24 hours)` edit window.
+  - Reviews currently `hidden` with `first_hidden_at IS NOT NULL` grant a supplementary edit deadline of `max(created_at + 24 hours, first_hidden_at + 24 hours)`.
+  - Review withdrawal/deletion remains out of scope (`No delete endpoint is provided`).
+- **Camper Response Additions**:
+  - `TripReviewResponseDto` additionally exposes `firstHiddenAt`, `hiddenSource` (`'ai' | 'host' | 'admin' | null`), and `moderationVerificationStatus` (`'pending' | 'verified' | 'unverified'`).
+- **Auto-Restore on Clean Re-Scan**:
+  - When a Camper edits an AI-hidden review within the allowed edit window and the AI scan of the new revision produces no active flag exceeding the auto-hide threshold (`> 8000` basis points / `> 0.80`) and no deterministic PII rule flag, the review automatically returns to `moderation_status = 'visible'` and quarantined images are restored, **unless** an Admin `content_reports` record with `status = 'actioned'` exists on that review.
+- **Backward Compatibility**:
+  - Existing `GET /api/host/trip-reviews/moderation-queue` remains intact until the separate UI PR removes the moderation queue tab.

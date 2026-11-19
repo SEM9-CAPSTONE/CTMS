@@ -49,11 +49,13 @@ export class TripReviewsService {
 				...reviewEligibility(participation, now),
 				reviews: (await this.reviews.listOwn(manager, userId, bookingId)).map((review) => {
 					const isHidden = review.moderationStatus === "hidden";
-					const moderationNotice = isHidden ? formatCamperHiddenNotice(review.hiddenReason) : null;
+					const moderationNotice = isHidden
+						? formatCamperHiddenNotice(review.hiddenReason, review.hiddenSource)
+						: null;
 					return {
 						...review,
 						images: review.images ?? [],
-						editExpiresAt: new Date(review.createdAt.getTime() + REVIEW_EDIT_WINDOW_MS),
+						editExpiresAt: this.computeEditExpiresAt(review),
 						canEdit: this.canEdit(participation, review, now),
 						moderationNotice,
 					};
@@ -125,19 +127,29 @@ export class TripReviewsService {
 		});
 	}
 
+	private computeEditExpiresAt(review: TripReviewRecord): Date {
+		const initialDeadlineMs = review.createdAt.getTime() + REVIEW_EDIT_WINDOW_MS;
+		if (review.moderationStatus === "hidden" && review.firstHiddenAt) {
+			const postHideDeadlineMs = review.firstHiddenAt.getTime() + REVIEW_EDIT_WINDOW_MS;
+			return new Date(Math.max(initialDeadlineMs, postHideDeadlineMs));
+		}
+		return new Date(initialDeadlineMs);
+	}
+
 	private canEdit(
 		participation: ReviewParticipation,
 		review: TripReviewRecord,
 		now: Date
 	): boolean {
 		const atCompletion = participation.completedAt;
+		const editExpiresAt = this.computeEditExpiresAt(review);
 		return (
 			atCompletion !== null &&
 			now >= atCompletion &&
 			review.createdAt >= atCompletion &&
 			reviewEligibility(participation, atCompletion).eligible &&
 			now >= review.createdAt &&
-			now.getTime() < review.createdAt.getTime() + REVIEW_EDIT_WINDOW_MS
+			now.getTime() < editExpiresAt.getTime()
 		);
 	}
 

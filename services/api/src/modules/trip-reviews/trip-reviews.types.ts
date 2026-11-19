@@ -3,7 +3,9 @@ import type { BookingStatus } from "../profiles/entities/booking.entity";
 import type {
 	ImageStorageState,
 	ModerationFlagType,
+	ModerationHiddenSource,
 	ModerationStatus,
+	ModerationVerificationStatus,
 } from "../trip-review-moderation/trip-review-moderation.types";
 
 export enum ReviewTarget {
@@ -20,8 +22,15 @@ export const CAMPER_HIDDEN_NOTICE_TEMPLATE =
 export const PUBLIC_HIDDEN_PLACEHOLDER = "Đánh giá này đã bị chủ chuyến ẩn.";
 export const CAMPER_RESTORED_NOTICE = "Chủ chuyến đã khôi phục đánh giá của bạn.";
 
-export function formatCamperHiddenNotice(reason?: string | null): string {
-	return `Chủ chuyến đã ẩn đánh giá này vì cho rằng nội dung vi phạm tiêu chuẩn cộng đồng. Lý do: [${reason ?? "vi phạm tiêu chuẩn cộng đồng"}]`;
+export function formatCamperHiddenNotice(
+	reason?: string | null,
+	hiddenSource?: ModerationHiddenSource | null
+): string {
+	const resolvedReason = reason ?? "vi phạm tiêu chuẩn cộng đồng";
+	if (hiddenSource === "ai") {
+		return `Hệ thống đã tự động ẩn đánh giá này do phát hiện nội dung vi phạm tiêu chuẩn cộng đồng. Lý do: [${resolvedReason}]`;
+	}
+	return `Chủ chuyến đã ẩn đánh giá này vì cho rằng nội dung vi phạm tiêu chuẩn cộng đồng. Lý do: [${resolvedReason}]`;
 }
 
 export enum ReviewIneligibleReason {
@@ -48,6 +57,9 @@ export interface TripReviewRecord {
 	editExpiresAt?: Date;
 	moderationStatus?: ModerationStatus;
 	hiddenReason?: ModerationFlagType | null;
+	firstHiddenAt?: Date | null;
+	hiddenSource?: ModerationHiddenSource | null;
+	moderationVerificationStatus?: ModerationVerificationStatus;
 	imageStorageState?: ImageStorageState;
 	moderationNotice?: string | null;
 	id: string;

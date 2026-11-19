@@ -9534,6 +9534,10 @@ export async function runMasterSeed(): Promise<void> {
 		await seedReputationScenarios(dataSource);
 		console.log("✅ Step 17 completed.\n");
 
+		console.log("👉 [18/18] Seeding AI auto-moderation review scenarios...");
+		await seedAiAutoModerationScenarios(dataSource);
+		console.log("✅ Step 18 completed.\n");
+
 		const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(2);
 
 		console.log("==========================================================================");
@@ -10590,6 +10594,449 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 	console.log(
 		"  - host.blocked@ctms.local / host.suspended@ctms.local (Host@123): bị khoá / đình chỉ tạo Trip"
 	);
+}
+
+/**
+ * Append-only, idempotent seed for CTMS-411 AI auto-moderation scenarios.
+ * Note: Confidence scores (0.79, 0.80, 0.88, 0.91, etc.) are simulated moderation
+ * outputs persisted directly so Host notification & Camper UI states can be verified
+ * without invoking live external AI calls. Re-runs never overwrite existing records.
+ */
+export async function seedAiAutoModerationScenarios(ds: DataSource): Promise<void> {
+	const accounts: Array<{ id: string; email: string }> = await ds.query(
+		"SELECT id, email FROM users WHERE email IN ('host@ctms.local', 'camper@ctms.local', 'admin@ctms.local')"
+	);
+	const host = accounts.find((a) => a.email === "host@ctms.local");
+	const camper = accounts.find((a) => a.email === "camper@ctms.local");
+	const admin = accounts.find((a) => a.email === "admin@ctms.local");
+	if (!host || !camper || !admin) {
+		console.warn("[seed:ai-auto-moderation] Core accounts missing; skipping.");
+		return;
+	}
+
+	const routes: Array<{ id: string }> = await ds.query(
+		`SELECT id FROM trekking_routes
+		 WHERE status = 'active'
+		 ORDER BY created_at ASC
+		 LIMIT 1`
+	);
+	const routeId = routes[0]?.id ?? null;
+
+	type SeedFlag = {
+		flagType:
+			| "profanity_or_insult"
+			| "personal_data_leak"
+			| "spam_or_irrelevant"
+			| "harassment"
+			| "inappropriate_image";
+		channel: "text" | "image";
+		confidence: number;
+		evidence: string;
+		quote: string | null;
+		targetImageIndex: number | null;
+	};
+
+	interface ModerationSeedScenario {
+		index: number;
+		tripTitle: string;
+		rating: number;
+		comment: string;
+		images: string[];
+		createdHoursAgo: number;
+		moderationStatus: "visible" | "hidden";
+		hiddenReason: SeedFlag["flagType"] | null;
+		hiddenSource: "ai" | "host" | "admin" | null;
+		firstHiddenHoursAgo: number | null;
+		imageStorageState: "live" | "quarantined";
+		verificationStatus: "verified" | "unverified";
+		runFailed?: boolean;
+		flags: SeedFlag[];
+		hostNotificationEvent:
+			| "trip.review.auto_hidden"
+			| "trip.review.moderation_flagged"
+			| "trip.review.moderation_unverified"
+			| null;
+		adminActionedReport?: boolean;
+	}
+
+	const scenarios: ModerationSeedScenario[] = [
+		// 1. Clean review (visible, no flags)
+		{
+			index: 1,
+			tripTitle: "Săn mây đỉnh Bàn Cờ buổi sớm",
+			rating: 5,
+			comment:
+				"Cung đường sạch đẹp, hướng dẫn viên chuẩn bị đồ ăn sáng nóng hổi và rất nhiệt tình.",
+			images: [],
+			createdHoursAgo: 6,
+			moderationStatus: "visible",
+			hiddenReason: null,
+			hiddenSource: null,
+			firstHiddenHoursAgo: null,
+			imageStorageState: "live",
+			verificationStatus: "verified",
+			flags: [],
+			hostNotificationEvent: null,
+		},
+		// 2. AI auto-hidden (simulated confidence 0.91 with quarantined image)
+		{
+			index: 2,
+			tripTitle: "Trekking thác Hòa Phú Thành cuối tuần",
+			rating: 2,
+			comment: "Chuyến đi đông người và ảnh chụp tại trạm nghỉ có chi tiết không phù hợp.",
+			images: ["/uploads/trip-reviews/suoi-hoa-review-01.jpg"],
+			createdHoursAgo: 5,
+			moderationStatus: "hidden",
+			hiddenReason: "inappropriate_image",
+			hiddenSource: "ai",
+			firstHiddenHoursAgo: 4,
+			imageStorageState: "quarantined",
+			verificationStatus: "verified",
+			flags: [
+				{
+					flagType: "inappropriate_image",
+					channel: "image",
+					confidence: 0.91,
+					evidence: "Hình ảnh đính kèm chứa nội dung không phù hợp với tiêu chuẩn cộng đồng.",
+					quote: null,
+					targetImageIndex: 0,
+				},
+			],
+			hostNotificationEvent: "trip.review.auto_hidden",
+		},
+		// 3. Exact 0.80 boundary routed to Host (visible + notification)
+		{
+			index: 3,
+			tripTitle: "Khám phá suối Mơ và rừng nguyên sinh",
+			rating: 2,
+			comment: "Lịch trình thay đổi đột ngột khiến cả nhóm bức xúc và trao đổi khá gay gắt.",
+			images: [],
+			createdHoursAgo: 4,
+			moderationStatus: "visible",
+			hiddenReason: null,
+			hiddenSource: null,
+			firstHiddenHoursAgo: null,
+			imageStorageState: "live",
+			verificationStatus: "verified",
+			flags: [
+				{
+					flagType: "profanity_or_insult",
+					channel: "text",
+					confidence: 0.8,
+					evidence: "Nội dung có cách diễn đạt gay gắt ở mức ngưỡng cần chủ chuyến xem xét.",
+					quote: "cả nhóm bức xúc và trao đổi khá gay gắt",
+					targetImageIndex: null,
+				},
+			],
+			hostNotificationEvent: "trip.review.moderation_flagged",
+		},
+		// 4. Below threshold 0.79 routed to Host (visible + notification)
+		{
+			index: 4,
+			tripTitle: "Cắm trại hồ Hòa Trung đón hoàng hôn",
+			rating: 3,
+			comment: "Cảnh hồ đẹp, tiện thể ai cần thuê lều giá rẻ cuối tuần cứ nhắn mình chỉ chỗ.",
+			images: [],
+			createdHoursAgo: 7,
+			moderationStatus: "visible",
+			hiddenReason: null,
+			hiddenSource: null,
+			firstHiddenHoursAgo: null,
+			imageStorageState: "live",
+			verificationStatus: "verified",
+			flags: [
+				{
+					flagType: "spam_or_irrelevant",
+					channel: "text",
+					confidence: 0.79,
+					evidence: "Nội dung có dấu hiệu giới thiệu dịch vụ ngoài chuyến đi.",
+					quote: "ai cần thuê lều giá rẻ cuối tuần cứ nhắn mình chỉ chỗ",
+					targetImageIndex: null,
+				},
+			],
+			hostNotificationEvent: "trip.review.moderation_flagged",
+		},
+		// 5. Multi-flag (simulated 0.75 + 0.88 -> auto-hidden with 0.88 reason)
+		{
+			index: 5,
+			tripTitle: "Vượt đèo Hải Vân ngắm vịnh Lăng Cô",
+			rating: 1,
+			comment:
+				"Tổ chức quá kém, tôi sẽ đăng bài kêu gọi mọi người tẩy chay và làm phiền trang này.",
+			images: [],
+			createdHoursAgo: 8,
+			moderationStatus: "hidden",
+			hiddenReason: "harassment",
+			hiddenSource: "ai",
+			firstHiddenHoursAgo: 7,
+			imageStorageState: "live",
+			verificationStatus: "verified",
+			flags: [
+				{
+					flagType: "spam_or_irrelevant",
+					channel: "text",
+					confidence: 0.75,
+					evidence: "Có nội dung kêu gọi không liên quan đến trải nghiệm tuyến đường.",
+					quote: "đăng bài kêu gọi mọi người tẩy chay",
+					targetImageIndex: null,
+				},
+				{
+					flagType: "harassment",
+					channel: "text",
+					confidence: 0.88,
+					evidence: "Nội dung mang tính đe dọa, quấy rối chủ chuyến.",
+					quote: "làm phiền trang này",
+					targetImageIndex: null,
+				},
+			],
+			hostNotificationEvent: "trip.review.auto_hidden",
+		},
+		// 6. AI scan failed > 15m -> unverified, routed to Host
+		{
+			index: 6,
+			tripTitle: "Đi bộ xuyên rừng dừa Bảy Mẫu và đồi chè",
+			rating: 4,
+			comment: "Hành trình dễ đi, phù hợp người mới, bữa trưa khá ổn định.",
+			images: [],
+			createdHoursAgo: 3,
+			moderationStatus: "visible",
+			hiddenReason: null,
+			hiddenSource: null,
+			firstHiddenHoursAgo: null,
+			imageStorageState: "live",
+			verificationStatus: "unverified",
+			runFailed: true,
+			flags: [],
+			hostNotificationEvent: "trip.review.moderation_unverified",
+		},
+		// 7. Admin actioned content report (must stay hidden even if Host restores)
+		{
+			index: 7,
+			tripTitle: "Chinh phục đỉnh Mang Đen mùa sương",
+			rating: 1,
+			comment: "Đánh giá có nội dung công kích cá nhân đã được quản trị viên xử lý vi phạm.",
+			images: [],
+			createdHoursAgo: 12,
+			moderationStatus: "hidden",
+			hiddenReason: "profanity_or_insult",
+			hiddenSource: "ai",
+			firstHiddenHoursAgo: 11,
+			imageStorageState: "live",
+			verificationStatus: "verified",
+			flags: [
+				{
+					flagType: "profanity_or_insult",
+					channel: "text",
+					confidence: 0.93,
+					evidence: "Ngôn từ công kích cá nhân vượt ngưỡng vi phạm.",
+					quote: "công kích cá nhân",
+					targetImageIndex: null,
+				},
+			],
+			hostNotificationEvent: "trip.review.auto_hidden",
+			adminActionedReport: true,
+		},
+		// 8. Hidden review past 24h supplementary edit window (first_hidden_at = 30h ago)
+		{
+			index: 8,
+			tripTitle: "Hành trình cắm trại bãi Rạng Sơn Trà",
+			rating: 2,
+			comment: "Bài đánh giá đã bị ẩn quá thời hạn 24 giờ chỉnh sửa bổ sung.",
+			images: [],
+			createdHoursAgo: 40,
+			moderationStatus: "hidden",
+			hiddenReason: "profanity_or_insult",
+			hiddenSource: "ai",
+			firstHiddenHoursAgo: 30,
+			imageStorageState: "live",
+			verificationStatus: "verified",
+			flags: [
+				{
+					flagType: "profanity_or_insult",
+					channel: "text",
+					confidence: 0.89,
+					evidence: "Ngôn từ không phù hợp tiêu chuẩn cộng đồng.",
+					quote: "quá thời hạn 24 giờ",
+					targetImageIndex: null,
+				},
+			],
+			hostNotificationEvent: "trip.review.auto_hidden",
+		},
+	];
+
+	await ds.transaction(async (manager) => {
+		for (const item of scenarios) {
+			const suffix = String(item.index).padStart(12, "0");
+			const tripId = `a4110000-0000-4000-8001-${suffix}`;
+			const bookingId = `a4110000-0000-4000-8002-${suffix}`;
+			const memberId = `a4110000-0000-4000-8003-${suffix}`;
+			const reviewId = `a4110000-0000-4000-8004-${suffix}`;
+			const runId = `a4110000-0000-4000-8005-${suffix}`;
+			const reportId = `a4110000-0000-4000-8006-${suffix}`;
+
+			await manager.query(
+				`INSERT INTO trips (
+					id, host_id, route_id, title, trip_type, duration_nights, starts_at, ends_at,
+					meeting_point, booking_deadline, capacity_min, capacity_max, seats_taken,
+					price_per_person, status
+				) VALUES (
+					$1, $2, $3, $4, 'day_trip', 0,
+					now() - interval '6 days',
+					now() - interval '4 days',
+					ST_GeogFromText('POINT(108.22 16.04)'),
+					now() - interval '7 days',
+					1, 12, 1, 1250000, 'completed'
+				) ON CONFLICT (id) DO NOTHING`,
+				[tripId, host.id, routeId, item.tripTitle]
+			);
+
+			await manager.query(
+				`INSERT INTO bookings (
+					id, trip_id, user_id, num_people, status, payment_status, completed_at
+				) VALUES (
+					$1, $2, $3, 1, 'completed', 'not_required',
+					now() - ($4::double precision * interval '1 hour') - interval '2 hours'
+				) ON CONFLICT (id) DO NOTHING`,
+				[bookingId, tripId, camper.id, item.createdHoursAgo]
+			);
+
+			await manager.query(
+				`INSERT INTO booking_members (
+					id, booking_id, user_id, is_primary, member_status, checked_in_at, no_show_at
+				) VALUES (
+					$1, $2, $3, true, 'joined'::booking_member_status,
+					now() - interval '5 days',
+					NULL
+				) ON CONFLICT (id) DO NOTHING`,
+				[memberId, bookingId, camper.id]
+			);
+
+			await manager.query(
+				`WITH inserted AS (
+					INSERT INTO trip_reviews (
+						id, booking_id, member_id, reviewer_id, trip_id, host_id, target, target_id,
+						rating, comment, images, revision,
+						moderation_status, hidden_at, first_hidden_at, hidden_reason, hidden_by,
+						hidden_source, hidden_revision, image_storage_state, moderation_verification_status,
+						created_at, updated_at
+					) VALUES (
+						$1, $2, $3, $4, $5, $6, 'trip', $5,
+						$7, $8, $9::jsonb, 1,
+						$10::varchar,
+						CASE WHEN $11::double precision IS NULL THEN NULL ELSE now() - ($11::double precision * interval '1 hour') END,
+						CASE WHEN $11::double precision IS NULL THEN NULL ELSE now() - ($11::double precision * interval '1 hour') END,
+						$12, NULL, $13,
+						CASE WHEN $10::varchar = 'hidden' THEN 1 ELSE NULL END,
+						$14, $15,
+						now() - ($16::double precision * interval '1 hour'),
+						now() - ($16::double precision * interval '1 hour')
+					) ON CONFLICT (id) DO NOTHING RETURNING *
+				)
+				INSERT INTO trip_review_revisions (review_id, revision, rating, comment, images, recorded_at)
+				SELECT id, revision, rating, comment, images, updated_at FROM inserted`,
+				[
+					reviewId,
+					bookingId,
+					memberId,
+					camper.id,
+					tripId,
+					host.id,
+					item.rating,
+					item.comment,
+					JSON.stringify(item.images),
+					item.moderationStatus,
+					item.firstHiddenHoursAgo,
+					item.hiddenReason,
+					item.hiddenSource,
+					item.imageStorageState,
+					item.verificationStatus,
+					item.createdHoursAgo,
+				]
+			);
+
+			const scanStatus = item.runFailed ? "failed" : "completed";
+			await manager.query(
+				`INSERT INTO trip_review_moderation_runs (
+					id, review_id, source_revision, provider, model, config_version, prompt_version,
+					text_scan_status, image_scan_status, aspects_status, incidents_status,
+					attempts, error_code, completed_at
+				) VALUES (
+					$1, $2, 1, 'gemini', 'gemini-3.1-flash-lite', 'gemini-v1', 'v1',
+					$3::varchar, $4::varchar, $3::varchar, $3::varchar,
+					$5, $6,
+					CASE WHEN $3::varchar = 'completed' THEN now() - ($7::double precision * interval '1 hour') ELSE NULL END
+				) ON CONFLICT DO NOTHING`,
+				[
+					runId,
+					reviewId,
+					scanStatus,
+					item.images.length > 0 ? scanStatus : "not_applicable",
+					item.runFailed ? 3 : 1,
+					item.runFailed ? "provider_timeout" : null,
+					item.createdHoursAgo,
+				]
+			);
+
+			for (const flag of item.flags) {
+				await manager.query(
+					`INSERT INTO trip_review_moderation_flags (
+						run_id, review_id, source_revision, channel, target_image_index,
+						flag_type, detection_source, confidence, evidence, quote, lifecycle_status, created_at
+					) VALUES (
+						$1, $2, 1, $3, $4, $5, 'model', $6, $7, $8, 'active',
+						now() - ($9::double precision * interval '1 hour')
+					) ON CONFLICT DO NOTHING`,
+					[
+						runId,
+						reviewId,
+						flag.channel,
+						flag.targetImageIndex,
+						flag.flagType,
+						flag.confidence,
+						flag.evidence,
+						flag.quote,
+						item.createdHoursAgo,
+					]
+				);
+			}
+
+			if (item.hostNotificationEvent) {
+				const sourcePrefix =
+					item.hostNotificationEvent === "trip.review.auto_hidden"
+						? "auto-hidden"
+						: item.hostNotificationEvent === "trip.review.moderation_unverified"
+							? "unverified"
+							: "flagged";
+				await manager.query(
+					`INSERT INTO in_app_notifications (
+						recipient_id, trip_id, review_id, event_type, source_key, occurred_at
+					) VALUES (
+						$1, $2, $3, $4, $5, now() - ($6::double precision * interval '1 hour')
+					) ON CONFLICT (source_key, recipient_id) DO NOTHING`,
+					[
+						host.id,
+						tripId,
+						reviewId,
+						item.hostNotificationEvent,
+						`review-moderation:${sourcePrefix}:${reviewId}:rev:1`,
+						item.createdHoursAgo,
+					]
+				);
+			}
+
+			if (item.adminActionedReport) {
+				await manager.query(
+					`INSERT INTO content_reports (
+						id, reporter_id, target_type, target_id, reason, status, created_at, updated_at
+					) VALUES (
+						$1, $2, 'trip_review', $3, 'Nội dung xúc phạm cá nhân đã được quản trị viên xác nhận vi phạm.',
+						'actioned', now() - interval '10 hours', now() - interval '9 hours'
+					) ON CONFLICT (id) DO NOTHING`,
+					[reportId, host.id, reviewId]
+				);
+			}
+		}
+	});
 }
 
 if (require.main === module) {
