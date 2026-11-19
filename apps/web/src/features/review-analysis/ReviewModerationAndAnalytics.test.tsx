@@ -347,7 +347,7 @@ describe("Moderation & Analytics UI Components", () => {
 			expect(screen.getByText(/Chưa xác định rõ/)).toBeInTheDocument();
 
 			// Sample quotes button
-			const quotesBtn = screen.getByRole("button", { name: /1 trích dẫn mẫu/ });
+			const quotesBtn = screen.getByRole("button", { name: /1 trích dẫn/ });
 			expect(quotesBtn).toBeInTheDocument();
 
 			fireEvent.click(quotesBtn);

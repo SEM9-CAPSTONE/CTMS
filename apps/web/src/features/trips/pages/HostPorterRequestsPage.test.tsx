@@ -121,8 +121,8 @@ describe("HostPorterRequestsPage", () => {
 
 	it("loads the assigned view and shows the backend's empty assignment history", async () => {
 		renderPage({ initialView: "assigned" });
-		expect(screen.getByRole("heading", { name: "Porter đã phân công" })).toBeInTheDocument();
-		expect(await screen.findByText("Chưa có lịch sử phân công Porter.")).toBeInTheDocument();
+		expect(screen.getByRole("heading", { name: "Người hỗ trợ đã phân công" })).toBeInTheDocument();
+		expect(await screen.findByText("Chưa có lịch sử phân công người hỗ trợ.")).toBeInTheDocument();
 		expect(tripsService.getHostPorterAssignments).toHaveBeenCalledOnce();
 		expect(screen.queryByTestId("available-porters-panel")).not.toBeInTheDocument();
 	});

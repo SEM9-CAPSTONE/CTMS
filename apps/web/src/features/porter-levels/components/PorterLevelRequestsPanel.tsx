@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button, Modal } from "../../../shared/components";
-import { LEVEL_PANEL_CLASS, levelReviewError } from "../constants";
+import { levelReviewError } from "../constants";
 import { useLevelRequests } from "../hooks/useLevelRequests";
 import { useMyPorterLevels } from "../hooks/usePorterLevels";
 import type { RequestFilters } from "../request-types";
@@ -9,7 +9,6 @@ import { LevelRequestDetailView } from "./LevelRequestDetailView";
 import { LevelRequestFilters } from "./LevelRequestFilters";
 import { LevelRequestList } from "./LevelRequestList";
 import { LevelRequestPorterActions } from "./LevelRequestPorterActions";
-import { PorterLevelNotifications } from "./PorterLevelNotifications";
 export function PorterLevelRequestsPanel() {
 	const [filters, setFilters] = useState<RequestFilters>({ page: 1 });
 	const [id, setId] = useState<string | null>(null);
@@ -37,9 +36,12 @@ export function PorterLevelRequestsPanel() {
 		state.download.reset();
 	};
 	return (
-		<section className={`${LEVEL_PANEL_CLASS} space-y-4`}>
+		<div className="space-y-4">
 			<div className="flex flex-wrap items-center justify-between gap-3">
-				<h2 className="text-lg font-bold">Yêu cầu nâng cấp theo tuyến</h2>
+				<div>
+					<h3 className="text-sm font-bold text-[#10221b]">Yêu cầu nâng cấp cấp độ</h3>
+					<p className="text-xs text-[#627769]">Theo dõi trạng thái xét duyệt yêu cầu nâng cấp</p>
+				</div>
 				<Button
 					disabled={!canCreate}
 					onClick={() => {
@@ -50,12 +52,10 @@ export function PorterLevelRequestsPanel() {
 					Yêu cầu nâng cấp
 				</Button>
 			</div>
-			<PorterLevelNotifications onSelect={select} />
 			{state.qualifications.isSuccess && !canCreate && (
-				<p className="text-sm text-[#627769]">
-					Chỉ có thể yêu cầu nâng cấp cho tuyến đã khai báo, chưa ở cấp Chuyên gia và không có yêu
-					cầu đang xử lý. Chuyên gia là cấp cao nhất; việc hạ cấp hoặc công nhận cấp do Admin thực
-					hiện.
+				<p className="text-xs text-[#627769]">
+					Chỉ có thể yêu cầu nâng cấp khi chưa ở cấp Chuyên gia và không có yêu cầu đang xử lý.
+					Chuyên gia là cấp cao nhất; việc hạ cấp hoặc công nhận cấp do Admin thực hiện.
 				</p>
 			)}
 			{state.qualifications.isError && (
@@ -89,7 +89,7 @@ export function PorterLevelRequestsPanel() {
 				isOpen={creating}
 				onClose={() => setCreating(false)}
 				isCloseDisabled={state.create.isPending}
-				title="Yêu cầu nâng cấp theo tuyến"
+				title="Yêu cầu nâng cấp cấp độ"
 				size="xl"
 			>
 				{state.qualifications.isPending && <p>Đang tải tuyến đã khai báo…</p>}
@@ -167,6 +167,6 @@ export function PorterLevelRequestsPanel() {
 					)}
 				</div>
 			</Modal>
-		</section>
+		</div>
 	);
 }

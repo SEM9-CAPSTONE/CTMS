@@ -114,19 +114,49 @@ export class AvailablePortersRepository extends Repository<PorterProfile> {
 			listParameters
 		)) as AvailablePorterRow[];
 
+		const candidateIds = rows.map((r) => r.porterId);
+		const certMap = new Map<string, Array<{ type: string; name: string }>>();
+		for (const id of candidateIds) {
+			certMap.set(id, []);
+		}
+
+		if (candidateIds.length > 0) {
+			const certRows = (await this.query(
+				`SELECT c.porter_id AS "porterId", c.type, c.name
+				 FROM porter_certificates c
+				 WHERE c.porter_id = ANY($1)
+				   AND c.status = 'verified'
+				   AND (c.expiry_date IS NULL OR c.expiry_date >= CURRENT_DATE)
+				   AND c.deleted_at IS NULL
+				 ORDER BY c.created_at ASC`,
+				[candidateIds]
+			)) as Array<{ porterId: string; type: string; name: string }>;
+
+			for (const cert of certRows) {
+				const list = certMap.get(cert.porterId) ?? [];
+				list.push({ type: cert.type, name: cert.name });
+				certMap.set(cert.porterId, list);
+			}
+		}
+
 		return {
-			items: rows.map((row) => ({
-				porterId: row.porterId,
-				displayName: row.displayName,
-				avatarUrl: row.avatarUrl,
-				experienceYears: Number(row.experienceYears),
-				availabilityStatus: row.availabilityStatus,
-				ratingAvg: Number(row.ratingAvg),
-				completedTrips: Number(row.completedTrips),
-				...(filters.role === IntendedPorterRole.LEAD && row.proficiency
-					? { proficiency: row.proficiency }
-					: {}),
-			})),
+			items: rows.map((row) => {
+				const certs = certMap.get(row.porterId) ?? [];
+				return {
+					porterId: row.porterId,
+					displayName: row.displayName,
+					avatarUrl: row.avatarUrl,
+					experienceYears: Number(row.experienceYears),
+					availabilityStatus: row.availabilityStatus,
+					ratingAvg: Number(row.ratingAvg),
+					completedTrips: Number(row.completedTrips),
+					certificates: certs,
+					certifications: certs.map((c) => c.name),
+					...(filters.role === IntendedPorterRole.LEAD && row.proficiency
+						? { proficiency: row.proficiency }
+						: {}),
+				};
+			}),
 			total: Number(countRows[0]?.total ?? 0),
 		};
 	}

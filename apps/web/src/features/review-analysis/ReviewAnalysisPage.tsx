@@ -248,10 +248,6 @@ export function ReviewAnalysisPage({
 							}}
 							onCreate={state.submit}
 						/>
-						<p className="px-1 text-xs leading-5 text-[#667a6d]">
-							Kết quả do AI tạo, không thay thế điểm sao và không ảnh hưởng điểm uy tín. Đánh giá
-							gốc luôn được giữ nguyên.
-						</p>
 						{!tripId ? (
 							<section className={`${panelClass} py-14 text-center`}>
 								<Sparkles className="mx-auto mb-4 size-8 text-[#8a9d7a]" />
@@ -382,16 +378,19 @@ export function ReviewAnalysisPage({
 														<h2 className="text-xl font-semibold text-[#10221b]">
 															Phân tích từng đánh giá
 														</h2>
-														<p className="mt-1 text-xs text-[#4b5563]">
-															Chỉ tổng hợp kết quả từ phiên bản đánh giá mới nhất, còn đủ điều kiện
-															phân tích.
-														</p>
 													</div>
 												</div>
 
 												<fieldset className="flex flex-wrap gap-2" aria-label="Lọc theo cảm nhận">
-													{(["all", "positive", "neutral", "negative", "mixed"] as const).map(
-														(value) => (
+													{(["all", "positive", "neutral", "negative"] as const).map((value) => {
+														const count =
+															value === "all"
+																? data.coverage.analyzed
+																: value === "neutral"
+																	? (data.sentimentCounts.neutral || 0) +
+																		(data.sentimentCounts.mixed || 0)
+																	: data.sentimentCounts[value];
+														return (
 															<button
 																type="button"
 																key={value}
@@ -407,14 +406,10 @@ export function ReviewAnalysisPage({
 																}`}
 															>
 																{value === "all" ? "Tất cả" : sentimentLabels[value]}{" "}
-																<span className="ml-1 opacity-75">
-																	{value === "all"
-																		? data.coverage.analyzed
-																		: data.sentimentCounts[value]}
-																</span>
+																<span className="ml-1 opacity-75">{count}</span>
 															</button>
-														)
-													)}
+														);
+													})}
 												</fieldset>
 
 												{data.items.length === 0 ? (

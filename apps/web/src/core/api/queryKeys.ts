@@ -205,6 +205,13 @@ export const queryKeys = {
 		routePorterQualifications: (routeId: string) =>
 			["trekking-routes", routeId, "porter-qualifications"] as const,
 	},
+	porterCertificates: {
+		all: ["porter-certificates"] as const,
+		my: ["porter-certificates", "mine"] as const,
+		detail: (id: string) => ["porter-certificates", "detail", id] as const,
+		adminList: (query?: Record<string, unknown>) =>
+			["admin-porter-certificates", "list", query] as const,
+	},
 	adminRefunds: {
 		all: ["admin-refunds"] as const,
 		list: (filters?: Record<string, unknown>) => ["admin-refunds", "list", filters] as const,

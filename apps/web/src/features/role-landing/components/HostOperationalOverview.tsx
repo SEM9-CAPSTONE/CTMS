@@ -88,9 +88,12 @@ export function HostOperationalOverview({
 	// Default to the status of the selected/focus trip until the host picks a filter.
 	const defaultTrip =
 		data.operationalTrips.find((item) => item.id === selectedTripId) ?? data.focusTrip;
-	const activeStatus: OperationalStatus =
-		statusFilter ?? (defaultTrip?.displayStatus === "published" ? "published" : "ongoing");
-	const filteredTrips = data.operationalTrips.filter((item) => item.displayStatus === activeStatus);
+	const activeStatus: OperationalStatus = monitorParticipants
+		? "ongoing"
+		: (statusFilter ?? (defaultTrip?.displayStatus === "published" ? "published" : "ongoing"));
+	const filteredTrips = data.operationalTrips.filter((item) =>
+		monitorParticipants ? item.displayStatus === "ongoing" : item.displayStatus === activeStatus
+	);
 	const trip = filteredTrips.find((item) => item.id === selectedTripId) ?? filteredTrips[0];
 	const handleStatusChange = (status: OperationalStatus) => {
 		setParticipantSelection(undefined);
@@ -150,7 +153,8 @@ export function HostOperationalOverview({
 						{data.operationalTrips.length ? (
 							<>
 								<HostOperationalTripSelector
-									compact={monitorParticipants}
+									compact={false}
+									onlyOngoing={monitorParticipants}
 									trips={data.operationalTrips}
 									status={activeStatus}
 									onStatusChange={handleStatusChange}

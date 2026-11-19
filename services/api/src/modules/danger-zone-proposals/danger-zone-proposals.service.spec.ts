@@ -104,7 +104,8 @@ describe("isAllowedHotspotTransition", () => {
 	const { DETECTED, UNDER_REVIEW, CONFIRMED, DISMISSED } = SafetyHotspotStatus;
 
 	it.each([
-		[DETECTED, UNDER_REVIEW],
+		[DETECTED, CONFIRMED],
+		[DETECTED, DISMISSED],
 		[UNDER_REVIEW, CONFIRMED],
 		[UNDER_REVIEW, DISMISSED],
 	])("allows %s → %s", (from, to) => {
@@ -112,8 +113,7 @@ describe("isAllowedHotspotTransition", () => {
 	});
 
 	it.each([
-		[DETECTED, CONFIRMED],
-		[DETECTED, DISMISSED],
+		[DETECTED, UNDER_REVIEW],
 		[CONFIRMED, DISMISSED],
 		[DISMISSED, CONFIRMED],
 		[CONFIRMED, UNDER_REVIEW],

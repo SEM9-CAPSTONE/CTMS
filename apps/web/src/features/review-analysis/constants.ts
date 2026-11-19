@@ -11,13 +11,13 @@ export const sentimentLabels: Record<Sentiment, string> = {
 	positive: "Tích cực",
 	neutral: "Trung lập",
 	negative: "Tiêu cực",
-	mixed: "Đa chiều",
+	mixed: "Trung lập",
 };
 export const sentimentStyles: Record<Sentiment, string> = {
 	positive: "bg-emerald-100 text-emerald-900",
 	neutral: "bg-slate-100 text-slate-700",
 	negative: "bg-rose-100 text-rose-900",
-	mixed: "bg-amber-100 text-amber-900",
+	mixed: "bg-slate-100 text-slate-700",
 };
 export const topicLabels: Record<Topic, string> = {
 	organization: "Tổ chức",

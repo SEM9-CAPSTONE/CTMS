@@ -312,7 +312,7 @@ function HostAssignedPortersList({ trip }: { trip: HostPorterAssignmentTrip }) {
 				<div className="flex flex-wrap items-center justify-between gap-3">
 					<h2 className="flex items-center gap-2 text-base font-extrabold text-[#10221b]">
 						<UserRound className="size-5 text-[#164027]" />
-						Porter đã phân công ({trip.assignments.length})
+						Người hỗ trợ đã phân công ({trip.assignments.length})
 					</h2>
 					{getAssignmentTripTiming(trip) === "upcoming" && (
 						<Button
@@ -335,7 +335,7 @@ function HostAssignedPortersList({ trip }: { trip: HostPorterAssignmentTrip }) {
 
 				{trip.assignments.length === 0 ? (
 					<div className="mt-5 rounded-xl border border-dashed border-[#cbd9cd] p-8 text-center text-sm font-bold text-[#667a6d]">
-						Chuyến đi này chưa có Porter được phân công.
+						Chuyến đi này chưa có người hỗ trợ được phân công.
 					</div>
 				) : (
 					<ul className="mt-5 space-y-3">
@@ -379,7 +379,7 @@ function HostAssignedPortersList({ trip }: { trip: HostPorterAssignmentTrip }) {
 												window.dispatchEvent(new PopStateEvent("popstate"));
 											}}
 										>
-											Tìm Porter thay thế
+											Tìm người hỗ trợ thay thế
 										</Button>
 									)}
 								</div>
@@ -410,7 +410,7 @@ export function HostPorterRequestsPage({
 	const error =
 		activeTab === "assigned"
 			? assignmentTripsQuery.error
-				? "Không thể tải lịch sử phân công Porter. Vui lòng thử lại."
+				? "Không thể tải lịch sử phân công người hỗ trợ. Vui lòng thử lại."
 				: ""
 			: candidateTripsQuery.error;
 
@@ -466,33 +466,33 @@ export function HostPorterRequestsPage({
 	const selectedTripMissing = Boolean(selectedTripId && trips.length > 0 && !selectedTrip);
 
 	return (
-		<div className="min-h-screen bg-[#f4f7f2] px-4 py-8 sm:px-6">
-			<div className="mx-auto max-w-[1440px] space-y-6">
-				<header className="rounded-3xl border border-[#dfe8df] bg-white p-6 shadow-sm">
-					<div className="flex items-center gap-3">
-						{onBackHome && (
-							<button
-								type="button"
-								aria-label="Quay về Host Dashboard"
-								title="Quay về Host Dashboard"
-								onClick={onBackHome}
-								className="rounded-xl border border-[#d8e2da] p-2.5 text-[#164027] transition hover:bg-[#f6f9f6]"
-							>
-								<ArrowLeft className="size-5" />
-							</button>
-						)}
-						<h1 className="text-2xl font-extrabold text-[#10221b]">
-							{activeTab === "find"
-								? "Tìm người hỗ trợ chuyến đi"
-								: activeTab === "requests"
-									? "Yêu cầu đã gửi"
-									: "Porter đã phân công"}
-						</h1>
-					</div>
-				</header>
+		<div className="min-h-screen bg-[#f4f7f2]">
+			<header className="sticky top-0 z-30 border-b border-[#dfe8df] bg-white">
+				<div className="mx-auto flex max-w-[1440px] items-center gap-3 px-4 py-4 sm:px-6">
+					{onBackHome && (
+						<button
+							type="button"
+							aria-label="Quay về Host Dashboard"
+							title="Quay về Host Dashboard"
+							onClick={onBackHome}
+							className="rounded-xl border border-[#d8e2da] p-2.5 text-[#164027] transition hover:bg-[#f6f9f6]"
+						>
+							<ArrowLeft className="size-5" />
+						</button>
+					)}
+					<h1 className="text-xl font-extrabold text-[#10221b] sm:text-2xl">
+						{activeTab === "find"
+							? "Tìm người hỗ trợ chuyến đi"
+							: activeTab === "requests"
+								? "Yêu cầu đã gửi"
+								: "Người hỗ trợ đã phân công"}
+					</h1>
+				</div>
+			</header>
 
+			<main className="mx-auto max-w-[1440px] space-y-6 px-4 py-6 sm:px-6">
 				{activeTab === "find" && (
-					<div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
+					<div className="grid items-start gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
 						<section className="rounded-3xl border border-[#dfe8df] bg-white p-5 shadow-sm">
 							<div className="flex items-start gap-3">
 								<div className="rounded-2xl bg-[#164027]/5 p-3 text-[#164027]">
@@ -589,7 +589,7 @@ export function HostPorterRequestsPage({
 							<section className="rounded-3xl border border-dashed border-[#cbd9cd] bg-white p-8 text-center shadow-sm">
 								<BriefcaseBusiness className="mx-auto size-8 text-[#164027]" />
 								<span className="mt-3 block text-sm font-extrabold text-[#10221b]">
-									Chọn chuyến đi để tìm Porter phù hợp.
+									Chọn chuyến đi để tìm người hỗ trợ phù hợp.
 								</span>
 							</section>
 						)}
@@ -616,7 +616,7 @@ export function HostPorterRequestsPage({
 								</div>
 							) : trips.length === 0 ? (
 								<p className="mt-4 text-xs font-semibold text-[#667a6d]">
-									Chưa có lịch sử phân công Porter.
+									Chưa có lịch sử phân công người hỗ trợ.
 								</p>
 							) : (
 								<div className="mt-4 space-y-3">
@@ -691,7 +691,7 @@ export function HostPorterRequestsPage({
 															</div>
 															<span className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-[#55685a]">
 																<UserRound className="size-3.5" />
-																{trip.assignedPorterCount} Porter
+																{trip.assignedPorterCount} người hỗ trợ
 															</span>
 														</button>
 													</li>
@@ -706,11 +706,11 @@ export function HostPorterRequestsPage({
 						{displayedAssignmentTrip ? (
 							<HostAssignedPortersList trip={displayedAssignmentTrip} />
 						) : (
-							!isLoading && !error && <EmptyFutureTab title="Chọn chuyến đi để xem Porter" />
+							!isLoading && !error && <EmptyFutureTab title="Chọn chuyến đi để xem người hỗ trợ" />
 						)}
 					</div>
 				)}
-			</div>
+			</main>
 		</div>
 	);
 }

@@ -1,14 +1,13 @@
-import { FileClock, Flag, LineChart, PieChart } from "lucide-react";
+import { FileClock, LineChart, PieChart } from "lucide-react";
 import type React from "react";
 import { PerformanceReportsPage } from "../../performance-reports/pages/PerformanceReportsPage";
 import { RevenueAnalyticsPage } from "../../revenue-analytics/pages/RevenueAnalyticsPage";
 
-export type HostReportTab = "performance" | "revenue" | "submitted";
+export type HostReportTab = "performance" | "revenue";
 
 const TABS = [
 	{ key: "performance", label: "Báo cáo hiệu suất", icon: FileClock },
 	{ key: "revenue", label: "Báo cáo doanh thu", icon: LineChart },
-	{ key: "submitted", label: "Báo cáo đánh giá", icon: Flag },
 ] as const;
 
 export interface HostReportsPageProps {
