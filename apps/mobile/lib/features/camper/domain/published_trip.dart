@@ -1,3 +1,5 @@
+import '../../review_reputation/review_reputation.dart';
+
 class PublishedTrip {
   const PublishedTrip({
     required this.id,
@@ -12,9 +14,15 @@ class PublishedTrip {
     required this.remainingSeats,
     required this.isBookable,
     this.areaName,
+    this.hostReputation,
+    this.hostName,
+    this.loadedForAccount,
   });
 
-  factory PublishedTrip.fromJson(Map<String, Object?> json) {
+  factory PublishedTrip.fromJson(
+    Map<String, Object?> json, {
+    String? loadedForAccount,
+  }) {
     final area = json['area'] as Map<String, Object?>?;
     final names = {
       (area?['name'] as String?)?.trim(),
@@ -33,6 +41,9 @@ class PublishedTrip {
       remainingSeats: (json['remainingSeats'] as num?)?.toInt(),
       isBookable: json['isBookable'] as bool,
       areaName: names.isEmpty ? null : names.join(', '),
+      hostReputation: ReviewReputation.fromJson(json['hostReputation']),
+      hostName: (json['host'] as Map?)?['fullName'] as String?,
+      loadedForAccount: loadedForAccount,
     );
   }
 
@@ -48,4 +59,9 @@ class PublishedTrip {
   final int? remainingSeats;
   final bool isBookable;
   final String? areaName;
+  final ReviewReputation? hostReputation;
+  final String? hostName;
+
+  /// Local ownership metadata; never serialized to the API.
+  final String? loadedForAccount;
 }

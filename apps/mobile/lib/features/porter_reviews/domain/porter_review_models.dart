@@ -1,3 +1,5 @@
+import '../../review_reputation/review_reputation.dart';
+
 class PorterParticipation {
   const PorterParticipation({
     required this.bookingId,
@@ -57,12 +59,14 @@ class SavedPorterReview {
     required this.canEdit,
     required this.editExpiresAt,
     required this.moderationStatus,
+    this.reputation,
   });
   final String id, porterId, moderationStatus;
   final String? porterName, comment;
   final int rating, revision;
   final bool canEdit;
   final DateTime editExpiresAt;
+  final ReviewReputation? reputation;
   factory SavedPorterReview.fromJson(Map<String, Object?> json) =>
       SavedPorterReview(
         id: json['id'] as String,
@@ -74,6 +78,7 @@ class SavedPorterReview {
         canEdit: json['canEdit'] == true,
         editExpiresAt: DateTime.parse(json['editExpiresAt'] as String),
         moderationStatus: json['moderationStatus'] as String,
+        reputation: ReviewReputation.fromJson(json['reputation']),
       );
 }
 
@@ -84,11 +89,13 @@ class ReviewPorter {
     required this.canCreate,
     this.saved,
     required this.assigned,
+    this.reputation,
   });
   final String id;
   final String? name;
   final bool canCreate, assigned;
   final SavedPorterReview? saved;
+  final ReviewReputation? reputation;
 }
 
 class PorterReviewContext {
@@ -123,6 +130,7 @@ class PorterReviewContext {
           name: item['porterName'] as String?,
           canCreate: item['canCreate'] == true,
           assigned: true,
+          reputation: ReviewReputation.fromJson(item['reputation']),
         ),
     };
     for (final review in saved) {
@@ -134,6 +142,7 @@ class PorterReviewContext {
         canCreate: false,
         saved: review,
         assigned: current != null,
+        reputation: review.reputation,
       );
     }
     return PorterReviewContext(
