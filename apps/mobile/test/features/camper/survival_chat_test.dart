@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart'
+    show debugDefaultTargetPlatformOverride;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -184,6 +186,25 @@ void main() {
     await tester.tap(visibleButton);
     await tester.pumpAndSettle();
   }
+
+  testWidgets('opens the keyboard on tap and sends typed input on native iOS', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    await open(tester);
+    await tester.tap(find.byType(TextField));
+    await tester.pump();
+    expect(tester.testTextInput.isVisible, isTrue);
+
+    tester.testTextInput.enterText(question);
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pumpAndSettle();
+    expect(transport.requests.single.data, containsPair('question', question));
+    transport.reply(0, answered);
+    await tester.pumpAndSettle();
+    expect(find.text(answerText), findsOneWidget);
+  });
 
   testWidgets(
     'uses authenticated API, disables duplicate sends and keeps source metadata',
