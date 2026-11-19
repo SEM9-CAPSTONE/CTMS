@@ -2,6 +2,8 @@ import type { DataSource } from "typeorm";
 import dataSource from "../shared/database/data-source";
 import { readableDemoTripTitle, tidyDemoCopyForReview } from "./main.seed";
 import {
+	DA_NANG_SEED_ROUTE_UPDATES,
+	DA_NANG_TRIP_MOVES,
 	PORTER_CONFLICT_ASSIGNMENT_TRIP,
 	PORTER_CONFLICT_TARGET_TRIP,
 	PORTER_CONFLICT_TRIP_TITLE,
@@ -10,12 +12,15 @@ import {
 	PORTER_SEED_FIXTURES,
 	PORTER_SEED_ROUTE_NAMES,
 	porterSeedTripWindowsOverlap,
+	refreshDaNangSeedData,
 	refreshPorterLevelDemoCopy,
+	rewriteDaNangSeedCopy,
 	runMasterSeed,
 } from "./main.seed";
 
 describe("Master seed entry point", () => {
 	it.each([
+		"--da-nang-only",
 		"--financial-adjustments-only",
 		"--bank-accounts-only",
 		"--group-bookings-only",
@@ -63,6 +68,98 @@ describe("Master seed entry point", () => {
 			argv.restore();
 			environment.restore();
 		}
+	});
+});
+
+describe("Da Nang seed maintenance", () => {
+	it("moves known northern trip copy while preserving appended notes", () => {
+		expect(rewriteDaNangSeedCopy("Săn mây Y Tý - Bát Xát (Lào Cai)")).toBe(
+			"Săn mây đỉnh Núi Chúa – Hòa Vang"
+		);
+		expect(
+			rewriteDaNangSeedCopy(
+				"Cung đường ruộng bậc thang và biển mây ngút ngàn Lào Cai.\nKhách đã báo sẽ đến điểm hẹn lúc 6 giờ."
+			)
+		).toBe(
+			"Đi bộ xuyên rừng Bà Nà, nghỉ qua đêm trên sườn Núi Chúa và đón biển mây trong ánh bình minh.\nKhách đã báo sẽ đến điểm hẹn lúc 6 giờ."
+		);
+		expect(rewriteDaNangSeedCopy("Khách đã báo sẽ đến điểm hẹn lúc 6 giờ.")).toBe(
+			"Khách đã báo sẽ đến điểm hẹn lúc 6 giờ."
+		);
+	});
+
+	it("keeps replacement route coordinates around Da Nang and names free of scenario tags", () => {
+		for (const route of DA_NANG_SEED_ROUTE_UPDATES) {
+			for (const point of route.path.split(",")) {
+				const [lng, lat] = point.trim().split(/\s+/).map(Number);
+				expect(lng).toBeGreaterThanOrEqual(107.7);
+				expect(lng).toBeLessThanOrEqual(108.5);
+				expect(lat).toBeGreaterThanOrEqual(15.8);
+				expect(lat).toBeLessThanOrEqual(16.4);
+			}
+		}
+		for (const move of DA_NANG_TRIP_MOVES)
+			expect(move.title).not.toMatch(/CTMS|demo|Fansipan|Y Tý|Mù Cang|Lào Cai|Yên Bái/i);
+	});
+
+	it("repairs existing copy without changing keys, financial values or statuses", async () => {
+		const query = jest.fn().mockImplementation(async (sql: string) => {
+			if (sql.startsWith("SELECT t.id,t.title,t.description,t.itinerary"))
+				return [
+					{
+						id: "trip-existing",
+						title: "Săn mây Y Tý - Bát Xát (Lào Cai)",
+						description: "Khách sẽ đến điểm hẹn lúc 6 giờ.",
+						itinerary: { summary: "Nghỉ tại điểm hẹn trước giờ khởi hành." },
+					},
+				];
+			return [];
+		});
+		const transaction = async (work: (manager: { query: typeof query }) => Promise<unknown>) =>
+			work({ query });
+		const result = await refreshDaNangSeedData({
+			isInitialized: true,
+			transaction,
+		} as unknown as DataSource);
+		expect(result).toEqual({ tripsUpdated: 1, routesUpdated: 0, areasUpdated: 0 });
+		const update = query.mock.calls.find(([sql]) => sql.startsWith("UPDATE trips SET title="));
+		expect(update?.[1]).toEqual([
+			"trip-existing",
+			"Săn mây đỉnh Núi Chúa – Hòa Vang",
+			"Khách sẽ đến điểm hẹn lúc 6 giờ.",
+			JSON.stringify({ summary: "Nghỉ tại điểm hẹn trước giờ khởi hành." }),
+		]);
+		for (const [sql] of query.mock.calls) {
+			expect(sql).not.toMatch(/\b(?:INSERT|DELETE|TRUNCATE)\b/i);
+			expect(sql).not.toMatch(
+				/\bSET\s+(?:id|status|balance|amount|price_per_person|route_id|host_id)\s*=/i
+			);
+		}
+	});
+
+	it("does not rewrite records whose copy is already localized", async () => {
+		const query = jest.fn().mockImplementation(async (sql: string) =>
+			sql.startsWith("SELECT t.id,t.title,t.description,t.itinerary")
+				? [
+						{
+							id: "trip-existing",
+							title: "Săn mây đỉnh Núi Chúa – Hòa Vang",
+							description: "Khách sẽ đến điểm hẹn lúc 6 giờ.",
+							itinerary: null,
+						},
+					]
+				: []
+		);
+		const transaction = async (work: (manager: { query: typeof query }) => Promise<unknown>) =>
+			work({ query });
+		expect(
+			await refreshDaNangSeedData({ isInitialized: true, transaction } as unknown as DataSource)
+		).toEqual({
+			tripsUpdated: 0,
+			routesUpdated: 0,
+			areasUpdated: 0,
+		});
+		expect(query.mock.calls.some(([sql]) => sql.startsWith("UPDATE trips SET title="))).toBe(false);
 	});
 });
 

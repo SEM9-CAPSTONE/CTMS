@@ -38,10 +38,12 @@ class BookingEndpoints {
   String pay(String id) => '/bookings/$id/pay';
   String syncPayment(String id) => '/bookings/$id/sync-payment';
   String refunds(String id) => '/bookings/$id/refunds';
-  String equipmentForTrip(String tripId) => '/equipment-catalog/for-trip/$tripId';
+  String equipmentForTrip(String tripId) =>
+      '/equipment-catalog/for-trip/$tripId';
   String get bankAccounts => '/profiles/me/bank-accounts';
   String bankAccount(String id) => '/profiles/me/bank-accounts/$id';
-  String defaultBankAccount(String id) => '/profiles/me/bank-accounts/$id/default';
+  String defaultBankAccount(String id) =>
+      '/profiles/me/bank-accounts/$id/default';
   String payments(String id) => '/bookings/$id/payments';
   String complete(String id) => '/bookings/$id/complete';
   String reviewContext(String id) => '/bookings/$id/reviews/context';
@@ -80,6 +82,7 @@ class TripEndpoints {
 
   String get getAll => '/trips';
   String getById(String id) => '/trips/$id';
+  String images(String tripId) => '/trips/$tripId/images';
   String get recommendations => '/trip-recommendations';
   String get preferences => '/profiles/me/trip-preferences';
   String recommendationExplanation(String tripId) =>

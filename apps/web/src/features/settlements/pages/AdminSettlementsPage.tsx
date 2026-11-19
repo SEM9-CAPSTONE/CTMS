@@ -203,9 +203,15 @@ export function AdminSettlementsPage({ onLogout, initialTab }: AdminSettlementsP
 	};
 
 	const handleSettleTrip = async (tripId: string) => {
+		const tripTitle = settlementsData?.items
+			.find((item) => item.tripId === tripId)
+			?.tripTitle?.trim();
 		try {
 			const res = await settleMutation.mutateAsync(tripId);
-			toast.success(`Quyết toán thành công. Đã cộng ${res.netAmount} ₫ vào ví người tổ chức.`);
+			const message = tripTitle
+				? `Quyết toán thành công chuyến đi “${tripTitle}”.`
+				: "Quyết toán thành công.";
+			toast.success(`${message} Đã cộng ${res.netAmount} ₫ vào ví người tổ chức.`);
 			void refetchSettlements();
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : "Quyết toán thất bại.");
@@ -462,7 +468,7 @@ export function AdminSettlementsPage({ onLogout, initialTab }: AdminSettlementsP
 								onChange={(e) => setSearchInput(e.target.value)}
 								placeholder={
 									activeMainTab === "settlements"
-										? "Tên chuyến đi, mã chuyến hoặc tên Host..."
+										? "Tên chuyến đi hoặc tên người tổ chức..."
 										: activeMainTab === "payouts"
 											? "Tên Host, số tài khoản, tên ngân hàng..."
 											: activeMainTab === "refunds"

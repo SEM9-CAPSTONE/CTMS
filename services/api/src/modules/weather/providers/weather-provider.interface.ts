@@ -66,7 +66,9 @@ export interface WeatherHourlyForecast {
 export class WeatherProviderError extends Error {
 	constructor(
 		message: string,
-		readonly cause?: unknown
+		readonly cause?: unknown,
+		/** False for invalid requests and while the provider is cooling down. */
+		readonly retryable = true
 	) {
 		super(message);
 		this.name = "WeatherProviderError";
