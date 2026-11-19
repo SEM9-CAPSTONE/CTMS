@@ -41,6 +41,7 @@ export interface WalletTransactionItem {
 	feeAmount: string;
 	netAmount: string;
 	balanceAfter: string;
+	tripTitle?: string | null;
 	description: string;
 	createdAt: string;
 }

@@ -5,7 +5,10 @@ import {
 } from "../entities/trip-weather-forecast.entity";
 import { RiskLevel, WeatherRiskAssessment } from "../entities/weather-risk-assessment.entity";
 import type { WeatherRiskRule } from "../entities/weather-risk-rule.entity";
-import type { WeatherForecastHour } from "../providers/weather-provider.interface";
+import {
+	type WeatherForecastHour,
+	WeatherProviderError,
+} from "../providers/weather-provider.interface";
 import { RouteRegistrationRiskService } from "./route-registration-risk.service";
 import { TripWeatherForecastService } from "./trip-weather-forecast.service";
 
@@ -182,6 +185,16 @@ describe("Trip-date weather for travellers", () => {
 			weatherProvider.fetchHourlyForecast.mockRejectedValue(new Error("down"));
 			await expect(service.tryEnsureTripForecast("trip-1", NOW)).resolves.toBeNull();
 			jest.useRealTimers();
+		});
+
+		it("does not retry a provider that is cooling down or save a fabricated forecast", async () => {
+			const { service, weatherProvider, forecastsRepository } = buildForecastService();
+			weatherProvider.fetchHourlyForecast.mockRejectedValue(
+				new WeatherProviderError("Weather provider timed out", undefined, false)
+			);
+			await expect(service.tryEnsureTripForecast("trip-1", NOW)).resolves.toBeNull();
+			expect(weatherProvider.fetchHourlyForecast).toHaveBeenCalledTimes(1);
+			expect(forecastsRepository.save).not.toHaveBeenCalled();
 		});
 
 		it("returns null for a Trip travellers cannot see", async () => {

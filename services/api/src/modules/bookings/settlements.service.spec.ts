@@ -396,6 +396,44 @@ describe("SettlementsService (CTMS-112 / CTMS-300 / CTMS-421)", () => {
 		});
 	});
 
+	describe("getHostWallet", () => {
+		it("returns trip names for legacy ledger descriptions without rewriting transactions", async () => {
+			const description = "Quyết toán thành công chuyến đi #a1736fee";
+			const transaction = Object.assign(new WalletTransaction(), {
+				id: "wallet-transaction-1",
+				type: WalletTransactionType.SETTLEMENT_CREDIT,
+				netAmount: "9500000.00",
+				balanceAfter: "9500000.00",
+				description,
+				trip: { title: "Khám phá bán đảo Sơn Trà" },
+			});
+			walletTxnRepo.find.mockResolvedValue([
+				transaction,
+				Object.assign(new WalletTransaction(), {
+					description,
+					trip: null,
+					settlement: { trip: { title: "Chinh phục đèo Hải Vân" } },
+				}),
+				Object.assign(new WalletTransaction(), { description, trip: null, settlement: null }),
+			]);
+
+			const wallet = await service.getHostWallet("host-uuid-1");
+
+			expect(wallet.transactions.map((item) => item.tripTitle)).toEqual([
+				"Khám phá bán đảo Sơn Trà",
+				"Chinh phục đèo Hải Vân",
+				null,
+			]);
+			expect(wallet.transactions[0]).toMatchObject({
+				description,
+				netAmount: "9500000.00",
+				balanceAfter: "9500000.00",
+			});
+			expect(walletTxnRepo.save).not.toHaveBeenCalled();
+			expect(walletRepo.save).not.toHaveBeenCalled();
+		});
+	});
+
 	describe("Host Payout Full-Amount Policy ('Rút hết, không cho tự nhập số tiền')", () => {
 		it("requests full wallet withdrawal and locks wallet balance to 0", async () => {
 			walletRepo.findOne.mockResolvedValue(

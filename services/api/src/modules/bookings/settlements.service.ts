@@ -362,6 +362,7 @@ export class SettlementsService {
 
 		const transactions = await this.dataSource.getRepository(WalletTransaction).find({
 			where: { walletId: wallet.id },
+			relations: { trip: true, settlement: { trip: true } },
 			order: { createdAt: "DESC" },
 		});
 
@@ -386,6 +387,7 @@ export class SettlementsService {
 				feeAmount: t.feeAmount,
 				netAmount: t.netAmount,
 				balanceAfter: t.balanceAfter,
+				tripTitle: t.trip?.title?.trim() || t.settlement?.trip?.title?.trim() || null,
 				description: t.description,
 				createdAt: t.createdAt,
 			})),

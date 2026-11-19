@@ -20,6 +20,7 @@ import '../../offline_packages/presentation/offline_package_screen.dart';
 import '../data/camper_explore_api.dart';
 import '../data/trip_recommendations_api.dart';
 import '../domain/published_trip.dart';
+import 'widgets/trip_image_gallery.dart';
 import 'widgets/trip_recommendation_explanation_card.dart';
 import 'widgets/trip_recommendations_sheet.dart';
 
@@ -337,6 +338,12 @@ class _ExploreTripCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          TripImageGallery(
+            tripId: trip.id,
+            coverImageUrl: trip.coverImageUrl,
+            tripTitle: trip.title,
+          ),
+          const SizedBox(height: AppSpacing.md),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -447,6 +454,13 @@ class PublishedTripDetailsScreen extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(AppSpacing.xxl),
       children: [
+        TripImageGallery(
+          tripId: trip.id,
+          coverImageUrl: trip.coverImageUrl,
+          tripTitle: trip.title,
+          loadImages: true,
+        ),
+        const SizedBox(height: AppSpacing.md),
         Text(trip.title, style: AppTypography.h2),
         const SizedBox(height: AppSpacing.md),
         HostReputationPanel(tripId: trip.id),

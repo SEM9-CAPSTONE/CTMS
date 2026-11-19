@@ -48,9 +48,16 @@ describe("RouteDangerZoneProposals", () => {
 		const create = vi
 			.spyOn(dangerZoneProposalsService, "create")
 			.mockResolvedValue({} as Awaited<ReturnType<typeof dangerZoneProposalsService.create>>);
-		render(<RouteDangerZoneProposals route={route} />);
+		const { container } = render(
+			<div className="relative z-0 overflow-hidden">
+				<RouteDangerZoneProposals route={route} />
+			</div>
+		);
 		await userEvent.click(await screen.findByRole("button", { name: "Thêm đề xuất" }));
-		const dialog = within(await screen.findByRole("dialog"));
+		const modal = await screen.findByRole("dialog");
+		expect(container).not.toContainElement(modal);
+		expect(screen.getByTestId("modal-overlay").parentElement).toBe(document.body);
+		const dialog = within(modal);
 
 		await userEvent.type(dialog.getByLabelText("Mô tả"), "Dốc đất đỏ trơn trượt sau mưa");
 		await userEvent.click(dialog.getByRole("button", { name: "Gửi đề xuất" }));

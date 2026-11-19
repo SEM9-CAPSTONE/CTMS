@@ -163,6 +163,20 @@ describe("WeatherService", () => {
 			});
 			expect(repository.createSuccess).not.toHaveBeenCalled();
 		}, 10000);
+
+		it("records one failed attempt without retrying during a provider cooldown", async () => {
+			repository.findRouteForFetch.mockResolvedValue(route());
+			provider.fetchCurrent.mockRejectedValue(
+				new WeatherProviderError("Weather provider is temporarily unavailable", undefined, false)
+			);
+			repository.createFailed.mockResolvedValue({ id: "snap-failed" });
+			await expect(service.refreshForRoute(actor(["host"], "host-1"), "route-1")).rejects.toThrow(
+				"Hiện chưa thể tải thông tin thời tiết. Vui lòng thử lại sau."
+			);
+			expect(provider.fetchCurrent).toHaveBeenCalledTimes(1);
+			expect(repository.createFailed).toHaveBeenCalledTimes(1);
+			expect(repository.createSuccess).not.toHaveBeenCalled();
+		});
 	});
 
 	describe("getLatestForRoute", () => {

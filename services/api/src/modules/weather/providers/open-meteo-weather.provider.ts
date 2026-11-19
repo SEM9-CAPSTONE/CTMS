@@ -11,6 +11,8 @@ import { WeatherProviderError } from "./weather-provider.interface";
 
 const OPEN_METEO_BASE_URL = "https://api.open-meteo.com/v1/forecast";
 const DEFAULT_TIMEOUT_MS = 8000;
+const MAX_CONCURRENT_REQUESTS = 3;
+const FAILURE_COOLDOWN_MS = 60_000;
 
 /** WMO weather interpretation codes 95/96/99 are the standard's own
  * "thunderstorm" family (slight/moderate, with slight hail, with heavy
@@ -48,8 +50,7 @@ interface OpenMeteoHourlyResponse {
 /**
  * CTMS-25-T01. Open-Meteo (https://open-meteo.com) -- chosen because it
  * needs no API key/account (Decision Gate: this project has no existing
- * weather-provider secret anywhere in .env), has a documented free tier
- * with no request quota enforced by an account, and its `current` block
+ * weather-provider secret anywhere in .env), has a free tier, and its `current` block
  * carries every field BR-065 requires (rain, wind, temperature,
  * visibility) plus a WMO weather code standard enough to derive
  * `thunderstorm` from without inventing a threshold.
@@ -57,13 +58,14 @@ interface OpenMeteoHourlyResponse {
 @Injectable()
 export class OpenMeteoWeatherProvider implements WeatherProvider {
 	private readonly logger = new Logger(OpenMeteoWeatherProvider.name);
+	private readonly inFlight = new Map<string, Promise<unknown>>();
+	private readonly waiting: Array<() => void> = [];
+	private activeRequests = 0;
+	private unavailableUntil = 0;
 
 	constructor(private readonly configService: ConfigService) {}
 
 	async fetchCurrent(latitude: number, longitude: number): Promise<WeatherReading> {
-		const timeoutMs = Number(
-			this.configService.get<string>("WEATHER_API_TIMEOUT_MS") ?? DEFAULT_TIMEOUT_MS
-		);
 		const url = new URL(OPEN_METEO_BASE_URL);
 		url.searchParams.set("latitude", latitude.toString());
 		url.searchParams.set("longitude", longitude.toString());
@@ -72,30 +74,9 @@ export class OpenMeteoWeatherProvider implements WeatherProvider {
 			"temperature_2m,precipitation,rain,weather_code,wind_speed_10m,visibility"
 		);
 
-		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-		let response: Response;
-		try {
-			response = await fetch(url, { signal: controller.signal });
-		} catch (error) {
-			this.logger.error(`Open-Meteo request failed: ${(error as Error).message}`);
-			throw new WeatherProviderError("Weather provider request failed", error);
-		} finally {
-			clearTimeout(timeout);
-		}
-
-		let body: OpenMeteoCurrentResponse;
-		try {
-			body = (await response.json()) as OpenMeteoCurrentResponse;
-		} catch (error) {
-			throw new WeatherProviderError("Weather provider returned a malformed response", error);
-		}
-
-		if (!response.ok || body.error || !body.current) {
-			throw new WeatherProviderError(
-				body.reason ?? `Weather provider returned HTTP ${response.status}`
-			);
+		const body = await this.requestJson<OpenMeteoCurrentResponse>(url);
+		if (!body.current) {
+			throw new WeatherProviderError("Weather provider returned no current weather");
 		}
 
 		const current = body.current;
@@ -162,33 +143,113 @@ export class OpenMeteoWeatherProvider implements WeatherProvider {
 	}
 
 	private async requestJson<T extends { error?: boolean; reason?: string }>(url: URL): Promise<T> {
-		const timeoutMs = Number(
-			this.configService.get<string>("WEATHER_API_TIMEOUT_MS") ?? DEFAULT_TIMEOUT_MS
-		);
-		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), timeoutMs);
-		let response: Response;
+		const key = url.toString();
+		const pending = this.inFlight.get(key);
+		if (pending) return pending as Promise<T>;
+		const request = this.performRequest<T>(url);
+		this.inFlight.set(key, request);
 		try {
-			response = await fetch(url, { signal: controller.signal });
-		} catch (error) {
-			this.logger.error(`Open-Meteo request failed: ${(error as Error).message}`);
-			throw new WeatherProviderError("Weather provider request failed", error);
+			return await request;
 		} finally {
-			clearTimeout(timeout);
+			this.inFlight.delete(key);
 		}
+	}
 
-		let body: T;
+	private async performRequest<T extends { error?: boolean; reason?: string }>(
+		url: URL
+	): Promise<T> {
+		this.assertAvailable();
+		await this.acquireSlot();
 		try {
-			body = (await response.json()) as T;
-		} catch (error) {
-			throw new WeatherProviderError("Weather provider returned a malformed response", error);
+			// A preceding request may have failed while this request was queued.
+			this.assertAvailable();
+			return await this.fetchJson<T>(url);
+		} finally {
+			const next = this.waiting.shift();
+			if (next) next();
+			else this.activeRequests--;
 		}
-		if (!response.ok || body.error) {
+	}
+
+	private async acquireSlot(): Promise<void> {
+		if (this.activeRequests < MAX_CONCURRENT_REQUESTS) {
+			this.activeRequests++;
+			return;
+		}
+		await new Promise<void>((resolve) => this.waiting.push(resolve));
+	}
+
+	private assertAvailable(): void {
+		if (Date.now() < this.unavailableUntil) {
 			throw new WeatherProviderError(
-				body.reason ?? `Weather provider returned HTTP ${response.status}`
+				"Weather provider is temporarily unavailable",
+				undefined,
+				false
 			);
 		}
-		return body;
+	}
+
+	private markUnavailable(message: string, delayMs = FAILURE_COOLDOWN_MS): void {
+		if (Date.now() >= this.unavailableUntil) {
+			this.logger.warn(`Open-Meteo unavailable; requests paused for ${delayMs}ms: ${message}`);
+		}
+		this.unavailableUntil = Math.max(this.unavailableUntil, Date.now() + delayMs);
+	}
+
+	private async fetchJson<T extends { error?: boolean; reason?: string }>(url: URL): Promise<T> {
+		const configuredTimeout = Number(this.configService.get<string>("WEATHER_API_TIMEOUT_MS"));
+		const timeoutMs =
+			Number.isInteger(configuredTimeout) && configuredTimeout > 0
+				? configuredTimeout
+				: DEFAULT_TIMEOUT_MS;
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), timeoutMs);
+		try {
+			const response = await fetch(url, { signal: controller.signal });
+			if (!response.ok) {
+				const message = `Weather provider returned HTTP ${response.status}`;
+				if (response.status === 429 || response.status >= 500) {
+					const retryAfter = response.headers?.get("retry-after");
+					const delayMs = retryAfter
+						? Number.isFinite(Number(retryAfter))
+							? Number(retryAfter) * 1000
+							: Date.parse(retryAfter) - Date.now()
+						: 0;
+					this.markUnavailable(
+						message,
+						Number.isFinite(delayMs) ? Math.max(FAILURE_COOLDOWN_MS, delayMs) : FAILURE_COOLDOWN_MS
+					);
+					// Do not wait for an error body, which can itself stall or be invalid JSON.
+					await response.body?.cancel();
+					throw new WeatherProviderError(message, undefined, false);
+				}
+			}
+			let body: T;
+			try {
+				body = (await response.json()) as T;
+			} catch (error) {
+				if (controller.signal.aborted) throw error;
+				throw new WeatherProviderError("Weather provider returned a malformed response", error);
+			}
+			if (!response.ok || body.error) {
+				throw new WeatherProviderError(
+					body.reason ?? `Weather provider returned HTTP ${response.status}`,
+					undefined,
+					response.ok
+				);
+			}
+			return body;
+		} catch (error) {
+			if (error instanceof WeatherProviderError) throw error;
+			const message = controller.signal.aborted
+				? `Weather provider timed out after ${timeoutMs}ms`
+				: `Weather provider request failed: ${error instanceof Error ? error.message : String(error)}`;
+			this.markUnavailable(message);
+			throw new WeatherProviderError(message, error, false);
+		} finally {
+			// The timeout covers both response headers and reading the JSON body.
+			clearTimeout(timeout);
+		}
 	}
 }
 

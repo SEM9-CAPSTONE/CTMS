@@ -220,7 +220,7 @@ const FINANCIAL_ADJUSTMENT_SCENARIOS = [
 		previousTitle: null,
 		title: "Chinh phục đèo Hải Vân",
 		description:
-			"Chuyến đi trong ngày qua cung đường đèo Hải Vân, dừng ngắm cảnh vịnh Đà Nẵng và Lăng Cô.",
+			"Chuyến đi trong ngày qua sườn Nam Hải Vân, dừng ngắm vịnh Đà Nẵng và Làng Vân dưới chân đèo.",
 		previousDescription: null,
 		path: "108.1280 16.1580,108.1270 16.1800,108.1325 16.1945",
 		notes: "Khoản thu thừa đã được đối chiếu và khấu trừ từ số dư ví người tổ chức.",
@@ -275,7 +275,7 @@ export async function seedFinancialAdjustments(): Promise<void> {
 		await manager.query("UPDATE users SET full_name = $1 WHERE id = $2 AND full_name = $3", [
 			"Nguyễn Văn An",
 			camper.id,
-			"Camper Nguyễn Văn An",
+			"Nguyễn Văn An",
 		]);
 		await manager.query(
 			"UPDATE user_bank_accounts SET account_holder_name = $1 WHERE user_id = $2 AND account_holder_name = $3",
@@ -528,7 +528,7 @@ const AREA_KEYWORDS: Array<{ code: string; keywords: string[] }> = [
 	{ code: "DNG-CAM-LE", keywords: ["cẩm lệ", "la hường"] },
 	{
 		code: "DNG-SON-TRA",
-		keywords: ["sơn trà", "voọc", "bàn cờ", "điệp sơn", "mũi nghê", "bãi bụt", "chùa linh ứng"],
+		keywords: ["sơn trà", "voọc", "bàn cờ", "tiên sa", "mũi nghê", "bãi bụt", "chùa linh ứng"],
 	},
 ];
 
@@ -565,22 +565,418 @@ export const DA_NANG_TRIP_MOVES = [
 			"Đi bộ nhẹ trong rừng Sơn Trà buổi sáng sớm, quan sát đàn voọc chà vá chân nâu kiếm ăn trên tán cây.",
 		routeName: "Bán Đảo Sơn Trà Discovery",
 	},
+	{
+		from: "Chinh phục đỉnh Fansipan 3N2Đ Chạm Đỉnh Mây (Lào Cai)",
+		title: "Chinh phục đỉnh Núi Chúa – Rừng Bà Nà",
+		description:
+			"Trekking xuyên rừng Bà Nà lên đỉnh Núi Chúa, nghỉ qua đêm và đón bình minh giữa núi rừng Hòa Vang.",
+		routeName: "Cung đường đỉnh Núi Chúa – Bà Nà",
+	},
+	{
+		from: "Cung đường săn mây Tà Xùa (Sơn La)",
+		title: "Săn mây Bà Nà – Bình minh trên đỉnh núi",
+		description:
+			"Men theo đường mòn rừng Bà Nà, dừng nghỉ trên sườn núi và ngắm mây sớm trên thung lũng Hòa Vang.",
+		routeName: "Cung đường đỉnh Núi Chúa – Bà Nà",
+	},
+	{
+		from: "Thám hiểm Thác Bản Giốc & Pác Bó (Cao Bằng)",
+		title: "Khám phá thác Tóc Tiên – Rừng Bà Nà",
+		description:
+			"Khám phá cảnh quan thác Tóc Tiên và những đoạn đường rừng dưới chân núi Bà Nà, nghỉ đêm giữa thiên nhiên Hòa Vang.",
+		routeName: "Cung đường đỉnh Núi Chúa – Bà Nà",
+	},
+	{
+		from: "Bạch Mộc Lương Tử Expedition (Lai Châu)",
+		title: "Xuyên rừng Bà Nà – Hành trình qua suối",
+		description:
+			"Theo đường mòn dưới tán rừng Bà Nà, vượt những đoạn suối cạn và cắm trại trên sườn núi Hòa Vang.",
+		routeName: "Cung đường đỉnh Núi Chúa – Bà Nà",
+	},
+	{
+		from: "Săn mây Y Tý - Bát Xát (Lào Cai)",
+		title: "Săn mây đỉnh Núi Chúa – Hòa Vang",
+		description:
+			"Đi bộ xuyên rừng Bà Nà, nghỉ qua đêm trên sườn Núi Chúa và đón biển mây trong ánh bình minh.",
+		routeName: "Cung đường đỉnh Núi Chúa – Bà Nà",
+	},
+	{
+		from: "Trekking Mù Cang Chải mùa vàng (Yên Bái)",
+		title: "Trekking rừng Bà Nà – Khám phá thác và suối",
+		description:
+			"Khám phá những lối mòn rừng Bà Nà, dừng chân bên suối và trải nghiệm cắm trại ở vùng núi Hòa Vang.",
+		routeName: "Cung đường đỉnh Núi Chúa – Bà Nà",
+	},
 ] as const;
 
-/** Renames existing rows in place: only title, description and route change; ledger rows stay. */
-async function moveLegacyTripsToDaNang(ds: DataSource, hostId: string): Promise<void> {
-	for (const move of DA_NANG_TRIP_MOVES) {
-		await ds.query(
-			`UPDATE "trips" t
-			 SET "title" = $2, "description" = $3,
-				"route_id" = COALESCE(
-					(SELECT r."id" FROM "trekking_routes" r WHERE r."name" = $4 ORDER BY r."created_at" LIMIT 1),
-					t."route_id"
-				)
-			 WHERE t."host_id" = $5 AND t."title" = $1`,
-			[move.from, move.title, move.description, move.routeName, hostId]
+// Legacy text is lookup metadata only; none of these old labels are inserted.
+export const DA_NANG_SEED_TITLE_UPDATES: ReadonlyArray<readonly [string, string]> = [
+	...DA_NANG_TRIP_MOVES.map((move) => [move.from, move.title] as const),
+	["Trekking Fansipan 3N2Đ Chạm Đỉnh Mây (Lào Cai)", "Chinh phục đỉnh Núi Chúa – Rừng Bà Nà"],
+	["[CTMS-024] Khám Phá Bán Đảo Sơn Trà (Bình thường - Còn 12 chỗ)", "Khám Phá Bán Đảo Sơn Trà"],
+	[
+		"[CTMS-024] Hải Vân Quan - Vịnh Làng Vân (Khẩn cấp: Chỉ còn 2 chỗ)",
+		"Hải Vân Quan - Vịnh Làng Vân",
+	],
+	[
+		"[CTMS-024] Thám Hiểm Rừng Bà Nà - Núi Chúa (Đã Hết Chỗ - 0 chỗ)",
+		"Thám Hiểm Rừng Bà Nà - Núi Chúa",
+	],
+	[
+		"[CTMS-024] Trekking Khe Ram - Rừng Hòa Bắc (Sắp hết hạn - Còn 8h)",
+		"Trekking Khe Ram - Rừng Hòa Bắc",
+	],
+	[
+		"[CTMS-024] Sơn Trà Sunset Trekking Mũi Nghê (Đã Hết Hạn Đặt Vé)",
+		"Sơn Trà – Hoàng hôn Mũi Nghê",
+	],
+	[
+		"[Tháng 12] Cắm Trại Đêm Vịnh Làng Vân & Trekking Đèo Hải Vân",
+		"Cắm Trại Đêm Vịnh Làng Vân & Trekking Đèo Hải Vân",
+	],
+	[
+		"[Tháng 12] Khám Phá Rừng Nguyên Sinh Sơn Trà - Đỉnh Bàn Cờ",
+		"Khám Phá Rừng Nguyên Sinh Sơn Trà - Đỉnh Bàn Cờ",
+	],
+	["[CTMS-024] Thám Hiểm Rừng Hòa Bắc (Chờ Admin phê duyệt)", "Thám Hiểm Rừng Hòa Bắc"],
+	["[CTMS-024] Trekking Suối Mơ Hòa Vang (Bản nháp của Host)", "Trekking Suối Mơ Hòa Vang"],
+	["[CTMS-024] Chinh Phục Đỉnh Núi Chúa (Đã hủy do thiếu người)", "Chinh Phục Đỉnh Núi Chúa"],
+	["[H-09] Chuyến phân công Porter trùng lịch Khe Ram", "Trekking Khe Ram – Dòng suối giữa rừng"],
+	["Trekking Bạch Mã 2N1Đ - Đủ điều kiện Quyết toán", "Trekking bán đảo Sơn Trà qua đêm"],
+	["Chèo SUP Hồ Hòa Trung - Đang giữ 72h", "Chèo SUP hồ Hòa Trung"],
+	["Khám phá Đỉnh Bàn Cờ - Bị giữ do Khiếu nại", "Khám phá Đỉnh Bàn Cờ"],
+	["Cắm trại Đảo Điệp Sơn - Đã quyết toán thành công", "Cắm trại bãi Tiên Sa – Sơn Trà"],
+	[
+		"Trekking Sơn Trà - Đang Diễn Ra (CTMS-064 Offline Buffer Demo)",
+		"Trekking Sơn Trà – Hành trình ven biển",
+	],
+	["Trekking Sơn Trà Hoàn Thành - Demo Khiếu Nại", "Trekking Nam Hải Vân – Khám phá rừng ven biển"],
+	["Bạch Mã — Hết hạn chỉnh sửa", "Bà Nà – Đường rừng buổi sớm"],
+	["[Demo thời tiết] Sơn Trà ngày nắng (còn 10 ngày)", "Sơn Trà – Đường mòn dưới tán rừng"],
+	["[Demo thời tiết] Bà Nà mưa lớn (Host cần quyết định)", "Bà Nà – Khám phá rừng nguyên sinh"],
+	["[Demo thời tiết] Hải Vân dông sét (Host chưa trả lời)", "Hải Vân – Dọc sườn núi ven biển"],
+	[
+		"[Demo thời tiết] Ngũ Hành Sơn gió mạnh (Host muốn giữ)",
+		"Ngũ Hành Sơn – Hành trình qua các hang động",
+	],
+	["[Demo thời tiết] Cù Lao Chàm (Admin tạm dừng)", "Bãi Bắc – Dã ngoại bán đảo Sơn Trà"],
+	["[Demo thời tiết] Bidoup (đã dời lịch vì mưa bão)", "Bà Nà – Hành trình qua suối và rừng"],
+	["[Demo thời tiết] Lang Biang gió giật (ngưỡng và AI lệch)", "Đỉnh Bàn Cờ – Đón gió biển"],
+	[
+		"[Demo thời tiết] Mỹ Sơn mưa rào ngắn (ngưỡng và AI lệch)",
+		"Suối Lương – Dạo bước dưới tán cây",
+	],
+	["[Demo thời tiết] Sơn Trà Tây (còn 10 giờ, Khẩn)", "Sơn Trà – Ngắm biển từ sườn phía tây"],
+	[
+		"[Demo thời tiết] Bà Nà Núi Chúa (còn 6,5 giờ, sắp tự huỷ)",
+		"Núi Chúa – Khám phá đường rừng Hòa Vang",
+	],
+	[
+		"[Demo thời tiết] Tiên Sa (hệ thống đã tự huỷ T-6h)",
+		"Tiên Sa – Nghỉ dưỡng và dã ngoại ven biển",
+	],
+	["[Demo phạt] Hòa Bắc (đã miễn phạt)", "Hòa Bắc – Khám phá bản làng Cơ Tu"],
+	["[Demo phạt] Lăng Cô (lần 1, bị từ chối miễn)", "Nam Ô – Đi bộ ven rạn đá"],
+	["[Demo phạt] Bạch Mã (lần 2, chờ duyệt miễn)", "Bà Nà – Cắm trại giữa rừng xanh"],
+	["[Demo phạt] Phú Ninh (lần 1)", "Hồ Hòa Trung – Dã ngoại bên hồ"],
+	["[Demo phạt] Đèo Le (lần 2)", "Sông Cu Đê – Hành trình qua thung lũng"],
+	["[Demo phạt] Núi Thần Tài (lần 3, quá hạn xem)", "Núi Thần Tài – Nghỉ chân bên suối"],
+];
+
+export const DA_NANG_SEED_ROUTE_UPDATES = [
+	{
+		from: "Cung đường Tà Năng - Phan Dũng",
+		name: "Cung đường Tà Lang – Giàn Bí",
+		path: "108.020 16.090,108.035 16.105,108.050 16.120,108.065 16.135",
+	},
+	{
+		from: "Cung đường Fansipan Trạm Tôn",
+		name: "Cung đường đỉnh Núi Chúa – Bà Nà",
+		path: "108.010 15.990,108.018 16.002,108.025 16.015,108.030 16.025",
+	},
+	{
+		from: "Đỉnh Núi Bidoup Trail",
+		name: "Hải Vân Pass - Nam Hải Vân Trail",
+		path: "108.130 16.185,108.138 16.195,108.145 16.205,108.150 16.210",
+	},
+	{
+		from: "Cung Đường An Toàn (Mức Xanh)",
+		name: "Đường mòn ven suối Lương",
+		path: "108.1290 16.1405,108.1262 16.1428,108.1243 16.1449",
+	},
+	{
+		from: "Cung Đường Bão Nguy Hiểm (Mức Đỏ)",
+		name: "Đường rừng Nam Hải Vân",
+		path: "108.130 16.185,108.138 16.195,108.145 16.205",
+	},
+	{
+		from: "Cung đường Trekking Demo",
+		name: "Đường dạo rừng Hòa Bắc",
+		path: "108.020 16.090,108.035 16.105,108.050 16.120",
+	},
+	{
+		from: "Đồi Dương - Suối Lương Trail (Chờ Duyệt)",
+		name: "Đồi Dương – Suối Lương",
+		path: "108.120 16.170,108.125 16.175,108.130 16.180",
+	},
+	{
+		from: "Đỉnh Mẹ Suốt Cung Sạt Lở (Tạm Đóng)",
+		name: "Đường mòn sườn núi Nam Hải Vân",
+		path: "108.110 16.160,108.115 16.165",
+	},
+] as const;
+
+export const DA_NANG_SEED_COPY_UPDATES: ReadonlyArray<readonly [string, string]> = [
+	[
+		"Chinh phục đỉnh Fansipan 3.143m ngắm biển mây Tây Bắc.",
+		"Trekking xuyên rừng Bà Nà lên đỉnh Núi Chúa, nghỉ qua đêm và đón bình minh giữa núi rừng Hòa Vang.",
+	],
+	[
+		"Chinh phục Nóc nhà Đông Dương 3.143m ngắm trọn biển mây Tây Bắc.",
+		"Trekking xuyên rừng Bà Nà lên đỉnh Núi Chúa, nghỉ qua đêm và đón bình minh giữa núi rừng Hòa Vang.",
+	],
+	[
+		"Check-in Sống lưng khủng long Háng Đồng và biển mây bồng bềnh nguyên sơ.",
+		"Men theo đường mòn rừng Bà Nà, dừng nghỉ trên sườn núi và ngắm mây sớm trên thung lũng Hòa Vang.",
+	],
+	[
+		"Chiêm ngưỡng thác nước tự nhiên đẹp nhất Việt Nam và dòng suối Lê-nin xanh ngọc.",
+		"Khám phá cảnh quan thác Tóc Tiên và những đoạn đường rừng dưới chân núi Bà Nà, nghỉ đêm giữa thiên nhiên Hòa Vang.",
+	],
+	[
+		"Kỳ vĩ đồi Muối và biển mây ngút ngàn trên độ cao 3.046m.",
+		"Theo đường mòn dưới tán rừng Bà Nà, vượt những đoạn suối cạn và cắm trại trên sườn núi Hòa Vang.",
+	],
+	[
+		"Cung đường ruộng bậc thang và biển mây ngút ngàn Lào Cai.",
+		"Đi bộ xuyên rừng Bà Nà, nghỉ qua đêm trên sườn Núi Chúa và đón biển mây trong ánh bình minh.",
+	],
+	[
+		"Ngắm những triền ruộng bậc thang La Pán Tẩn rực rỡ sắc vàng Tây Bắc.",
+		"Khám phá những lối mòn rừng Bà Nà, dừng chân bên suối và trải nghiệm cắm trại ở vùng núi Hòa Vang.",
+	],
+	[
+		"Cung trekking đẹp nhất miền Nam tại Lâm Đồng",
+		"Cung đường xuyên rừng Hòa Bắc qua Tà Lang và Giàn Bí, men theo thung lũng sông Cu Đê.",
+	],
+	[
+		"Chinh phục Nóc nhà Đông Dương tại Sa Pa, Lào Cai",
+		"Đường mòn xuyên rừng Bà Nà lên đỉnh Núi Chúa, qua các đoạn dốc và điểm nghỉ dưới tán rừng.",
+	],
+	[
+		"Cung đường trekking chinh phục đỉnh núi Bidoup",
+		"Trekking sườn Nam Hải Vân, ngắm vịnh Làng Vân và rừng ven biển Đà Nẵng.",
+	],
+	[
+		"Tuyến trekking thời tiết đẹp, đủ điều kiện an toàn đăng ký",
+		"Đường đi ven suối Lương dưới chân đèo Hải Vân, qua các bãi đá và rừng cây râm mát.",
+	],
+	[
+		"Tuyến đường rủi ro thời tiết MỨC ĐỎ - Tạm dừng nhận đăng ký mới",
+		"Đường mòn rừng Nam Hải Vân qua các sườn dốc hướng ra biển, cần theo dõi thời tiết trước khi khởi hành.",
+	],
+	[
+		"Tuyến đường mẫu cho kịch bản quyết toán",
+		"Cung đường đi bộ dưới tán rừng Hòa Bắc, thích hợp dã ngoại và ngắm cảnh.",
+	],
+	[
+		"Chuyến đi trong ngày qua cung đường đèo Hải Vân, dừng ngắm cảnh vịnh Đà Nẵng và Lăng Cô.",
+		"Chuyến đi trong ngày qua sườn Nam Hải Vân, dừng ngắm vịnh Đà Nẵng và Làng Vân dưới chân đèo.",
+	],
+	[
+		"Chuyến đi đã kết thúc cách đây 80 giờ, vượt qua mốc bảo lưu 72h và sẵn sàng quyết toán.",
+		"Trekking đường rừng bán đảo Sơn Trà, nghỉ qua đêm bên biển và ngắm bình minh trên vịnh Đà Nẵng.",
+	],
+	[
+		"Chuyến đi đã hoàn thành 90 giờ trước nhưng đang có yêu cầu khiếu nại hoàn tiền chưa xử lý.",
+		"Khám phá các đường mòn lên Đỉnh Bàn Cờ, ngắm toàn cảnh rừng Sơn Trà và vịnh Đà Nẵng.",
+	],
+	[
+		"Dữ liệu mẫu để test luồng thời tiết và phạt Host.",
+		"Hành trình khám phá rừng và biển Đà Nẵng, theo dõi dự báo thời tiết trước giờ khởi hành.",
+	],
+	[" Trạng thái bình thường, còn nhiều chỗ trống.", ""],
+	[" Số lượng chỗ sắp hết, chỉ còn 2 vé cuối cùng!", ""],
+	[" Đã đủ 10/10 khách tham gia, toàn bộ chỗ đã được đặt kín.", ""],
+	[" Hạn chốt danh sách người tham gia sẽ đóng trong 8 giờ tới.", ""],
+	[
+		"Thích hợp thuê lều, túi ngủ, đèn pin dã ngoại và test thanh toán trực tuyến.",
+		"Lịch trình có cắm trại bãi biển, sử dụng lều, túi ngủ và đèn pin dã ngoại.",
+	],
+	[
+		"Chuyến đi bộ ngắm hoàng hôn rực rỡ tại Mũi Nghê Sơn Trà đã qua hạn chốt danh sách người tham gia (đóng từ 2 giờ trước). Không thể đăng ký thêm.",
+		"Đi bộ men theo sườn núi Sơn Trà ra Mũi Nghê, dừng ngắm biển và hoàng hôn cuối ngày.",
+	],
+	[
+		"Bản phác thảo kế hoạch chuyến đi chưa gửi duyệt của Host.",
+		"Hành trình đi bộ ven suối Mơ, nghỉ dưới tán cây và khám phá thiên nhiên Hòa Vang.",
+	],
+	[
+		"Chuyến đi tự động bị hủy do đến hạn chót đặt vé mà số lượng người đăng ký không đạt mức tối thiểu (capacity_min).",
+		"Đi bộ xuyên rừng lên đỉnh Núi Chúa, dừng nghỉ bên suối và ngắm cảnh núi rừng Hòa Vang.",
+	],
+	[
+		"Chuyến đi đã bị hủy theo quy chế capacity_min.",
+		"Tập trung tại chân núi Bà Nà, trekking đường rừng, nghỉ trưa bên suối và trở về trong ngày.",
+	],
+	["Quyết toán doanh thu chuyến: Bạch Mã", "Quyết toán doanh thu chuyến: Bà Nà"],
+	["Trừ phạt thời tiết: Bạch Mã", "Trừ phạt thời tiết: Bà Nà"],
+	[
+		"Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh",
+		"Số 123 Nguyễn Văn Linh, Phường Hải Châu, TP. Đà Nẵng",
+	],
+	["Host Tây Bắc Trek", "Trần Minh Hoàng"],
+	["Host Ban Mai", "Nguyễn Thị Ban Mai"],
+	["Camper Nguyễn Văn An", "Nguyễn Văn An"],
+	["Quản trị viên hệ thống", "Lê Minh Tuấn"],
+	["Administrator", "Lê Minh Tuấn"],
+	["Porter Chuyên Nghiệp", "Nguyễn Minh Sơn"],
+	["Porter 2", "Trần Quốc Huy"],
+];
+
+/** Replace only recognized fixture text, preserving any appended operational notes. */
+export function rewriteDaNangSeedCopy(value: string): string {
+	let result = value;
+	for (const [from, to] of [
+		...DA_NANG_SEED_TITLE_UPDATES,
+		...DA_NANG_SEED_COPY_UPDATES,
+		...DA_NANG_SEED_ROUTE_UPDATES.map((route) => [route.from, route.name] as const),
+	])
+		result = result.replaceAll(from, to);
+	return result;
+}
+
+function rewriteDaNangSeedJson(value: unknown): unknown {
+	if (typeof value === "string") return rewriteDaNangSeedCopy(value);
+	if (Array.isArray(value)) return value.map(rewriteDaNangSeedJson);
+	if (value !== null && typeof value === "object")
+		return Object.fromEntries(
+			Object.entries(value).map(([key, item]) => [key, rewriteDaNangSeedJson(item)])
 		);
+	return value;
+}
+
+/** Copy/location-only repair: no accounts or records are created; links and money stay intact. */
+export async function refreshDaNangSeedData(ds: DataSource = dataSource) {
+	if (process.env.NODE_ENV === "production")
+		throw new Error("Da Nang seed maintenance refuses production.");
+	if (!ds.isInitialized) {
+		ds.setOptions({ migrationsRun: false });
+		await ds.initialize();
 	}
+	return ds.transaction(async (manager) => {
+		const emails = [
+			"host@ctms.local",
+			"host2@ctms.local",
+			"host.blocked@ctms.local",
+			"host.suspended@ctms.local",
+		];
+		let tripsUpdated = 0;
+		let routesUpdated = 0;
+		const trips: Array<{
+			id: string;
+			title: string;
+			description: string | null;
+			itinerary: unknown;
+		}> = await manager.query(
+			`SELECT t.id,t.title,t.description,t.itinerary FROM trips t JOIN users u ON u.id=t.host_id
+			 WHERE u.email=ANY($1) FOR UPDATE OF t`,
+			[emails]
+		);
+		for (const trip of trips) {
+			const title = rewriteDaNangSeedCopy(trip.title);
+			const description =
+				trip.description === null ? null : rewriteDaNangSeedCopy(trip.description);
+			let itinerary = rewriteDaNangSeedJson(trip.itinerary);
+			if (trip.title.startsWith("[Demo thời tiết]") || trip.title.startsWith("[Demo phạt]"))
+				itinerary = {
+					...(itinerary as Record<string, unknown> | null),
+					seedFixture: "weather-operations",
+				};
+			if (
+				title !== trip.title ||
+				description !== trip.description ||
+				JSON.stringify(itinerary) !== JSON.stringify(trip.itinerary)
+			) {
+				await manager.query(
+					"UPDATE trips SET title=$2,description=$3,itinerary=$4::jsonb WHERE id=$1",
+					[trip.id, title, description, JSON.stringify(itinerary)]
+				);
+				tripsUpdated++;
+			}
+			if (title !== trip.title) {
+				for (const table of [
+					"booking_cancellation_notices",
+					"host_weather_penalties",
+					"trip_weather_change_notices",
+					"trip_weather_decision_alerts",
+				])
+					await manager.query(
+						`UPDATE "${table}" SET trip_title=$2 WHERE trip_id=$1 AND trip_title=$3`,
+						[trip.id, title, trip.title]
+					);
+			}
+		}
+		const routes: Array<{ id: string; name: string; description: string | null }> =
+			await manager.query(
+				`SELECT r.id,r.name,r.description FROM trekking_routes r JOIN users u ON u.id=r.host_id
+			 WHERE u.email=ANY($1) FOR UPDATE OF r`,
+				[emails]
+			);
+		for (const route of routes) {
+			const move = DA_NANG_SEED_ROUTE_UPDATES.find((item) => item.from === route.name);
+			const description =
+				route.description === null ? null : rewriteDaNangSeedCopy(route.description);
+			if (move) {
+				await manager.query(
+					"UPDATE trekking_routes SET name=$2,description=$3,route_geom=ST_GeogFromText($4) WHERE id=$1",
+					[route.id, move.name, description, `SRID=4326;LINESTRING(${move.path})`]
+				);
+				routesUpdated++;
+			} else if (description !== route.description) {
+				await manager.query("UPDATE trekking_routes SET description=$2 WHERE id=$1", [
+					route.id,
+					description,
+				]);
+				routesUpdated++;
+			}
+		}
+		const ledger: Array<{ id: string; description: string }> = await manager.query(
+			`SELECT wt.id,wt.description FROM wallet_transactions wt JOIN host_wallets w ON w.id=wt.wallet_id
+			 JOIN users u ON u.id=w.host_id WHERE u.email=ANY($1) FOR UPDATE OF wt`,
+			[emails]
+		);
+		for (const entry of ledger) {
+			const description = rewriteDaNangSeedCopy(entry.description);
+			if (description !== entry.description)
+				await manager.query("UPDATE wallet_transactions SET description=$2 WHERE id=$1", [
+					entry.id,
+					description,
+				]);
+		}
+		const users: Array<{ id: string; full_name: string; address: string | null }> =
+			await manager.query("SELECT id,full_name,address FROM users WHERE email=ANY($1) FOR UPDATE", [
+				[
+					...emails,
+					"camper@ctms.local",
+					"admin@ctms.local",
+					"porter@ctms.local",
+					"porter2@ctms.local",
+				],
+			]);
+		for (const user of users) {
+			const name = rewriteDaNangSeedCopy(user.full_name);
+			const address = user.address === null ? null : rewriteDaNangSeedCopy(user.address);
+			if (name !== user.full_name || address !== user.address)
+				await manager.query("UPDATE users SET full_name=$2,address=$3 WHERE id=$1", [
+					user.id,
+					name,
+					address,
+				]);
+		}
+		const areasUpdated = await backfillTripAreaSnapshots(manager);
+		return { tripsUpdated, routesUpdated, areasUpdated };
+	});
 }
 
 interface SeedRoute {
@@ -820,7 +1216,7 @@ function providerRef(prefix: string, at: string): string {
 	return `${prefix}${at.replace(/\D/g, "").slice(0, 12)}`;
 }
 
-export async function backfillTripAreaSnapshots(ds: DataSource): Promise<number> {
+export async function backfillTripAreaSnapshots(ds: Pick<DataSource, "query">): Promise<number> {
 	let updated = 0;
 	for (const field of ["title", "route"] as const) {
 		for (const { code, keywords } of AREA_KEYWORDS) {
@@ -894,7 +1290,7 @@ export async function seedRevenueAnalyticsScenarios(ds: DataSource): Promise<voi
 	}
 
 	await ensureRoutes(ds, host.id);
-	await moveLegacyTripsToDaNang(ds, host.id);
+	await refreshDaNangSeedData(ds);
 
 	for (const trip of HISTORY_TRIPS) {
 		const routeId = await resolveRouteId(ds, host.id, trip.route);
@@ -1306,17 +1702,17 @@ export interface PorterSeedTripScenario {
 }
 
 export const PORTER_CONFLICT_TARGET_TRIP: PorterSeedTripScenario = {
-	title: "[CTMS-024] Trekking Khe Ram - Rừng Hòa Bắc (Sắp hết hạn - Còn 8h)",
+	title: "Trekking Khe Ram - Rừng Hòa Bắc",
 	window: { startsAfterDays: 2, startHour: 6, endsAfterDays: 3, endHour: 17 },
 };
 
 export const PORTER_NON_CONFLICT_TARGET_TRIP: PorterSeedTripScenario = {
-	title: "[CTMS-024] Khám Phá Bán Đảo Sơn Trà (Bình thường - Còn 12 chỗ)",
+	title: "Khám Phá Bán Đảo Sơn Trà",
 	window: { startsAfterDays: 4, startHour: 7, endsAfterDays: 4, endHour: 16 },
 };
 
 export const PORTER_CONFLICT_ASSIGNMENT_TRIP: PorterSeedTripScenario = {
-	title: "[H-09] Chuyến phân công Porter trùng lịch Khe Ram",
+	title: "Trekking Khe Ram – Dòng suối giữa rừng",
 	window: { startsAfterDays: 2, startHour: 12, endsAfterDays: 2, endHour: 16 },
 };
 
@@ -1633,7 +2029,7 @@ const SEED_ACCOUNTS: SeedAccount[] = [
 		phone: "0900000000",
 		password: "Admin@123",
 		role: "admin",
-		fullName: "Quản trị viên hệ thống",
+		fullName: "Lê Minh Tuấn",
 	},
 	{
 		label: "host",
@@ -1641,7 +2037,7 @@ const SEED_ACCOUNTS: SeedAccount[] = [
 		phone: "0900000002",
 		password: "Host@123",
 		role: "host",
-		fullName: "Host Ban Mai",
+		fullName: "Nguyễn Thị Ban Mai",
 	},
 	{
 		label: "porter",
@@ -1649,7 +2045,7 @@ const SEED_ACCOUNTS: SeedAccount[] = [
 		phone: "0900000001",
 		password: "Porter@123",
 		role: "porter",
-		fullName: "Porter Chuyên Nghiệp",
+		fullName: "Nguyễn Minh Sơn",
 		avatarUrl: "https://i.pravatar.cc/160?img=12",
 	},
 	{
@@ -1658,7 +2054,7 @@ const SEED_ACCOUNTS: SeedAccount[] = [
 		phone: "0900000004",
 		password: "Porter2@123",
 		role: "porter",
-		fullName: "Porter 2",
+		fullName: "Trần Quốc Huy",
 		avatarUrl: "https://i.pravatar.cc/160?img=68",
 	},
 	{
@@ -1670,7 +2066,7 @@ const SEED_ACCOUNTS: SeedAccount[] = [
 		fullName: "Nguyễn Văn An",
 		dateOfBirth: "1998-10-20",
 		gender: "male",
-		address: "Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh",
+		address: "Số 123 Nguyễn Văn Linh, Phường Hải Châu, TP. Đà Nẵng",
 	},
 ];
 
@@ -1800,7 +2196,7 @@ export async function seedDevHostAndRoute(): Promise<void> {
 		const passwordHash = await hash(hostPassword, BCRYPT_COST_FACTOR);
 		const insertedUser: Array<{ id: string }> = await dataSource.query(
 			`INSERT INTO "users" (email, phone, password_hash, role, status, full_name)
-			 VALUES ($1, $2, $3, 'host', 'active', 'Host Ban Mai')
+			 VALUES ($1, $2, $3, 'host', 'active', 'Nguyễn Thị Ban Mai')
 			 RETURNING id`,
 			[hostEmail, hostPhone, passwordHash]
 		);
@@ -1813,7 +2209,7 @@ export async function seedDevHostAndRoute(): Promise<void> {
 	}
 
 	// 2. Create active Trekking Route
-	const routeName = "Đỉnh Núi Bidoup Trail";
+	const routeName = "Hải Vân Pass - Nam Hải Vân Trail";
 	const existingRoute: Array<{ id: string }> = await dataSource.query(
 		'SELECT "id" FROM "trekking_routes" WHERE "host_id" = $1 AND "name" = $2',
 		[hostId, routeName]
@@ -1824,7 +2220,7 @@ export async function seedDevHostAndRoute(): Promise<void> {
 	} else {
 		const insertedRoute: Array<{ id: string }> = await dataSource.query(
 			`INSERT INTO "trekking_routes" (host_id, name, description, route_geom, length_meters, difficulty, expected_duration_minutes, status)
-			 VALUES ($1, $2, 'Cung đường trekking chinh phục đỉnh núi Bidoup', ST_GeogFromText('SRID=4326;LINESTRING(108.45 11.94, 108.47 11.95)'), 2500, 'moderate', 180, 'active')
+			 VALUES ($1, $2, 'Trekking sườn Nam Hải Vân, ngắm vịnh Làng Vân và rừng ven biển Đà Nẵng.', ST_GeogFromText('SRID=4326;LINESTRING(108.130 16.185,108.138 16.195,108.145 16.205,108.150 16.210)'), 2500, 'moderate', 180, 'active')
 			 RETURNING id`,
 			[hostId, routeName]
 		);
@@ -1861,7 +2257,7 @@ export async function seedDevTrips(): Promise<void> {
 			const passwordHash = await hash(hostPassword, BCRYPT_COST_FACTOR);
 			const insertedUser: Array<{ id: string }> = await dataSource.query(
 				`INSERT INTO "users" (email, phone, password_hash, role, status, full_name)
-				 VALUES ($1, $2, $3, 'host', 'active', 'Host Ban Mai')
+				 VALUES ($1, $2, $3, 'host', 'active', 'Nguyễn Thị Ban Mai')
 				 RETURNING id`,
 				[hostEmail, hostPhone, passwordHash]
 			);
@@ -2195,17 +2591,8 @@ export async function seedDevTrips(): Promise<void> {
 			}
 		}
 
-		// 5. Clean up obsolete legacy trips
-		await dataSource.query(
-			`UPDATE "trips"
-			 SET "status" = 'cancelled'
-			 WHERE "title" IN (
-				'Khám Phá Sơn Trà Xanh Trong Ngày',
-				'Chinh Phục Đỉnh Núi Bidoup - 2 Ngày 1 Đêm',
-				'Tà Năng - Phan Dũng: Thử Thách Băng Rừng Đồi Cỏ',
-				'Bạch Mộc Lương Tử - Săn Mây Đại Ngàn (Đã Hết Chỗ)'
-			 )`
-		);
+		// Updating fixture geography must not cancel existing bookings or Trips.
+		await refreshDaNangSeedData(dataSource);
 
 		// 6. Seed published Trips with fresh dates calculated from NOW (Da Nang locations only)
 		const now = new Date();
@@ -2222,14 +2609,15 @@ export async function seedDevTrips(): Promise<void> {
 		const sampleTrips = [
 			// Scenario 1: Normal capacity (12 seats remaining)
 			{
-				title: "[CTMS-024] Khám Phá Bán Đảo Sơn Trà (Bình thường - Còn 12 chỗ)",
+				title: "Khám Phá Bán Đảo Sơn Trà",
 				legacyTitles: [
 					"[CTMS-024] Khám Phá Sơn Trà (Bình thường - Còn 12 chỗ)",
 					"[CTMS-024] Khám Phá Bán Đảo Sơn Trà (Bình thường - Còn 12 chỗ)",
+					"Khám Phá Bán Đảo Sơn Trà",
 				],
 				routeName: "Bán Đảo Sơn Trà Discovery",
 				description:
-					"Chuyến đi bộ dã ngoại trong ngày ngắm voọc chà vá chân nâu và Đỉnh Bàn Cờ tại bán đảo Sơn Trà, Đà Nẵng. Trạng thái bình thường, còn nhiều chỗ trống.",
+					"Chuyến đi bộ dã ngoại trong ngày ngắm voọc chà vá chân nâu và Đỉnh Bàn Cờ tại bán đảo Sơn Trà, Đà Nẵng.",
 				coverImageUrl:
 					"https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80",
 				tripType: "day_trip",
@@ -2287,14 +2675,16 @@ export async function seedDevTrips(): Promise<void> {
 			},
 			// Scenario 2: Low capacity urgency (<= 3 seats remaining -> exactly 2 remaining)
 			{
-				title: "[CTMS-024] Hải Vân Quan - Vịnh Làng Vân (Khẩn cấp: Chỉ còn 2 chỗ)",
+				title: "Hải Vân Quan - Vịnh Làng Vân",
 				legacyTitles: [
 					"[CTMS-024] Đỉnh Núi Bidoup Trail (Khẩn cấp: Chỉ còn 2 chỗ)",
 					"[CTMS-024] Hải Vân Quan - Vịnh Làng Vân (Khẩn cấp: Chỉ còn 2 chỗ)",
+					"[CTMS-024] Hải Vân Pass - Nam Hải Vân Trail (Khẩn cấp: Chỉ còn 2 chỗ)",
+					"Hải Vân Quan - Vịnh Làng Vân",
 				],
 				routeName: "Hải Vân Pass - Nam Hải Vân Trail",
 				description:
-					"Hành trình trekking 2N1Đ vượt sườn đèo Hải Vân và cắm trại vịnh biển Làng Vân hoang sơ dưới chân đèo. Số lượng chỗ sắp hết, chỉ còn 2 vé cuối cùng!",
+					"Hành trình trekking 2N1Đ vượt sườn đèo Hải Vân và cắm trại vịnh biển Làng Vân hoang sơ dưới chân đèo.",
 				coverImageUrl:
 					"https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80",
 				tripType: "overnight",
@@ -2360,14 +2750,15 @@ export async function seedDevTrips(): Promise<void> {
 			},
 			// Scenario 3: Completely Sold Out (seatsTaken == capacityMax -> 0 seats)
 			{
-				title: "[CTMS-024] Thám Hiểm Rừng Bà Nà - Núi Chúa (Đã Hết Chỗ - 0 chỗ)",
+				title: "Thám Hiểm Rừng Bà Nà - Núi Chúa",
 				legacyTitles: [
 					"[CTMS-024] Bạch Mộc Lương Tử Expedition (Đã Hết Chỗ - 0 chỗ)",
 					"[CTMS-024] Thám Hiểm Rừng Bà Nà - Núi Chúa (Đã Hết Chỗ - 0 chỗ)",
+					"Thám Hiểm Rừng Bà Nà - Núi Chúa",
 				],
 				routeName: "Rừng Nguyên Sinh Bà Nà - Núi Chúa",
 				description:
-					"Cung trekking thám hiểm lõi rừng nguyên sinh Bà Nà - Núi Chúa tại huyện Hòa Vang, Đà Nẵng. Đã đủ 10/10 khách tham gia, toàn bộ chỗ đã được đặt kín.",
+					"Cung trekking thám hiểm lõi rừng nguyên sinh Bà Nà - Núi Chúa tại huyện Hòa Vang, Đà Nẵng.",
 				coverImageUrl:
 					"https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1200&q=80",
 				tripType: "overnight",
@@ -2433,14 +2824,15 @@ export async function seedDevTrips(): Promise<void> {
 			},
 			// Scenario 4: Deadline approaching soon (< 24 hours -> 8 hours left)
 			{
-				title: "[CTMS-024] Trekking Khe Ram - Rừng Hòa Bắc (Sắp hết hạn - Còn 8h)",
+				title: "Trekking Khe Ram - Rừng Hòa Bắc",
 				legacyTitles: [
 					"[CTMS-024] Tà Năng - Phan Dũng (Sắp hết hạn đặt chỗ - Còn 8h)",
 					"[CTMS-024] Trekking Khe Ram - Rừng Hòa Bắc (Sắp hết hạn - Còn 8h)",
+					"Trekking Khe Ram - Rừng Hòa Bắc",
 				],
 				routeName: "Khe Ram - Suối Mơ - Rừng Hòa Bắc",
 				description:
-					"Cung trekking băng rừng thung lũng sông Cu Đê, vượt suối ghềnh đá Khe Ram tại Hòa Bắc, Đà Nẵng. Hạn chốt danh sách người tham gia sẽ đóng trong 8 giờ tới.",
+					"Cung trekking băng rừng thung lũng sông Cu Đê, vượt suối ghềnh đá Khe Ram tại Hòa Bắc, Đà Nẵng.",
 				coverImageUrl:
 					"https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=80",
 				tripType: "overnight",
@@ -2506,14 +2898,15 @@ export async function seedDevTrips(): Promise<void> {
 			},
 			// Scenario 5: Past booking deadline (Deadline was 2 hours ago -> booking closed)
 			{
-				title: "[CTMS-024] Sơn Trà Sunset Trekking Mũi Nghê (Đã Hết Hạn Đặt Vé)",
+				title: "Sơn Trà – Hoàng hôn Mũi Nghê",
 				legacyTitles: [
 					"[CTMS-024] Sơn Trà Sunset Trek (Đã Hết Hạn Đặt Vé)",
 					"[CTMS-024] Sơn Trà Sunset Trekking Mũi Nghê (Đã Hết Hạn Đặt Vé)",
+					"Sơn Trà – Hoàng hôn Mũi Nghê",
 				],
 				routeName: "Bán Đảo Sơn Trà Discovery",
 				description:
-					"Chuyến đi bộ ngắm hoàng hôn rực rỡ tại Mũi Nghê Sơn Trà đã qua hạn chốt danh sách người tham gia (đóng từ 2 giờ trước). Không thể đăng ký thêm.",
+					"Đi bộ men theo sườn núi Sơn Trà ra Mũi Nghê, dừng ngắm biển và hoàng hôn cuối ngày.",
 				coverImageUrl:
 					"https://images.unsplash.com/photo-1510312305653-8ed496efae75?auto=format&fit=crop&w=1200&q=80",
 				tripType: "day_trip",
@@ -2563,11 +2956,14 @@ export async function seedDevTrips(): Promise<void> {
 			},
 			// Scenario 6: December 2026 Trekking & Equipment Rental Test (Overnight 2D1N)
 			{
-				title: "[Tháng 12] Cắm Trại Đêm Vịnh Làng Vân & Trekking Đèo Hải Vân",
-				legacyTitles: ["[Tháng 12] Cắm Trại Đêm Vịnh Làng Vân & Trekking Đèo Hải Vân"],
+				title: "Cắm Trại Đêm Vịnh Làng Vân & Trekking Đèo Hải Vân",
+				legacyTitles: [
+					"[Tháng 12] Cắm Trại Đêm Vịnh Làng Vân & Trekking Đèo Hải Vân",
+					"Cắm Trại Đêm Vịnh Làng Vân & Trekking Đèo Hải Vân",
+				],
 				routeName: "Hải Vân Pass - Nam Hải Vân Trail",
 				description:
-					"Chuyến đi trekking khám phá đèo Hải Vân và cắm trại đêm tại bãi biển hoang sơ Vịnh Làng Vân vào tháng 12/2026. Thích hợp thuê lều, túi ngủ, đèn pin dã ngoại và test thanh toán trực tuyến.",
+					"Chuyến đi trekking khám phá đèo Hải Vân và cắm trại đêm tại bãi biển hoang sơ Vịnh Làng Vân vào tháng 12/2026. Lịch trình có cắm trại bãi biển, sử dụng lều, túi ngủ và đèn pin dã ngoại.",
 				coverImageUrl:
 					"https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80",
 				tripType: "overnight",
@@ -2631,8 +3027,11 @@ export async function seedDevTrips(): Promise<void> {
 			},
 			// Scenario 7: December 2026 Day Trip Test
 			{
-				title: "[Tháng 12] Khám Phá Rừng Nguyên Sinh Sơn Trà - Đỉnh Bàn Cờ",
-				legacyTitles: ["[Tháng 12] Khám Phá Rừng Nguyên Sinh Sơn Trà - Đỉnh Bàn Cờ"],
+				title: "Khám Phá Rừng Nguyên Sinh Sơn Trà - Đỉnh Bàn Cờ",
+				legacyTitles: [
+					"[Tháng 12] Khám Phá Rừng Nguyên Sinh Sơn Trà - Đỉnh Bàn Cờ",
+					"Khám Phá Rừng Nguyên Sinh Sơn Trà - Đỉnh Bàn Cờ",
+				],
 				routeName: "Bán Đảo Sơn Trà Discovery",
 				description:
 					"Trekking khám phá thảm thực vật bán đảo Sơn Trà trong tiết trời dịu mát của tháng 12/2026. Lộ trình nhẹ nhàng, dễ đi, có sẵn nhiều thiết bị hỗ trợ trợ lực gậy trekking, balo cho thuê.",
@@ -2821,7 +3220,7 @@ export async function seedDevTrips(): Promise<void> {
 			}
 		}
 
-		// Ensure completed demo trips (e.g. Trekking Sơn Trà Hoàn Thành - Demo Khiếu Nại) have cover images
+		// Ensure completed demo trips (e.g. Trekking Nam Hải Vân – Khám phá rừng ven biển) have cover images
 		await dataSource.query(`
 			UPDATE "trips"
 			SET "cover_image_url" = COALESCE("cover_image_url", 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80')
@@ -2909,7 +3308,7 @@ async function seedDemoBookingMembers(): Promise<void> {
 		userMap.set(c.email, userId);
 	}
 
-	// Target trip: [CTMS-024] Hải Vân Quan - Vịnh Làng Vân (Khẩn cấp: Chỉ còn 2 chỗ)
+	// Target trip: Hải Vân Quan - Vịnh Làng Vân
 	const tripRows: Array<{
 		id: string;
 		starts_at: Date;
@@ -3297,7 +3696,7 @@ export async function seedHostGroupBookingsWithEquipment(): Promise<void> {
 				{ name: "Đèn pin đội đầu chống nước IPX8 Black Diamond", quantity: 3 },
 			],
 		},
-		// 2. Chuyến Sơn Trà: Camper Nguyễn Văn An đặt cho mình + Lan + Nam + Thu Thảo (Tổng 4 người, thuê 3 món)
+		// 2. Chuyến Sơn Trà: Nguyễn Văn An đặt cho mình + Lan + Nam + Thu Thảo (Tổng 4 người, thuê 3 món)
 		{
 			tripTitlePattern: "%Khám Phá Bán Đảo Sơn Trà (Bình thường%",
 			bookerEmail: "camper@ctms.local",
@@ -3757,7 +4156,7 @@ async function seedDiverseTripAndRouteStatuses(
 	};
 
 	// 1. Route Pending Approval
-	const pendingRouteName = "Đồi Dương - Suối Lương Trail (Chờ Duyệt)";
+	const pendingRouteName = "Đồi Dương – Suối Lương";
 	const existingPendingRoute: Array<{ id: string }> = await dataSource.query(
 		'SELECT "id" FROM "trekking_routes" WHERE "name" = $1',
 		[pendingRouteName]
@@ -3785,7 +4184,7 @@ async function seedDiverseTripAndRouteStatuses(
 	routeIds[pendingRouteName] = pendingRouteId;
 
 	// 2. Route Closed (do sạt lở)
-	const closedRouteName = "Đỉnh Mẹ Suốt Cung Sạt Lở (Tạm Đóng)";
+	const closedRouteName = "Đường mòn sườn núi Nam Hải Vân";
 	const existingClosedRoute: Array<{ id: string }> = await dataSource.query(
 		'SELECT "id" FROM "trekking_routes" WHERE "name" = $1',
 		[closedRouteName]
@@ -3812,7 +4211,7 @@ async function seedDiverseTripAndRouteStatuses(
 	if (!sonTraId) return;
 
 	// Trip: Pending Approval (Chờ Admin duyệt)
-	const pendingTripTitle = "[CTMS-024] Thám Hiểm Rừng Hòa Bắc (Chờ Admin phê duyệt)";
+	const pendingTripTitle = "Thám Hiểm Rừng Hòa Bắc";
 	const existingPendingTrip: Array<{ id: string }> = await dataSource.query(
 		'SELECT "id" FROM "trips" WHERE "title" = $1',
 		[pendingTripTitle]
@@ -3851,7 +4250,7 @@ async function seedDiverseTripAndRouteStatuses(
 	}
 
 	// Trip: Draft (Host đang lưu nháp)
-	const draftTripTitle = "[CTMS-024] Trekking Suối Mơ Hòa Vang (Bản nháp của Host)";
+	const draftTripTitle = "Trekking Suối Mơ Hòa Vang";
 	const existingDraftTrip: Array<{ id: string }> = await dataSource.query(
 		'SELECT "id" FROM "trips" WHERE "title" = $1',
 		[draftTripTitle]
@@ -3865,7 +4264,7 @@ async function seedDiverseTripAndRouteStatuses(
 				capacity_min, capacity_max, seats_taken, price_per_person,
 				itinerary, includes, excludes, cancellation_policy, status
 			) VALUES (
-				$1, $2, $3, 'Bản phác thảo kế hoạch chuyến đi chưa gửi duyệt của Host.',
+				$1, $2, $3, 'Hành trình đi bộ ven suối Mơ, nghỉ dưới tán cây và khám phá thiên nhiên Hòa Vang.',
 				'https://images.unsplash.com/photo-1478131143081-80f7f84ca84d?auto=format&fit=crop&w=1200&q=80',
 				'day_trip', 0, $4, $5,
 				ST_GeogFromText('SRID=4326;POINT(108.030 16.100)'), $6, $7,
@@ -3890,7 +4289,7 @@ async function seedDiverseTripAndRouteStatuses(
 	}
 
 	// Trip: Cancelled (Đã hủy do thiếu người sau hạn chót đặt chỗ)
-	const cancelledTripTitle = "[CTMS-024] Chinh Phục Đỉnh Núi Chúa (Đã hủy do thiếu người)";
+	const cancelledTripTitle = "Chinh Phục Đỉnh Núi Chúa";
 	const existingCancelledTrip: Array<{ id: string }> = await dataSource.query(
 		'SELECT "id" FROM "trips" WHERE "title" = $1',
 		[cancelledTripTitle]
@@ -3904,12 +4303,12 @@ async function seedDiverseTripAndRouteStatuses(
 				capacity_min, capacity_max, seats_taken, price_per_person,
 				itinerary, includes, excludes, cancellation_policy, status
 			) VALUES (
-				$1, $2, $3, 'Chuyến đi tự động bị hủy do đến hạn chót đặt vé mà số lượng người đăng ký không đạt mức tối thiểu (capacity_min).',
+				$1, $2, $3, 'Đi bộ xuyên rừng lên đỉnh Núi Chúa, dừng nghỉ bên suối và ngắm cảnh núi rừng Hòa Vang.',
 				'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80',
 				'day_trip', 0, $4, $5,
 				ST_GeogFromText('SRID=4326;POINT(108.010 15.990)'), $6, $7,
 				10, 25, 2, '550000',
-				'{"summary": "Chuyến đi đã bị hủy theo quy chế capacity_min."}'::jsonb,
+				'{"summary": "Tập trung tại chân núi Bà Nà, trekking đường rừng, nghỉ trưa bên suối và trở về trong ngày."}'::jsonb,
 				NULL,
 				NULL,
 				$8::jsonb,
@@ -4368,7 +4767,7 @@ async function seedCamperHealthAndContacts(): Promise<void> {
 	await dataSource.query(
 		`UPDATE "users"
 		 SET "date_of_birth" = '1998-10-20',
-		     "address" = 'Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
+		     "address" = 'Số 123 Nguyễn Văn Linh, Phường Hải Châu, TP. Đà Nẵng',
 		     "gender" = 'male'
 		 WHERE "id" = $1`,
 		[camperId]
@@ -4456,7 +4855,7 @@ export async function seedWeatherRiskScenarios(): Promise<void> {
 			const passwordHash = await hash(hostPassword, BCRYPT_COST_FACTOR);
 			const insertedUser: Array<{ id: string }> = await dataSource.query(
 				`INSERT INTO "users" (email, phone, password_hash, role, status, full_name)
-				 VALUES ($1, $2, $3, 'host', 'active', 'Host Ban Mai')
+				 VALUES ($1, $2, $3, 'host', 'active', 'Nguyễn Thị Ban Mai')
 				 RETURNING id`,
 				[hostEmail, hostPhone, passwordHash]
 			);
@@ -4501,7 +4900,7 @@ export async function seedWeatherRiskScenarios(): Promise<void> {
 		}
 
 		// 3. Scenario 1: GREEN Risk Route (Allowed)
-		const greenRouteName = "Cung Đường An Toàn (Mức Xanh)";
+		const greenRouteName = "Đường mòn ven suối Lương";
 		const existingGreenRoute: Array<{ id: string }> = await dataSource.query(
 			'SELECT "id" FROM "trekking_routes" WHERE "host_id" = $1 AND "name" = $2',
 			[hostId, greenRouteName]
@@ -4513,7 +4912,7 @@ export async function seedWeatherRiskScenarios(): Promise<void> {
 		} else {
 			const res: Array<{ id: string }> = await dataSource.query(
 				`INSERT INTO "trekking_routes" (host_id, name, description, route_geom, length_meters, difficulty, expected_duration_minutes, status)
-				 VALUES ($1, $2, 'Tuyến trekking thời tiết đẹp, đủ điều kiện an toàn đăng ký', ST_GeogFromText('SRID=4326;LINESTRING(108.45 11.94, 108.47 11.95)'), 2000, 'easy', 120, 'active')
+				 VALUES ($1, $2, 'Đường đi ven suối Lương dưới chân đèo Hải Vân, qua các bãi đá và rừng cây râm mát.', ST_GeogFromText('SRID=4326;LINESTRING(108.1290 16.1405,108.1262 16.1428,108.1243 16.1449)'), 2000, 'easy', 120, 'active')
 				 RETURNING id`,
 				[hostId, greenRouteName]
 			);
@@ -4551,7 +4950,7 @@ export async function seedWeatherRiskScenarios(): Promise<void> {
 		);
 
 		// 4. Scenario 2: RED Risk Route (Blocked)
-		const redRouteName = "Cung Đường Bão Nguy Hiểm (Mức Đỏ)";
+		const redRouteName = "Đường rừng Nam Hải Vân";
 		const existingRedRoute: Array<{ id: string }> = await dataSource.query(
 			'SELECT "id" FROM "trekking_routes" WHERE "host_id" = $1 AND "name" = $2',
 			[hostId, redRouteName]
@@ -4563,7 +4962,7 @@ export async function seedWeatherRiskScenarios(): Promise<void> {
 		} else {
 			const res: Array<{ id: string }> = await dataSource.query(
 				`INSERT INTO "trekking_routes" (host_id, name, description, route_geom, length_meters, difficulty, expected_duration_minutes, status)
-				 VALUES ($1, $2, 'Tuyến đường rủi ro thời tiết MỨC ĐỎ - Tạm dừng nhận đăng ký mới', ST_GeogFromText('SRID=4326;LINESTRING(108.45 11.94, 108.48 11.96)'), 3500, 'hard', 240, 'active')
+				 VALUES ($1, $2, 'Đường mòn rừng Nam Hải Vân qua các sườn dốc hướng ra biển, cần theo dõi thời tiết trước khi khởi hành.', ST_GeogFromText('SRID=4326;LINESTRING(108.130 16.185,108.138 16.195,108.145 16.205)'), 3500, 'hard', 240, 'active')
 				 RETURNING id`,
 				[hostId, redRouteName]
 			);
@@ -4699,7 +5098,7 @@ export async function seedCamperRefunds(): Promise<{
 			"starts_at", "ends_at", "meeting_point", "booking_deadline",
 			"capacity_min", "capacity_max", "price_per_person", "status", "cancellation_policy"
 		 ) VALUES (
-			$1, $2, $3, 'Trekking Sơn Trà Hoàn Thành - Demo Khiếu Nại', 'Chuyến đi vừa hoàn thành cách đây 3 giờ', 'day_trip', 0,
+			$1, $2, $3, 'Trekking Nam Hải Vân – Khám phá rừng ven biển', 'Chuyến đi vừa hoàn thành cách đây 3 giờ', 'day_trip', 0,
 			now() - interval '10 hours', now() - interval '3 hours',
 			ST_SetSRID(ST_GeomFromGeoJSON($4), 4326)::geography, now() - interval '1 day',
 			1, 10, '850000.00', 'completed',
@@ -4879,14 +5278,14 @@ const SEED_SETTLEMENT_USERS: SeedSettlementUser[] = [
 	{
 		email: "admin@ctms.local",
 		phone: "0900000000",
-		fullName: "Administrator",
+		fullName: "Lê Minh Tuấn",
 		role: "admin",
 		password: "Admin@123",
 	},
 	{
 		email: "host@ctms.local",
 		phone: "0900000002",
-		fullName: "Host Ban Mai",
+		fullName: "Nguyễn Thị Ban Mai",
 		role: "host",
 		password: "Host@123",
 	},
@@ -4898,15 +5297,15 @@ const SEED_SETTLEMENT_USERS: SeedSettlementUser[] = [
 		password: "Camper@123",
 		dateOfBirth: "1998-10-20",
 		gender: "male",
-		address: "Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh",
+		address: "Số 123 Nguyễn Văn Linh, Phường Hải Châu, TP. Đà Nẵng",
 	},
 ];
 
 const SEED_TRIP_TITLES = [
-	"Trekking Bạch Mã 2N1Đ - Đủ điều kiện Quyết toán",
-	"Chèo SUP Hồ Hòa Trung - Đang giữ 72h",
-	"Khám phá Đỉnh Bàn Cờ - Bị giữ do Khiếu nại",
-	"Cắm trại Đảo Điệp Sơn - Đã quyết toán thành công",
+	"Trekking bán đảo Sơn Trà qua đêm",
+	"Chèo SUP hồ Hòa Trung",
+	"Khám phá Đỉnh Bàn Cờ",
+	"Cắm trại bãi Tiên Sa – Sơn Trà",
 ];
 
 async function ensureSettlementUser(user: SeedSettlementUser): Promise<string> {
@@ -4993,8 +5392,8 @@ export async function seedSettlementsAndPayouts(): Promise<void> {
 				"host_id", "name", "description", "route_geom", "length_meters",
 				"difficulty", "expected_duration_minutes", "status"
 			 ) VALUES (
-				$1, 'Cung đường Trekking Demo', 'Tuyến đường mẫu cho kịch bản quyết toán',
-				ST_GeogFromText('SRID=4326;LINESTRING(108.45 11.94, 108.47 11.95)'), 3000,
+				$1, 'Đường dạo rừng Hòa Bắc', 'Cung đường đi bộ dưới tán rừng Hòa Bắc, thích hợp dã ngoại và ngắm cảnh.',
+				ST_GeogFromText('SRID=4326;LINESTRING(108.020 16.090,108.035 16.105,108.050 16.120)'), 3000,
 				'moderate', 240, 'active'
 			 ) RETURNING "id"`,
 			[hostId]
@@ -5090,8 +5489,8 @@ export async function seedSettlementsAndPayouts(): Promise<void> {
 			"starts_at", "ends_at", "meeting_point", "booking_deadline",
 			"capacity_min", "capacity_max", "price_per_person", "status", "cancellation_policy"
 		 ) VALUES (
-			$1, $2, 'Trekking Bạch Mã 2N1Đ - Đủ điều kiện Quyết toán',
-			'Chuyến đi đã kết thúc cách đây 80 giờ, vượt qua mốc bảo lưu 72h và sẵn sàng quyết toán.',
+			$1, $2, 'Trekking bán đảo Sơn Trà qua đêm',
+			'Trekking đường rừng bán đảo Sơn Trà, nghỉ qua đêm bên biển và ngắm bình minh trên vịnh Đà Nẵng.',
 			'day_trip', 0,
 			now() - interval '86 hours', now() - interval '80 hours',
 			ST_SetSRID(ST_GeomFromGeoJSON($3), 4326)::geography, now() - interval '4 days',
@@ -5147,7 +5546,7 @@ export async function seedSettlementsAndPayouts(): Promise<void> {
 			"starts_at", "ends_at", "meeting_point", "booking_deadline",
 			"capacity_min", "capacity_max", "price_per_person", "status", "cancellation_policy"
 		 ) VALUES (
-			$1, $2, 'Chèo SUP Hồ Hòa Trung - Đang giữ 72h',
+			$1, $2, 'Chèo SUP hồ Hòa Trung',
 			'Chuyến đi vừa kết thúc 20 giờ trước, hệ thống đang giữ bảo lưu phòng khiếu nại (72h).',
 			'day_trip', 0,
 			now() - interval '26 hours', now() - interval '20 hours',
@@ -5204,8 +5603,8 @@ export async function seedSettlementsAndPayouts(): Promise<void> {
 			"starts_at", "ends_at", "meeting_point", "booking_deadline",
 			"capacity_min", "capacity_max", "price_per_person", "status", "cancellation_policy"
 		 ) VALUES (
-			$1, $2, 'Khám phá Đỉnh Bàn Cờ - Bị giữ do Khiếu nại',
-			'Chuyến đi đã hoàn thành 90 giờ trước nhưng đang có yêu cầu khiếu nại hoàn tiền chưa xử lý.',
+			$1, $2, 'Khám phá Đỉnh Bàn Cờ',
+			'Khám phá các đường mòn lên Đỉnh Bàn Cờ, ngắm toàn cảnh rừng Sơn Trà và vịnh Đà Nẵng.',
 			'day_trip', 0,
 			now() - interval '96 hours', now() - interval '90 hours',
 			ST_SetSRID(ST_GeomFromGeoJSON($3), 4326)::geography, now() - interval '5 days',
@@ -5283,7 +5682,7 @@ export async function seedSettlementsAndPayouts(): Promise<void> {
 			"starts_at", "ends_at", "meeting_point", "booking_deadline",
 			"capacity_min", "capacity_max", "price_per_person", "status", "cancellation_policy"
 		 ) VALUES (
-			$1, $2, 'Cắm trại Đảo Điệp Sơn - Đã quyết toán thành công',
+			$1, $2, 'Cắm trại bãi Tiên Sa – Sơn Trà',
 			'Chuyến đi đã được quyết toán tự động, phí 5% đã thu và 95% đã ghi có vào ví Host.',
 			'day_trip', 0,
 			now() - interval '6 days', now() - interval '5 days',
@@ -5370,7 +5769,7 @@ export async function seedSettlementsAndPayouts(): Promise<void> {
 		 ) VALUES (
 			$1, $2, $3, 'settlement_credit',
 			'4000000.00', '200000.00', '3800000.00', '3800000.00',
-			'Quyết toán doanh thu chuyến: Cắm trại Đảo Điệp Sơn - Đã quyết toán thành công',
+			'Quyết toán doanh thu chuyến: Cắm trại bãi Tiên Sa – Sơn Trà',
 			now() - interval '4 days'
 		 )`,
 		[wallet1Id, settlement4Id, trip4Id]
@@ -5560,7 +5959,7 @@ export async function seedDeviceSyncTelemetry(ds = dataSource): Promise<void> {
 				"starts_at", "ends_at", "meeting_point", "booking_deadline",
 				"capacity_min", "capacity_max", "price_per_person", "status", "cancellation_policy"
 			 ) VALUES (
-				$1, $2, $3, 'Trekking Sơn Trà Hoàn Thành - Demo Khiếu Nại', 'Chuyến đi phục vụ đồng bộ GPS & an toàn ngoại tuyến', 'day_trip', 0,
+				$1, $2, $3, 'Trekking Nam Hải Vân – Khám phá rừng ven biển', 'Chuyến đi phục vụ đồng bộ GPS & an toàn ngoại tuyến', 'day_trip', 0,
 				now() - interval '10 hours', now() - interval '3 hours',
 				ST_SetSRID(ST_GeomFromGeoJSON($4), 4326)::geography, now() - interval '1 day',
 				1, 10, '850000.00', 'completed',
@@ -5699,7 +6098,7 @@ export async function seedDeviceSyncTelemetry(ds = dataSource): Promise<void> {
 			"starts_at", "ends_at", "meeting_point", "booking_deadline",
 			"capacity_min", "capacity_max", "price_per_person", "status", "cancellation_policy"
 		 ) VALUES (
-			$1, $2, $3, 'Trekking Sơn Trà - Đang Diễn Ra (CTMS-064 Offline Buffer Demo)',
+			$1, $2, $3, 'Trekking Sơn Trà – Hành trình ven biển',
 			'Chuyến đi đang diễn ra phục vụ kiểm thử Offline Buffer GPS & Cảnh báo an toàn ngoại tuyến', 'day_trip', 0,
 			now() - interval '2 hours', now() + interval '7 days',
 			ST_SetSRID(ST_GeomFromGeoJSON($4), 4326)::geography, now() - interval '1 day',
@@ -6130,7 +6529,7 @@ export async function seedManageTripIncidents(
 			"location_status", "captured_offline", "received_at"
 		 ) VALUES (
 			$1, $2, $3, $4, 'injury', 'high', 'investigating',
-			'Camper Nguyễn Văn An bị trượt chân trên dốc đá gần Bãi Rạng. Cần sơ cứu vết thương và theo dõi sức khỏe.',
+			'Nguyễn Văn An bị trượt chân trên dốc đá gần Bãi Rạng. Cần sơ cứu vết thương và theo dõi sức khỏe.',
 			now() - interval '120 minutes',
 			ST_SetSRID(ST_MakePoint(108.290, 16.115), 4326)::geography, 8.5, now() - interval '120 minutes',
 			'fresh', false, now() - interval '115 minutes'
@@ -6242,7 +6641,7 @@ export async function seedTripReviewScenarios(ds = dataSource, titlesOnly = fals
 			{ key: "6", title: "Ngũ Hành Sơn", hours: 1, noShow: false, saved: false },
 			{
 				key: "5",
-				title: "Bạch Mã — Hết hạn chỉnh sửa",
+				title: "Bà Nà – Đường rừng buổi sớm",
 				hours: 48,
 				noShow: false,
 				saved: true,
@@ -7027,7 +7426,7 @@ export async function seedDemandInsightScenarios(ds = dataSource): Promise<void>
 
 /** Host 1 Trips moved to real Đà Nẵng places (CTMS-110); old titles stay listed for cleanup. */
 function daNangMove(from: string): (typeof DA_NANG_TRIP_MOVES)[number] {
-	const move = DA_NANG_TRIP_MOVES.find((item) => item.from === from);
+	const move = DA_NANG_TRIP_MOVES.find((item) => item.from === from || item.title === from);
 	if (!move) throw new Error(`Missing Đà Nẵng mapping for ${from}`);
 	return move;
 }
@@ -7055,6 +7454,7 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 		await ds.initialize();
 	}
 	console.log("[seed:performance-reports] Seeding CTMS-101 demo data...");
+	await refreshDaNangSeedData(ds);
 
 	// 1. Get host accounts: host@ctms.local and ensure a second host for cross-host testing
 	const host1Rows = await ds.query('SELECT id FROM "users" WHERE email = $1 LIMIT 1', [
@@ -7067,23 +7467,11 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 		await ds.query('SELECT id FROM "users" WHERE email = $1 LIMIT 1', ["host@ctms.local"])
 	)[0].id;
 
-	// Ensure Host 2
-	let host2Rows = await ds.query('SELECT id FROM "users" WHERE email = $1 LIMIT 1', [
+	// Reuse a legacy secondary Host if it exists; fresh databases use the primary account.
+	const host2Rows = await ds.query('SELECT id FROM "users" WHERE email = $1 LIMIT 1', [
 		"host2@ctms.local",
 	]);
-	if (host2Rows.length === 0) {
-		const host2Password = await hash("Host2@123", 10);
-		host2Rows = await ds.query(
-			`INSERT INTO "users" (email, phone, password_hash, role, status, full_name)
-			 VALUES ('host2@ctms.local', '0900000101', $1, 'host', 'active', 'Host Tây Bắc Trek') RETURNING id`,
-			[host2Password]
-		);
-		await ds.query(
-			'INSERT INTO "user_roles" (user_id, role) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-			[host2Rows[0].id, "host"]
-		);
-	}
-	const host2Id = host2Rows[0].id;
+	const host2Id = host2Rows[0]?.id ?? host1Id;
 
 	// Ensure Campers
 	const camperRows = await ds.query(
@@ -7094,12 +7482,12 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 
 	// 2. Ensure Routes
 	let route1Rows = await ds.query('SELECT id FROM "trekking_routes" WHERE name = $1 LIMIT 1', [
-		"Cung đường Tà Năng - Phan Dũng",
+		"Cung đường Tà Lang – Giàn Bí",
 	]);
 	if (route1Rows.length === 0) {
 		route1Rows = await ds.query(
 			`INSERT INTO "trekking_routes" (host_id, name, description, route_geom, length_meters, difficulty, expected_duration_minutes, status)
-			 VALUES ($1, 'Cung đường Tà Năng - Phan Dũng', 'Cung trekking đẹp nhất miền Nam tại Lâm Đồng', ST_GeogFromText('SRID=4326;LINESTRING(108.45 11.94, 108.47 11.95)'), 18000, 'moderate', 360, 'active')
+			 VALUES ($1, 'Cung đường Tà Lang – Giàn Bí', 'Cung đường xuyên rừng Hòa Bắc qua Tà Lang và Giàn Bí, men theo thung lũng sông Cu Đê.', ST_GeogFromText('SRID=4326;LINESTRING(108.020 16.090,108.035 16.105,108.050 16.120,108.065 16.135)'), 18000, 'moderate', 360, 'active')
 			 RETURNING id`,
 			[host1Id]
 		);
@@ -7107,12 +7495,12 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 	const route1Id = route1Rows[0].id;
 
 	let route2Rows = await ds.query('SELECT id FROM "trekking_routes" WHERE name = $1 LIMIT 1', [
-		"Cung đường Fansipan Trạm Tôn",
+		"Cung đường đỉnh Núi Chúa – Bà Nà",
 	]);
 	if (route2Rows.length === 0) {
 		route2Rows = await ds.query(
 			`INSERT INTO "trekking_routes" (host_id, name, description, route_geom, length_meters, difficulty, expected_duration_minutes, status)
-			 VALUES ($1, 'Cung đường Fansipan Trạm Tôn', 'Chinh phục Nóc nhà Đông Dương tại Sa Pa, Lào Cai', ST_GeogFromText('SRID=4326;LINESTRING(103.78 22.33, 103.77 22.30)'), 12000, 'hard', 480, 'active')
+			 VALUES ($1, 'Cung đường đỉnh Núi Chúa – Bà Nà', 'Đường mòn xuyên rừng Bà Nà lên đỉnh Núi Chúa, qua các đoạn dốc và điểm nghỉ dưới tán rừng.', ST_GeogFromText('SRID=4326;LINESTRING(108.010 15.990,108.018 16.002,108.025 16.015,108.030 16.025)'), 12000, 'hard', 480, 'active')
 			 RETURNING id`,
 			[host2Id]
 		);
@@ -7132,28 +7520,7 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 	const baNaRouteId = await daNangRouteId("Rừng Nguyên Sinh Bà Nà - Núi Chúa");
 	const sonTraRouteId = await daNangRouteId("Bán Đảo Sơn Trà Discovery");
 
-	// 3. Clean up previously seeded CTMS-101 trips & bookings & settlements for idempotency
-	const oldTrips = await ds.query('SELECT id FROM "trips" WHERE title = ANY($1)', [
-		SEED_PERF_TRIP_TITLES,
-	]);
-	if (oldTrips.length > 0) {
-		const oldIds = oldTrips.map((t: { id: string }) => t.id);
-		await ds.query('DELETE FROM "settlements" WHERE trip_id = ANY($1)', [oldIds]);
-		await ds.query('DELETE FROM "bookings" WHERE trip_id = ANY($1)', [oldIds]);
-		await ds.query('DELETE FROM "trips" WHERE id = ANY($1)', [oldIds]);
-	}
-
-	// 4. Stagger AI review analysis demo bookings (older than 30 days) to prevent 64 zero-dollar bookings spike on a single day
-	await ds.query(`
-		UPDATE trips 
-		SET created_at = now() - interval '45 days' 
-		WHERE id::text LIKE 'd4120000-0000-4000-8004-%' AND created_at > now() - interval '30 days'
-	`);
-	await ds.query(`
-		UPDATE bookings 
-		SET created_at = now() - interval '40 days' 
-		WHERE trip_id::text LIKE 'd4120000-0000-4000-8004-%' AND created_at > now() - interval '30 days'
-	`);
+	// Existing trips, bookings and settlements retain their IDs and all user actions.
 
 	const meetingPoint = JSON.stringify({ type: "Point", coordinates: [108.2022, 16.0544] });
 
@@ -7194,8 +7561,8 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 		{
 			hostId: host1Id,
 			routeId: hoaBacRouteId,
-			title: daNangMove("Trekking Tà Năng - Phan Dũng (Lâm Đồng)").title,
-			description: daNangMove("Trekking Tà Năng - Phan Dũng (Lâm Đồng)").description,
+			title: daNangMove("Trekking Tà Lang – Giàn Bí, bản làng Cơ Tu Hòa Bắc").title,
+			description: daNangMove("Trekking Tà Lang – Giàn Bí, bản làng Cơ Tu Hòa Bắc").description,
 			tripType: "overnight",
 			durationNights: 2,
 			createdDaysAgo: 28,
@@ -7227,8 +7594,9 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 		{
 			hostId: host2Id,
 			routeId: route2Id,
-			title: "Chinh phục đỉnh Fansipan 3N2Đ Chạm Đỉnh Mây (Lào Cai)",
-			description: "Chinh phục Nóc nhà Đông Dương 3.143m ngắm trọn biển mây Tây Bắc.",
+			title: "Chinh phục đỉnh Núi Chúa – Rừng Bà Nà",
+			description:
+				"Trekking xuyên rừng Bà Nà lên đỉnh Núi Chúa, nghỉ qua đêm và đón bình minh giữa núi rừng Hòa Vang.",
 			tripType: "overnight",
 			durationNights: 2,
 			createdDaysAgo: 25,
@@ -7261,8 +7629,9 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 		{
 			hostId: host2Id,
 			routeId: route2Id,
-			title: "Cung đường săn mây Tà Xùa (Sơn La)",
-			description: "Check-in Sống lưng khủng long Háng Đồng và biển mây bồng bềnh nguyên sơ.",
+			title: "Săn mây Bà Nà – Bình minh trên đỉnh núi",
+			description:
+				"Men theo đường mòn rừng Bà Nà, dừng nghỉ trên sườn núi và ngắm mây sớm trên thung lũng Hòa Vang.",
 			tripType: "overnight",
 			durationNights: 2,
 			createdDaysAgo: 22,
@@ -7292,8 +7661,8 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 		{
 			hostId: host1Id,
 			routeId: hoaBacRouteId,
-			title: daNangMove("Khám phá Rừng Tràm Trà Sư (An Giang)").title,
-			description: daNangMove("Khám phá Rừng Tràm Trà Sư (An Giang)").description,
+			title: daNangMove("Chèo kayak sông Cu Đê – Hòa Bắc").title,
+			description: daNangMove("Chèo kayak sông Cu Đê – Hòa Bắc").description,
 			tripType: "day_trip",
 			durationNights: 0,
 			createdDaysAgo: 19,
@@ -7324,9 +7693,9 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 		{
 			hostId: host2Id,
 			routeId: route2Id,
-			title: "Thám hiểm Thác Bản Giốc & Pác Bó (Cao Bằng)",
+			title: "Khám phá thác Tóc Tiên – Rừng Bà Nà",
 			description:
-				"Chiêm ngưỡng thác nước tự nhiên đẹp nhất Việt Nam và dòng suối Lê-nin xanh ngọc.",
+				"Khám phá cảnh quan thác Tóc Tiên và những đoạn đường rừng dưới chân núi Bà Nà, nghỉ đêm giữa thiên nhiên Hòa Vang.",
 			tripType: "overnight",
 			durationNights: 2,
 			createdDaysAgo: 16,
@@ -7356,8 +7725,8 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 		{
 			hostId: host1Id,
 			routeId: baNaRouteId,
-			title: daNangMove("Chinh phục đỉnh Bidoup Núi Bà (Lâm Đồng)").title,
-			description: daNangMove("Chinh phục đỉnh Bidoup Núi Bà (Lâm Đồng)").description,
+			title: daNangMove("Xuyên rừng Bà Nà – Chinh phục đỉnh Núi Chúa").title,
+			description: daNangMove("Xuyên rừng Bà Nà – Chinh phục đỉnh Núi Chúa").description,
 			tripType: "overnight",
 			durationNights: 2,
 			createdDaysAgo: 12,
@@ -7382,8 +7751,9 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 		{
 			hostId: host2Id,
 			routeId: route2Id,
-			title: "Bạch Mộc Lương Tử Expedition (Lai Châu)",
-			description: "Kỳ vĩ đồi Muối và biển mây ngút ngàn trên độ cao 3.046m.",
+			title: "Xuyên rừng Bà Nà – Hành trình qua suối",
+			description:
+				"Theo đường mòn dưới tán rừng Bà Nà, vượt những đoạn suối cạn và cắm trại trên sườn núi Hòa Vang.",
 			tripType: "overnight",
 			durationNights: 2,
 			createdDaysAgo: 9,
@@ -7406,8 +7776,9 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 		{
 			hostId: host2Id,
 			routeId: route2Id,
-			title: "Săn mây Y Tý - Bát Xát (Lào Cai)",
-			description: "Cung đường ruộng bậc thang và biển mây ngút ngàn Lào Cai.",
+			title: "Săn mây đỉnh Núi Chúa – Hòa Vang",
+			description:
+				"Đi bộ xuyên rừng Bà Nà, nghỉ qua đêm trên sườn Núi Chúa và đón biển mây trong ánh bình minh.",
 			tripType: "overnight",
 			durationNights: 2,
 			createdDaysAgo: 7,
@@ -7431,8 +7802,9 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 		{
 			hostId: host2Id,
 			routeId: route2Id,
-			title: "Trekking Mù Cang Chải mùa vàng (Yên Bái)",
-			description: "Ngắm những triền ruộng bậc thang La Pán Tẩn rực rỡ sắc vàng Tây Bắc.",
+			title: "Trekking rừng Bà Nà – Khám phá thác và suối",
+			description:
+				"Khám phá những lối mòn rừng Bà Nà, dừng chân bên suối và trải nghiệm cắm trại ở vùng núi Hòa Vang.",
 			tripType: "overnight",
 			durationNights: 2,
 			createdDaysAgo: 4,
@@ -7455,8 +7827,8 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 		{
 			hostId: host1Id,
 			routeId: sonTraRouteId,
-			title: daNangMove("Khám phá VQG Cát Tiên (Đồng Nai)").title,
-			description: daNangMove("Khám phá VQG Cát Tiên (Đồng Nai)").description,
+			title: daNangMove("Ngắm voọc chà vá chân nâu – Rừng Sơn Trà").title,
+			description: daNangMove("Ngắm voọc chà vá chân nâu – Rừng Sơn Trà").description,
 			tripType: "day_trip",
 			durationNights: 0,
 			createdDaysAgo: 2,
@@ -7481,6 +7853,11 @@ export async function seedPerformanceReportsScenarios(ds: DataSource = dataSourc
 	let totalBookingsCreated = 0;
 
 	for (const config of tripConfigs) {
+		const existing: Array<{ id: string }> = await ds.query(
+			"SELECT id FROM trips WHERE host_id=$1 AND title=$2 LIMIT 1",
+			[config.hostId, config.title]
+		);
+		if (existing.length > 0) continue;
 		const tripRes = await ds.query(
 			`INSERT INTO "trips" (
 				host_id, route_id, title, description, trip_type, duration_nights,
@@ -8189,7 +8566,7 @@ export async function seedHostTripMonitoring(ds: DataSource = dataSource): Promi
 			`SELECT t.id,t.route_id AS "routeId" FROM trips t JOIN users u ON u.id=t.host_id
 			 JOIN trekking_routes r ON r.id=t.route_id
 			 WHERE u.email='host@ctms.local' AND t.status='ongoing'
-			 AND t.title IN ('Trekking Sơn Trà Hoàn Thành - Demo Khiếu Nại','Chinh phục đèo Hải Vân')
+			 AND t.title IN ('Trekking Nam Hải Vân – Khám phá rừng ven biển','Chinh phục đèo Hải Vân')
 			 AND r.name='Hải Vân Pass - Nam Hải Vân Trail' ORDER BY t.id LIMIT 1`
 		);
 		const trip = trips[0];
@@ -8384,7 +8761,7 @@ export async function seedInAppNotificationScenarios(ds: DataSource = dataSource
 			throw new Error("An existing active Hai Van Route owned by the primary Host is required");
 		await manager.query(
 			`UPDATE users SET full_name = CASE WHEN id = $1 THEN 'Nguyễn Thị Mai' ELSE 'Nguyễn Minh Anh' END
-			WHERE (id = $1 AND full_name = 'Host Ban Mai') OR (id = $2 AND full_name = 'Administrator')`,
+			WHERE (id = $1 AND full_name = 'Nguyễn Thị Ban Mai') OR (id = $2 AND full_name = 'Lê Minh Tuấn')`,
 			[host.id, admin.id]
 		);
 		for (const [index, title] of titles.entries()) {
@@ -8634,6 +9011,14 @@ async function seedReputationScenarios(ds = dataSource): Promise<void> {
 export async function runMasterSeed(): Promise<void> {
 	if (process.env.NODE_ENV === "production") {
 		throw new Error("[seed:master] Refusing to run seed script in production environment!");
+	}
+	if (process.argv.includes("--da-nang-only")) {
+		try {
+			console.log("[seed:da-nang]", await refreshDaNangSeedData(dataSource));
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
 	}
 	if (process.argv.includes("--reputation-only")) {
 		try {
@@ -8898,6 +9283,7 @@ export async function runMasterSeed(): Promise<void> {
 		console.log("👉 [16/16] Seeding safety hotspots (CTMS-116/117/118)...");
 		await seedSafetyHotspotScenarios(dataSource);
 		console.log("✅ Step 16 completed.\n");
+		await refreshDaNangSeedData(dataSource);
 
 		// Run after accounts, routes and review sources; reruns preserve existing user changes.
 		console.log("👉 [17/17] Seeding Host and Porter reputation scenarios...");
@@ -8919,17 +9305,15 @@ export async function runMasterSeed(): Promise<void> {
 		console.log(
 			"├──────────────┼──────────────────────┼─────────────┼────────────────────────────────────┤"
 		);
+		console.log("│ Admin        │ admin@ctms.local     │ Admin@123   │ Lê Minh Tuấn             │");
 		console.log(
-			"│ Admin        │ admin@ctms.local     │ Admin@123   │ Quản trị viên hệ thống             │"
-		);
-		console.log(
-			"│ Host         │ host@ctms.local      │ Host@123    │ Host Ban Mai (Tất cả tour, ví 3.8M)│"
+			"│ Host         │ host@ctms.local      │ Host@123    │ Nguyễn Thị Ban Mai (Tất cả tour, ví 3.8M)│"
 		);
 		console.log(
 			"│ Porter       │ porter@ctms.local    │ Porter@123  │ Nguyễn Minh Sơn (chuyên gia Route) │"
 		);
 		console.log(
-			"│ Camper       │ camper@ctms.local    │ Camper@123  │ Camper Nguyễn Văn An               │"
+			"│ Camper       │ camper@ctms.local    │ Camper@123  │ Nguyễn Văn An               │"
 		);
 		console.log(
 			"└──────────────┴──────────────────────┴─────────────┴────────────────────────────────────┘"
@@ -9058,7 +9442,7 @@ export async function runMasterSeed(): Promise<void> {
 // ==========================================================================
 // WEATHER OPERATIONS & HOST WEATHER PENALTIES DEMO (CTMS-93/97/98/60/94/102/58/62)
 // Every time is relative to the moment the seed runs, so "Trip leaves in 20 hours" stays true.
-// Demo Trips start with "[Demo thời tiết]" / "[Demo phạt]"; re-running replaces them.
+// Fixture ownership is stored in itinerary metadata; old prefixes remain lookup metadata.
 // ==========================================================================
 
 const WEATHER_DEMO_PREFIXES = ["[Demo thời tiết]%", "[Demo phạt]%"];
@@ -9148,7 +9532,8 @@ const DEMO_COMPOSITE: Record<DemoRisk, number> = { green: 0.15, yellow: 0.95, re
 
 async function removeWeatherDemoData(): Promise<void> {
 	const tripRows: Array<{ id: string }> = await dataSource.query(
-		`SELECT "id" FROM "trips" WHERE "title" LIKE ANY($1::text[])`,
+		`SELECT "id" FROM "trips" WHERE "title" LIKE ANY($1::text[])
+		 OR itinerary->>'seedFixture'='weather-operations'`,
 		[WEATHER_DEMO_PREFIXES]
 	);
 	const tripIds = tripRows.map((row) => row.id);
@@ -9244,10 +9629,11 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 			`INSERT INTO "trips" (
 				host_id, route_id, title, description, trip_type, duration_nights, starts_at, ends_at,
 				meeting_point, booking_deadline, capacity_min, capacity_max, seats_taken, price_per_person,
-				status, weather_paused_at
+				status, weather_paused_at, itinerary
 			) VALUES (
-				$1, $2, $3, 'Dữ liệu mẫu để test luồng thời tiết và phạt Host.', 'day_trip', 0, $4, $5,
-				ST_GeogFromText('SRID=4326;POINT(108.2208 16.0471)'), $6, 1, 15, 0, $7, $8, $9
+				$1, $2, $3, 'Hành trình khám phá rừng và biển Đà Nẵng, theo dõi dự báo thời tiết trước giờ khởi hành.', 'day_trip', 0, $4, $5,
+				ST_GeogFromText('SRID=4326;POINT(108.2208 16.0471)'), $6, 1, 15, 0, $7, $8, $9,
+				'{"seedFixture":"weather-operations"}'::jsonb
 			) RETURNING "id"`,
 			[
 				input.host,
@@ -9451,7 +9837,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 	// --- Weather near departure (policy §2–§5) ---------------------------------------------
 	// 1. Green, 10 days ahead: Camper's forecast card ("Dự báo xa") and an improving notice.
 	const sunny = await createTrip({
-		title: "[Demo thời tiết] Sơn Trà ngày nắng (còn 10 ngày)",
+		title: "Sơn Trà – Đường mòn dưới tán rừng",
 		host: hostId,
 		startsInHours: 240,
 	});
@@ -9464,7 +9850,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 
 	// 2. Red, 40 h ahead, Host has not decided: Host decision card + T-48h reminder.
 	const rainy = await createTrip({
-		title: "[Demo thời tiết] Bà Nà mưa lớn (Host cần quyết định)",
+		title: "Bà Nà – Khám phá rừng nguyên sinh",
 		host: hostId,
 		startsInHours: 40,
 	});
@@ -9477,7 +9863,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 
 	// 3. Red, 20 h ahead, no Host answer: Admin "Cần xử lý" (Host chưa trả lời).
 	const storm = await createTrip({
-		title: "[Demo thời tiết] Hải Vân dông sét (Host chưa trả lời)",
+		title: "Hải Vân – Dọc sườn núi ven biển",
 		host: hostId,
 		startsInHours: 20,
 		price: 2_000_000,
@@ -9497,7 +9883,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 
 	// 4. Red, 50 h ahead, Host keeps the Trip: Admin "Cần xử lý" (Host muốn giữ chuyến).
 	const windy = await createTrip({
-		title: "[Demo thời tiết] Ngũ Hành Sơn gió mạnh (Host muốn giữ)",
+		title: "Ngũ Hành Sơn – Hành trình qua các hang động",
 		host: hostId,
 		startsInHours: 50,
 	});
@@ -9517,7 +9903,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 
 	// 5. Red, 30 h ahead, paused by an Admin: locked Host card, bookings blocked.
 	const paused = await createTrip({
-		title: "[Demo thời tiết] Cù Lao Chàm (Admin tạm dừng)",
+		title: "Bãi Bắc – Dã ngoại bán đảo Sơn Trà",
 		host: hostId,
 		startsInHours: 30,
 		pausedHoursAgo: 2,
@@ -9535,7 +9921,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 
 	// 6. Rescheduled for weather: the Camper keeps the new date or cancels with 100% refund.
 	const moved = await createTrip({
-		title: "[Demo thời tiết] Bidoup (đã dời lịch vì mưa bão)",
+		title: "Bà Nà – Hành trình qua suối và rừng",
 		host: hostId,
 		startsInHours: 9 * 24,
 	});
@@ -9562,7 +9948,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 	// 7. Hybrid risk (thresholds vs AI): Admin › Quản lý thời tiết › "Cần xem lại ngưỡng".
 	// Thresholds say Green (wind and visibility only reach Yellow), the AI says Red.
 	const gusty = await createTrip({
-		title: "[Demo thời tiết] Lang Biang gió giật (ngưỡng và AI lệch)",
+		title: "Đỉnh Bàn Cờ – Đón gió biển",
 		host: hostId,
 		startsInHours: 72,
 	});
@@ -9582,7 +9968,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 	);
 	// Thresholds say Yellow (one heavy-rain hour), the AI says Green.
 	const shower = await createTrip({
-		title: "[Demo thời tiết] Mỹ Sơn mưa rào ngắn (ngưỡng và AI lệch)",
+		title: "Suối Lương – Dạo bước dưới tán cây",
 		host: hostId,
 		startsInHours: 60,
 	});
@@ -9604,7 +9990,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 	// 8. T-6h auto-cancel (policy §5.4), all on host@ctms.local.
 	// 8a. Red, 10 h ahead, Host never answered: Admin "Cần xử lý" at the urgent (T-12h) level.
 	const urgent = await createTrip({
-		title: "[Demo thời tiết] Sơn Trà Tây (còn 10 giờ, Khẩn)",
+		title: "Sơn Trà – Ngắm biển từ sườn phía tây",
 		host: hostId,
 		startsInHours: 10,
 	});
@@ -9617,7 +10003,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 	// 8b. Red, 6.5 h ahead, still undecided: the cards show the auto-cancel time; with
 	// TRIP_WEATHER_DECISION_WORKER_ENABLED=true the system cancels it about 30 minutes after seeding.
 	const soon = await createTrip({
-		title: "[Demo thời tiết] Bà Nà Núi Chúa (còn 6,5 giờ, sắp tự huỷ)",
+		title: "Núi Chúa – Khám phá đường rừng Hòa Vang",
 		host: hostId,
 		startsInHours: 6.5,
 		price: 1_500_000,
@@ -9632,7 +10018,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 	// Host and Admin, a pending 100% refund and the Host's open first penalty (still in the waiver
 	// window, already deducted from the wallet below).
 	const autoCancelled = await createTrip({
-		title: "[Demo thời tiết] Tiên Sa (hệ thống đã tự huỷ T-6h)",
+		title: "Tiên Sa – Nghỉ dưỡng và dã ngoại ven biển",
 		host: hostId,
 		startsInHours: 3,
 		status: "cancelled",
@@ -9818,7 +10204,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 	const hostWallet = await ensureWallet(hostId);
 	const waivedOld = await addPenalty({
 		host: hostId,
-		title: "[Demo phạt] Hòa Bắc (đã miễn phạt)",
+		title: "Hòa Bắc – Khám phá bản làng Cơ Tu",
 		startedHoursAgo: 60 * 24,
 		violation: 1,
 		bookingValue: 8_000_000,
@@ -9864,7 +10250,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 	const blockedWallet = await ensureWallet(blockedHostId);
 	await addPenalty({
 		host: blockedHostId,
-		title: "[Demo phạt] Lăng Cô (lần 1, bị từ chối miễn)",
+		title: "Nam Ô – Đi bộ ven rạn đá",
 		startedHoursAgo: 40 * 24,
 		violation: 1,
 		bookingValue: 6_000_000,
@@ -9880,7 +10266,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 	});
 	const blockedPenalty = await addPenalty({
 		host: blockedHostId,
-		title: "[Demo phạt] Bạch Mã (lần 2, chờ duyệt miễn)",
+		title: "Bà Nà – Cắm trại giữa rừng xanh",
 		startedHoursAgo: 3 * 24,
 		violation: 2,
 		bookingValue: 12_000_000,
@@ -9898,7 +10284,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 		blockedPenalty.tripId,
 		"settlement_credit",
 		2_000_000,
-		"Quyết toán doanh thu chuyến: Bạch Mã",
+		"Quyết toán doanh thu chuyến: Bà Nà",
 		2 * 24 + 1
 	);
 	await walletEntry(
@@ -9906,7 +10292,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 		blockedPenalty.tripId,
 		"penalty_debit",
 		700_000,
-		"Trừ phạt thời tiết: Bạch Mã",
+		"Trừ phạt thời tiết: Bà Nà",
 		2 * 24
 	);
 
@@ -9915,7 +10301,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 	await ensureWallet(suspendedHostId);
 	await addPenalty({
 		host: suspendedHostId,
-		title: "[Demo phạt] Phú Ninh (lần 1)",
+		title: "Hồ Hòa Trung – Dã ngoại bên hồ",
 		startedHoursAgo: 70 * 24,
 		violation: 1,
 		bookingValue: 5_000_000,
@@ -9923,7 +10309,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 	});
 	await addPenalty({
 		host: suspendedHostId,
-		title: "[Demo phạt] Đèo Le (lần 2)",
+		title: "Sông Cu Đê – Hành trình qua thung lũng",
 		startedHoursAgo: 45 * 24,
 		violation: 2,
 		bookingValue: 7_000_000,
@@ -9932,7 +10318,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 	});
 	await addPenalty({
 		host: suspendedHostId,
-		title: "[Demo phạt] Núi Thần Tài (lần 3, quá hạn xem)",
+		title: "Núi Thần Tài – Nghỉ chân bên suối",
 		startedHoursAgo: 12 * 24,
 		violation: 3,
 		bookingValue: 9_000_000,
