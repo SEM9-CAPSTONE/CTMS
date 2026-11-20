@@ -1,204 +1,159 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useCallback, useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
+import { HttpError, queryKeys } from "../../../core/api";
+import { toast } from "../../../shared/components/Toast";
+import { getStoredAuthUser } from "../../auth/utils/tokenStorage";
 import { type HealthProfileFormValues, healthProfileSchema } from "../schema/health-profile.schema";
 import { healthProfileService } from "../services/health-profile.service";
 import type { AllergyItem, HealthProfileData, MedicalConditionItem } from "../types";
 
-export function useHealthProfile() {
-	const [profile, setProfile] = useState<HealthProfileData | null>(null);
-	const [isLoading, setIsLoading] = useState<boolean>(true);
-	const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-	const [apiError, setApiError] = useState<string | null>(null);
-	const [conflictError, setConflictError] = useState<boolean>(false);
-	const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-	const form = useForm<HealthProfileFormValues>({
-		resolver: zodResolver(healthProfileSchema),
-		defaultValues: {
-			bloodType: "UNKNOWN",
-			physicalFitnessLevel: "BEGINNER",
-			dietaryRestrictions: "",
-			emergencyNotes: "",
-			allergies: [],
-			medicalConditions: [],
-			isConsentGranted: false,
+function formValues(profile: HealthProfileData): HealthProfileFormValues {
+	return {
+		activityProfile: {
+			comfortableDistanceKm: profile.activityProfile?.comfortableDistanceKm ?? null,
+			comfortableWalkingMinutes: profile.activityProfile?.comfortableWalkingMinutes ?? null,
+			activityNotes: profile.activityProfile?.activityNotes ?? "",
 		},
+		bloodType: profile.bloodType,
+		physicalFitnessLevel: profile.physicalFitnessLevel,
+		dietaryRestrictions: profile.dietaryRestrictions,
+		emergencyNotes: profile.emergencyNotes,
+		allergies: profile.allergies,
+		medicalConditions: profile.medicalConditions,
+		isConsentGranted: profile.consent.isConsentGranted,
+	};
+}
+
+function errorMessage(error: unknown): string {
+	if (error instanceof HttpError) {
+		if (error.status === 409)
+			return "Hồ sơ đã thay đổi ở phiên khác. Thông tin bạn đang nhập được giữ lại; hãy tải dữ liệu mới trước khi lưu.";
+		if (error.status === 422)
+			return "Thông tin sức khỏe chưa hợp lệ. Vui lòng kiểm tra lại các trường đã nhập.";
+		if (error.status === 401) return "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+		if (error.status === 403)
+			return "Bạn chưa được phép thay đổi hồ sơ sức khỏe. Vui lòng kiểm tra trạng thái tài khoản.";
+	}
+	return "Không thể tải hoặc lưu hồ sơ sức khỏe. Vui lòng thử lại.";
+}
+
+export function useHealthProfile() {
+	const client = useQueryClient();
+	const userId = getStoredAuthUser()?.id ?? "";
+	const profileKey = queryKeys.healthProfile.me(userId);
+	const query = useQuery({
+		queryKey: profileKey,
+		queryFn: healthProfileService.getHealthProfile,
+		enabled: Boolean(userId),
+		retry: false,
+		refetchOnMount: "always",
 	});
-
-	const fetchProfile = useCallback(async () => {
-		setIsLoading(true);
-		setApiError(null);
-		setConflictError(false);
-		try {
-			const data = await healthProfileService.getHealthProfile();
-			setProfile(data);
-
-			form.reset({
-				bloodType: data.bloodType,
-				physicalFitnessLevel: data.physicalFitnessLevel,
-				dietaryRestrictions: data.dietaryRestrictions,
-				emergencyNotes: data.emergencyNotes,
-				allergies: data.allergies,
-				medicalConditions: data.medicalConditions,
-				isConsentGranted: data.consent.isConsentGranted,
-			});
-		} catch (err: unknown) {
-			const msg = err instanceof Error ? err.message : "Không thể tải hồ sơ sức khỏe";
-			setApiError(msg);
-		} finally {
-			setIsLoading(false);
-		}
-	}, [form]);
-
+	const profile = query.data ?? null;
+	const form = useForm<HealthProfileFormValues>({ resolver: zodResolver(healthProfileSchema) });
+	const formOwner = useRef(userId);
 	useEffect(() => {
-		fetchProfile();
-	}, [fetchProfile]);
+		if (profile && (formOwner.current !== userId || !form.formState.isDirty)) {
+			form.reset(formValues(profile));
+			formOwner.current = userId;
+		}
+	}, [profile, form, userId]);
 
-	const handleAddAllergy = (allergy: AllergyItem) => {
-		const current = form.getValues("allergies") || [];
-		form.setValue("allergies", [...current, allergy], { shouldDirty: true, shouldValidate: true });
+	const updateCache = (saved: HealthProfileData) => {
+		if (getStoredAuthUser()?.id !== userId) return false;
+		client.setQueryData(profileKey, saved);
+		client.removeQueries({ queryKey: queryKeys.tripRecommendations.explanations(userId) });
+		if (!saved.consent.isConsentGranted) {
+			client.setQueryData(queryKeys.tripRecommendations.list(userId), {
+				status: "needs_health_consent",
+				items: [],
+				mode: null,
+				generatedAt: new Date().toISOString(),
+			});
+		}
+		void client.invalidateQueries({ queryKey: queryKeys.tripRecommendations.list(userId) });
+		return true;
 	};
-
-	const handleRemoveAllergy = (id: string) => {
-		const current = form.getValues("allergies") || [];
-		form.setValue(
-			"allergies",
-			current.filter((item) => item.id !== id),
-			{ shouldDirty: true, shouldValidate: true }
-		);
-	};
-
-	const handleAddMedicalCondition = (condition: MedicalConditionItem) => {
-		const current = form.getValues("medicalConditions") || [];
-		form.setValue("medicalConditions", [...current, condition], {
-			shouldDirty: true,
-			shouldValidate: true,
-		});
-	};
-
-	const handleRemoveMedicalCondition = (id: string) => {
-		const current = form.getValues("medicalConditions") || [];
-		form.setValue(
-			"medicalConditions",
-			current.filter((item) => item.id !== id),
-			{ shouldDirty: true, shouldValidate: true }
-		);
-	};
-
-	const handleRevokeConsent = async () => {
-		if (profile?.accountStatus !== "ACTIVE") {
-			setApiError(
-				"Tài khoản chưa được kích hoạt hoặc đang bị tạm khóa. Không thể thực hiện thao tác này. (BR-202)"
+	const save = useMutation({
+		mutationFn: (values: HealthProfileFormValues) =>
+			healthProfileService.updateHealthProfile(values, profile?.version ?? 0),
+		onSuccess: (saved) => {
+			if (!updateCache(saved)) return;
+			form.reset(formValues(saved));
+			toast.success("Đã lưu hồ sơ sức khỏe.");
+		},
+		onError: (error) => toast.error(errorMessage(error)),
+	});
+	const consent = useMutation({
+		mutationFn: (grant: boolean) =>
+			grant ? healthProfileService.grantConsent() : healthProfileService.revokeConsent(),
+		onSuccess: (saved) => {
+			if (!updateCache(saved)) return;
+			form.setValue("isConsentGranted", saved.consent.isConsentGranted, { shouldDirty: false });
+			toast.success(
+				saved.consent.isConsentGranted
+					? "Đã cho phép chia sẻ hồ sơ sức khỏe và phân tích gợi ý chuyến đi."
+					: "Đã thu hồi quyền chia sẻ hồ sơ sức khỏe."
 			);
-			return;
-		}
-		setIsSubmitting(true);
-		setApiError(null);
-		try {
-			const updated = await healthProfileService.revokeConsent();
-			setProfile(updated);
-			form.setValue("isConsentGranted", false, { shouldDirty: false });
-			setSuccessMessage("Đã thu hồi quyền chia sẻ thông tin sức khỏe thành công.");
-			setTimeout(() => setSuccessMessage(null), 3500);
-		} catch (err: unknown) {
-			const msg = err instanceof Error ? err.message : "Thu hồi quyền chia sẻ thất bại";
-			setApiError(msg);
-		} finally {
-			setIsSubmitting(false);
-		}
-	};
-
-	const handleGrantConsent = async () => {
-		if (profile?.accountStatus !== "ACTIVE") {
-			setApiError(
-				"Tài khoản chưa được kích hoạt hoặc đang bị tạm khóa. Không thể thực hiện thao tác này. (BR-202)"
-			);
-			return;
-		}
-		setIsSubmitting(true);
-		setApiError(null);
-		try {
-			const updated = await healthProfileService.grantConsent();
-			setProfile(updated);
-			form.setValue("isConsentGranted", true, { shouldDirty: false });
-			setSuccessMessage("Đã cấp quyền chia sẻ thông tin sức khỏe cho Host & Porter liên quan.");
-			setTimeout(() => setSuccessMessage(null), 3500);
-		} catch (err: unknown) {
-			const msg = err instanceof Error ? err.message : "Cấp quyền chia sẻ thất bại";
-			setApiError(msg);
-		} finally {
-			setIsSubmitting(false);
-		}
-	};
-
-	const onSubmit = async (values: HealthProfileFormValues) => {
-		// BR-202 Account Verification Guard
-		if (profile?.accountStatus !== "ACTIVE") {
-			setApiError(
-				"Tài khoản đang bị tạm khóa hoặc chưa xác minh. Không thể cập nhật thông tin. (BR-202)"
-			);
-			return;
-		}
-
-		setIsSubmitting(true);
-		setApiError(null);
-		setConflictError(false);
-
-		try {
-			const updated = await healthProfileService.updateHealthProfile(values, profile.version);
-			setProfile(updated);
-			form.reset(values);
-			setSuccessMessage("Hồ sơ sức khỏe đã được cập nhật thành công.");
-			setTimeout(() => setSuccessMessage(null), 3500);
-		} catch (err: unknown) {
-			const errorObj = err as { statusCode?: number; message?: string };
-			if (errorObj?.statusCode === 409 || errorObj?.message === "CONFLICT") {
-				// BR-242 Concurrency Conflict Rejection: preserve entered form data, display alert
-				setConflictError(true);
-				setApiError(
-					"Dữ liệu đã bị thay đổi bởi phiên làm việc khác. Dữ liệu bạn vừa nhập đã được giữ lại. Vui lòng tải lại hoặc thử lại."
-				);
-			} else {
-				setApiError(errorObj?.message || "Cập nhật hồ sơ sức khỏe thất bại. Vui lòng thử lại.");
-			}
-		} finally {
-			setIsSubmitting(false);
-		}
-	};
-
-	const handleReset = () => {
-		if (!profile) return;
-		form.reset({
-			bloodType: profile.bloodType,
-			physicalFitnessLevel: profile.physicalFitnessLevel,
-			dietaryRestrictions: profile.dietaryRestrictions,
-			emergencyNotes: profile.emergencyNotes,
-			allergies: profile.allergies,
-			medicalConditions: profile.medicalConditions,
-			isConsentGranted: profile.consent.isConsentGranted,
-		});
-		setConflictError(false);
-		setApiError(null);
-	};
-
+		},
+		onError: (error) => toast.error(errorMessage(error)),
+	});
+	const isSubmitting = save.isPending || consent.isPending;
+	const canChange = profile?.accountStatus === "ACTIVE" && !isSubmitting;
 	return {
 		profile,
-		isLoading,
-		isSubmitting,
-		apiError,
-		conflictError,
-		successMessage,
 		form,
+		isLoading: query.isLoading,
+		isSubmitting,
+		apiError: query.error
+			? errorMessage(query.error)
+			: save.error instanceof HttpError && save.error.status === 409
+				? errorMessage(save.error)
+				: null,
+		conflictError: save.error instanceof HttpError && save.error.status === 409,
 		isDirty: form.formState.isDirty,
-		fetchProfile,
-		handleAddAllergy,
-		handleRemoveAllergy,
-		handleAddMedicalCondition,
-		handleRemoveMedicalCondition,
-		handleRevokeConsent,
-		handleGrantConsent,
-		handleReset,
-		handleSubmit: form.handleSubmit(onSubmit),
+		fetchProfile: async () => {
+			const result = await query.refetch();
+			if (result.data) {
+				form.reset(formValues(result.data));
+				save.reset();
+			}
+		},
+		handleAddAllergy: (item: AllergyItem) =>
+			form.setValue("allergies", [...(form.getValues("allergies") ?? []), item], {
+				shouldDirty: true,
+				shouldValidate: true,
+			}),
+		handleRemoveAllergy: (id: string) =>
+			form.setValue(
+				"allergies",
+				(form.getValues("allergies") ?? []).filter((item) => item.id !== id),
+				{ shouldDirty: true, shouldValidate: true }
+			),
+		handleAddMedicalCondition: (item: MedicalConditionItem) =>
+			form.setValue("medicalConditions", [...(form.getValues("medicalConditions") ?? []), item], {
+				shouldDirty: true,
+				shouldValidate: true,
+			}),
+		handleRemoveMedicalCondition: (id: string) =>
+			form.setValue(
+				"medicalConditions",
+				(form.getValues("medicalConditions") ?? []).filter((item) => item.id !== id),
+				{ shouldDirty: true, shouldValidate: true }
+			),
+		handleRevokeConsent: () => {
+			if (canChange) consent.mutate(false);
+		},
+		handleGrantConsent: () => {
+			if (canChange) consent.mutate(true);
+		},
+		handleReset: () => {
+			if (profile) form.reset(formValues(profile));
+			save.reset();
+		},
+		handleSubmit: form.handleSubmit((values) => {
+			if (canChange) save.mutate(values);
+		}),
 	};
 }

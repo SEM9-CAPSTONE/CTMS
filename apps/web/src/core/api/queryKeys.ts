@@ -19,6 +19,7 @@ export const queryKeys = {
 		all: ["trip-recommendations"] as const,
 		list: (user: string) => ["trip-recommendations", user, "list"] as const,
 		preferences: (user: string) => ["trip-recommendations", user, "preferences"] as const,
+		explanations: (user: string) => ["trip-recommendations", user, "explanation"] as const,
 		explanation: (user: string, trip: string) =>
 			["trip-recommendations", user, "explanation", trip] as const,
 	},
@@ -203,6 +204,9 @@ export const queryKeys = {
 	},
 	profile: {
 		me: ["profile", "me"] as const,
+	},
+	healthProfile: {
+		me: (userId: string) => ["health-profile", userId] as const,
 	},
 	porter: {
 		profile: ["porter", "profile"] as const,

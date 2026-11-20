@@ -1,4 +1,24 @@
+import type { ActivityProfile } from "../health-profile/types";
 import type { TrekkingRouteDifficulty, TripSummary, TripType } from "../trips/types";
+
+export interface TripHealthAssessment {
+	status: "suitable" | "needs_review" | "insufficient_data";
+	summary: string;
+	comparisons: Array<{
+		label: string;
+		profileValue: string;
+		tripValue: string;
+		detail: string;
+		result: "match" | "caution" | "unknown";
+	}>;
+	missingInformation: string[];
+	profileConfirmedAt: string | null;
+}
+export interface RecommendationHealthBasis {
+	fitnessLevel: string;
+	activityProfile: ActivityProfile | null;
+	hasMedicalConditions: boolean;
+}
 
 export type TripRegionCode =
 	| "son_tra"
@@ -33,6 +53,7 @@ export interface TripPreferences extends TripPreferencesInput {
 }
 
 export interface TripRecommendationItem {
+	healthAssessment?: TripHealthAssessment;
 	trip: TripSummary;
 	reasons: RecommendationReason[];
 }
@@ -73,6 +94,7 @@ export interface TripRecommendationExplanationSection {
 
 /** Server-written, Vietnamese "why this Trip" for one Trip of the Camper's latest suggestions. */
 export interface TripRecommendationExplanation {
+	healthAssessment?: TripHealthAssessment;
 	tripTitle: string;
 	reasons: RecommendationReason[];
 	sections: TripRecommendationExplanationSection[];
@@ -83,8 +105,9 @@ export interface TripRecommendationExplanation {
 }
 
 export interface TripRecommendations {
+	healthBasis?: RecommendationHealthBasis;
 	/** needs_preferences: no preferences and no booking history yet, nothing was generated. */
-	status: "ready" | "needs_preferences";
+	status: "ready" | "needs_preferences" | "needs_health_consent";
 	items: TripRecommendationItem[];
 	generatedAt: string;
 	mode: "ai" | "rules" | null;

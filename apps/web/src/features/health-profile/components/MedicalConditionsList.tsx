@@ -42,9 +42,6 @@ export function MedicalConditionsList({
 						<HeartPulse size={18} className="text-rose-600" />
 						<span>Bệnh lý mạn tính & Thuốc điều trị</span>
 					</h3>
-					<p className="text-xs font-medium text-[#627769]">
-						Khai báo các bệnh mạn tính (hen suyễn, tim mạch, khớp...) và thuốc cá nhân cần sử dụng.
-					</p>
 				</div>
 				<span className="rounded-full bg-[#eef7f0] border border-[#d6ebd9] px-3 py-1 text-xs font-bold text-[#164027]">
 					{conditions.length} mục

@@ -1,3 +1,5 @@
+import 'activity_profile.dart';
+
 class AllergyItem {
   const AllergyItem({
     required this.id,
@@ -24,7 +26,8 @@ class AllergyItem {
     'id': id,
     'name': name,
     'severity': severity,
-    if (reaction != null && reaction!.trim().isNotEmpty) 'reaction': reaction!.trim(),
+    if (reaction != null && reaction!.trim().isNotEmpty)
+      'reaction': reaction!.trim(),
   };
 }
 
@@ -53,7 +56,8 @@ class MedicalConditionItem {
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
-    if (medication != null && medication!.trim().isNotEmpty) 'medication': medication!.trim(),
+    if (medication != null && medication!.trim().isNotEmpty)
+      'medication': medication!.trim(),
     if (notes != null && notes!.trim().isNotEmpty) 'notes': notes!.trim(),
   };
 }
@@ -87,6 +91,7 @@ class HealthSharingConsent {
 
 class HealthProfile {
   const HealthProfile({
+    this.activityProfile,
     required this.id,
     required this.camperId,
     required this.camperName,
@@ -103,6 +108,7 @@ class HealthProfile {
   });
 
   final String id;
+  final ActivityProfile? activityProfile;
   final String camperId;
   final String camperName;
   final String bloodType; // 'A+' | 'A-' | etc.
@@ -122,11 +128,17 @@ class HealthProfile {
     final consentJson = json['consent'];
 
     return HealthProfile(
+      activityProfile: json['activityProfile'] is Map<String, Object?>
+          ? ActivityProfile.fromJson(
+              json['activityProfile'] as Map<String, Object?>,
+            )
+          : null,
       id: json['id'] as String? ?? '',
       camperId: json['camperId'] as String? ?? '',
       camperName: json['camperName'] as String? ?? '',
       bloodType: json['bloodType'] as String? ?? 'UNKNOWN',
-      physicalFitnessLevel: json['physicalFitnessLevel'] as String? ?? 'BEGINNER',
+      physicalFitnessLevel:
+          json['physicalFitnessLevel'] as String? ?? 'BEGINNER',
       dietaryRestrictions: json['dietaryRestrictions'] as String? ?? '',
       emergencyNotes: json['emergencyNotes'] as String? ?? '',
       allergies: allergiesJson is List
@@ -143,7 +155,10 @@ class HealthProfile {
           : const [],
       consent: consentJson is Map<String, dynamic>
           ? HealthSharingConsent.fromJson(consentJson)
-          : const HealthSharingConsent(isConsentGranted: false, allowedRoles: []),
+          : const HealthSharingConsent(
+              isConsentGranted: false,
+              allowedRoles: [],
+            ),
       accountStatus: json['accountStatus'] as String? ?? 'ACTIVE',
       updatedAt: json['updatedAt'] as String? ?? '',
       version: json['version'] as int? ?? 1,
@@ -153,6 +168,7 @@ class HealthProfile {
 
 class UpdateHealthProfileInput {
   const UpdateHealthProfileInput({
+    this.activityProfile,
     required this.bloodType,
     required this.physicalFitnessLevel,
     this.dietaryRestrictions,
@@ -163,6 +179,7 @@ class UpdateHealthProfileInput {
   });
 
   final String bloodType;
+  final ActivityProfile? activityProfile;
   final String physicalFitnessLevel;
   final String? dietaryRestrictions;
   final String? emergencyNotes;
@@ -171,6 +188,8 @@ class UpdateHealthProfileInput {
   final bool isConsentGranted;
 
   Map<String, dynamic> toJson() => {
+    if (activityProfile != null)
+      'activityProfile': activityProfile!.toInputJson(),
     'bloodType': bloodType,
     'physicalFitnessLevel': physicalFitnessLevel,
     if (dietaryRestrictions != null) 'dietaryRestrictions': dietaryRestrictions,

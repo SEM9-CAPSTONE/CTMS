@@ -21,7 +21,26 @@ export function useTripRecommendations(enabled = true) {
 		staleTime: RECOMMENDATIONS_STALE_MS,
 		// Every opening of the suggestions modal asks the server again for current availability.
 		refetchOnMount: "always",
+		refetchOnWindowFocus: "always",
 		retry: false,
+	});
+}
+
+export function useRegenerateTripRecommendations() {
+	const client = useQueryClient();
+	const userId = currentUserId();
+	return useMutation({
+		mutationFn: tripRecommendationsService.regenerate,
+		onMutate: async () => {
+			await client.cancelQueries({ queryKey: queryKeys.tripRecommendations.list(userId) });
+			client.removeQueries({ queryKey: queryKeys.tripRecommendations.explanations(userId) });
+		},
+		onSuccess: (result) => {
+			if (currentUserId() !== userId) return;
+			client.setQueryData(queryKeys.tripRecommendations.list(userId), result);
+			if (result.status === "ready") toast.success("Đã tạo lại gợi ý từ hồ sơ mới nhất của bạn.");
+		},
+		onError: () => toast.error("Không thể tạo lại gợi ý chuyến đi. Vui lòng thử lại."),
 	});
 }
 

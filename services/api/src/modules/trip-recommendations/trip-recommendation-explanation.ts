@@ -1,8 +1,8 @@
 import { evaluateTripBookingEligibility } from "../bookings/trip-booking-eligibility";
 import type { FitnessLevel } from "../profiles/entities/health-profile.entity";
 import type { TrekkingRouteDifficulty } from "../trekking-routes/entities/trekking-route.entity";
+import { assessTripHealth } from "./trip-health-assessment";
 import {
-	type FitnessFit,
 	HISTORY_REASON_MIN_SHARE,
 	type HistoryProfile,
 	type TripPreferences,
@@ -92,12 +92,6 @@ const FITNESS_LABEL: Record<string, string> = {
 	ADVANCED: "Nâng cao (Trekking đèo dốc thường xuyên)",
 	EXPERT: "Chuyên gia (Chinh phục các đỉnh khắc nghiệt)",
 };
-const SEVERITY_LABEL: Record<string, string> = {
-	LOW: "nhẹ",
-	MEDIUM: "trung bình",
-	HIGH: "nặng",
-	CRITICAL: "rất nặng",
-};
 const PRICE_BAND_LABEL: Record<string, string> = {
 	under_500k: "dưới 500.000 đ",
 	"500k_1500k": "từ 500.000 đ đến dưới 1.500.000 đ",
@@ -113,8 +107,6 @@ const SUMMARY_LABEL: Partial<Record<ExplanationKind, string>> = {
 	region: "khu vực",
 	price: "mức giá",
 	health_note: "bệnh nền",
-	allergy: "dị ứng",
-	diet: "chế độ ăn",
 	age: "độ tuổi",
 	availability: "tình trạng đặt chỗ",
 };
@@ -253,58 +245,36 @@ function tripTypeSection(
 	return null;
 }
 
-const FIT_TEXT: Record<FitnessFit, { tone: ExplanationTone; title: string; conclusion: string }> = {
-	good: {
-		tone: "match",
-		title: "Vừa sức với thể lực của bạn",
-		conclusion: "Vì vậy bạn có thể đi trọn cung đường mà không bị quá sức.",
-	},
-	stretch: {
-		tone: "caution",
-		title: "Hơi thử thách so với thể lực hiện tại",
-		conclusion:
-			"Vì vậy chuyến vẫn phù hợp nếu bạn muốn nâng sức bền, nhưng hãy tập luyện, ngủ đủ và chuẩn bị kỹ trước ngày đi.",
-	},
-	too_hard: {
-		tone: "caution",
-		title: "Vượt khá xa thể lực hiện tại",
-		conclusion:
-			"Vì vậy chuyến được xếp sau các chuyến vừa sức hơn; hãy cân nhắc kỹ hoặc trao đổi với chủ chuyến trước khi đặt.",
-	},
-};
-
 function fitnessSection(
 	trip: ExplanationTripRow,
-	fitnessLevel: FitnessLevel
-): ExplanationSection | null {
-	const fit = fitnessFit(
-		fitnessLevel,
-		trip.difficulty,
-		trip.routeLengthMeters,
-		trip.routeDurationMinutes
-	);
-	if (!fit) return null;
-	const long = isLongRoute(trip.routeLengthMeters, trip.routeDurationMinutes)
-		? " Cung đường dài nên cần sức bền hơn mức độ khó ghi trên chuyến."
-		: "";
-	const compare =
-		fit === "good"
-			? "nằm trong mức bạn đã quen"
-			: fit === "stretch"
-				? "cao hơn một bậc so với mức bạn đã quen"
-				: "cao hơn nhiều so với mức bạn đã quen";
-	const text = FIT_TEXT[fit];
+	health: NonNullable<ExplanationProfile["health"]>
+): ExplanationSection {
+	const assessment = assessTripHealth(trip, {
+		fitnessLevel: health.fitnessLevel,
+		activityProfile: health.activityProfile,
+		hasMedicalConditions: health.medicalConditions.length > 0,
+	});
 	return {
 		kind: "fitness",
-		tone: text.tone,
-		title: text.title,
+		tone:
+			assessment.status === "suitable"
+				? "match"
+				: assessment.status === "needs_review"
+					? "caution"
+					: "info",
+		title:
+			assessment.status === "suitable"
+				? "Phù hợp với thông tin đã khai báo"
+				: assessment.status === "needs_review"
+					? "Cần xác nhận thêm"
+					: "Chưa đủ thông tin để đánh giá",
 		quote: {
 			source: "health_profile",
 			field: "Mức thể lực",
-			text: FITNESS_LABEL[fitnessLevel] ?? fitnessLevel,
+			text: FITNESS_LABEL[health.fitnessLevel] ?? health.fitnessLevel,
 		},
-		detail: `${difficultyPhrase(trip)}, ${compare}.${long}`,
-		conclusion: text.conclusion,
+		detail: difficultyPhrase(trip),
+		conclusion: assessment.summary,
 	};
 }
 
@@ -333,70 +303,18 @@ function medicalSection(
 		medications.length > 0
 			? ` Nhớ mang theo ${quoted(medications)} như bạn ghi trong hồ sơ.`
 			: " Nhớ mang theo thuốc bạn đang dùng.";
-	const hard = demanding(trip, health.fitnessLevel);
 	return {
 		kind: "health_note",
-		tone: hard ? "caution" : "info",
-		title: hard ? "Cần lưu ý với bệnh nền của bạn" : "Phù hợp với bệnh nền đã ghi",
+		tone: "caution",
+		title: "Bệnh nền cần xác nhận thêm",
 		quote: {
 			source: "health_profile",
 			field: "Bệnh nền",
 			text: health.medicalConditions.map((item) => item.name).join(", "),
 		},
 		detail: `${difficultyPhrase(trip)}.${carry}`,
-		conclusion: hard
-			? "Vì vậy hãy hỏi ý kiến bác sĩ và báo trước cho chủ chuyến để được hỗ trợ khi cần."
-			: "Vì vậy mức gắng sức của chuyến không cao, bạn vẫn có thể tham gia nếu đã kiểm soát tốt bệnh.",
-	};
-}
-
-function allergySection(
-	trip: ExplanationTripRow,
-	health: NonNullable<ExplanationProfile["health"]>
-): ExplanationSection | null {
-	if (health.allergies.length === 0) return null;
-	const serious = health.allergies.some(
-		(item) => item.severity === "HIGH" || item.severity === "CRITICAL"
-	);
-	return {
-		kind: "allergy",
-		tone: serious ? "caution" : "info",
-		title: "Lưu ý dị ứng của bạn",
-		quote: {
-			source: "health_profile",
-			field: "Dị ứng",
-			text: health.allergies
-				.map((item) =>
-					item.severity && SEVERITY_LABEL[item.severity]
-						? `${item.name} (mức ${SEVERITY_LABEL[item.severity]})`
-						: item.name
-				)
-				.join(", "),
-		},
-		detail:
-			trip.tripType === "overnight"
-				? "Chuyến qua đêm ngoài trời, có ăn uống và ngủ lại giữa thiên nhiên."
-				: "Chuyến đi ngoài trời, tiếp xúc nhiều với cây cỏ và côn trùng.",
 		conclusion:
-			"Vì vậy hãy mang theo thuốc dị ứng và báo trước cho chủ chuyến để họ chuẩn bị phù hợp.",
-	};
-}
-
-function dietSection(
-	trip: ExplanationTripRow,
-	health: NonNullable<ExplanationProfile["health"]>
-): ExplanationSection | null {
-	if (!health.dietaryRestrictions) return null;
-	return {
-		kind: "diet",
-		tone: "info",
-		title: "Chế độ ăn của bạn",
-		quote: { source: "health_profile", field: "Chế độ ăn", text: health.dietaryRestrictions },
-		detail:
-			trip.tripType === "overnight"
-				? `Chuyến kéo dài ${trip.durationNights} đêm nên có các bữa ăn trong hành trình.`
-				: "Chuyến trong ngày có thể có bữa ăn hoặc đồ ăn nhẹ dọc đường.",
-		conclusion: "Vì vậy hãy báo trước cho chủ chuyến để bữa ăn được chuẩn bị đúng chế độ của bạn.",
+			"Hệ thống chưa đủ thông tin để đánh giá ảnh hưởng của bệnh nền; cần xác nhận yêu cầu vận động với nhân viên y tế.",
 	};
 }
 
@@ -769,7 +687,7 @@ function summarize(sections: ExplanationSection[]): string {
 export function buildExplanation(input: ExplanationInput): Explanation {
 	const { trip, preferences, history, profile, now } = input;
 	const health = profile.health;
-	const fitness = health ? fitnessSection(trip, health.fitnessLevel) : null;
+	const fitness = health ? fitnessSection(trip, health) : null;
 	const sections = [
 		availabilitySection(trip, now),
 		fitness,
@@ -780,8 +698,6 @@ export function buildExplanation(input: ExplanationInput): Explanation {
 		regionSection(trip, preferences, history),
 		priceSection(trip, preferences, history),
 		health ? medicalSection(trip, health) : null,
-		health ? allergySection(trip, health) : null,
-		health ? dietSection(trip, health) : null,
 		ageSection(trip, profile, now),
 		// The fitness point already states the Route figures when it is shown.
 		fitness ? null : routeSection(trip),

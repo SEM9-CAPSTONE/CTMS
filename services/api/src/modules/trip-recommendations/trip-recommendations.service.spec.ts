@@ -75,7 +75,10 @@ function setup(options: Setup = {}) {
 	// Default: a price range every fixture Trip matches, so the Camper has a signal.
 	const state = {
 		preferences: options.preferences ?? { ...EMPTY_PREFERENCES, maxPrice: 5_000_000 },
-		health: options.health ?? null,
+		health:
+			options.health === undefined
+				? { fitnessLevel: FitnessLevel.BEGINNER, hasMedicalConditions: false }
+				: options.health,
 	};
 	const repository = {
 		findPreferences: jest.fn(async () => ({ ...state.preferences, updatedAt: null })),
@@ -153,12 +156,130 @@ const overnightPreference: TripPreferences = {
 };
 
 describe("TripRecommendationsService", () => {
-	it("asks a Camper without preferences or history to choose preferences first", async () => {
+	it("includes a suitable low-preference Trip in the AI shortlist and keeps it above a higher-preference Trip", async () => {
+		const rows = [
+			...Array.from({ length: 35 }, (_, index) =>
+				row(index + 1, {
+					tripType: TripType.OVERNIGHT,
+					durationNights: 1,
+					difficulty: TrekkingRouteDifficulty.EXPERT,
+				})
+			),
+			row(40, {
+				tripType: TripType.DAY_TRIP,
+				durationNights: 0,
+				difficulty: TrekkingRouteDifficulty.EASY,
+			}),
+		];
+		const { service, provider } = setup({
+			rows,
+			preferences: overnightPreference,
+			health: {
+				fitnessLevel: FitnessLevel.BEGINNER,
+				hasMedicalConditions: false,
+				activityProfile: {
+					comfortableDistanceKm: 8,
+					comfortableWalkingMinutes: 240,
+					activityNotes: null,
+					confirmedAt: "2026-11-19T00:00:00Z",
+				},
+			},
+			rank: async () => ({
+				ranking: [
+					{ code: "c02", reasons: [] },
+					{ code: "c01", reasons: [] },
+				],
+			}),
+		});
+		const result = await service.getRecommendations(USER);
+		expect(provider.rank.mock.calls[0][0].candidates[0]).toMatchObject({
+			tripType: TripType.DAY_TRIP,
+		});
+		expect(result.items[0].trip.id).toBe(tripId(40));
+		expect(result.items[0].healthAssessment.status).toBe("suitable");
+		expect(JSON.stringify(provider.rank.mock.calls)).not.toMatch(
+			/comfortableDistanceKm|activityProfile|healthAssessment/
+		);
+	});
+
+	it("uses the consented profile when preferences and booking history are empty", async () => {
 		const { service, provider, repository, runs } = setup({ preferences: EMPTY_PREFERENCES });
 		const result = await service.getRecommendations(USER);
-		expect(result).toMatchObject({ status: "needs_preferences", items: [], mode: null });
+		expect(result).toMatchObject({ status: "ready", mode: "rules" });
+		expect(repository.findCandidateRows).toHaveBeenCalled();
+		expect(provider.rank).not.toHaveBeenCalled();
+		expect(runs).toHaveLength(1);
+	});
+
+	it("requires persisted health consent before reading signals, ranking or recording a run", async () => {
+		const { service, repository, provider, runs } = setup({ health: null });
+		for (const regenerate of [false, true]) {
+			const result = await service.getRecommendations(USER, { regenerate });
+			expect(result).toMatchObject({ status: "needs_health_consent", items: [], mode: null });
+		}
+		expect(repository.findHealthSignal).toHaveBeenCalledWith(USER);
+		expect(repository.findPreferences).not.toHaveBeenCalled();
+		expect(repository.findHistoryTrips).not.toHaveBeenCalled();
 		expect(repository.findCandidateRows).not.toHaveBeenCalled();
 		expect(provider.rank).not.toHaveBeenCalled();
+		expect(runs).toEqual([]);
+	});
+
+	it("regenerates without the cached AI order and reads the updated health profile", async () => {
+		const { service, provider, repository, state, runs } = setup({
+			rows: [
+				row(1, { difficulty: TrekkingRouteDifficulty.EXPERT }),
+				row(2, { difficulty: TrekkingRouteDifficulty.EASY }),
+			],
+			health: { fitnessLevel: FitnessLevel.EXPERT, hasMedicalConditions: false },
+			rank: async () => ({
+				ranking: [
+					{ code: "c01", reasons: [] },
+					{ code: "c02", reasons: [] },
+				],
+			}),
+		});
+		await service.getRecommendations(USER);
+		const cacheReads = repository.findReusableAiRun.mock.calls.length;
+		state.health = { fitnessLevel: FitnessLevel.BEGINNER, hasMedicalConditions: false };
+		const result = await service.getRecommendations(USER, { regenerate: true });
+		expect(provider.rank).toHaveBeenCalledTimes(2);
+		expect(repository.findReusableAiRun).toHaveBeenCalledTimes(cacheReads);
+		expect(result.items.find((item) => item.trip.id === tripId(1))?.healthAssessment.status).toBe(
+			"needs_review"
+		);
+		expect(result.items.find((item) => item.trip.id === tripId(2))?.healthAssessment.status).toBe(
+			"insufficient_data"
+		);
+		expect(runs.at(-1)?.reusedRunId).toBeNull();
+	});
+
+	it("does not return a previously cached run after consent is revoked", async () => {
+		const { service, provider, state, runs } = setup({
+			rank: async () => ({ ranking: [{ code: "c01", reasons: [] }] }),
+		});
+		await service.getRecommendations(USER);
+		state.health = null;
+		expect(await service.getRecommendations(USER)).toMatchObject({
+			status: "needs_health_consent",
+			items: [],
+		});
+		expect(provider.rank).toHaveBeenCalledTimes(1);
+		expect(runs).toHaveLength(1);
+		await expect(service.getExplanation(USER, tripId(1))).rejects.toMatchObject({ status: 403 });
+	});
+
+	it("discards a result when consent is revoked while the AI is ranking", async () => {
+		const { service, repository, runs } = setup({
+			rank: async () => ({ ranking: [{ code: "c01", reasons: [] }] }),
+		});
+		repository.findHealthSignal
+			.mockResolvedValueOnce({ fitnessLevel: FitnessLevel.BEGINNER, hasMedicalConditions: false })
+			.mockResolvedValue(null);
+		expect(await service.getRecommendations(USER)).toMatchObject({
+			status: "needs_health_consent",
+			items: [],
+		});
 		expect(runs).toEqual([]);
 	});
 
@@ -522,8 +643,8 @@ describe("TripRecommendationsService", () => {
 				},
 			});
 			const result = await service.getRecommendations(USER);
-			expect(result.items.map((item) => item.trip.id)).toEqual([tripId(2), tripId(3), tripId(1)]);
-			expect(result.items[0].reasons[0]).toBe("fitness_match");
+			expect(result.items.every((item) => item.healthAssessment.status !== "suitable")).toBe(true);
+			expect(result.items.flatMap((item) => item.reasons)).not.toContain("fitness_match");
 			const sent = JSON.stringify(requests);
 			expect(sent).not.toMatch(/fitness|BEGINNER|medical|health/i);
 			for (const candidate of requests[0].candidates) {
@@ -534,6 +655,7 @@ describe("TripRecommendationsService", () => {
 		it("applies a changed fitness level immediately while reusing the cached AI order", async () => {
 			const { service, provider, state } = setup({
 				rows: rowsByDifficulty(),
+				health: { fitnessLevel: FitnessLevel.EXPERT, hasMedicalConditions: false },
 				rank: async () => ({
 					ranking: [
 						{ code: "c01", reasons: [] },
@@ -547,13 +669,15 @@ describe("TripRecommendationsService", () => {
 			state.health = beginner;
 			const second = await service.getRecommendations(USER);
 			expect(provider.rank).toHaveBeenCalledTimes(1);
-			expect(second.items.at(-1)?.trip.id).toBe(tripId(1));
+			expect(second.items.find((item) => item.trip.id === tripId(1))?.healthAssessment.status).toBe(
+				"needs_review"
+			);
 		});
 
-		it("ignores health entirely without consent", async () => {
+		it("requires consent instead of generating without health", async () => {
 			const { service } = setup({ rows: rowsByDifficulty(), model: null, health: null });
 			const result = await service.getRecommendations(USER);
-			expect(result.items.flatMap((item) => item.reasons)).not.toContain("fitness_match");
+			expect(result).toMatchObject({ status: "needs_health_consent", items: [], mode: null });
 		});
 	});
 
@@ -570,7 +694,9 @@ describe("TripRecommendationsService", () => {
 			expect(explanation.sections.map((section) => section.kind)).toEqual(
 				expect.arrayContaining(["fitness", "price", "timing"])
 			);
-			expect(explanation.summary).toMatch(/^Vì vậy chuyến này phù hợp với bạn về /);
+			expect(explanation.summary).toBe(
+				"Chuyến đi phù hợp với ngân sách của bạn. Độ khó nằm trong mức bạn khai báo."
+			);
 			expect(JSON.stringify(explanation.sections)).not.toContain(tripId(2).slice(0, 8));
 		});
 

@@ -122,9 +122,6 @@ export function ProfileCompletionCard({ profile, onSelectTab }: ProfileCompletio
 								{completedCount}/{totalCount} mục
 							</span>
 						</div>
-						<p className="text-xs font-medium text-[#627769] truncate">
-							Đảm bảo an toàn tuyệt đối và quy trình ứng cứu khẩn cấp.
-						</p>
 					</div>
 				</div>
 

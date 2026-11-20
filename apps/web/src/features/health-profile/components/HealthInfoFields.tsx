@@ -16,9 +16,6 @@ export function HealthInfoFields({ form, disabled }: HealthInfoFieldsProps) {
 		<div className="flex flex-col gap-5 rounded-2xl border border-[#e0ebe0] bg-white p-6 shadow-sm">
 			<div className="border-b border-[#f0f4f1] pb-3">
 				<h3 className="text-base font-extrabold text-[#164027]">Thông tin thể chất & Nhóm máu</h3>
-				<p className="text-xs font-medium text-[#627769]">
-					Thông tin cơ bản giúp đội ngũ cứu hộ và y tế phản ứng nhanh khi có tình huống khẩn cấp.
-				</p>
 			</div>
 
 			<div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -69,26 +66,6 @@ export function HealthInfoFields({ form, disabled }: HealthInfoFieldsProps) {
 					{errors.physicalFitnessLevel && (
 						<span className="text-[11px] font-semibold text-red-500">
 							{errors.physicalFitnessLevel.message}
-						</span>
-					)}
-				</div>
-
-				{/* Dietary Restrictions */}
-				<div className="flex flex-col gap-1.5 sm:col-span-2">
-					<label htmlFor="dietaryRestrictions" className="text-xs font-bold text-[#10221b]">
-						Chế độ ăn kiêng / Kiêng khem
-					</label>
-					<input
-						id="dietaryRestrictions"
-						type="text"
-						disabled={disabled}
-						{...register("dietaryRestrictions")}
-						placeholder="Ví dụ: Ăn chay, không ăn cay, dị ứng lactose..."
-						className="h-10 rounded-xl border border-[#dfe8df] bg-white px-3.5 text-xs text-[#10221b] outline-none transition focus:border-[#164027] focus:ring-2 focus:ring-[#164027]/10 disabled:bg-gray-100 disabled:cursor-not-allowed"
-					/>
-					{errors.dietaryRestrictions && (
-						<span className="text-[11px] font-semibold text-red-500">
-							{errors.dietaryRestrictions.message}
 						</span>
 					)}
 				</div>

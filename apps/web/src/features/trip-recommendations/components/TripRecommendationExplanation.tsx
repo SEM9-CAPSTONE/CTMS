@@ -1,118 +1,13 @@
-import {
-	AlertTriangle,
-	Cake,
-	CalendarClock,
-	CheckCircle2,
-	Footprints,
-	HeartPulse,
-	Info,
-	Leaf,
-	Loader2,
-	MapPin,
-	Mountain,
-	Quote,
-	RefreshCw,
-	Route,
-	ShieldAlert,
-	Sparkles,
-	Tag,
-	Tent,
-	Ticket,
-	Utensils,
-} from "lucide-react";
-import type { ComponentType } from "react";
+import { Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { HttpError } from "../../../core/api";
 import { useTripRecommendationExplanation } from "../hooks/useTripRecommendations";
-import type {
-	ExplanationKind,
-	ExplanationSource,
-	TripRecommendationExplanationSection,
-} from "../types";
+import { HealthConsentRequired } from "./HealthConsentRequired";
+import { healthComparisonSections } from "./TripHealthAssessmentPanel";
 
-type Icon = ComponentType<{ className?: string }>;
-
-const KIND_ICON: Record<ExplanationKind, Icon> = {
-	trip_type: Tent,
-	fitness: HeartPulse,
-	difficulty: Mountain,
-	health_note: ShieldAlert,
-	allergy: Leaf,
-	diet: Utensils,
-	age: Cake,
-	interest: Sparkles,
-	experience: Footprints,
-	region: MapPin,
-	price: Tag,
-	route: Route,
-	timing: CalendarClock,
-	availability: Ticket,
-};
-
-/** Where the quoted entry lives, so the Camper can find and change it. */
-const SOURCE_LABEL: Record<ExplanationSource, string> = {
-	health_profile: "Hồ sơ sức khỏe",
-	personal_profile: "Hồ sơ cá nhân",
-	trip_preferences: "Sở thích chuyến đi",
-	booking_history: "Lịch sử chuyến đi",
-};
-
-const TONE_STYLE: Record<TripRecommendationExplanationSection["tone"], string> = {
-	match: "border-[#cfe3d2] bg-[#f1f8f2] text-[#164027]",
-	info: "border-[#e0ebe0] bg-white text-[#3b5446]",
-	caution: "border-amber-200 bg-amber-50 text-amber-900",
-};
-
-const TONE_BADGE: Record<
-	TripRecommendationExplanationSection["tone"],
-	{ label: string; icon: Icon }
-> = {
-	match: { label: "Phù hợp", icon: CheckCircle2 },
-	info: { label: "Thông tin", icon: Info },
-	caution: { label: "Cần lưu ý", icon: AlertTriangle },
-};
+import { TripExplanationSection } from "./TripExplanationSection";
 
 export interface TripRecommendationExplanationProps {
 	tripId: string;
-}
-
-function SectionItem({ section }: { section: TripRecommendationExplanationSection }) {
-	const KindIcon = KIND_ICON[section.kind] ?? Info;
-	const badge = TONE_BADGE[section.tone];
-	const BadgeIcon = badge.icon;
-	return (
-		<li className={`flex gap-3 rounded-2xl border p-4 ${TONE_STYLE[section.tone]}`}>
-			<KindIcon className="mt-0.5 size-4 shrink-0" />
-			<div className="min-w-0 flex-1">
-				<div className="flex flex-wrap items-center gap-2">
-					<h3 className="text-sm font-extrabold">{section.title}</h3>
-					<span className="inline-flex items-center gap-1 rounded-md bg-white/70 px-1.5 py-0.5 text-[10px] font-bold">
-						<BadgeIcon className="size-3" />
-						{badge.label}
-					</span>
-				</div>
-
-				{section.quote && (
-					<figure className="mt-2 rounded-xl border border-current/10 bg-white/80 px-3 py-2">
-						<figcaption className="text-[11px] font-bold opacity-75">
-							{section.quote.source === "booking_history"
-								? "Từ lịch sử chuyến đi của bạn"
-								: `Bạn đã cung cấp · ${SOURCE_LABEL[section.quote.source]}`}{" "}
-							· {section.quote.field}
-						</figcaption>
-						<blockquote className="mt-1 flex gap-1.5 text-xs font-semibold italic">
-							<Quote aria-hidden="true" className="mt-0.5 size-3 shrink-0 opacity-60" />
-							<span>“{section.quote.text}”</span>
-						</blockquote>
-					</figure>
-				)}
-
-				<p className="mt-2 text-xs leading-5">{section.detail}</p>
-				{section.conclusion && (
-					<p className="mt-1.5 text-xs font-bold leading-5">→ {section.conclusion}</p>
-				)}
-			</div>
-		</li>
-	);
 }
 
 /**
@@ -122,9 +17,28 @@ function SectionItem({ section }: { section: TripRecommendationExplanationSectio
  */
 export function TripRecommendationExplanation({ tripId }: TripRecommendationExplanationProps) {
 	const explanation = useTripRecommendationExplanation(tripId);
+	const data = explanation.data;
+	const sections = [
+		...healthComparisonSections(data?.healthAssessment),
+		...(data?.sections.filter((section) => !data.healthAssessment || section.kind !== "fitness") ??
+			[]),
+	];
+	const summary = data?.summary?.trim();
 
 	if (explanation.isError && explanation.error instanceof HttpError) {
-		if (explanation.error.status === 404 || explanation.error.status === 403) return null;
+		if (explanation.error.status === 404) return null;
+		if (explanation.error.status === 403) {
+			const data = explanation.error.errorData;
+			if (
+				data &&
+				typeof data === "object" &&
+				"code" in data &&
+				data.code === "HEALTH_CONSENT_REQUIRED"
+			) {
+				return <HealthConsentRequired onRetry={() => void explanation.refetch()} />;
+			}
+			return null;
+		}
 	}
 
 	return (
@@ -143,14 +57,10 @@ export function TripRecommendationExplanation({ tripId }: TripRecommendationExpl
 					>
 						Vì sao gợi ý chuyến này cho bạn
 					</h2>
-					<p className="mt-0.5 text-xs text-[#667a6d]">
-						Đối chiếu thông tin bạn đã cung cấp trong hồ sơ, sở thích và lịch sử chuyến đi với số
-						liệu thực tế của chuyến.
-					</p>
 				</div>
 			</div>
 
-			{explanation.isLoading && (
+			{explanation.isFetching && (
 				<div className="mt-4 flex items-center gap-2 text-xs font-bold text-[#164027]">
 					<Loader2 className="size-4 animate-spin" />
 					<span>Đang tải lý do gợi ý...</span>
@@ -174,25 +84,37 @@ export function TripRecommendationExplanation({ tripId }: TripRecommendationExpl
 				</div>
 			)}
 
-			{explanation.data && (
+			{explanation.data && !explanation.isFetching && !explanation.isError && (
 				<>
-					<ul aria-label="Lý do gợi ý chi tiết" className="mt-4 grid gap-3 lg:grid-cols-2">
-						{explanation.data.sections.map((section) => (
-							<SectionItem key={`${section.kind}-${section.title}`} section={section} />
-						))}
-					</ul>
+					{sections.length > 0 && (
+						<ul aria-label="Lý do gợi ý chi tiết" className="mt-4 grid gap-4 md:grid-cols-2">
+							{sections.map((section, index) => (
+								<TripExplanationSection
+									key={`${section.kind}-${section.title}`}
+									section={section}
+									className={
+										index === sections.length - 1 && sections.length % 2 === 1
+											? "md:col-span-2"
+											: ""
+									}
+								/>
+							))}
+						</ul>
+					)}
 
-					<div className="mt-4 rounded-2xl bg-[#164027] p-4 text-white">
-						<p className="text-[11px] font-bold uppercase tracking-wider text-[#cfe3d2]">
-							Kết luận
-						</p>
-						<p className="mt-1 text-sm font-semibold leading-6">{explanation.data.summary}</p>
-					</div>
+					{summary && (
+						<section aria-label="Kết luận" className="mt-4 rounded-2xl bg-[#164027] p-4 text-white">
+							<p className="text-[11px] font-bold uppercase tracking-wider text-[#cfe3d2]">
+								Kết luận
+							</p>
+							<p className="mt-2 text-sm font-semibold leading-6">{summary}</p>
+						</section>
+					)}
 
 					{!explanation.data.healthConsidered && (
 						<p className="mt-3 text-[11px] text-[#7b8c82]">
-							Bật chia sẻ hồ sơ sức khỏe để gợi ý xét thêm thể lực, bệnh nền và dị ứng của bạn.
-							Thông tin sức khỏe chỉ được dùng trong hệ thống, không gửi cho dịch vụ AI.
+							Bật chia sẻ hồ sơ sức khỏe để gợi ý xét thêm thể lực và bệnh nền của bạn. Thông tin
+							sức khỏe chỉ được dùng trong hệ thống, không gửi cho dịch vụ AI.
 						</p>
 					)}
 				</>

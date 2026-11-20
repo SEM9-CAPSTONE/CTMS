@@ -181,6 +181,129 @@ describe("CamperHealthProfileService", () => {
 	});
 
 	describe("updateProfile", () => {
+		it("records current activity on save without requiring a separate confirmation", async () => {
+			transactionalUsersRepository.findOneWithRolesById.mockResolvedValue(buildUser());
+			const existing = buildHealthProfile();
+			transactionalHealthProfileRepository.findOne.mockResolvedValue(existing);
+			const dto: UpdateHealthProfileDto = {
+				bloodType: BloodType.UNKNOWN,
+				physicalFitnessLevel: FitnessLevel.INTERMEDIATE,
+				allergies: [],
+				medicalConditions: [],
+				isConsentGranted: true,
+				activityProfile: {
+					comfortableDistanceKm: 4,
+					comfortableWalkingMinutes: 120,
+					activityNotes: "  Khó đi xuống dốc dài  ",
+				},
+			};
+			const saved = await service.updateProfile(CAMPER_ID, dto, 1);
+			expect(saved.activityProfile).toMatchObject({
+				comfortableDistanceKm: 4,
+				comfortableWalkingMinutes: 120,
+				activityNotes: "Khó đi xuống dốc dài",
+			});
+			expect(saved.activityProfile?.confirmedAt).toBeTruthy();
+			const confirmedAt = saved.activityProfile?.confirmedAt;
+			await service.updateProfile(
+				CAMPER_ID,
+				{ ...dto, activityProfile: { ...dto.activityProfile, confirmCurrent: false } },
+				saved.version
+			);
+			expect(Date.parse(existing.activityProfile?.confirmedAt ?? "")).toBeGreaterThanOrEqual(
+				Date.parse(confirmedAt ?? "")
+			);
+			await service.updateProfile(
+				CAMPER_ID,
+				{
+					...dto,
+					activityProfile: {
+						...dto.activityProfile,
+						comfortableDistanceKm: 3,
+						confirmCurrent: false,
+					},
+				},
+				existing.version
+			);
+			expect(existing.activityProfile?.confirmedAt).toBeTruthy();
+			expect(existing.activityProfile?.comfortableDistanceKm).toBe(3);
+		});
+
+		it("merges legacy notes and allows the optional combined note to be cleared", async () => {
+			transactionalUsersRepository.findOneWithRolesById.mockResolvedValue(buildUser());
+			const existing = buildHealthProfile();
+			transactionalHealthProfileRepository.findOne.mockResolvedValue(existing);
+			const dto: UpdateHealthProfileDto = {
+				bloodType: BloodType.UNKNOWN,
+				physicalFitnessLevel: FitnessLevel.INTERMEDIATE,
+				allergies: [],
+				medicalConditions: [],
+				isConsentGranted: true,
+				activityProfile: {
+					weeklyActiveDays: 3,
+					comfortableDistanceKm: 4,
+					comfortableWalkingMinutes: 120,
+					mobilityLimitations: "Khó đi xuống dốc dài",
+					professionalAdvice: "Tránh mang ba lô nặng",
+					confirmCurrent: true,
+				},
+			};
+			await service.updateProfile(CAMPER_ID, dto, existing.version);
+			expect(existing.activityProfile?.activityNotes).toBe(
+				"Khó đi xuống dốc dài\n\nTránh mang ba lô nặng"
+			);
+			expect(existing.activityProfile).not.toHaveProperty("weeklyActiveDays");
+			expect(existing.activityProfile).not.toHaveProperty("professionalAdvice");
+			await service.updateProfile(
+				CAMPER_ID,
+				{
+					...dto,
+					activityProfile: { comfortableDistanceKm: 5, comfortableWalkingMinutes: 120 },
+				},
+				existing.version
+			);
+			expect(existing.activityProfile?.activityNotes).toBe(
+				"Khó đi xuống dốc dài\n\nTránh mang ba lô nặng"
+			);
+			await service.updateProfile(
+				CAMPER_ID,
+				{
+					...dto,
+					activityProfile: {
+						comfortableDistanceKm: 5,
+						comfortableWalkingMinutes: 120,
+						activityNotes: "",
+					},
+				},
+				existing.version
+			);
+			expect(existing.activityProfile?.activityNotes).toBeNull();
+		});
+
+		it("preserves an existing activity profile when a previous client omits the new fields", async () => {
+			transactionalUsersRepository.findOneWithRolesById.mockResolvedValue(buildUser());
+			const activity = {
+				comfortableDistanceKm: 4,
+				comfortableWalkingMinutes: 120,
+				activityNotes: null,
+				confirmedAt: "2026-11-19T00:00:00Z",
+			};
+			const existing = buildHealthProfile({ activityProfile: activity });
+			transactionalHealthProfileRepository.findOne.mockResolvedValue(existing);
+			await service.updateProfile(
+				CAMPER_ID,
+				{
+					bloodType: BloodType.UNKNOWN,
+					physicalFitnessLevel: FitnessLevel.INTERMEDIATE,
+					allergies: [],
+					medicalConditions: [],
+					isConsentGranted: true,
+				},
+				1
+			);
+			expect(existing.activityProfile).toEqual(activity);
+		});
+
 		it("updates profile values, increments version and writes audit log in transaction", async () => {
 			const activeUser = buildUser();
 			const existingProfile = buildHealthProfile();

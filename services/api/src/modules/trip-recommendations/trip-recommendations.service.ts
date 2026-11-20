@@ -1,4 +1,5 @@
 import {
+	ForbiddenException,
 	Inject,
 	Injectable,
 	Logger,
@@ -25,9 +26,12 @@ import type {
 	TripRecommendationsResponseDto,
 } from "./dto/trip-recommendations-response.dto";
 import type { RecommendationRunResult } from "./entities/trip-recommendation-run.entity";
+import { HEALTH_STATUS_ORDER, assessTripHealth, healthBasis } from "./trip-health-assessment";
 import { buildExplanation } from "./trip-recommendation-explanation";
+import { summarizeRecommendation } from "./trip-recommendation-summary";
 import {
 	type CandidateFacts,
+	type HealthSignal,
 	type HistoryProfile,
 	InvalidAiRankingError,
 	MAX_AI_CANDIDATES,
@@ -37,6 +41,7 @@ import {
 	type RankedCandidate,
 	type RecommendationFallbackReason,
 	type RecommendationMode,
+	type RecommendationReason,
 	type RecommendationSignalType,
 	type ScoredCandidate,
 	type TripPreferences,
@@ -111,25 +116,32 @@ export class TripRecommendationsService {
 	 * then the AI order when available. Reading never changes a Trip, a seat or a price, and a
 	 * suggestion holds nothing: the booking transaction re-checks everything under its locks.
 	 */
-	async getRecommendations(userId: string): Promise<TripRecommendationsResponseDto> {
+	async getRecommendations(
+		userId: string,
+		options: { regenerate?: boolean } = {}
+	): Promise<TripRecommendationsResponseDto> {
 		const startedAt = Date.now();
 		const now = new Date();
-		const [preferences, historyTrips, health] = await Promise.all([
+		// The persisted profile is the authority; neither client flags nor a previous run grant consent.
+		const initialHealth = await this.repository.findHealthSignal(userId);
+		if (!initialHealth) return this.needsHealthConsent();
+		const [preferences, historyTrips] = await Promise.all([
 			this.repository.findPreferences(userId),
 			this.repository.findHistoryTrips(userId),
-			this.repository.findHealthSignal(userId),
 		]);
 		const history = summarizeHistory(historyTrips);
 		const signal = signalTypeOf(preferences, history);
-		// Without any preference or booking history there is nothing to personalize: the Camper is
-		// asked to choose preferences first instead of receiving a generic list.
-		if (signal === "none") {
-			return { status: "needs_preferences", items: [], generatedAt: now, mode: null };
-		}
+		// A consented health profile is sufficient for server-side fitness recommendations.
+		// Without non-sensitive preferences/history we do not call the external AI ranker.
 		const rows = await this.repository.findCandidateRows(userId);
 		const eligible = await this.filterEligible(rows, now);
 		const scored = scoreCandidates(eligible, preferences, history, now);
-		const shortlist = scored.slice(0, MAX_AI_CANDIDATES);
+		const shortlist = applyHealthFit(
+			scored.map((candidate) => ({ candidate, reasons: defaultReasons(candidate) })),
+			initialHealth
+		)
+			.map((item) => item.candidate)
+			.slice(0, MAX_AI_CANDIDATES);
 
 		let mode: RecommendationMode = "rules";
 		let fallbackReason: RecommendationFallbackReason | null = null;
@@ -141,7 +153,7 @@ export class TripRecommendationsService {
 		let reusedRunId: string | null = null;
 		let sentToAi = 0;
 
-		if (shortlist.length > 0) {
+		if (shortlist.length > 0 && signal !== "none") {
 			modelVersion = this.provider.modelVersion();
 			if (!modelVersion) {
 				fallbackReason = "ai_not_configured";
@@ -153,11 +165,13 @@ export class TripRecommendationsService {
 					prompt: promptVersion,
 				});
 				// Same preferences and history as an earlier AI run: reuse its order, no AI call.
-				const reusable = await this.repository.findReusableAiRun(
-					userId,
-					fingerprint,
-					new Date(now.getTime() - this.provider.cacheTtlMs())
-				);
+				const reusable = options.regenerate
+					? null
+					: await this.repository.findReusableAiRun(
+							userId,
+							fingerprint,
+							new Date(now.getTime() - this.provider.cacheTtlMs())
+						);
 				if (reusable?.aiRanking) {
 					ranked = applyCachedRanking(reusable.aiRanking, scored);
 					reusedRunId = reusable.id;
@@ -199,18 +213,22 @@ export class TripRecommendationsService {
 		}
 		// Health fit is applied last, on the server only: the AI and its cache never see it, so a
 		// health profile change shows on the next generation without another AI call.
+		const health = await this.repository.findHealthSignal(userId);
+		if (!health) return this.needsHealthConsent();
 		const ordered = applyHealthFit(
 			ranked ?? scored.map((candidate) => ({ candidate, reasons: defaultReasons(candidate) })),
 			health
 		);
-		const items = await this.confirmAvailability(userId, ordered);
+		const items = await this.confirmAvailability(userId, ordered, health);
+		// Forecast refreshes can take time. Do not publish a run after consent was revoked meanwhile.
+		if (!(await this.repository.findHealthSignal(userId))) return this.needsHealthConsent();
 		const latencyMs = Date.now() - startedAt;
 
 		await this.repository.recordRun({
 			userId,
 			generatedAt: now,
 			mode,
-			signalType: signal,
+			signalType: signal === "none" ? "health_profile" : signal,
 			rulesVersion: RECOMMENDATION_RULES_VERSION,
 			promptVersion,
 			modelVersion: modelVersion ? `gemini/${modelVersion}` : null,
@@ -239,7 +257,11 @@ export class TripRecommendationsService {
 				latencyMs,
 			})
 		);
-		return { status: "ready", items, generatedAt: now, mode };
+		return { status: "ready", items, generatedAt: now, mode, healthBasis: healthBasis(health) };
+	}
+
+	private needsHealthConsent(): TripRecommendationsResponseDto {
+		return { status: "needs_health_consent", items: [], generatedAt: new Date(), mode: null };
 	}
 
 	/**
@@ -247,6 +269,13 @@ export class TripRecommendationsService {
 	 * now, so seats, price and the Camper's current preferences and fitness are what is explained.
 	 */
 	async getExplanation(userId: string, tripId: string): Promise<TripRecommendationExplanationDto> {
+		if (!(await this.repository.findHealthSignal(userId))) {
+			throw new ForbiddenException({
+				code: "HEALTH_CONSENT_REQUIRED",
+				message:
+					"Vui lòng vào Hồ sơ sức khỏe và bật chia sẻ thông tin trước khi xem phân tích gợi ý.",
+			});
+		}
 		const latest = await this.repository.findLatestRun(userId);
 		const shown = latest?.results.find((result) => result.tripId === tripId);
 		const trip = shown ? await this.repository.findExplanationTrip(userId, tripId) : null;
@@ -258,18 +287,35 @@ export class TripRecommendationsService {
 			this.repository.findHistoryTrips(userId),
 			this.repository.findExplanationProfile(userId),
 		]);
-		const { sections, summary } = buildExplanation({
+		if (!profile.health) {
+			throw new ForbiddenException({
+				code: "HEALTH_CONSENT_REQUIRED",
+				message:
+					"Vui lòng vào Hồ sơ sức khỏe và bật chia sẻ thông tin trước khi xem phân tích gợi ý.",
+			});
+		}
+		const { sections } = buildExplanation({
 			trip,
 			preferences,
 			history: summarizeHistory(historyTrips),
 			profile,
 			now: new Date(),
 		});
+		const healthAssessment = assessTripHealth(trip, {
+			fitnessLevel: profile.health.fitnessLevel,
+			activityProfile: profile.health.activityProfile,
+			hasMedicalConditions: profile.health.medicalConditions.length > 0,
+		});
+		const reasons: RecommendationReason[] = shown.reasons.filter(
+			(reason) => reason !== "fitness_match"
+		);
+		if (healthAssessment.status === "suitable") reasons.unshift("fitness_match");
 		return {
+			healthAssessment,
 			tripTitle: trip.title,
-			reasons: shown.reasons,
+			reasons: reasons.slice(0, 2),
 			sections,
-			summary,
+			summary: summarizeRecommendation(sections, healthAssessment),
 			healthConsidered: profile.health !== null,
 			generatedAt: latest.generatedAt,
 		};
@@ -311,7 +357,8 @@ export class TripRecommendationsService {
 	 */
 	private async confirmAvailability(
 		userId: string,
-		ordered: RankedCandidate[]
+		ordered: RankedCandidate[],
+		health: HealthSignal
 	): Promise<TripRecommendationItemDto[]> {
 		const accepted: TripRecommendationItemDto[] = [];
 		for (
@@ -335,7 +382,8 @@ export class TripRecommendationsService {
 				await this.repository.findCandidateRows(userId, ids),
 				new Date()
 			);
-			const stillEligible = new Set(fresh.map((facts) => facts.tripId));
+			const freshById = new Map(fresh.map((facts) => [facts.tripId, facts]));
+			const stillEligible = new Set(freshById.keys());
 			const summaries = new Map(
 				(
 					await this.tripsRepository.findPublishedSummariesByIds(
@@ -346,13 +394,26 @@ export class TripRecommendationsService {
 			for (const item of slice) {
 				const summary = summaries.get(item.candidate.facts.tripId);
 				if (!summary || accepted.length >= MAX_RECOMMENDATIONS) continue;
+				const healthAssessment = assessTripHealth(
+					freshById.get(summary.id) ?? item.candidate.facts,
+					health
+				);
+				const reasons: RecommendationReason[] = item.reasons.filter(
+					(reason) => reason !== "fitness_match"
+				);
+				if (healthAssessment.status === "suitable") reasons.unshift("fitness_match");
 				accepted.push({
+					healthAssessment,
 					trip: this.withTripDateWeather(summary, forecasts.get(summary.id) ?? null),
-					reasons: item.reasons,
+					reasons: reasons.slice(0, 2),
 				});
 			}
 		}
-		return accepted;
+		return accepted.sort(
+			(a, b) =>
+				HEALTH_STATUS_ORDER[a.healthAssessment.status] -
+				HEALTH_STATUS_ORDER[b.healthAssessment.status]
+		);
 	}
 
 	/** Same badge as the search list: the forecast for the Trip's own dates, never Route weather. */
@@ -371,7 +432,7 @@ export class TripRecommendationsService {
 
 	private buildAiRequest(
 		model: string,
-		signal: Exclude<RecommendationSignalType, "none">,
+		signal: Exclude<RecommendationSignalType, "none" | "health_profile">,
 		preferences: TripPreferences,
 		history: HistoryProfile,
 		codes: ReadonlyMap<string, ScoredCandidate>,

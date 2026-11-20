@@ -26,6 +26,7 @@ import {
 import { InAppNotificationType } from "../modules/in-app-notifications/in-app-notification.entity";
 import { InAppNotificationsService } from "../modules/in-app-notifications/in-app-notifications.service";
 import dataSource from "../shared/database/data-source";
+import { seedCamperHealthProfile } from "./camper-health-profile.seed";
 
 import { randomUUID } from "node:crypto";
 import { CheckpointArrivalsRepository } from "../modules/checkpoint-arrivals/checkpoint-arrivals.repository";
@@ -5025,23 +5026,7 @@ async function seedCamperHealthAndContacts(): Promise<void> {
 		[camperId]
 	);
 
-	// Health profile
-	await dataSource.query(
-		`INSERT INTO "health_profiles" (
-			user_id, blood_type, physical_fitness_level, dietary_restrictions, emergency_notes,
-			allergies, medical_conditions, is_consent_granted, consent_granted_at
-		) VALUES (
-			$1, 'O+', 'INTERMEDIATE', 'Ăn chay bán phần', 'Có tiền sử hạ đường huyết nhẹ khi vận động cường độ cao liên tục',
-			'["Dị ứng phấn hoa dại"]'::jsonb, '[]'::jsonb, true, NOW()
-		) ON CONFLICT (user_id) DO UPDATE SET
-			blood_type = EXCLUDED.blood_type,
-			physical_fitness_level = EXCLUDED.physical_fitness_level,
-			dietary_restrictions = EXCLUDED.dietary_restrictions,
-			emergency_notes = EXCLUDED.emergency_notes,
-			allergies = EXCLUDED.allergies,
-			is_consent_granted = EXCLUDED.is_consent_granted`,
-		[camperId]
-	);
+	await seedCamperHealthProfile(dataSource);
 }
 
 /**

@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { DataSource } from "typeorm";
 import type { TripBookingFacts } from "../bookings/trip-booking-eligibility";
+import type { ActivityProfile } from "../profiles/entities/activity-profile";
 import { BookingStatus } from "../profiles/entities/booking.entity";
 import type { FitnessLevel } from "../profiles/entities/health-profile.entity";
 import type {
@@ -79,6 +80,7 @@ export interface ExplanationProfile {
 	/** Present only with health-sharing consent. */
 	health: {
 		fitnessLevel: FitnessLevel;
+		activityProfile?: ActivityProfile | null;
 		allergies: Array<{ name: string; severity: string | null }>;
 		medicalConditions: Array<{ name: string; medication: string | null }>;
 		dietaryRestrictions: string | null;
@@ -210,23 +212,22 @@ export class TripRecommendationsRepository {
 	}
 
 	/**
-	 * Only fitness level and whether any medical condition is recorded, and only with consent.
-	 * Allergies, notes and condition names are not selected.
+	 * Read current consented activity facts and support-needs flags for the requesting Camper.
+	 * Clinical names, medication and emergency notes are not selected for ranking or sent to AI.
 	 */
 	async findHealthSignal(userId: string): Promise<HealthSignal | null> {
 		const [row] = (await this.dataSource.query(
 			`
 			SELECT
 				"physical_fitness_level" AS "fitnessLevel",
+				"activity_profile" AS "activityProfile",
 				jsonb_array_length(COALESCE("medical_conditions", '[]'::jsonb)) > 0 AS "hasMedicalConditions"
 			FROM "health_profiles"
 			WHERE "user_id" = $1 AND "is_consent_granted" = true
 			`,
 			[userId]
-		)) as Array<{ fitnessLevel: FitnessLevel; hasMedicalConditions: boolean }>;
-		return row
-			? { fitnessLevel: row.fitnessLevel, hasMedicalConditions: row.hasMedicalConditions }
-			: null;
+		)) as HealthSignal[];
+		return row ?? null;
 	}
 
 	/**
@@ -242,6 +243,7 @@ export class TripRecommendationsRepository {
 				account."camping_experience_years" AS "experienceYears",
 				account."trekking_experience_details" AS "experienceDetails",
 				health."physical_fitness_level" AS "fitnessLevel",
+				health."activity_profile" AS "activityProfile",
 				health."allergies",
 				health."medical_conditions" AS "medicalConditions",
 				health."dietary_restrictions" AS "dietaryRestrictions"
@@ -257,6 +259,7 @@ export class TripRecommendationsRepository {
 			experienceYears: number | string | null;
 			experienceDetails: string | null;
 			fitnessLevel: FitnessLevel | null;
+			activityProfile: ActivityProfile | null;
 			allergies: Array<{ name?: unknown; severity?: unknown }> | null;
 			medicalConditions: Array<{ name?: unknown; medication?: unknown }> | null;
 			dietaryRestrictions: string | null;
@@ -274,6 +277,7 @@ export class TripRecommendationsRepository {
 			health: row?.fitnessLevel
 				? {
 						fitnessLevel: row.fitnessLevel,
+						activityProfile: row.activityProfile,
 						allergies: (row.allergies ?? []).flatMap((item) => {
 							const name = text(item?.name);
 							return name ? [{ name, severity: text(item?.severity) }] : [];

@@ -94,6 +94,7 @@ class TripEndpoints {
   String getById(String id) => '/trips/$id';
   String images(String tripId) => '/trips/$tripId/images';
   String get recommendations => '/trip-recommendations';
+  String get regenerateRecommendations => '/trip-recommendations/regenerate';
   String get preferences => '/profiles/me/trip-preferences';
   String recommendationExplanation(String tripId) =>
       '/trip-recommendations/trips/$tripId/explanation';

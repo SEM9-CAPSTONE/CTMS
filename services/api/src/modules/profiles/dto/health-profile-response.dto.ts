@@ -1,5 +1,6 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { UserStatus } from "../../users/entities/user.entity";
+import type { ActivityProfile } from "../entities/activity-profile";
 import {
 	type AllergyItem,
 	BloodType,
@@ -40,6 +41,12 @@ export class HealthProfileResponseDto {
 
 	@ApiProperty({ enum: FitnessLevel })
 	physicalFitnessLevel!: FitnessLevel;
+
+	@ApiProperty({
+		nullable: true,
+		description: "Camper-entered activity facts; null when not provided",
+	})
+	activityProfile!: ActivityProfile | null;
 
 	@ApiProperty()
 	dietaryRestrictions!: string;
@@ -86,6 +93,7 @@ export function toHealthProfileResponse(
 		camperName: entity.user.fullName || "",
 		bloodType: entity.bloodType,
 		physicalFitnessLevel: entity.physicalFitnessLevel,
+		activityProfile: entity.activityProfile ?? null,
 		dietaryRestrictions: entity.dietaryRestrictions || "",
 		emergencyNotes: entity.emergencyNotes || "",
 		allergies: entity.allergies,

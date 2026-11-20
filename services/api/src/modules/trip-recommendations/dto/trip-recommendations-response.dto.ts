@@ -1,5 +1,6 @@
 import { ApiProperty } from "@nestjs/swagger";
 import { TripSummaryResponseDto } from "../../trips/dto/trip-response.dto";
+import type { HealthBasis, TripHealthAssessment } from "../trip-health-assessment";
 import {
 	RECOMMENDATION_REASONS,
 	type RecommendationMode,
@@ -7,6 +8,10 @@ import {
 } from "../trip-recommendation.policy";
 
 export class TripRecommendationItemDto {
+	@ApiProperty({
+		description: "Evidence-based comparison of the saved activity profile with this Trip",
+	})
+	healthAssessment!: TripHealthAssessment;
 	@ApiProperty({ type: TripSummaryResponseDto })
 	trip!: TripSummaryResponseDto;
 
@@ -16,11 +21,17 @@ export class TripRecommendationItemDto {
 
 export class TripRecommendationsResponseDto {
 	@ApiProperty({
-		enum: ["ready", "needs_preferences"],
-		description:
-			"needs_preferences: the Camper has no preferences and no booking history yet, so nothing is generated",
+		nullable: true,
+		required: false,
+		description: "Current saved health facts used by the server, never sent to the external AI",
 	})
-	status!: "ready" | "needs_preferences";
+	healthBasis?: HealthBasis;
+	@ApiProperty({
+		enum: ["ready", "needs_preferences", "needs_health_consent"],
+		description:
+			"needs_health_consent: create a health profile and enable sharing before generating suggestions",
+	})
+	status!: "ready" | "needs_preferences" | "needs_health_consent";
 
 	@ApiProperty({ type: TripRecommendationItemDto, isArray: true, maxItems: 6 })
 	items!: TripRecommendationItemDto[];

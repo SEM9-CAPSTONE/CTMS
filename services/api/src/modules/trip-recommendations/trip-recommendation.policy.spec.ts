@@ -309,6 +309,12 @@ describe("applyHealthFit", () => {
 		const result = applyHealthFit(items, {
 			fitnessLevel: FitnessLevel.BEGINNER,
 			hasMedicalConditions: false,
+			activityProfile: {
+				comfortableDistanceKm: 10,
+				comfortableWalkingMinutes: 300,
+				activityNotes: null,
+				confirmedAt: now.toISOString(),
+			},
 		});
 		expect(result.map((item) => item.candidate.facts.tripId)).toEqual([
 			items[1].candidate.facts.tripId,

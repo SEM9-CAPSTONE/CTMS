@@ -1,6 +1,7 @@
-import { AlertCircle, CheckCircle2, Loader2, RefreshCw, Save, Undo2 } from "lucide-react";
+import { AlertCircle, Loader2, RefreshCw, Save, Undo2 } from "lucide-react";
+import { Button } from "../../../shared/components/Button";
 import { useHealthProfile } from "../hooks/useHealthProfile";
-import { AllergiesList } from "./AllergiesList";
+import { ActivityProfileFields } from "./ActivityProfileFields";
 import { HealthInfoFields } from "./HealthInfoFields";
 import { MedicalConditionsList } from "./MedicalConditionsList";
 import { SharingConsentCard } from "./SharingConsentCard";
@@ -13,12 +14,9 @@ export function HealthProfileContainer() {
 		isSubmitting,
 		apiError,
 		conflictError,
-		successMessage,
 		form,
 		isDirty,
 		fetchProfile,
-		handleAddAllergy,
-		handleRemoveAllergy,
 		handleAddMedicalCondition,
 		handleRemoveMedicalCondition,
 		handleRevokeConsent,
@@ -39,6 +37,16 @@ export function HealthProfileContainer() {
 	}
 
 	const isAccountActive = profile?.accountStatus === "ACTIVE";
+	if (!profile) {
+		return (
+			<div role="alert" className="space-y-4 py-6">
+				<p>{apiError ?? "Chưa thể tải hồ sơ sức khỏe của bạn."}</p>
+				<Button variant="outline" onClick={() => void fetchProfile()}>
+					Thử lại
+				</Button>
+			</div>
+		);
+	}
 
 	return (
 		<UnauthorizedViewGuard isAuthorized={true}>
@@ -77,14 +85,6 @@ export function HealthProfileContainer() {
 					</div>
 				)}
 
-				{/* Success Toast */}
-				{successMessage && (
-					<div className="flex items-center gap-2.5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-xs font-bold text-emerald-900 shadow-sm">
-						<CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
-						<span>{successMessage}</span>
-					</div>
-				)}
-
 				{/* Sharing Consent Card */}
 				{profile && (
 					<SharingConsentCard
@@ -99,13 +99,7 @@ export function HealthProfileContainer() {
 				{/* Editable Health Form */}
 				<form onSubmit={handleSubmit} className="flex flex-col gap-6">
 					<HealthInfoFields form={form} disabled={!isAccountActive} />
-
-					<AllergiesList
-						allergies={form.watch("allergies") || []}
-						onAddAllergy={handleAddAllergy}
-						onRemoveAllergy={handleRemoveAllergy}
-						disabled={!isAccountActive}
-					/>
+					<ActivityProfileFields form={form} disabled={!isAccountActive || isSubmitting} />
 
 					<MedicalConditionsList
 						conditions={form.watch("medicalConditions") || []}

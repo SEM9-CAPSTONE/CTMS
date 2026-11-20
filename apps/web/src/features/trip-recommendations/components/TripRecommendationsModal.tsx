@@ -1,16 +1,14 @@
 import { Compass, Loader2, RefreshCw, SlidersHorizontal, Sparkles } from "lucide-react";
 import { useCallback, useState } from "react";
+import { Button } from "../../../shared/components/Button";
 import { Modal } from "../../../shared/components/Modal";
 import { TripCard } from "../../trips/components/TripCard";
-import { useTripPreferences, useTripRecommendations } from "../hooks/useTripRecommendations";
-import { recommendationReasonLabels } from "../reasons";
-import type { TripPreferences } from "../types";
 import {
-	DIFFICULTY_OPTIONS,
-	TRIP_TYPE_OPTIONS,
-	TripPreferencesForm,
-	formatPriceRange,
-} from "./TripPreferencesForm";
+	useRegenerateTripRecommendations,
+	useTripRecommendations,
+} from "../hooks/useTripRecommendations";
+import { HealthConsentRequired } from "./HealthConsentRequired";
+import { TripPreferencesForm } from "./TripPreferencesForm";
 
 export interface TripRecommendationsBannerProps {
 	onSelectTrip: (tripId: string) => void;
@@ -48,10 +46,6 @@ export function TripRecommendationsBanner({ onSelectTrip }: TripRecommendationsB
 							>
 								Gợi ý chuyến đi dành cho bạn
 							</h2>
-							<p className="mt-1 max-w-xl text-xs font-medium leading-relaxed text-[#d7eadb] sm:text-sm">
-								Dựa trên sở thích, thể lực và những chuyến bạn đã đi. Mỗi gợi ý kèm lý do vì sao phù
-								hợp với bạn.
-							</p>
 						</div>
 					</div>
 					<button
@@ -77,83 +71,6 @@ export function TripRecommendationsBanner({ onSelectTrip }: TripRecommendationsB
 	);
 }
 
-function preferenceChips(preferences: TripPreferences): string[] {
-	const label = <T extends string>(options: Array<{ value: T; label: string }>, value: T) =>
-		options.find((option) => option.value === value)?.label ?? value;
-	const price = formatPriceRange(preferences.minPrice, preferences.maxPrice);
-	return [
-		...preferences.tripTypes.map((value) => label(TRIP_TYPE_OPTIONS, value)),
-		...preferences.difficulties.map((value) => `Độ khó ${label(DIFFICULTY_OPTIONS, value)}`),
-		...preferences.regions.map(
-			(code) => preferences.regionOptions.find((region) => region.code === code)?.label ?? code
-		),
-		...(price ? [price] : []),
-	];
-}
-
-/**
- * What the suggestions are based on, at the top of the modal. Preferences only move matching
- * Trips up; they never hide one, which is what the search filters are for.
- */
-function RecommendationBasisCard({ onEdit }: { onEdit: () => void }) {
-	const preferences = useTripPreferences(true);
-	const chips = preferences.data ? preferenceChips(preferences.data) : [];
-	return (
-		<section
-			aria-labelledby="recommendation-basis-title"
-			className="mb-5 rounded-2xl border border-[#dfe8df] bg-[#f7faf6] p-4"
-		>
-			<div className="flex flex-wrap items-start justify-between gap-3">
-				<div className="min-w-0 flex-1">
-					<h3
-						id="recommendation-basis-title"
-						className="text-xs font-extrabold uppercase tracking-wider text-[#55685a]"
-					>
-						Gợi ý đang dựa trên
-					</h3>
-					{preferences.isLoading && (
-						<p className="mt-2 text-xs text-[#667a6d]">Đang tải sở thích của bạn...</p>
-					)}
-					{preferences.isError && (
-						<p className="mt-2 text-xs text-[#667a6d]">
-							Không tải được sở thích của bạn. Gợi ý vẫn dựa trên hồ sơ và lịch sử chuyến đi.
-						</p>
-					)}
-					{preferences.data && chips.length > 0 && (
-						<ul aria-label="Sở thích của bạn" className="mt-2 flex flex-wrap gap-1.5">
-							{chips.map((chip) => (
-								<li
-									key={chip}
-									className="rounded-lg border border-[#cfe3d2] bg-white px-2 py-1 text-[11px] font-bold text-[#164027]"
-								>
-									{chip}
-								</li>
-							))}
-						</ul>
-					)}
-					{preferences.data && chips.length === 0 && (
-						<p className="mt-2 text-xs font-semibold text-[#3b5446]">
-							Chưa chọn sở thích — đang gợi ý theo lịch sử chuyến đi và hồ sơ của bạn.
-						</p>
-					)}
-				</div>
-				<button
-					type="button"
-					onClick={onEdit}
-					className="inline-flex shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-[#cfe3d2] bg-white px-3 py-2 text-xs font-bold text-[#164027] hover:bg-[#eef5ee]"
-				>
-					<SlidersHorizontal className="size-4" />
-					Sửa sở thích
-				</button>
-			</div>
-			<p className="mt-3 text-[11px] leading-5 text-[#667a6d]">
-				Sở thích dùng để ưu tiên chuyến phù hợp lên trước, không ẩn chuyến nào. Muốn lọc chuyến, hãy
-				dùng bộ lọc ở trang tìm chuyến.
-			</p>
-		</section>
-	);
-}
-
 interface TripRecommendationsModalProps {
 	onClose: () => void;
 	onSelectTrip: (tripId: string) => void;
@@ -164,7 +81,12 @@ export function TripRecommendationsModal({ onClose, onSelectTrip }: TripRecommen
 	const [isSaving, setSaving] = useState(false);
 	// Only runs while the results step is shown, i.e. after the Camper asked for suggestions.
 	const recommendations = useTripRecommendations(step === "results");
-	const data = recommendations.data;
+	const regenerate = useRegenerateTripRecommendations();
+	const isGenerating = recommendations.isFetching || regenerate.isPending;
+	const data =
+		!isGenerating && !recommendations.isError && !regenerate.isError
+			? recommendations.data
+			: undefined;
 	const onSavingChange = useCallback((saving: boolean) => setSaving(saving), []);
 
 	if (step === "preferences") {
@@ -176,7 +98,6 @@ export function TripRecommendationsModal({ onClose, onSelectTrip }: TripRecommen
 				size="xl"
 				title="Sở thích để gợi ý chuyến đi"
 				icon={<SlidersHorizontal className="size-5" />}
-				description="Hệ thống ưu tiên các chuyến khớp lựa chọn của bạn và giải thích lý do khi bạn mở chuyến. Chuyến không khớp vẫn có thể được gợi ý nếu phù hợp ở tiêu chí khác."
 			>
 				<TripPreferencesForm
 					onSaved={() => setStep("results")}
@@ -194,21 +115,40 @@ export function TripRecommendationsModal({ onClose, onSelectTrip }: TripRecommen
 			size="2xl"
 			title="Gợi ý cho bạn"
 			icon={<Sparkles className="size-5" />}
-			description="Dựa trên sở thích, thể lực và những chuyến bạn đã đi."
 		>
 			<div className="overflow-y-auto px-5 py-5">
-				{data?.status !== "needs_preferences" && (
-					<RecommendationBasisCard onEdit={() => setStep("preferences")} />
+				{(data?.status === "ready" || regenerate.isPending) && (
+					<div className="mb-4 flex flex-wrap items-center gap-3">
+						<Button variant="outline" disabled={isGenerating} onClick={() => regenerate.mutate()}>
+							{isGenerating ? "Đang tạo gợi ý..." : "Tạo lại gợi ý chuyến đi"}
+						</Button>
+						<Button
+							variant="outline"
+							disabled={isGenerating}
+							onClick={() => setStep("preferences")}
+						>
+							<SlidersHorizontal className="size-4" />
+							Sửa sở thích
+						</Button>
+					</div>
+				)}
+				{data?.status === "needs_health_consent" && (
+					<HealthConsentRequired
+						onRetry={() => {
+							regenerate.reset();
+							void recommendations.refetch();
+						}}
+					/>
 				)}
 
-				{recommendations.isLoading && (
+				{isGenerating && (
 					<div className="flex items-center justify-center gap-2 p-10 text-sm font-bold text-[#164027]">
 						<Loader2 className="size-5 animate-spin" />
 						<span>Đang tìm chuyến phù hợp với bạn...</span>
 					</div>
 				)}
 
-				{recommendations.isError && (
+				{(recommendations.isError || regenerate.isError) && (
 					<div
 						role="alert"
 						className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-center text-rose-800"
@@ -216,7 +156,10 @@ export function TripRecommendationsModal({ onClose, onSelectTrip }: TripRecommen
 						<p className="font-extrabold">Không tải được gợi ý chuyến đi.</p>
 						<button
 							type="button"
-							onClick={() => void recommendations.refetch()}
+							onClick={() => {
+								regenerate.reset();
+								void recommendations.refetch();
+							}}
 							className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-rose-700 px-5 py-2.5 text-xs font-bold text-white transition hover:bg-rose-800"
 						>
 							<RefreshCw className="size-4" />
@@ -263,37 +206,13 @@ export function TripRecommendationsModal({ onClose, onSelectTrip }: TripRecommen
 				)}
 
 				{data?.status === "ready" && data.items.length > 0 && (
-					<>
-						<ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-							{data.items.map((item) => {
-								const reasons = recommendationReasonLabels(item.reasons);
-								return (
-									<li key={item.trip.id} className="flex flex-col gap-2">
-										<TripCard trip={item.trip} onSelect={onSelectTrip} />
-										{reasons.length > 0 && (
-											<ul
-												aria-label={`Lý do gợi ý chuyến ${item.trip.title}`}
-												className="flex flex-wrap gap-1.5"
-											>
-												{reasons.map((reason) => (
-													<li
-														key={reason}
-														className="rounded-lg bg-[#eef5ee] px-2 py-1 text-[11px] font-bold text-[#164027]"
-													>
-														{reason}
-													</li>
-												))}
-											</ul>
-										)}
-									</li>
-								);
-							})}
-						</ul>
-						<p className="mt-4 text-[11px] text-[#7b8c82]">
-							Bấm vào một chuyến để xem chi tiết vì sao chuyến đó được gợi ý. Gợi ý không giữ chỗ;
-							số chỗ còn lại được kiểm tra lại khi bạn đặt chỗ.
-						</p>
-					</>
+					<ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+						{data.items.map((item) => (
+							<li key={item.trip.id}>
+								<TripCard trip={item.trip} onSelect={onSelectTrip} />
+							</li>
+						))}
+					</ul>
 				)}
 			</div>
 		</Modal>

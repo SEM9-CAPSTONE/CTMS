@@ -237,11 +237,6 @@ class _PreferencesFormState extends ConsumerState<_PreferencesForm> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text('Sở thích để gợi ý chuyến đi', style: AppTypography.h2),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            'Không bắt buộc. Hệ thống ưu tiên các chuyến khớp lựa chọn của bạn và giải thích lý do khi bạn mở chuyến; chuyến không khớp vẫn có thể được gợi ý.',
-            style: AppTypography.caption,
-          ),
           const SizedBox(height: AppSpacing.lg),
           _group(
             'Loại chuyến',
