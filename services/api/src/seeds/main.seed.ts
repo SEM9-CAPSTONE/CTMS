@@ -9534,9 +9534,13 @@ export async function runMasterSeed(): Promise<void> {
 		await seedReputationScenarios(dataSource);
 		console.log("✅ Step 17 completed.\n");
 
-		console.log("👉 [18/18] Seeding AI auto-moderation review scenarios...");
+		console.log("👉 [18/19] Seeding AI auto-moderation review scenarios...");
 		await seedAiAutoModerationScenarios(dataSource);
 		console.log("✅ Step 18 completed.\n");
+
+		console.log("👉 [19/19] Seeding 12-month Host business analytics history...");
+		await seedHostAnalyticsHistoryScenarios(dataSource);
+		console.log("✅ Step 19 completed.\n");
 
 		const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(2);
 
@@ -11037,6 +11041,270 @@ export async function seedAiAutoModerationScenarios(ds: DataSource): Promise<voi
 			}
 		}
 	});
+}
+
+export async function seedHostAnalyticsHistoryScenarios(ds: DataSource): Promise<void> {
+	if (!ds.isInitialized) await ds.initialize();
+	console.log(
+		"[seed:host-analytics] Seeding 8 earlier months (2025-12..2026-07) for 12-month history..."
+	);
+
+	const [host] = (await ds.query("SELECT id FROM users WHERE email = 'host@ctms.local'")) as Array<{
+		id: string;
+	}>;
+	const [camper] = (await ds.query(
+		"SELECT id FROM users WHERE email = 'camper@ctms.local'"
+	)) as Array<{ id: string }>;
+	if (!host || !camper) {
+		console.warn("[seed:host-analytics] host@ctms.local or camper@ctms.local missing; skipped.");
+		return;
+	}
+
+	await ensureRoutes(ds, host.id);
+
+	const earlierTrips: Array<{
+		id: string;
+		bookingId: string;
+		cancelledBookingId?: string;
+		chargeId: string;
+		routeId: string;
+		title: string;
+		description: string;
+		areaCode: string;
+		tripType: "day_trip" | "overnight";
+		startsAt: string;
+		endsAt: string;
+		capacityMax: number | null;
+		numPeople: number;
+		pricePerPerson: number;
+		paidAt: string;
+		settledAt: string;
+	}> = [
+		{
+			id: "a4150000-0000-4000-8415-000000000001",
+			bookingId: "a4150000-0000-4000-8415-000000000101",
+			chargeId: "a4150000-0000-4000-8415-000000000201",
+			routeId: ROUTES[0].id,
+			title: "Đón gió đông trên đỉnh Ngũ Hành Sơn",
+			description:
+				"Hành trình leo bộ qua các bậc đá cổ và ngắm toàn cảnh biển Non Nước trong tiết trời se lạnh cuối năm.",
+			areaCode: "DNG-NGU-HANH-SON",
+			tripType: "day_trip",
+			startsAt: "2025-12-14T22:30:00Z",
+			endsAt: "2025-12-15T05:00:00Z",
+			capacityMax: 12,
+			numPeople: 9,
+			pricePerPerson: 650000,
+			paidAt: "2025-12-05T08:00:00Z",
+			settledAt: "2025-12-19T02:00:00Z",
+		},
+		{
+			id: "a4150000-0000-4000-8415-000000000002",
+			bookingId: "a4150000-0000-4000-8415-000000000102",
+			chargeId: "a4150000-0000-4000-8415-000000000202",
+			routeId: ROUTES[1].id,
+			title: "Dạo bộ đầu xuân ven sông Hàn",
+			description:
+				"Khám phá không khí đầu năm dọc bờ sông Hàn và thưởng thức ẩm thực địa phương buổi tối.",
+			areaCode: "DNG-HAI-CHAU",
+			tripType: "day_trip",
+			startsAt: "2026-01-18T11:00:00Z",
+			endsAt: "2026-01-18T14:30:00Z",
+			capacityMax: 10,
+			numPeople: 7,
+			pricePerPerson: 350000,
+			paidAt: "2026-01-10T09:30:00Z",
+			settledAt: "2026-01-22T02:00:00Z",
+		},
+		{
+			id: "a4150000-0000-4000-8415-000000000003",
+			bookingId: "a4150000-0000-4000-8415-000000000103",
+			cancelledBookingId: "a4150000-0000-4000-8415-000000000303",
+			chargeId: "a4150000-0000-4000-8415-000000000203",
+			routeId: ROUTES[0].id,
+			title: "Khám phá hang động Thủy Sơn đầu xuân",
+			description:
+				"Leo núi nhẹ buổi sáng, tham quan động Huyền Không và dừng chân uống trà thảo mộc.",
+			areaCode: "DNG-NGU-HANH-SON",
+			tripType: "day_trip",
+			startsAt: "2026-02-22T22:30:00Z",
+			endsAt: "2026-02-23T04:30:00Z",
+			capacityMax: 12,
+			numPeople: 8,
+			pricePerPerson: 650000,
+			paidAt: "2026-02-12T10:15:00Z",
+			settledAt: "2026-02-27T02:00:00Z",
+		},
+		{
+			id: "a4150000-0000-4000-8415-000000000004",
+			bookingId: "a4150000-0000-4000-8415-000000000104",
+			chargeId: "a4150000-0000-4000-8415-000000000204",
+			routeId: ROUTES[2].id,
+			title: "Bình minh làng chài Thanh Bình tháng Ba",
+			description:
+				"Đi bộ dọc bờ biển Thanh Bình lúc rạng sáng và trải nghiệm chợ hải sản sớm cùng ngư dân.",
+			areaCode: "DNG-THANH-KHE",
+			tripType: "day_trip",
+			startsAt: "2026-03-15T22:00:00Z",
+			endsAt: "2026-03-16T03:00:00Z",
+			capacityMax: 12,
+			numPeople: 10,
+			pricePerPerson: 450000,
+			paidAt: "2026-03-04T07:45:00Z",
+			settledAt: "2026-03-20T02:00:00Z",
+		},
+		{
+			id: "a4150000-0000-4000-8415-000000000005",
+			bookingId: "a4150000-0000-4000-8415-000000000105",
+			chargeId: "a4150000-0000-4000-8415-000000000205",
+			routeId: ROUTES[0].id,
+			title: "Chinh phục Ngũ Hành Sơn dịp nghỉ lễ",
+			description:
+				"Chuyến đi trong ngày nắng đẹp, kết hợp chụp ảnh bình minh và tìm hiểu làng đá mỹ nghệ Non Nước.",
+			areaCode: "DNG-NGU-HANH-SON",
+			tripType: "day_trip",
+			startsAt: "2026-04-29T22:30:00Z",
+			endsAt: "2026-04-30T05:00:00Z",
+			capacityMax: 12,
+			numPeople: 11,
+			pricePerPerson: 650000,
+			paidAt: "2026-04-15T11:00:00Z",
+			settledAt: "2026-05-04T02:00:00Z",
+		},
+		{
+			id: "a4150000-0000-4000-8415-000000000006",
+			bookingId: "a4150000-0000-4000-8415-000000000106",
+			chargeId: "a4150000-0000-4000-8415-000000000206",
+			routeId: ROUTES[1].id,
+			title: "Đi bộ hoàng hôn ven sông Hàn tháng Năm",
+			description:
+				"Hành trình nhẹ nhàng đón gió biển vào buổi chiều muộn và ngắm thành phố lên đèn.",
+			areaCode: "DNG-HAI-CHAU",
+			tripType: "day_trip",
+			startsAt: "2026-05-16T10:30:00Z",
+			endsAt: "2026-05-16T14:00:00Z",
+			capacityMax: 10,
+			numPeople: 8,
+			pricePerPerson: 350000,
+			paidAt: "2026-05-07T09:00:00Z",
+			settledAt: "2026-05-21T02:00:00Z",
+		},
+		{
+			id: "a4150000-0000-4000-8415-000000000007",
+			bookingId: "a4150000-0000-4000-8415-000000000107",
+			chargeId: "a4150000-0000-4000-8415-000000000207",
+			routeId: ROUTES[2].id,
+			title: "Đón nắng sớm bãi biển Thanh Bình",
+			description: "Dạo bộ ven biển, tham gia kéo lưới buổi sáng và nghỉ ngơi dưới hàng dừa mát.",
+			areaCode: "DNG-THANH-KHE",
+			tripType: "day_trip",
+			startsAt: "2026-06-20T22:00:00Z",
+			endsAt: "2026-06-21T03:00:00Z",
+			capacityMax: 12,
+			numPeople: 9,
+			pricePerPerson: 450000,
+			paidAt: "2026-06-11T08:30:00Z",
+			settledAt: "2026-06-25T02:00:00Z",
+		},
+		{
+			id: "a4150000-0000-4000-8415-000000000008",
+			bookingId: "a4150000-0000-4000-8415-000000000108",
+			chargeId: "a4150000-0000-4000-8415-000000000208",
+			routeId: ROUTES[0].id,
+			title: "Hành trình ngắm bình minh Ngũ Hành Sơn giữa hè",
+			description:
+				"Chuyến đi sáng sớm tránh nắng, thưởng ngoạn cảnh biển Non Nước từ đỉnh Vọng Hải Đài.",
+			areaCode: "DNG-NGU-HANH-SON",
+			tripType: "day_trip",
+			startsAt: "2026-07-18T22:30:00Z",
+			endsAt: "2026-07-19T05:00:00Z",
+			capacityMax: null,
+			numPeople: 6,
+			pricePerPerson: 650000,
+			paidAt: "2026-07-08T10:00:00Z",
+			settledAt: "2026-07-23T02:00:00Z",
+		},
+	];
+
+	for (const trip of earlierTrips) {
+		const firstPoint = ROUTES.find((r) => r.id === trip.routeId)?.path[0] ?? [108.2022, 16.0544];
+		const meetingPoint = JSON.stringify({ type: "Point", coordinates: firstPoint });
+		const durationNights = trip.tripType === "day_trip" ? 0 : 1;
+
+		const totalMinor = minorOf(trip.numPeople * trip.pricePerPerson);
+		const feeMinor = (totalMinor * COMMISSION_RATE_BPS) / 10000n;
+		const netMinor = totalMinor - feeMinor;
+
+		await ds.query(
+			`INSERT INTO "trips" ("id", "host_id", "route_id", "title", "description", "trip_type", "duration_nights",
+				"starts_at", "ends_at", "meeting_point", "meeting_at", "booking_deadline", "capacity_min", "capacity_max",
+				"seats_taken", "price_per_person", "status", "created_at",
+				"area_code", "area_name", "province_code", "province_name")
+			 SELECT $1::uuid, $2::uuid, $3::uuid, $4::varchar, $5::text, $12::trip_type, $13::int,
+				$6::timestamptz, $7::timestamptz,
+				ST_SetSRID(ST_GeomFromGeoJSON($8), 4326)::geography, $6::timestamptz - interval '30 minutes',
+				$6::timestamptz - interval '2 days', 4, $14::int, $9::int, $10::numeric, 'completed',
+				$6::timestamptz - interval '21 days',
+				ga."code", ga."name", ga."province_code", ga."province_name"
+			 FROM "geo_areas" ga WHERE ga."code" = $11
+			 ON CONFLICT ("id") DO NOTHING`,
+			[
+				trip.id,
+				host.id,
+				trip.routeId,
+				trip.title,
+				trip.description,
+				trip.startsAt,
+				trip.endsAt,
+				meetingPoint,
+				trip.numPeople,
+				trip.pricePerPerson,
+				trip.areaCode,
+				trip.tripType,
+				durationNights,
+				trip.capacityMax,
+			]
+		);
+
+		await ds.query(
+			`INSERT INTO "bookings" ("id", "trip_id", "user_id", "num_people", "status", "payment_status", "total_amount", "trip_starts_at_snapshot", "created_at")
+			 VALUES ($1, $2, $3, $4, 'completed', 'paid', $5, $7::timestamptz, $6::timestamptz - interval '10 minutes')
+			 ON CONFLICT ("id") DO NOTHING`,
+			[
+				trip.bookingId,
+				trip.id,
+				camper.id,
+				trip.numPeople,
+				money(totalMinor),
+				trip.paidAt,
+				trip.startsAt,
+			]
+		);
+
+		if (trip.cancelledBookingId) {
+			await ds.query(
+				`INSERT INTO "bookings" ("id", "trip_id", "user_id", "num_people", "status", "payment_status", "total_amount", "trip_starts_at_snapshot", "cancelled_at", "created_at")
+				 VALUES ($1, $2, $3, 2, 'cancelled', 'unpaid', 0, $4::timestamptz, $5::timestamptz, $5::timestamptz - interval '2 days')
+				 ON CONFLICT ("id") DO NOTHING`,
+				[trip.cancelledBookingId, trip.id, camper.id, trip.startsAt, trip.paidAt]
+			);
+		}
+
+		const chargeRef = providerRef("VNP", trip.paidAt);
+		await ds.query(
+			`INSERT INTO "payments" ("id", "booking_id", "amount", "type", "status", "provider_reference", "succeeded_at", "created_at", "updated_at")
+			 VALUES ($1, $2, $3, 'charge', 'succeeded', $4, $5, $5, $5)
+			 ON CONFLICT ("id") DO NOTHING`,
+			[trip.chargeId, trip.bookingId, money(totalMinor), chargeRef, trip.paidAt]
+		);
+
+		await ds.query(
+			`INSERT INTO "settlements" ("trip_id", "host_id", "settlement_base", "commission_rate", "platform_fee", "net_amount", "settled_at", "created_at", "updated_at")
+			 VALUES ($1, $2, $3, '0.0500', $4, $5, $6, $6, $6)
+			 ON CONFLICT ("trip_id") DO NOTHING`,
+			[trip.id, host.id, money(totalMinor), money(feeMinor), money(netMinor), trip.settledAt]
+		);
+	}
 }
 
 if (require.main === module) {
