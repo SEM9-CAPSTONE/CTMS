@@ -162,7 +162,7 @@ export const dashboards: Record<DashboardConfig["role"], DashboardConfig> = {
 			{ key: "porters", label: "Người hỗ trợ", icon: BriefcaseBusiness },
 			{ key: "equipment", label: "Quản lý kho thiết bị", icon: Warehouse },
 			{ key: "review-analysis", label: "Phân tích đánh giá", icon: MessageSquareText },
-			{ key: "demand-insights", label: "Nhu cầu đặt chỗ", icon: BarChart3 },
+			{ key: "demand-insights", label: "Phân tích & Gợi ý chuyến", icon: BarChart3 },
 		],
 		metrics: [],
 		primaryPanel: { kicker: "", title: "", description: "", items: [] },
