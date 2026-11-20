@@ -581,6 +581,7 @@ function AppRouteContent() {
 			<ReviewAnalysisPage
 				actor={storedUser?.id ?? ""}
 				initialTripId={new URLSearchParams(currentSearch).get("trip") ?? ""}
+				initialReviewId={new URLSearchParams(currentSearch).get("reviewId") ?? ""}
 			/>
 		);
 		return (

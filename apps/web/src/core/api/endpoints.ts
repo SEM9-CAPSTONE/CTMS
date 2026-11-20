@@ -52,6 +52,7 @@ export const API_ENDPOINTS = {
 	},
 	HOST_REVIEW_MODERATION: {
 		QUEUE: "/host/trip-reviews/moderation-queue",
+		DETAIL: (reviewId: string) => `/host/trip-reviews/${reviewId}/moderation-detail`,
 		DECISION: (reviewId: string) => `/host/trip-reviews/${reviewId}/decisions`,
 		QUARANTINED_IMAGE: (reviewId: string, imageIndex: number) =>
 			`/host/trip-reviews/${reviewId}/quarantined-images/${imageIndex}`,

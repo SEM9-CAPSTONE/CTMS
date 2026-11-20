@@ -175,7 +175,7 @@ describe("Moderation & Analytics UI Components", () => {
 			expect(await screen.findByText("Trekking Bạch Mộc Lương Tử")).toBeInTheDocument();
 			expect(screen.getByText("Quấy rối hoặc đe dọa")).toBeInTheDocument();
 			expect(screen.getByText("Văn bản")).toBeInTheDocument();
-			expect(screen.getByText("Nguồn: Gemini Safety")).toBeInTheDocument();
+			expect(screen.getByText("Nguồn: Kiểm duyệt tự động")).toBeInTheDocument();
 			expect(screen.getByRole("button", { name: "Xử lý" })).toBeInTheDocument();
 		});
 
