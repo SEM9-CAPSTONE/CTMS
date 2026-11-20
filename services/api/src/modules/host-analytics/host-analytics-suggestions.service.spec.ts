@@ -246,6 +246,133 @@ describe("HostAnalyticsSuggestionsService", () => {
 		await expect(service.getQuickCreateContext(hostA, "sug-1")).rejects.toBeInstanceOf(
 			ConflictException
 		);
+
+		// Route no longer owned -> 409 route_not_owned
+		dataSource.query.mockResolvedValueOnce([
+			{
+				id: "sug-1",
+				host_id: "host-a",
+				route_id: "route-1",
+				area_code: "DNG-SON-TRA",
+				trip_type: "day_trip",
+				month_hint: "2027-01",
+				suggested_price_per_person: 650000,
+				suggested_capacity_min: 6,
+			},
+		]);
+		repository.getRouteStatusForHost.mockResolvedValueOnce({
+			hostId: "host-b",
+			status: TrekkingRouteStatus.ACTIVE,
+		});
+		await expect(service.getQuickCreateContext(hostA, "sug-1")).rejects.toMatchObject({
+			response: expect.objectContaining({ error: "route_not_owned" }),
+		});
+
+		// Area deactivated -> 409 area_inactive
+		dataSource.query.mockResolvedValueOnce([
+			{
+				id: "sug-1",
+				host_id: "host-a",
+				route_id: "route-1",
+				area_code: "DNG-SON-TRA",
+				trip_type: "day_trip",
+				month_hint: "2027-01",
+				suggested_price_per_person: 650000,
+				suggested_capacity_min: 6,
+			},
+		]);
+		repository.getRouteStatusForHost.mockResolvedValueOnce({
+			hostId: "host-a",
+			status: TrekkingRouteStatus.ACTIVE,
+		});
+		repository.isAreaActive.mockResolvedValueOnce(false);
+		await expect(service.getQuickCreateContext(hostA, "sug-1")).rejects.toMatchObject({
+			response: expect.objectContaining({ error: "area_inactive" }),
+		});
+	});
+
+	it("returns 202 reusing active job when params are identical and isolates cooldown per host", async () => {
+		const { service, dataSource, managerQuery } = buildHarness();
+		const hostB = { userId: "host-b", roles: [UserRole.HOST], status: UserStatus.ACTIVE };
+		const from = "2025-11-20T00:00:00.000Z";
+		const to = "2026-11-20T00:00:00.000Z";
+		const now = new Date("2026-11-20T03:00:30.000Z");
+
+		// Same params while active -> 202 returning active job
+		dataSource.query
+			.mockResolvedValueOnce([]) // no reusable succeeded job
+			.mockResolvedValueOnce([]); // suggestions for presentJob
+		managerQuery
+			.mockResolvedValueOnce([])
+			.mockResolvedValueOnce([
+				{
+					host_id: "host-a",
+					last_created_at: "2026-11-20T03:00:00.000Z",
+					daily_date_vn: "2026-11-20",
+					daily_count: 1,
+				},
+			])
+			.mockResolvedValueOnce([
+				{
+					id: "job-same",
+					host_id: "host-a",
+					period_from: from,
+					period_to: to,
+					area_code: "DNG-SON-TRA",
+					status: "queued",
+					source_hash: "h",
+					prompt_version: "host-planning-v1",
+					attempts: 0,
+					error_code: null,
+					lease_token: null,
+					created_at: "2026-11-20T03:00:00.000Z",
+					started_at: null,
+					finished_at: null,
+				},
+			]);
+
+		const sameRes = await service.createJob(hostA, { from, to, areaCode: "DNG-SON-TRA" }, now);
+		expect(sameRes.httpStatus).toBe(202);
+		expect(sameRes.job.id).toBe("job-same");
+
+		// Host B is not blocked by Host A's cooldown
+		dataSource.query
+			.mockResolvedValueOnce([]) // no reusable succeeded job
+			.mockResolvedValueOnce([]); // suggestions for presentJob
+		managerQuery
+			.mockResolvedValueOnce([])
+			.mockResolvedValueOnce([
+				{
+					host_id: "host-b",
+					last_created_at: null,
+					daily_date_vn: "2026-11-20",
+					daily_count: 0,
+				},
+			])
+			.mockResolvedValueOnce([]) // no active job for hostB
+			.mockResolvedValueOnce([]) // update host_analytics_control
+			.mockResolvedValueOnce([
+				{
+					id: "job-host-b",
+					host_id: "host-b",
+					period_from: from,
+					period_to: to,
+					area_code: null,
+					status: "queued",
+					source_hash: "hb",
+					prompt_version: "host-planning-v1",
+					attempts: 0,
+					error_code: null,
+					lease_token: null,
+					created_at: now.toISOString(),
+					started_at: null,
+					finished_at: null,
+				},
+			]);
+
+		const hostBRes = await service.createJob(hostB, { from, to }, now);
+		expect(hostBRes.httpStatus).toBe(202);
+		expect(hostBRes.job.id).toBe("job-host-b");
 	});
 
 	it("refunds daily quota when AI fails terminally with analysis_unavailable", async () => {

@@ -217,6 +217,18 @@ describe("Host Business Analytics & Suggestions API (CTMS-415, integration)", ()
 		expect(analyticsRes.body.externalSeason).toEqual({ status: "not_available" });
 		expect(analyticsRes.body.seasonality.basis).toBe("all_history");
 
+		// Seasonality is calculated on all_history regardless of from/to window
+		const narrowRes = await request(app.getHttpServer())
+			.get("/api/host/analytics")
+			.set("Authorization", `Bearer ${hostA.accessToken}`)
+			.query({
+				from: "2026-11-01T00:00:00.000Z",
+				to: "2026-11-15T23:59:59.000Z",
+				areaCode: "DNG-SON-TRA",
+			})
+			.expect(200);
+		expect(narrowRes.body.seasonality).toEqual(analyticsRes.body.seasonality);
+
 		// Camper forbidden
 		await request(app.getHttpServer())
 			.get("/api/host/analytics")
