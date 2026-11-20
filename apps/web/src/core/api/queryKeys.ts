@@ -56,6 +56,8 @@ export const queryKeys = {
 		all: ["review-moderation"] as const,
 		queue: (actor: string, status: string, tripId?: string, page = 1) =>
 			["review-moderation", actor, "queue", status, tripId ?? "all", page] as const,
+		detail: (actor: string, reviewId: string) =>
+			["review-moderation", actor, "detail", reviewId] as const,
 		pendingBadge: (actor: string) => ["review-moderation", actor, "pending-badge"] as const,
 	},
 	reviewAnalytics: {

@@ -7,15 +7,28 @@ const EVENT_LABELS = {
 	[NOTIFICATION_EVENTS.REQUESTED]: "Chuyến đi mới cần xét duyệt",
 	[NOTIFICATION_EVENTS.REMINDER]: "Chuyến đi sắp hết hạn xét duyệt",
 	[NOTIFICATION_EVENTS.AUTO_REJECTED]: "Chuyến đi đã bị từ chối tự động",
+	[NOTIFICATION_EVENTS.REVIEW_MODERATION_FLAGGED]: "Đánh giá cần xem xét",
+	[NOTIFICATION_EVENTS.REVIEW_AUTO_HIDDEN]: "Đánh giá đã tự động ẩn",
+	[NOTIFICATION_EVENTS.REVIEW_MODERATION_UNVERIFIED]: "Đánh giá chưa xác minh được",
+	[NOTIFICATION_EVENTS.REVIEW_MODERATION_REMINDER]: "Nhắc xem xét đánh giá quá hạn",
+	[NOTIFICATION_EVENTS.REVIEW_MODERATION_ESCALATED]: "Đánh giá cần quản trị viên kiểm tra",
 } as const;
 
 export function notificationItem(notice: InAppNotification): NotificationItem {
 	const target = notice.targetAvailable ? notice.target : null;
-	const href =
-		target &&
-		(target.action === "review"
-			? `/admin/trips?tripId=${encodeURIComponent(target.tripId)}`
-			: `/trips/${encodeURIComponent(target.tripId)}?from=notification`);
+	let href: string | null = null;
+	if (target) {
+		if (target.type === "trip_review") {
+			href = `/host/review-analysis?trip=${encodeURIComponent(target.tripId)}&reviewId=${encodeURIComponent(target.reviewId)}`;
+		} else if (target.type === "admin_content_reports") {
+			href = "/admin/content-reports";
+		} else {
+			href =
+				target.action === "review"
+					? `/admin/trips?tripId=${encodeURIComponent(target.tripId)}`
+					: `/trips/${encodeURIComponent(target.tripId)}?from=notification`;
+		}
+	}
 	return {
 		id: `in-app:${notice.id}`,
 		tripId: target?.tripId ?? null,
@@ -24,7 +37,7 @@ export function notificationItem(notice: InAppNotification): NotificationItem {
 		createdAt: notice.createdAt,
 		unread: notice.readAt === null,
 		kind: "review",
-		href: href || null,
+		href,
 	};
 }
 

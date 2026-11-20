@@ -4,6 +4,7 @@ import type {
 	BatchResponse,
 	CreateModerationDecisionDto,
 	CreateResponse,
+	HostReviewModerationDetail,
 	InsightResponse,
 	ModerationDecisionResponse,
 	ModerationQueueResponse,
@@ -41,6 +42,12 @@ export const analysisService = {
 		httpClient.get<ModerationQueueResponse>(API_ENDPOINTS.HOST_REVIEW_MODERATION.QUEUE, params, {
 			signal,
 		}),
+	moderationDetail: (reviewId: string, signal?: AbortSignal) =>
+		httpClient.get<HostReviewModerationDetail>(
+			API_ENDPOINTS.HOST_REVIEW_MODERATION.DETAIL(reviewId),
+			undefined,
+			{ signal }
+		),
 	recordDecision: (reviewId: string, body: CreateModerationDecisionDto) =>
 		httpClient.post<ModerationDecisionResponse>(
 			API_ENDPOINTS.HOST_REVIEW_MODERATION.DECISION(reviewId),

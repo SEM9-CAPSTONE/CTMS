@@ -19,8 +19,10 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { UserRole } from "../users/entities/user.entity";
-import type { CreateModerationDecisionDto } from "./dtos/create-moderation-decision.dto";
-import type { GetHostModerationQueueQueryDto } from "./dtos/get-host-moderation-queue-query.dto";
+// biome-ignore lint/style/useImportType: runtime DTO validation
+import { CreateModerationDecisionDto } from "./dtos/create-moderation-decision.dto";
+// biome-ignore lint/style/useImportType: runtime DTO validation
+import { GetHostModerationQueueQueryDto } from "./dtos/get-host-moderation-queue-query.dto";
 import { ModerationDecisionResponseDto } from "./dtos/moderation-decision-response.dto";
 // biome-ignore lint/style/useImportType: Nest injection
 import { TripReviewModerationHostService } from "./trip-review-moderation-host.service";

@@ -10,6 +10,12 @@ class SavedReview {
     this.images = const [],
     this.canEdit = false,
     this.editExpiresAt,
+    this.moderationStatus = 'visible',
+    this.hiddenReason,
+    this.firstHiddenAt,
+    this.hiddenSource,
+    this.moderationVerificationStatus = 'verified',
+    this.moderationNotice,
   });
   final String id;
   final ReviewTarget target;
@@ -19,6 +25,14 @@ class SavedReview {
   final List<String> images;
   final bool canEdit;
   final DateTime? editExpiresAt;
+  final String moderationStatus;
+  final String? hiddenReason;
+  final DateTime? firstHiddenAt;
+  final String? hiddenSource;
+  final String moderationVerificationStatus;
+  final String? moderationNotice;
+
+  bool get isHidden => moderationStatus == 'hidden';
 
   factory SavedReview.fromJson(Map<String, Object?> json) => SavedReview(
     id: json['id'] as String,
@@ -29,6 +43,13 @@ class SavedReview {
     images: (json['images'] as List? ?? []).cast<String>(),
     canEdit: json['canEdit'] == true,
     editExpiresAt: DateTime.tryParse(json['editExpiresAt'] as String? ?? ''),
+    moderationStatus: (json['moderationStatus'] as String?) ?? 'visible',
+    hiddenReason: json['hiddenReason'] as String?,
+    firstHiddenAt: DateTime.tryParse(json['firstHiddenAt'] as String? ?? ''),
+    hiddenSource: json['hiddenSource'] as String?,
+    moderationVerificationStatus:
+        (json['moderationVerificationStatus'] as String?) ?? 'verified',
+    moderationNotice: json['moderationNotice'] as String?,
   );
 }
 
