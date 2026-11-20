@@ -31,6 +31,9 @@ from app.review_moderation_service import (
     InvalidModerationOutput, ModerationProviderRefusal,
 )
 from app.demand_insight_service import DemandRequest, DemandResponse, DemandInsightService
+from app.host_trip_planning_service import (
+    HostTripPlanningRequest, HostTripPlanningResponse, HostTripPlanningService,
+)
 from app.weather_risk_review_service import (
     InvalidWeatherReviewOutput, WeatherRiskReviewRequest, WeatherRiskReviewResponse, WeatherRiskReviewService,
 )
@@ -161,6 +164,29 @@ def get_demand_insight_service() -> DemandInsightService:
 @lru_cache
 def get_demand_planning_service() -> DemandPlanningService:
     return DemandPlanningService(build_analysis_client().with_options(timeout=40.0))
+
+
+@lru_cache
+def get_host_trip_planning_service() -> HostTripPlanningService:
+    return HostTripPlanningService(build_analysis_client().with_options(timeout=40.0))
+
+
+@app.post("/host-trip-planning", response_model=HostTripPlanningResponse, dependencies=[Depends(require_review_token)])
+def host_trip_planning(payload: HostTripPlanningRequest, service: HostTripPlanningService = Depends(get_host_trip_planning_service)) -> HostTripPlanningResponse:
+    try:
+        return service.generate(payload)
+    except ReviewProviderRefusal:
+        raise HTTPException(status_code=422, detail={"code": "provider_refusal"}) from None
+    except InvalidReviewOutput:
+        raise HTTPException(status_code=422, detail={"code": "invalid_output"}) from None
+    except (APITimeoutError, APIConnectionError):
+        raise HTTPException(status_code=504, detail={"code": "provider_transport"}) from None
+    except APIStatusError as error:
+        terminal = {"credit_balance_exhausted", "insufficient_quota", "organization_spend_limit_exceeded", "project_spend_limit_exceeded", "organization_usage_limit_exceeded"}
+        code = error.code if isinstance(error.code, str) and error.code in terminal else "insufficient_quota" if error.type == "insufficient_quota" else "provider_failure"
+        raise HTTPException(status_code=error.status_code if 400 <= error.status_code < 500 else 502, detail={"code": code}) from None
+    except Exception:
+        raise HTTPException(status_code=502, detail={"code": "provider_failure"}) from None
 
 
 @lru_cache
