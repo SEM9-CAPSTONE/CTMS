@@ -15,6 +15,7 @@ import { EquipmentCatalogModule } from "./equipment-catalog/equipment-catalog.mo
 import { GeoAreasModule } from "./geo-areas/geo-areas.module";
 import { GpsTrackingModule } from "./gps-tracking/gps-tracking.module";
 import { HealthController } from "./health/health.controller";
+import { HostAnalyticsModule } from "./host-analytics/host-analytics.module";
 import { HostOverviewModule } from "./host-overview/host-overview.module";
 import { HostTripMapModule } from "./host-trip-map/host-trip-map.module";
 import { IncidentsModule } from "./incidents/incidents.module";
@@ -67,6 +68,7 @@ import { WeatherModule } from "./weather/weather.module";
 		EmergencyBroadcastsModule,
 		EquipmentCatalogModule,
 		GpsTrackingModule,
+		HostAnalyticsModule,
 		HostOverviewModule,
 		HostTripMapModule,
 		IncidentsModule,
