@@ -8,5 +8,6 @@ import { RevenueAnalyticsService } from "./revenue-analytics.service";
 	imports: [AuthModule],
 	controllers: [RevenueAnalyticsController],
 	providers: [RevenueAnalyticsRepository, RevenueAnalyticsService],
+	exports: [RevenueAnalyticsService],
 })
 export class RevenueAnalyticsModule {}
