@@ -407,7 +407,7 @@ export function CreateTripPage({
 
 	return (
 		<div className="min-h-screen bg-[#f4f7f2] text-[#10221b]">
-			<header className="border-b bg-white">
+			<header className="sticky top-[65px] z-20 border-b bg-white lg:top-0">
 				<div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-5 sm:px-6">
 					{onBackHome && (
 						<button

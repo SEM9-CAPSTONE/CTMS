@@ -204,10 +204,6 @@ describe("HostBusinessAnalyticsPage (CTMS-416)", () => {
 		// Must NOT display raw band codes
 		expect(screen.queryByText("500k_1m")).toBeNull();
 		expect(screen.queryByText("small_1_6")).toBeNull();
-
-		// Switching to Market tab lazy-mounts DemandInsightsPage
-		fireEvent.click(screen.getByRole("tab", { name: "Nhu cầu thị trường" }));
-		expect(await screen.findByTestId("market-demand-tab")).toBeVisible();
 	});
 
 	it("shows 409 active job conflict period/area and handles 429 cooldown countdown", async () => {

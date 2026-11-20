@@ -47,9 +47,7 @@ export function HostSuggestionsSection({
 						{job?.stale && <StatusBadge tone="warning">Dữ liệu đã thay đổi</StatusBadge>}
 					</div>
 					<p className="mt-1 text-xs text-[#526357]">
-						Gợi ý chỉ chọn trong các tuyến đang hoạt động của bạn dựa trên lịch sử vận hành. Mức giá
-						và sức chứa đề xuất là trung vị từ các chuyến trước của chính bạn, không phải giá thị
-						trường.
+						Giá và sức chứa là trung vị từ các chuyến trước của bạn.
 					</p>
 				</div>
 

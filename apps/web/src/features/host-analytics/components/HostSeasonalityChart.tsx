@@ -24,10 +24,7 @@ export function HostSeasonalityChart({ seasonality }: HostSeasonalityChartProps)
 					<h2 className="text-base font-semibold text-[#10221b]">
 						Xu hướng hoạt động theo tháng khởi hành
 					</h2>
-					<p className="mt-0.5 text-xs text-[#526357]">
-						Tính trên toàn bộ lịch sử chuyến đã hoàn thành của bạn (không giới hạn theo bộ lọc ngày
-						đang chọn).
-					</p>
+					<p className="mt-0.5 text-xs text-[#526357]">Toàn bộ lịch sử chuyến hoàn thành.</p>
 				</div>
 				<StatusBadge tone={seasonality.status === "ok" ? "success" : "neutral"}>
 					{seasonality.status === "ok"
