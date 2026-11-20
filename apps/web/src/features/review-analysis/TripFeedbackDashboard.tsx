@@ -55,10 +55,6 @@ export function TripFeedbackDashboard({
 					<h2 className="text-lg font-bold text-[#10221b]">
 						{embedded ? "Khía cạnh trải nghiệm" : "Phản hồi chuyến đi"}
 					</h2>
-					<p className="text-xs text-[#667a6d]">
-						Tổng hợp cảm nhận theo 4 khía cạnh: An toàn, Hỗ trợ hướng dẫn, Trang thiết bị và Giá trị
-						trải nghiệm.
-					</p>
 				</div>
 			</div>
 

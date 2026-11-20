@@ -253,4 +253,23 @@ This verifies the provider edge, not the complete API/DB batch workflow or UI.
 - **Regression Tests**: `review-analysis.integration-spec.ts` 29/29 passed.
 - **Build & Quality**: `pnpm --filter @ctms/api build` passed with Exit code 0, Biome lint clean (0 errors), strict Zero `any` adhered across all new code.
 
+## 15. Backend Update — CTMS-411 (2026-11-20): AI Auto-Hide Moderation, Host Notifications & Safeguards
+
+### 15.1 Auto-Hide Policy (Basis Points Comparison)
+- Confidence evaluation uses integer basis points (`Math.round(confidence * 10000)`) against `MODERATION_AUTO_HIDE_THRESHOLD_BPS = 8000` (exact `0.80`) to eliminate floating-point boundary drift:
+  - **Strict `> 8000` (`> 0.80`, e.g., `0.81`, `0.91`)** on **any** active text or image (`inappropriate_image`) flag, OR any deterministic server-rule PII flag (`personal_data_leak`, `detection_source = 'rule'`): AI automatically sets `moderation_status = 'hidden'`, `hidden_source = 'ai'`, `hidden_by = NULL`, `hidden_reason` = highest-confidence violating flag (deterministic priority tie-break), `first_hidden_at = COALESCE(first_hidden_at, clock_timestamp())`, quarantines attached images, and enqueues `trip.review.auto_hidden` in-app notification for the Trip Host.
+  - **`≤ 8000` (`≤ 0.80`, including `0.79` and exact `0.80`)**: review remains `visible` and enqueues `trip.review.moderation_flagged` in-app notification for the Trip Host.
+  - **No active flags**: review remains `visible` (or auto-restores if previously hidden by `ai` and not overridden by Admin `content_reports.status = 'actioned'`).
+- **Host Decision Precedence on Same Revision**: If the Host has already recorded `restore` or `keep` for the same `revision`, subsequent AI re-scans of that same revision must NOT auto-hide the review again.
+- **Admin Actioned Precedence**: If `content_reports` has `status = 'actioned'` for the review, neither Host restore nor AI clean re-scan may make the review `visible`.
+
+### 15.2 Post-Moderation Safeguards (Option B)
+1. **15-Minute Unverified Safeguard**: If a review's moderation outbox/run fails or remains unfinished beyond 15 minutes (`MODERATION_UNVERIFIED_TIMEOUT_MS`), the worker sets `moderation_verification_status = 'unverified'` ("Chưa xác minh được") and sends an idempotent `trip.review.moderation_unverified` in-app notification to the Host.
+2. **7-Day Host SLA Safeguard**: If a `visible` review with active flags (`≤ 0.80`) has no Host decision after 7 days (`MODERATION_HOST_SLA_MS`), the worker sends an idempotent `trip.review.moderation_reminder` to the Host and `trip.review.moderation_escalated` to active Admins (target route: `/admin/content-reports`).
+
+### 15.3 New Endpoint & Compatibility
+- **New**: `GET /api/host/trip-reviews/:reviewId/moderation-detail` (JWT + Host role + Trip ownership check `403`): returns single-review moderation details (content, active flags with confidence, image quarantine state, `moderationVerificationStatus`, `firstHiddenAt`, `hiddenSource`, latest Host decision, `adminActioned`) for notification deep-link handling.
+- **Retained (Temporary Compatibility)**: `GET /api/host/trip-reviews/moderation-queue` is NOT removed or altered in this BE branch so existing Web UI continues functioning until the UI branch removes the moderation queue tab.
+- **Existing Pending Queue Data Migration**: Active pending reviews already in the database are migrated to notify their Trip Host via idempotent `in_app_notifications` while preserving all resolved/historical moderation decisions unchanged.
+
 

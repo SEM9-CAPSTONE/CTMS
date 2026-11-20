@@ -21,7 +21,10 @@ export function LevelRequestDetailView({
 			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div>
 					<h3 className="text-lg font-bold">{request.porterName ?? "người hỗ trợ"}</h3>
-					<p className="mt-1 text-sm text-muted-foreground">{request.routeName}</p>
+					<p className="mt-1 text-sm text-muted-foreground">
+						Tuyến minh chứng:{" "}
+						<span className="font-semibold text-foreground">{request.routeName}</span>
+					</p>
 				</div>
 				<StatusBadge
 					tone={

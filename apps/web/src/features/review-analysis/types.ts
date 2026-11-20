@@ -100,6 +100,8 @@ export interface SourceReview {
 export type SentimentFilter = Sentiment | "all";
 
 export type ModerationStatus = "visible" | "hidden";
+export type ModerationHiddenSource = "ai" | "host" | "admin";
+export type ModerationVerificationStatus = "pending" | "verified" | "unverified";
 
 export type ImageStorageState =
 	| "live"
@@ -111,6 +113,7 @@ export type ImageStorageState =
 
 export type ModerationFlagType =
 	| "profanity_or_insult"
+	| "personal_data_leak"
 	| "harassment"
 	| "hate_speech"
 	| "inappropriate_image"
@@ -119,6 +122,8 @@ export type ModerationFlagType =
 	| "other";
 
 export type DetectionSource =
+	| "model"
+	| "rule"
 	| "regex"
 	| "perspective_api"
 	| "gemini_safety"
@@ -154,6 +159,23 @@ export interface ModerationQueueItem {
 	imageStorageState: ImageStorageState;
 	hiddenReason: ModerationFlagType | null;
 	activeFlags: ModerationFlagItem[];
+}
+
+export interface HostReviewModerationDetail extends ModerationQueueItem {
+	reviewerName: string | null;
+	hiddenAt: string | null;
+	firstHiddenAt: string | null;
+	hiddenSource: ModerationHiddenSource | null;
+	moderationVerificationStatus: ModerationVerificationStatus;
+	adminActioned: boolean;
+	latestDecision: {
+		id: string;
+		revision: number;
+		decision: HostModerationDecisionAction;
+		reason: ModerationFlagType | null;
+		note: string | null;
+		createdAt: string;
+	} | null;
 }
 
 export interface ModerationQueueResponse {

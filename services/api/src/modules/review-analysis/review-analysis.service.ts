@@ -291,7 +291,11 @@ export class ReviewAnalysisService {
 			}
 			coverage.ratio = coverage.eligible ? coverage.analyzed / coverage.eligible : 0;
 			const filtered = page.sentiment
-				? current.filter((row) => row.sentiment === page.sentiment)
+				? current.filter((row) =>
+						page.sentiment === "neutral"
+							? row.sentiment === "neutral" || row.sentiment === "mixed"
+							: row.sentiment === page.sentiment
+					)
 				: current;
 			return {
 				tripId,

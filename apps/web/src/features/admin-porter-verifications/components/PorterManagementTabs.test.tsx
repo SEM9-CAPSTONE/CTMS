@@ -12,7 +12,7 @@ describe("người hỗ trợ management navigation", () => {
 			"aria-current",
 			"page"
 		);
-		const levels = screen.getByRole("link", { name: "Yêu cầu nâng cấp" });
+		const levels = screen.getByRole("link", { name: "Xét cấp độ" });
 		expect(levels).toHaveAttribute("href", "/admin/porter-levels?view=requests");
 		await user.click(levels);
 		expect(window.location.pathname).toBe("/admin/porter-levels");
@@ -20,7 +20,7 @@ describe("người hỗ trợ management navigation", () => {
 	it("opens bookmarked level routes without redirecting to profiles", () => {
 		window.history.replaceState({}, "", "/admin/porter-levels?request=review-1");
 		render(<PorterManagementTabs active="requests" />);
-		expect(screen.getByRole("link", { name: "Yêu cầu nâng cấp" })).toHaveAttribute(
+		expect(screen.getByRole("link", { name: "Xét cấp độ" })).toHaveAttribute(
 			"aria-current",
 			"page"
 		);

@@ -334,7 +334,7 @@ function HostAssignedPortersList({ trip }: { trip: HostPorterAssignmentTrip }) {
 
 				{trip.assignments.length === 0 ? (
 					<div className="mt-5 rounded-xl border border-dashed border-[#cbd9cd] p-8 text-center text-sm font-bold text-[#667a6d]">
-						Chuyến đi này chưa có Porter được phân công.
+						Chuyến đi này chưa có người hỗ trợ được phân công.
 					</div>
 				) : (
 					<ul className="mt-5 space-y-3">
@@ -379,7 +379,7 @@ function HostAssignedPortersList({ trip }: { trip: HostPorterAssignmentTrip }) {
 												window.dispatchEvent(new PopStateEvent("popstate"));
 											}}
 										>
-											Tìm Porter thay thế
+											Tìm người hỗ trợ thay thế
 										</Button>
 									)}
 								</div>
@@ -410,7 +410,7 @@ export function HostPorterRequestsPage({
 	const error =
 		activeTab === "assigned"
 			? assignmentTripsQuery.error
-				? "Không thể tải lịch sử phân công Porter. Vui lòng thử lại."
+				? "Không thể tải lịch sử phân công người hỗ trợ. Vui lòng thử lại."
 				: ""
 			: candidateTripsQuery.error;
 
@@ -505,7 +505,7 @@ export function HostPorterRequestsPage({
 				</header>
 
 				{activeTab === "find" && (
-					<div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
+					<div className="grid items-start gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
 						<section className="rounded-3xl border border-[#dfe8df] bg-white p-5 shadow-sm">
 							<div className="flex items-start gap-3">
 								<div className="rounded-2xl bg-[#164027]/5 p-3 text-[#164027]">
@@ -602,7 +602,7 @@ export function HostPorterRequestsPage({
 							<section className="rounded-3xl border border-dashed border-[#cbd9cd] bg-white p-8 text-center shadow-sm">
 								<BriefcaseBusiness className="mx-auto size-8 text-[#164027]" />
 								<span className="mt-3 block text-sm font-extrabold text-[#10221b]">
-									Chọn chuyến đi để tìm Porter phù hợp.
+									Chọn chuyến đi để tìm người hỗ trợ phù hợp.
 								</span>
 							</section>
 						)}
@@ -725,7 +725,8 @@ export function HostPorterRequestsPage({
 							{displayedAssignmentTrip ? (
 								<HostAssignedPortersList trip={displayedAssignmentTrip} />
 							) : (
-								!isLoading && !error && <EmptyFutureTab title="Chọn chuyến đi để xem Porter" />
+								!isLoading &&
+								!error && <EmptyFutureTab title="Chọn chuyến đi để xem người hỗ trợ" />
 							)}
 						</div>
 					</>

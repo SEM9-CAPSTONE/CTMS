@@ -20,6 +20,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 /uploads/
+apps/web/public/uploads/
 services/api/uploads/
 services/api/.private-porter-level-evidence/
 .private-survival-documents/

@@ -13,6 +13,7 @@ import { useMyPorterRequests } from "../../trips/hooks/usePorterRequests";
 import { WeatherChangeNotices } from "../../weather/components/WeatherChangeNotices";
 import { roleLabels } from "../constants";
 import type { DashboardConfig, RoleKey } from "../types";
+import { PorterNotifications } from "./PorterNotifications";
 
 export interface SidebarProps extends Partial<SidebarControls> {
 	config: DashboardConfig;
@@ -145,12 +146,14 @@ export function Sidebar({
 			onToggle={onToggle}
 			onClose={onClose}
 			notices={
-				activeRole === "host" && (
+				activeRole === "host" ? (
 					<>
 						<WeatherChangeNotices includeDecisions />
 						{actor && <HostNotifications key={actor} actor={actor} />}
 					</>
-				)
+				) : activeRole === "porter" ? (
+					actor && <PorterNotifications key={actor} actor={actor} />
+				) : undefined
 			}
 			account={{
 				name: profile?.fullName || "Người dùng",

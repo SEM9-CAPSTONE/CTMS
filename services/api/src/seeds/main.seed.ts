@@ -383,6 +383,14 @@ export async function seedFinancialAdjustments(): Promise<void> {
 					"UPDATE host_wallets SET balance = balance + $1, updated_at = now() WHERE id = $2 RETURNING balance",
 					[net.toFixed(2), walletId]
 				);
+				let balanceAfter = credited.length > 0 ? credited[0].balance : null;
+				if (!balanceAfter) {
+					const w: Array<{ balance: string }> = await manager.query(
+						"SELECT balance FROM host_wallets WHERE id = $1",
+						[walletId]
+					);
+					balanceAfter = w.length > 0 ? w[0].balance : net.toFixed(2);
+				}
 				await manager.query(
 					`INSERT INTO wallet_transactions (id, wallet_id, settlement_id, trip_id, type,
 				 base_amount, fee_amount, net_amount, balance_after, description, created_at)
@@ -397,7 +405,7 @@ export async function seedFinancialAdjustments(): Promise<void> {
 						fee.toFixed(2),
 						net.toFixed(2),
 						scenario.title,
-						credited[0].balance,
+						balanceAfter,
 						paidOut ? 5 : 3,
 					]
 				);
@@ -432,6 +440,14 @@ export async function seedFinancialAdjustments(): Promise<void> {
 						"UPDATE host_wallets SET balance = balance - $1, updated_at = now() WHERE id = $2 RETURNING balance",
 						[net.toFixed(2), walletId]
 					);
+					let debitedBalanceAfter = debited.length > 0 ? debited[0].balance : null;
+					if (!debitedBalanceAfter) {
+						const w: Array<{ balance: string }> = await manager.query(
+							"SELECT balance FROM host_wallets WHERE id = $1",
+							[walletId]
+						);
+						debitedBalanceAfter = w.length > 0 ? w[0].balance : "0.00";
+					}
 					await manager.query(
 						`INSERT INTO wallet_transactions (id, wallet_id, payout_id, trip_id, type,
 					 net_amount, balance_after, description, created_at)
@@ -443,7 +459,7 @@ export async function seedFinancialAdjustments(): Promise<void> {
 							payoutId,
 							tripId,
 							(-net).toFixed(2),
-							debited[0].balance,
+							debitedBalanceAfter,
 						]
 					);
 				}
@@ -1671,6 +1687,27 @@ export type PorterSeedAvailability = "available" | "unavailable";
 export type PorterSeedProficiency = "learning" | "proficient" | "expert";
 export type PorterSeedUserStatus = "active" | "suspended";
 
+export const PORTER_STANDARD_SKILLS = {
+	BASIC_PREPARATION: "Chuẩn bị hành trang",
+	GROUP_FOLLOWING: "Đi theo đoàn",
+	ROUTE_NAVIGATION: "Định hướng trên tuyến",
+	BASIC_FIRST_AID: "Sơ cứu cơ bản",
+	ITINERARY_PLANNING: "Lập kế hoạch hành trình",
+	RESCUE_COORDINATION: "Điều phối cứu hộ",
+} as const;
+
+export interface PorterSeedCertificate {
+	type: "wfa" | "rescue" | "guide_card" | "other";
+	name: string;
+	certificateNumber?: string;
+	issuedBy: string;
+	issueDaysAgo?: number;
+	expiryDaysFromNow: number;
+	fileUrl: string;
+	status: "pending" | "verified" | "rejected";
+	rejectionReason?: string;
+}
+
 export interface PorterSeedFixture {
 	key: string;
 	email: string;
@@ -1689,6 +1726,8 @@ export interface PorterSeedFixture {
 		timesLed: number;
 		routeNames: readonly PorterSeedRouteName[];
 	} | null;
+	certificates?: readonly PorterSeedCertificate[];
+	skills?: readonly string[];
 	conflictingTripTitle?: string;
 }
 
@@ -1749,6 +1788,38 @@ export const PORTER_SEED_FIXTURES: readonly PorterSeedFixture[] = [
 			timesLed: 28,
 			routeNames: PORTER_SEED_ROUTE_NAMES,
 		},
+		certificates: [
+			{
+				type: "wfa",
+				name: "Sơ cấp cứu nơi hoang dã WFA",
+				certificateNumber: "WFA-VN-2024-019",
+				issuedBy: "Hội Chữ thập đỏ Việt Nam",
+				issueDaysAgo: 180,
+				expiryDaysFromNow: 520,
+				fileUrl: "/uploads/certificates/cert-wfa-demo.png",
+				status: "verified",
+			},
+			{
+				type: "rescue",
+				name: "Kỹ thuật cứu hộ đường sông và suối thác",
+				certificateNumber: "RIVER-RES-005",
+				issuedBy: "Trung tâm Đào tạo Cứu hộ Đường thủy",
+				issueDaysAgo: 100,
+				expiryDaysFromNow: 200,
+				fileUrl: "/uploads/certificates/cert-river-rescue-demo.png",
+				status: "rejected",
+				rejectionReason:
+					"Ảnh chụp chứng chỉ bị mờ góc dưới bên phải, không đọc được số hiệu và ngày cấp. Vui lòng chụp lại rõ nét cả 4 góc.",
+			},
+		],
+		skills: [
+			PORTER_STANDARD_SKILLS.ROUTE_NAVIGATION,
+			PORTER_STANDARD_SKILLS.BASIC_FIRST_AID,
+			PORTER_STANDARD_SKILLS.BASIC_PREPARATION,
+			PORTER_STANDARD_SKILLS.GROUP_FOLLOWING,
+			PORTER_STANDARD_SKILLS.ITINERARY_PLANNING,
+			PORTER_STANDARD_SKILLS.RESCUE_COORDINATION,
+		],
 	},
 	{
 		key: "proficient-lead",
@@ -1768,6 +1839,28 @@ export const PORTER_SEED_FIXTURES: readonly PorterSeedFixture[] = [
 			timesLed: 9,
 			routeNames: PORTER_SEED_ROUTE_NAMES,
 		},
+		certificates: [
+			{
+				type: "wfa",
+				name: "Sơ cấp cứu nơi hoang dã WFA",
+				certificateNumber: "WFA-VN-2025-042",
+				issuedBy: "Viện Cứu hộ & Hoang dã Việt Nam",
+				issueDaysAgo: 60,
+				expiryDaysFromNow: 640,
+				fileUrl: "/uploads/certificates/cert-wfa-demo.png",
+				status: "verified",
+			},
+			{
+				type: "other",
+				name: "Kỹ năng sinh tồn và định vị rừng sâu",
+				certificateNumber: "SURV-VN-2026-11",
+				issuedBy: "Hiệp hội Kỹ năng Dã ngoại",
+				issueDaysAgo: 15,
+				expiryDaysFromNow: 365,
+				fileUrl: "/uploads/certificates/cert-survival-demo.png",
+				status: "pending",
+			},
+		],
 	},
 	{
 		key: "learning-support",
@@ -1787,6 +1880,18 @@ export const PORTER_SEED_FIXTURES: readonly PorterSeedFixture[] = [
 			timesLed: 0,
 			routeNames: PORTER_SEED_ROUTE_NAMES,
 		},
+		certificates: [
+			{
+				type: "wfa",
+				name: "Sơ cấp cứu cơ bản (WFA)",
+				certificateNumber: "WFA-VN-2023-007",
+				issuedBy: "Viện Sơ cứu Y tế Cộng đồng",
+				issueDaysAgo: 730,
+				expiryDaysFromNow: -30,
+				fileUrl: "/uploads/certificates/cert-wfa-expired.png",
+				status: "verified",
+			},
+		],
 	},
 	{
 		key: "support-no-qualification",
@@ -1821,6 +1926,38 @@ export const PORTER_SEED_FIXTURES: readonly PorterSeedFixture[] = [
 			timesLed: 41,
 			routeNames: PORTER_SEED_ROUTE_NAMES,
 		},
+		certificates: [
+			{
+				type: "wfa",
+				name: "Sơ cấp cứu nơi hoang dã WFA",
+				certificateNumber: "WFA-VN-2025-089",
+				issuedBy: "Viện Cứu hộ & Hoang dã Việt Nam",
+				issueDaysAgo: 120,
+				expiryDaysFromNow: 550,
+				fileUrl: "/uploads/certificates/cert-wfa-demo.png",
+				status: "verified",
+			},
+			{
+				type: "rescue",
+				name: "Cứu hộ địa hình núi dốc",
+				certificateNumber: "RESCUE-MT-104",
+				issuedBy: "Hội Cứu nạn Ngoài trời Quốc gia",
+				issueDaysAgo: 90,
+				expiryDaysFromNow: 430,
+				fileUrl: "/uploads/certificates/cert-mountain-rescue-demo.png",
+				status: "verified",
+			},
+			{
+				type: "guide_card",
+				name: "Thẻ hướng dẫn viên du lịch quốc tế",
+				certificateNumber: "HDV-QT-7749",
+				issuedBy: "Tổng cục Du lịch",
+				issueDaysAgo: 300,
+				expiryDaysFromNow: 695,
+				fileUrl: "/uploads/certificates/cert-guide-license-demo.png",
+				status: "verified",
+			},
+		],
 	},
 	{
 		key: "unavailable",
@@ -1994,13 +2131,24 @@ export async function cleanDatabase(ds = dataSource): Promise<void> {
 		SELECT string_agg(quote_ident(tablename), ', ') as tablenames
 		FROM pg_tables
 		WHERE schemaname = 'public' 
-		  AND tablename NOT IN ('migrations', 'spatial_ref_sys')
+		  AND tablename NOT IN ('migrations', 'spatial_ref_sys', 'geo_areas')
 	`);
 
 	if (tablesRes.length > 0 && tablesRes[0]?.tablenames) {
 		const tableList = tablesRes[0].tablenames;
 		console.log("[cleanDatabase] 🧹 Truncating all user tables with CASCADE...");
 		await ds.query(`TRUNCATE TABLE ${tableList} RESTART IDENTITY CASCADE`);
+		await ds.query(`
+			INSERT INTO "geo_areas" ("code", "province_code", "province_name", "name", "sort_order") VALUES
+			('DNG-HOA-VANG', '48', 'Thành phố Đà Nẵng', 'Huyện Hòa Vang', 1),
+			('DNG-LIEN-CHIEU', '48', 'Thành phố Đà Nẵng', 'Quận Liên Chiểu', 2),
+			('DNG-NGU-HANH-SON', '48', 'Thành phố Đà Nẵng', 'Quận Ngũ Hành Sơn', 3),
+			('DNG-HAI-CHAU', '48', 'Thành phố Đà Nẵng', 'Quận Hải Châu', 4),
+			('DNG-THANH-KHE', '48', 'Thành phố Đà Nẵng', 'Quận Thanh Khê', 5),
+			('DNG-CAM-LE', '48', 'Thành phố Đà Nẵng', 'Quận Cẩm Lệ', 6),
+			('DNG-SON-TRA', '48', 'Thành phố Đà Nẵng', 'Quận Sơn Trà', 7)
+			ON CONFLICT ("code") DO NOTHING
+		`);
 		console.log(
 			`[cleanDatabase] ✅ Successfully wiped ${tableList.split(",").length} tables clean (RESTART IDENTITY CASCADE).\n`
 		);
@@ -2623,11 +2771,11 @@ export async function seedDevTrips(): Promise<void> {
 					"https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80",
 				tripType: "day_trip",
 				durationNights: 0,
-				startsAt: inDays(4, 7),
-				endsAt: inDays(4, 16),
+				startsAt: inDays(8, 7),
+				endsAt: inDays(8, 16),
 				meetingPointGeom: "SRID=4326;POINT(108.260 16.110)",
-				meetingAt: inDays(4, 6),
-				bookingDeadline: inDays(3, 18),
+				meetingAt: inDays(8, 6),
+				bookingDeadline: inDays(7, 18),
 				capacityMin: 5,
 				capacityMax: 20,
 				seatsTaken: 8,
@@ -4380,7 +4528,10 @@ export const PORTER_LEVEL_DEMO_CRITERIA = {
 		name: "Học việc",
 		minExperienceYears: 0,
 		minTimesLed: 0,
-		requiredSkills: ["Chuẩn bị hành trang", "Đi theo đoàn"],
+		requiredSkills: [
+			PORTER_STANDARD_SKILLS.BASIC_PREPARATION,
+			PORTER_STANDARD_SKILLS.GROUP_FOLLOWING,
+		],
 		requiredCertifications: [],
 		responsibilities: "Hỗ trợ chuẩn bị và theo đoàn dưới sự hướng dẫn của người hỗ trợ phụ trách.",
 	},
@@ -4388,16 +4539,23 @@ export const PORTER_LEVEL_DEMO_CRITERIA = {
 		name: "Thành thạo",
 		minExperienceYears: 2,
 		minTimesLed: 10,
-		requiredSkills: ["Định hướng trên tuyến", "Sơ cứu cơ bản"],
-		requiredCertifications: ["Sơ cứu cơ bản"],
+		requiredSkills: [
+			PORTER_STANDARD_SKILLS.ROUTE_NAVIGATION,
+			PORTER_STANDARD_SKILLS.BASIC_FIRST_AID,
+		],
+		requiredCertifications: ["wfa"],
 		responsibilities: "Hỗ trợ điều phối đoàn, kiểm tra trang bị và xử lý tình huống thông thường.",
 	},
 	expert: {
 		name: "Chuyên gia",
 		minExperienceYears: 5,
 		minTimesLed: 25,
-		requiredSkills: ["Lập kế hoạch hành trình", "Điều phối cứu hộ", "Sơ cứu cơ bản"],
-		requiredCertifications: ["Sơ cứu cơ bản", "Cứu hộ địa hình"],
+		requiredSkills: [
+			PORTER_STANDARD_SKILLS.ITINERARY_PLANNING,
+			PORTER_STANDARD_SKILLS.RESCUE_COORDINATION,
+			PORTER_STANDARD_SKILLS.BASIC_FIRST_AID,
+		],
+		requiredCertifications: ["wfa", "rescue"],
 		responsibilities: "Phụ trách tuyến và phối hợp xử lý tình huống khẩn cấp.",
 	},
 } as const;
@@ -4697,7 +4855,45 @@ async function seedPorterProfileAndAssignments(routeIds: Record<string, string>)
 			]
 		);
 
-		if (fixture.key === "expert-lead") {
+		// Seed porter certificates (CTMS-138)
+		await dataSource.query('DELETE FROM "porter_certificates" WHERE "porter_id" = $1', [porterId]);
+		if (fixture.certificates && fixture.certificates.length > 0) {
+			for (const cert of fixture.certificates) {
+				const isVerified = cert.status === "verified";
+				const isRejected = cert.status === "rejected";
+				await dataSource.query(
+					`INSERT INTO "porter_certificates" (
+						porter_id, type, name, certificate_number,
+						issued_by, issued_date, expiry_date, file_url,
+						status, rejection_reason, verified_by, verified_at
+					) VALUES (
+						$1, $2, $3, $4,
+						$5,
+						CASE WHEN $6::int IS NOT NULL THEN (CURRENT_DATE - ($6 || ' days')::interval)::date ELSE NULL END,
+						(CURRENT_DATE + ($7 || ' days')::interval)::date,
+						$8, $9, $10,
+						$11,
+						CASE WHEN $12::boolean THEN NOW() ELSE NULL END
+					)`,
+					[
+						porterId,
+						cert.type,
+						cert.name,
+						cert.certificateNumber ?? null,
+						cert.issuedBy,
+						cert.issueDaysAgo ?? null,
+						cert.expiryDaysFromNow,
+						cert.fileUrl,
+						cert.status,
+						cert.rejectionReason ?? null,
+						isVerified || isRejected ? adminId : null,
+						isVerified || isRejected,
+					]
+				);
+			}
+		}
+
+		if (fixture.profile) {
 			await dataSource.query(
 				`INSERT INTO "porter_verifications" (porter_id, status, submitted_at, reviewed_at)
 				 VALUES ($1, 'approved', now(), now())
@@ -4706,6 +4902,18 @@ async function seedPorterProfileAndAssignments(routeIds: Record<string, string>)
 					reviewed_at = COALESCE("porter_verifications".reviewed_at, now()),
 					rejection_reason = NULL`,
 				[porterId]
+			);
+		}
+
+		if (fixture.skills && fixture.skills.length > 0) {
+			await dataSource.query(
+				`INSERT INTO "porter_level_evidence" (porter_id, skills, version)
+				 VALUES ($1, $2, 1)
+				 ON CONFLICT (porter_id) DO UPDATE SET
+					skills = EXCLUDED.skills,
+					version = "porter_level_evidence".version + 1,
+					updated_at = NOW()`,
+				[porterId, fixture.skills]
 			);
 		}
 
@@ -4748,6 +4956,42 @@ async function seedPorterProfileAndAssignments(routeIds: Record<string, string>)
 				 ON CONFLICT (trip_id, porter_id) DO UPDATE SET status = 'assigned'`,
 				[tripId, porterId]
 			);
+		}
+
+		// Seed completed led trips for expert-lead (Nguyễn Minh Sơn) so "Lịch sử chuyến đã dẫn" and Host assignment views have data
+		if (fixture.key === "expert-lead") {
+			const completedTripRows: Array<{ id: string; host_id: string }> = await dataSource.query(
+				`SELECT id, host_id FROM trips WHERE status = 'completed' AND title IN (
+					'Sơn Trà – Bình minh trên đỉnh Bàn Cờ',
+					'Sơn Trà – Dạo bước dưới tán rừng',
+					'Trekking Sơn Trà Hoàn Thành - Demo Khiếu Nại',
+					'Chèo SUP Hồ Hòa Trung - Đang giữ 72h',
+					'Chèo kayak sông Cu Đê – Hòa Bắc'
+				) LIMIT 5`
+			);
+
+			for (const cTrip of completedTripRows) {
+				await dataSource.query(
+					`INSERT INTO "trip_porters" (trip_id, porter_id, status)
+					 VALUES ($1, $2, 'assigned')
+					 ON CONFLICT (trip_id, porter_id) DO UPDATE SET status = 'assigned'`,
+					[cTrip.id, porterId]
+				);
+
+				await dataSource.query(
+					`INSERT INTO "porter_requests" (
+						id, trip_id, porter_id, requested_by, requested_role, status, note, expires_at, responded_at, created_at, updated_at
+					) VALUES (
+						gen_random_uuid(), $1, $2, $3, 'lead', 'accepted',
+						'Phụ trách trưởng đoàn dẫn đường và an toàn cho chuyến đi.',
+						NOW() + interval '2 days',
+						NOW() - interval '5 days',
+						NOW() - interval '7 days',
+						NOW() - interval '5 days'
+					) ON CONFLICT (id) DO NOTHING`,
+					[cTrip.id, porterId, cTrip.host_id]
+				);
+			}
 		}
 	}
 }
@@ -9275,6 +9519,14 @@ export async function runMasterSeed(): Promise<void> {
 		await seedReputationScenarios(dataSource);
 		console.log("✅ Step 17 completed.\n");
 
+		console.log("👉 [18/19] Seeding AI auto-moderation review scenarios...");
+		await seedAiAutoModerationScenarios(dataSource);
+		console.log("✅ Step 18 completed.\n");
+
+		console.log("👉 [19/19] Seeding 12-month Host business analytics history...");
+		await seedHostAnalyticsHistoryScenarios(dataSource);
+		console.log("✅ Step 19 completed.\n");
+
 		const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(2);
 
 		console.log("==========================================================================");
@@ -10331,6 +10583,713 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 	console.log(
 		"  - host.blocked@ctms.local / host.suspended@ctms.local (Host@123): bị khoá / đình chỉ tạo Trip"
 	);
+}
+
+/**
+ * Append-only, idempotent seed for CTMS-411 AI auto-moderation scenarios.
+ * Note: Confidence scores (0.79, 0.80, 0.88, 0.91, etc.) are simulated moderation
+ * outputs persisted directly so Host notification & Camper UI states can be verified
+ * without invoking live external AI calls. Re-runs never overwrite existing records.
+ */
+export async function seedAiAutoModerationScenarios(ds: DataSource): Promise<void> {
+	const accounts: Array<{ id: string; email: string }> = await ds.query(
+		"SELECT id, email FROM users WHERE email IN ('host@ctms.local', 'camper@ctms.local', 'admin@ctms.local')"
+	);
+	const host = accounts.find((a) => a.email === "host@ctms.local");
+	const camper = accounts.find((a) => a.email === "camper@ctms.local");
+	const admin = accounts.find((a) => a.email === "admin@ctms.local");
+	if (!host || !camper || !admin) {
+		console.warn("[seed:ai-auto-moderation] Core accounts missing; skipping.");
+		return;
+	}
+
+	const routes: Array<{ id: string }> = await ds.query(
+		`SELECT id FROM trekking_routes
+		 WHERE status = 'active'
+		 ORDER BY created_at ASC
+		 LIMIT 1`
+	);
+	const routeId = routes[0]?.id ?? null;
+
+	type SeedFlag = {
+		flagType:
+			| "profanity_or_insult"
+			| "personal_data_leak"
+			| "spam_or_irrelevant"
+			| "harassment"
+			| "inappropriate_image";
+		channel: "text" | "image";
+		confidence: number;
+		evidence: string;
+		quote: string | null;
+		targetImageIndex: number | null;
+	};
+
+	interface ModerationSeedScenario {
+		index: number;
+		tripTitle: string;
+		rating: number;
+		comment: string;
+		images: string[];
+		createdHoursAgo: number;
+		moderationStatus: "visible" | "hidden";
+		hiddenReason: SeedFlag["flagType"] | null;
+		hiddenSource: "ai" | "host" | "admin" | null;
+		firstHiddenHoursAgo: number | null;
+		imageStorageState: "live" | "quarantined";
+		verificationStatus: "verified" | "unverified";
+		runFailed?: boolean;
+		flags: SeedFlag[];
+		hostNotificationEvent:
+			| "trip.review.auto_hidden"
+			| "trip.review.moderation_flagged"
+			| "trip.review.moderation_unverified"
+			| null;
+		adminActionedReport?: boolean;
+	}
+
+	const scenarios: ModerationSeedScenario[] = [
+		// 1. Clean review (visible, no flags)
+		{
+			index: 1,
+			tripTitle: "Săn mây đỉnh Bàn Cờ buổi sớm",
+			rating: 5,
+			comment:
+				"Cung đường sạch đẹp, hướng dẫn viên chuẩn bị đồ ăn sáng nóng hổi và rất nhiệt tình.",
+			images: [],
+			createdHoursAgo: 6,
+			moderationStatus: "visible",
+			hiddenReason: null,
+			hiddenSource: null,
+			firstHiddenHoursAgo: null,
+			imageStorageState: "live",
+			verificationStatus: "verified",
+			flags: [],
+			hostNotificationEvent: null,
+		},
+		// 2. AI auto-hidden (simulated confidence 0.91 with quarantined image)
+		{
+			index: 2,
+			tripTitle: "Trekking thác Hòa Phú Thành cuối tuần",
+			rating: 2,
+			comment: "Chuyến đi đông người và ảnh chụp tại trạm nghỉ có chi tiết không phù hợp.",
+			images: ["/uploads/trip-reviews/suoi-hoa-review-01.jpg"],
+			createdHoursAgo: 5,
+			moderationStatus: "hidden",
+			hiddenReason: "inappropriate_image",
+			hiddenSource: "ai",
+			firstHiddenHoursAgo: 4,
+			imageStorageState: "quarantined",
+			verificationStatus: "verified",
+			flags: [
+				{
+					flagType: "inappropriate_image",
+					channel: "image",
+					confidence: 0.91,
+					evidence: "Hình ảnh đính kèm chứa nội dung không phù hợp với tiêu chuẩn cộng đồng.",
+					quote: null,
+					targetImageIndex: 0,
+				},
+			],
+			hostNotificationEvent: "trip.review.auto_hidden",
+		},
+		// 3. Exact 0.80 boundary routed to Host (visible + notification)
+		{
+			index: 3,
+			tripTitle: "Khám phá suối Mơ và rừng nguyên sinh",
+			rating: 2,
+			comment: "Lịch trình thay đổi đột ngột khiến cả nhóm bức xúc và trao đổi khá gay gắt.",
+			images: [],
+			createdHoursAgo: 4,
+			moderationStatus: "visible",
+			hiddenReason: null,
+			hiddenSource: null,
+			firstHiddenHoursAgo: null,
+			imageStorageState: "live",
+			verificationStatus: "verified",
+			flags: [
+				{
+					flagType: "profanity_or_insult",
+					channel: "text",
+					confidence: 0.8,
+					evidence: "Nội dung có cách diễn đạt gay gắt ở mức ngưỡng cần chủ chuyến xem xét.",
+					quote: "cả nhóm bức xúc và trao đổi khá gay gắt",
+					targetImageIndex: null,
+				},
+			],
+			hostNotificationEvent: "trip.review.moderation_flagged",
+		},
+		// 4. Below threshold 0.79 routed to Host (visible + notification)
+		{
+			index: 4,
+			tripTitle: "Cắm trại hồ Hòa Trung đón hoàng hôn",
+			rating: 3,
+			comment: "Cảnh hồ đẹp, tiện thể ai cần thuê lều giá rẻ cuối tuần cứ nhắn mình chỉ chỗ.",
+			images: [],
+			createdHoursAgo: 7,
+			moderationStatus: "visible",
+			hiddenReason: null,
+			hiddenSource: null,
+			firstHiddenHoursAgo: null,
+			imageStorageState: "live",
+			verificationStatus: "verified",
+			flags: [
+				{
+					flagType: "spam_or_irrelevant",
+					channel: "text",
+					confidence: 0.79,
+					evidence: "Nội dung có dấu hiệu giới thiệu dịch vụ ngoài chuyến đi.",
+					quote: "ai cần thuê lều giá rẻ cuối tuần cứ nhắn mình chỉ chỗ",
+					targetImageIndex: null,
+				},
+			],
+			hostNotificationEvent: "trip.review.moderation_flagged",
+		},
+		// 5. Multi-flag (simulated 0.75 + 0.88 -> auto-hidden with 0.88 reason)
+		{
+			index: 5,
+			tripTitle: "Vượt đèo Hải Vân ngắm vịnh Lăng Cô",
+			rating: 1,
+			comment:
+				"Tổ chức quá kém, tôi sẽ đăng bài kêu gọi mọi người tẩy chay và làm phiền trang này.",
+			images: [],
+			createdHoursAgo: 8,
+			moderationStatus: "hidden",
+			hiddenReason: "harassment",
+			hiddenSource: "ai",
+			firstHiddenHoursAgo: 7,
+			imageStorageState: "live",
+			verificationStatus: "verified",
+			flags: [
+				{
+					flagType: "spam_or_irrelevant",
+					channel: "text",
+					confidence: 0.75,
+					evidence: "Có nội dung kêu gọi không liên quan đến trải nghiệm tuyến đường.",
+					quote: "đăng bài kêu gọi mọi người tẩy chay",
+					targetImageIndex: null,
+				},
+				{
+					flagType: "harassment",
+					channel: "text",
+					confidence: 0.88,
+					evidence: "Nội dung mang tính đe dọa, quấy rối chủ chuyến.",
+					quote: "làm phiền trang này",
+					targetImageIndex: null,
+				},
+			],
+			hostNotificationEvent: "trip.review.auto_hidden",
+		},
+		// 6. AI scan failed > 15m -> unverified, routed to Host
+		{
+			index: 6,
+			tripTitle: "Đi bộ xuyên rừng dừa Bảy Mẫu và đồi chè",
+			rating: 4,
+			comment: "Hành trình dễ đi, phù hợp người mới, bữa trưa khá ổn định.",
+			images: [],
+			createdHoursAgo: 3,
+			moderationStatus: "visible",
+			hiddenReason: null,
+			hiddenSource: null,
+			firstHiddenHoursAgo: null,
+			imageStorageState: "live",
+			verificationStatus: "unverified",
+			runFailed: true,
+			flags: [],
+			hostNotificationEvent: "trip.review.moderation_unverified",
+		},
+		// 7. Admin actioned content report (must stay hidden even if Host restores)
+		{
+			index: 7,
+			tripTitle: "Chinh phục đỉnh Mang Đen mùa sương",
+			rating: 1,
+			comment: "Đánh giá có nội dung công kích cá nhân đã được quản trị viên xử lý vi phạm.",
+			images: [],
+			createdHoursAgo: 12,
+			moderationStatus: "hidden",
+			hiddenReason: "profanity_or_insult",
+			hiddenSource: "ai",
+			firstHiddenHoursAgo: 11,
+			imageStorageState: "live",
+			verificationStatus: "verified",
+			flags: [
+				{
+					flagType: "profanity_or_insult",
+					channel: "text",
+					confidence: 0.93,
+					evidence: "Ngôn từ công kích cá nhân vượt ngưỡng vi phạm.",
+					quote: "công kích cá nhân",
+					targetImageIndex: null,
+				},
+			],
+			hostNotificationEvent: "trip.review.auto_hidden",
+			adminActionedReport: true,
+		},
+		// 8. Hidden review past 24h supplementary edit window (first_hidden_at = 30h ago)
+		{
+			index: 8,
+			tripTitle: "Hành trình cắm trại bãi Rạng Sơn Trà",
+			rating: 2,
+			comment: "Bài đánh giá đã bị ẩn quá thời hạn 24 giờ chỉnh sửa bổ sung.",
+			images: [],
+			createdHoursAgo: 40,
+			moderationStatus: "hidden",
+			hiddenReason: "profanity_or_insult",
+			hiddenSource: "ai",
+			firstHiddenHoursAgo: 30,
+			imageStorageState: "live",
+			verificationStatus: "verified",
+			flags: [
+				{
+					flagType: "profanity_or_insult",
+					channel: "text",
+					confidence: 0.89,
+					evidence: "Ngôn từ không phù hợp tiêu chuẩn cộng đồng.",
+					quote: "quá thời hạn 24 giờ",
+					targetImageIndex: null,
+				},
+			],
+			hostNotificationEvent: "trip.review.auto_hidden",
+		},
+	];
+
+	await ds.transaction(async (manager) => {
+		for (const item of scenarios) {
+			const suffix = String(item.index).padStart(12, "0");
+			const tripId = `a4110000-0000-4000-8001-${suffix}`;
+			const bookingId = `a4110000-0000-4000-8002-${suffix}`;
+			const memberId = `a4110000-0000-4000-8003-${suffix}`;
+			const reviewId = `a4110000-0000-4000-8004-${suffix}`;
+			const runId = `a4110000-0000-4000-8005-${suffix}`;
+			const reportId = `a4110000-0000-4000-8006-${suffix}`;
+
+			await manager.query(
+				`INSERT INTO trips (
+					id, host_id, route_id, title, trip_type, duration_nights, starts_at, ends_at,
+					meeting_point, booking_deadline, capacity_min, capacity_max, seats_taken,
+					price_per_person, status
+				) VALUES (
+					$1, $2, $3, $4, 'day_trip', 0,
+					now() - interval '6 days',
+					now() - interval '4 days',
+					ST_GeogFromText('POINT(108.22 16.04)'),
+					now() - interval '7 days',
+					1, 12, 1, 1250000, 'completed'
+				) ON CONFLICT (id) DO NOTHING`,
+				[tripId, host.id, routeId, item.tripTitle]
+			);
+
+			await manager.query(
+				`INSERT INTO bookings (
+					id, trip_id, user_id, num_people, status, payment_status, completed_at
+				) VALUES (
+					$1, $2, $3, 1, 'completed', 'not_required',
+					now() - ($4::double precision * interval '1 hour') - interval '2 hours'
+				) ON CONFLICT (id) DO NOTHING`,
+				[bookingId, tripId, camper.id, item.createdHoursAgo]
+			);
+
+			await manager.query(
+				`INSERT INTO booking_members (
+					id, booking_id, user_id, is_primary, member_status, checked_in_at, no_show_at
+				) VALUES (
+					$1, $2, $3, true, 'joined'::booking_member_status,
+					now() - interval '5 days',
+					NULL
+				) ON CONFLICT (id) DO NOTHING`,
+				[memberId, bookingId, camper.id]
+			);
+
+			await manager.query(
+				`WITH inserted AS (
+					INSERT INTO trip_reviews (
+						id, booking_id, member_id, reviewer_id, trip_id, host_id, target, target_id,
+						rating, comment, images, revision,
+						moderation_status, hidden_at, first_hidden_at, hidden_reason, hidden_by,
+						hidden_source, hidden_revision, image_storage_state, moderation_verification_status,
+						created_at, updated_at
+					) VALUES (
+						$1, $2, $3, $4, $5, $6, 'trip', $5,
+						$7, $8, $9::jsonb, 1,
+						$10::varchar,
+						CASE WHEN $11::double precision IS NULL THEN NULL ELSE now() - ($11::double precision * interval '1 hour') END,
+						CASE WHEN $11::double precision IS NULL THEN NULL ELSE now() - ($11::double precision * interval '1 hour') END,
+						$12, NULL, $13,
+						CASE WHEN $10::varchar = 'hidden' THEN 1 ELSE NULL END,
+						$14, $15,
+						now() - ($16::double precision * interval '1 hour'),
+						now() - ($16::double precision * interval '1 hour')
+					) ON CONFLICT (id) DO NOTHING RETURNING *
+				)
+				INSERT INTO trip_review_revisions (review_id, revision, rating, comment, images, recorded_at)
+				SELECT id, revision, rating, comment, images, updated_at FROM inserted`,
+				[
+					reviewId,
+					bookingId,
+					memberId,
+					camper.id,
+					tripId,
+					host.id,
+					item.rating,
+					item.comment,
+					JSON.stringify(item.images),
+					item.moderationStatus,
+					item.firstHiddenHoursAgo,
+					item.hiddenReason,
+					item.hiddenSource,
+					item.imageStorageState,
+					item.verificationStatus,
+					item.createdHoursAgo,
+				]
+			);
+
+			const scanStatus = item.runFailed ? "failed" : "completed";
+			await manager.query(
+				`INSERT INTO trip_review_moderation_runs (
+					id, review_id, source_revision, provider, model, config_version, prompt_version,
+					text_scan_status, image_scan_status, aspects_status, incidents_status,
+					attempts, error_code, completed_at
+				) VALUES (
+					$1, $2, 1, 'gemini', 'gemini-3.1-flash-lite', 'gemini-v1', 'v1',
+					$3::varchar, $4::varchar, $3::varchar, $3::varchar,
+					$5, $6,
+					CASE WHEN $3::varchar = 'completed' THEN now() - ($7::double precision * interval '1 hour') ELSE NULL END
+				) ON CONFLICT DO NOTHING`,
+				[
+					runId,
+					reviewId,
+					scanStatus,
+					item.images.length > 0 ? scanStatus : "not_applicable",
+					item.runFailed ? 3 : 1,
+					item.runFailed ? "provider_timeout" : null,
+					item.createdHoursAgo,
+				]
+			);
+
+			for (const flag of item.flags) {
+				await manager.query(
+					`INSERT INTO trip_review_moderation_flags (
+						run_id, review_id, source_revision, channel, target_image_index,
+						flag_type, detection_source, confidence, evidence, quote, lifecycle_status, created_at
+					) VALUES (
+						$1, $2, 1, $3, $4, $5, 'model', $6, $7, $8, 'active',
+						now() - ($9::double precision * interval '1 hour')
+					) ON CONFLICT DO NOTHING`,
+					[
+						runId,
+						reviewId,
+						flag.channel,
+						flag.targetImageIndex,
+						flag.flagType,
+						flag.confidence,
+						flag.evidence,
+						flag.quote,
+						item.createdHoursAgo,
+					]
+				);
+			}
+
+			if (item.hostNotificationEvent) {
+				const sourcePrefix =
+					item.hostNotificationEvent === "trip.review.auto_hidden"
+						? "auto-hidden"
+						: item.hostNotificationEvent === "trip.review.moderation_unverified"
+							? "unverified"
+							: "flagged";
+				await manager.query(
+					`INSERT INTO in_app_notifications (
+						recipient_id, trip_id, review_id, event_type, source_key, occurred_at
+					) VALUES (
+						$1, $2, $3, $4, $5, now() - ($6::double precision * interval '1 hour')
+					) ON CONFLICT (source_key, recipient_id) DO NOTHING`,
+					[
+						host.id,
+						tripId,
+						reviewId,
+						item.hostNotificationEvent,
+						`review-moderation:${sourcePrefix}:${reviewId}:rev:1`,
+						item.createdHoursAgo,
+					]
+				);
+			}
+
+			if (item.adminActionedReport) {
+				await manager.query(
+					`INSERT INTO content_reports (
+						id, reporter_id, target_type, target_id, reason, status, created_at, updated_at
+					) VALUES (
+						$1, $2, 'trip_review', $3, 'Nội dung xúc phạm cá nhân đã được quản trị viên xác nhận vi phạm.',
+						'actioned', now() - interval '10 hours', now() - interval '9 hours'
+					) ON CONFLICT (id) DO NOTHING`,
+					[reportId, host.id, reviewId]
+				);
+			}
+		}
+	});
+}
+
+export async function seedHostAnalyticsHistoryScenarios(ds: DataSource): Promise<void> {
+	if (!ds.isInitialized) await ds.initialize();
+	console.log(
+		"[seed:host-analytics] Seeding 8 earlier months (2025-12..2026-07) for 12-month history..."
+	);
+
+	const [host] = (await ds.query("SELECT id FROM users WHERE email = 'host@ctms.local'")) as Array<{
+		id: string;
+	}>;
+	const [camper] = (await ds.query(
+		"SELECT id FROM users WHERE email = 'camper@ctms.local'"
+	)) as Array<{ id: string }>;
+	if (!host || !camper) {
+		console.warn("[seed:host-analytics] host@ctms.local or camper@ctms.local missing; skipped.");
+		return;
+	}
+
+	await ensureRoutes(ds, host.id);
+
+	const earlierTrips: Array<{
+		id: string;
+		bookingId: string;
+		cancelledBookingId?: string;
+		chargeId: string;
+		routeId: string;
+		title: string;
+		description: string;
+		areaCode: string;
+		tripType: "day_trip" | "overnight";
+		startsAt: string;
+		endsAt: string;
+		capacityMax: number | null;
+		numPeople: number;
+		pricePerPerson: number;
+		paidAt: string;
+		settledAt: string;
+	}> = [
+		{
+			id: "a4150000-0000-4000-8415-000000000001",
+			bookingId: "a4150000-0000-4000-8415-000000000101",
+			chargeId: "a4150000-0000-4000-8415-000000000201",
+			routeId: ROUTES[0].id,
+			title: "Đón gió đông trên đỉnh Ngũ Hành Sơn",
+			description:
+				"Hành trình leo bộ qua các bậc đá cổ và ngắm toàn cảnh biển Non Nước trong tiết trời se lạnh cuối năm.",
+			areaCode: "DNG-NGU-HANH-SON",
+			tripType: "day_trip",
+			startsAt: "2025-12-14T22:30:00Z",
+			endsAt: "2025-12-15T05:00:00Z",
+			capacityMax: 12,
+			numPeople: 9,
+			pricePerPerson: 650000,
+			paidAt: "2025-12-05T08:00:00Z",
+			settledAt: "2025-12-19T02:00:00Z",
+		},
+		{
+			id: "a4150000-0000-4000-8415-000000000002",
+			bookingId: "a4150000-0000-4000-8415-000000000102",
+			chargeId: "a4150000-0000-4000-8415-000000000202",
+			routeId: ROUTES[1].id,
+			title: "Dạo bộ đầu xuân ven sông Hàn",
+			description:
+				"Khám phá không khí đầu năm dọc bờ sông Hàn và thưởng thức ẩm thực địa phương buổi tối.",
+			areaCode: "DNG-HAI-CHAU",
+			tripType: "day_trip",
+			startsAt: "2026-01-18T11:00:00Z",
+			endsAt: "2026-01-18T14:30:00Z",
+			capacityMax: 10,
+			numPeople: 7,
+			pricePerPerson: 350000,
+			paidAt: "2026-01-10T09:30:00Z",
+			settledAt: "2026-01-22T02:00:00Z",
+		},
+		{
+			id: "a4150000-0000-4000-8415-000000000003",
+			bookingId: "a4150000-0000-4000-8415-000000000103",
+			cancelledBookingId: "a4150000-0000-4000-8415-000000000303",
+			chargeId: "a4150000-0000-4000-8415-000000000203",
+			routeId: ROUTES[0].id,
+			title: "Khám phá hang động Thủy Sơn đầu xuân",
+			description:
+				"Leo núi nhẹ buổi sáng, tham quan động Huyền Không và dừng chân uống trà thảo mộc.",
+			areaCode: "DNG-NGU-HANH-SON",
+			tripType: "day_trip",
+			startsAt: "2026-02-22T22:30:00Z",
+			endsAt: "2026-02-23T04:30:00Z",
+			capacityMax: 12,
+			numPeople: 8,
+			pricePerPerson: 650000,
+			paidAt: "2026-02-12T10:15:00Z",
+			settledAt: "2026-02-27T02:00:00Z",
+		},
+		{
+			id: "a4150000-0000-4000-8415-000000000004",
+			bookingId: "a4150000-0000-4000-8415-000000000104",
+			chargeId: "a4150000-0000-4000-8415-000000000204",
+			routeId: ROUTES[2].id,
+			title: "Bình minh làng chài Thanh Bình tháng Ba",
+			description:
+				"Đi bộ dọc bờ biển Thanh Bình lúc rạng sáng và trải nghiệm chợ hải sản sớm cùng ngư dân.",
+			areaCode: "DNG-THANH-KHE",
+			tripType: "day_trip",
+			startsAt: "2026-03-15T22:00:00Z",
+			endsAt: "2026-03-16T03:00:00Z",
+			capacityMax: 12,
+			numPeople: 10,
+			pricePerPerson: 450000,
+			paidAt: "2026-03-04T07:45:00Z",
+			settledAt: "2026-03-20T02:00:00Z",
+		},
+		{
+			id: "a4150000-0000-4000-8415-000000000005",
+			bookingId: "a4150000-0000-4000-8415-000000000105",
+			chargeId: "a4150000-0000-4000-8415-000000000205",
+			routeId: ROUTES[0].id,
+			title: "Chinh phục Ngũ Hành Sơn dịp nghỉ lễ",
+			description:
+				"Chuyến đi trong ngày nắng đẹp, kết hợp chụp ảnh bình minh và tìm hiểu làng đá mỹ nghệ Non Nước.",
+			areaCode: "DNG-NGU-HANH-SON",
+			tripType: "day_trip",
+			startsAt: "2026-04-29T22:30:00Z",
+			endsAt: "2026-04-30T05:00:00Z",
+			capacityMax: 12,
+			numPeople: 11,
+			pricePerPerson: 650000,
+			paidAt: "2026-04-15T11:00:00Z",
+			settledAt: "2026-05-04T02:00:00Z",
+		},
+		{
+			id: "a4150000-0000-4000-8415-000000000006",
+			bookingId: "a4150000-0000-4000-8415-000000000106",
+			chargeId: "a4150000-0000-4000-8415-000000000206",
+			routeId: ROUTES[1].id,
+			title: "Đi bộ hoàng hôn ven sông Hàn tháng Năm",
+			description:
+				"Hành trình nhẹ nhàng đón gió biển vào buổi chiều muộn và ngắm thành phố lên đèn.",
+			areaCode: "DNG-HAI-CHAU",
+			tripType: "day_trip",
+			startsAt: "2026-05-16T10:30:00Z",
+			endsAt: "2026-05-16T14:00:00Z",
+			capacityMax: 10,
+			numPeople: 8,
+			pricePerPerson: 350000,
+			paidAt: "2026-05-07T09:00:00Z",
+			settledAt: "2026-05-21T02:00:00Z",
+		},
+		{
+			id: "a4150000-0000-4000-8415-000000000007",
+			bookingId: "a4150000-0000-4000-8415-000000000107",
+			chargeId: "a4150000-0000-4000-8415-000000000207",
+			routeId: ROUTES[2].id,
+			title: "Đón nắng sớm bãi biển Thanh Bình",
+			description: "Dạo bộ ven biển, tham gia kéo lưới buổi sáng và nghỉ ngơi dưới hàng dừa mát.",
+			areaCode: "DNG-THANH-KHE",
+			tripType: "day_trip",
+			startsAt: "2026-06-20T22:00:00Z",
+			endsAt: "2026-06-21T03:00:00Z",
+			capacityMax: 12,
+			numPeople: 9,
+			pricePerPerson: 450000,
+			paidAt: "2026-06-11T08:30:00Z",
+			settledAt: "2026-06-25T02:00:00Z",
+		},
+		{
+			id: "a4150000-0000-4000-8415-000000000008",
+			bookingId: "a4150000-0000-4000-8415-000000000108",
+			chargeId: "a4150000-0000-4000-8415-000000000208",
+			routeId: ROUTES[0].id,
+			title: "Hành trình ngắm bình minh Ngũ Hành Sơn giữa hè",
+			description:
+				"Chuyến đi sáng sớm tránh nắng, thưởng ngoạn cảnh biển Non Nước từ đỉnh Vọng Hải Đài.",
+			areaCode: "DNG-NGU-HANH-SON",
+			tripType: "day_trip",
+			startsAt: "2026-07-18T22:30:00Z",
+			endsAt: "2026-07-19T05:00:00Z",
+			capacityMax: null,
+			numPeople: 6,
+			pricePerPerson: 650000,
+			paidAt: "2026-07-08T10:00:00Z",
+			settledAt: "2026-07-23T02:00:00Z",
+		},
+	];
+
+	for (const trip of earlierTrips) {
+		const firstPoint = ROUTES.find((r) => r.id === trip.routeId)?.path[0] ?? [108.2022, 16.0544];
+		const meetingPoint = JSON.stringify({ type: "Point", coordinates: firstPoint });
+		const durationNights = trip.tripType === "day_trip" ? 0 : 1;
+
+		const totalMinor = minorOf(trip.numPeople * trip.pricePerPerson);
+		const feeMinor = (totalMinor * COMMISSION_RATE_BPS) / 10000n;
+		const netMinor = totalMinor - feeMinor;
+
+		await ds.query(
+			`INSERT INTO "trips" ("id", "host_id", "route_id", "title", "description", "trip_type", "duration_nights",
+				"starts_at", "ends_at", "meeting_point", "meeting_at", "booking_deadline", "capacity_min", "capacity_max",
+				"seats_taken", "price_per_person", "status", "created_at",
+				"area_code", "area_name", "province_code", "province_name")
+			 SELECT $1::uuid, $2::uuid, $3::uuid, $4::varchar, $5::text, $12::trip_type, $13::int,
+				$6::timestamptz, $7::timestamptz,
+				ST_SetSRID(ST_GeomFromGeoJSON($8), 4326)::geography, $6::timestamptz - interval '30 minutes',
+				$6::timestamptz - interval '2 days', 4, $14::int, $9::int, $10::numeric, 'completed',
+				$6::timestamptz - interval '21 days',
+				ga."code", ga."name", ga."province_code", ga."province_name"
+			 FROM "geo_areas" ga WHERE ga."code" = $11
+			 ON CONFLICT ("id") DO NOTHING`,
+			[
+				trip.id,
+				host.id,
+				trip.routeId,
+				trip.title,
+				trip.description,
+				trip.startsAt,
+				trip.endsAt,
+				meetingPoint,
+				trip.numPeople,
+				trip.pricePerPerson,
+				trip.areaCode,
+				trip.tripType,
+				durationNights,
+				trip.capacityMax,
+			]
+		);
+
+		await ds.query(
+			`INSERT INTO "bookings" ("id", "trip_id", "user_id", "num_people", "status", "payment_status", "total_amount", "trip_starts_at_snapshot", "created_at")
+			 VALUES ($1, $2, $3, $4, 'completed', 'paid', $5, $7::timestamptz, $6::timestamptz - interval '10 minutes')
+			 ON CONFLICT ("id") DO NOTHING`,
+			[
+				trip.bookingId,
+				trip.id,
+				camper.id,
+				trip.numPeople,
+				money(totalMinor),
+				trip.paidAt,
+				trip.startsAt,
+			]
+		);
+
+		if (trip.cancelledBookingId) {
+			await ds.query(
+				`INSERT INTO "bookings" ("id", "trip_id", "user_id", "num_people", "status", "payment_status", "total_amount", "trip_starts_at_snapshot", "cancelled_at", "created_at")
+				 VALUES ($1, $2, $3, 2, 'cancelled', 'unpaid', 0, $4::timestamptz, $5::timestamptz, $5::timestamptz - interval '2 days')
+				 ON CONFLICT ("id") DO NOTHING`,
+				[trip.cancelledBookingId, trip.id, camper.id, trip.startsAt, trip.paidAt]
+			);
+		}
+
+		const chargeRef = providerRef("VNP", trip.paidAt);
+		await ds.query(
+			`INSERT INTO "payments" ("id", "booking_id", "amount", "type", "status", "provider_reference", "succeeded_at", "created_at", "updated_at")
+			 VALUES ($1, $2, $3, 'charge', 'succeeded', $4, $5, $5, $5)
+			 ON CONFLICT ("id") DO NOTHING`,
+			[trip.chargeId, trip.bookingId, money(totalMinor), chargeRef, trip.paidAt]
+		);
+
+		await ds.query(
+			`INSERT INTO "settlements" ("trip_id", "host_id", "settlement_base", "commission_rate", "platform_fee", "net_amount", "settled_at", "created_at", "updated_at")
+			 VALUES ($1, $2, $3, '0.0500', $4, $5, $6, $6, $6)
+			 ON CONFLICT ("trip_id") DO NOTHING`,
+			[trip.id, host.id, money(totalMinor), money(feeMinor), money(netMinor), trip.settledAt]
+		);
+	}
 }
 
 if (require.main === module) {

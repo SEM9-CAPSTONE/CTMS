@@ -4,13 +4,30 @@ import { DataSource, type EntityManager } from "typeorm";
 import { InAppNotificationType } from "./in-app-notification.entity";
 import type { ListInAppNotificationsDto } from "./in-app-notifications.dto";
 
+export type NotificationTargetView =
+	| { type: "trip"; tripId: string; title: string; action: "review" | "view" }
+	| {
+			type: "trip_review";
+			tripId: string;
+			reviewId: string;
+			title: string;
+			action: "moderate";
+	  }
+	| {
+			type: "admin_content_reports";
+			tripId: string;
+			reviewId: string;
+			title: string;
+			action: "review";
+	  };
+
 export interface NotificationView {
 	id: string;
 	eventType: InAppNotificationType;
 	occurredAt: string;
 	createdAt: string;
 	readAt: string | null;
-	target: { type: "trip"; tripId: string; title: string; action: "review" | "view" } | null;
+	target: NotificationTargetView | null;
 	targetAvailable: boolean;
 }
 
@@ -22,9 +39,17 @@ interface NotificationRow {
 	cursor_time: string;
 	read_at: Date | null;
 	trip_id: string | null;
+	review_id: string | null;
 	title: string | null;
 	accessible: boolean;
 }
+
+const HOST_REVIEW_MODERATION_EVENTS = new Set<InAppNotificationType>([
+	InAppNotificationType.REVIEW_MODERATION_FLAGGED,
+	InAppNotificationType.REVIEW_AUTO_HIDDEN,
+	InAppNotificationType.REVIEW_MODERATION_UNVERIFIED,
+	InAppNotificationType.REVIEW_MODERATION_REMINDER,
+]);
 
 // Match UsersRepository.getGrantedRoles: explicit assignments override the legacy role.
 const HAS_ADMIN_ROLE = `(EXISTS (SELECT 1 FROM user_roles r WHERE r.user_id = u.id AND r.role = 'admin')
@@ -33,11 +58,19 @@ const HAS_HOST_ROLE = HAS_ADMIN_ROLE.replaceAll("'admin'", "'host'");
 
 const SELECT_NOTIFICATION = `SELECT n.id, n.event_type, n.occurred_at, n.created_at, n.read_at,
 	to_char(n.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_time,
-	n.trip_id, t.title, (t.id IS NOT NULL AND u.status = 'active' AND CASE
+	n.trip_id, n.review_id, t.title, (t.id IS NOT NULL AND u.status = 'active' AND CASE
+		WHEN n.event_type IN (
+			'trip.review.moderation_flagged',
+			'trip.review.auto_hidden',
+			'trip.review.moderation_unverified',
+			'trip.review.moderation_reminder'
+		) THEN tr.id IS NOT NULL AND t.host_id = u.id AND ${HAS_HOST_ROLE}
+		WHEN n.event_type = 'trip.review.moderation_escalated' THEN tr.id IS NOT NULL AND ${HAS_ADMIN_ROLE}
 		WHEN n.event_type = 'trip.review.auto_rejected' THEN t.host_id = u.id AND ${HAS_HOST_ROLE}
 		ELSE ${HAS_ADMIN_ROLE} END) AS accessible
 	FROM in_app_notifications n JOIN users u ON u.id = n.recipient_id
-	LEFT JOIN trips t ON t.id = n.trip_id`;
+	LEFT JOIN trips t ON t.id = n.trip_id
+	LEFT JOIN trip_reviews tr ON tr.id = n.review_id`;
 
 @Injectable()
 export class InAppNotificationsService {
@@ -71,6 +104,40 @@ export class InAppNotificationsService {
 				ELSE ${HAS_ADMIN_ROLE} END
 			 ON CONFLICT (source_key, recipient_id) DO NOTHING`,
 			[tripId, eventType, sourceKey, occurredAt]
+		);
+	}
+
+	/**
+	 * Idempotently enqueues a review moderation notification inside the caller's transaction.
+	 * Deduplicated across worker retries by UNIQUE (source_key, recipient_id).
+	 */
+	async enqueueTripReviewModeration(
+		manager: EntityManager,
+		params: {
+			tripId: string;
+			reviewId: string;
+			eventType:
+				| InAppNotificationType.REVIEW_MODERATION_FLAGGED
+				| InAppNotificationType.REVIEW_AUTO_HIDDEN
+				| InAppNotificationType.REVIEW_MODERATION_UNVERIFIED
+				| InAppNotificationType.REVIEW_MODERATION_REMINDER
+				| InAppNotificationType.REVIEW_MODERATION_ESCALATED;
+			sourceKey: string;
+			occurredAt: Date;
+		}
+	): Promise<void> {
+		const isEscalated = params.eventType === InAppNotificationType.REVIEW_MODERATION_ESCALATED;
+		await manager.query(
+			`INSERT INTO in_app_notifications
+				(recipient_id, trip_id, review_id, event_type, source_key, occurred_at)
+			 SELECT u.id, t.id, $2::uuid, $3::varchar, $4, $5
+			 FROM users u
+			 CROSS JOIN trips t
+			 WHERE t.id = $1
+				AND u.status = 'active'
+				AND ${isEscalated ? HAS_ADMIN_ROLE : `u.id = t.host_id AND ${HAS_HOST_ROLE}`}
+			 ON CONFLICT (source_key, recipient_id) DO NOTHING`,
+			[params.tripId, params.reviewId, params.eventType, params.sourceKey, params.occurredAt]
 		);
 	}
 
@@ -123,6 +190,36 @@ export class InAppNotificationsService {
 }
 
 function notificationView(row: NotificationRow): NotificationView {
+	let target: NotificationTargetView | null = null;
+	if (row.accessible && row.trip_id && row.title) {
+		if (HOST_REVIEW_MODERATION_EVENTS.has(row.event_type) && row.review_id) {
+			target = {
+				type: "trip_review",
+				tripId: row.trip_id,
+				reviewId: row.review_id,
+				title: row.title,
+				action: "moderate",
+			};
+		} else if (
+			row.event_type === InAppNotificationType.REVIEW_MODERATION_ESCALATED &&
+			row.review_id
+		) {
+			target = {
+				type: "admin_content_reports",
+				tripId: row.trip_id,
+				reviewId: row.review_id,
+				title: row.title,
+				action: "review",
+			};
+		} else {
+			target = {
+				type: "trip",
+				tripId: row.trip_id,
+				title: row.title,
+				action: row.event_type === InAppNotificationType.AUTO_REJECTED ? "view" : "review",
+			};
+		}
+	}
 	return {
 		id: row.id,
 		eventType: row.event_type,
@@ -130,15 +227,7 @@ function notificationView(row: NotificationRow): NotificationView {
 		createdAt: row.created_at.toISOString(),
 		readAt: row.read_at?.toISOString() ?? null,
 		targetAvailable: row.accessible,
-		target:
-			row.accessible && row.trip_id && row.title
-				? {
-						type: "trip",
-						tripId: row.trip_id,
-						title: row.title,
-						action: row.event_type === InAppNotificationType.AUTO_REJECTED ? "view" : "review",
-					}
-				: null,
+		target,
 	};
 }
 

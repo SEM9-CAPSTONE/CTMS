@@ -52,6 +52,7 @@ export const API_ENDPOINTS = {
 	},
 	HOST_REVIEW_MODERATION: {
 		QUEUE: "/host/trip-reviews/moderation-queue",
+		DETAIL: (reviewId: string) => `/host/trip-reviews/${reviewId}/moderation-detail`,
 		DECISION: (reviewId: string) => `/host/trip-reviews/${reviewId}/decisions`,
 		QUARANTINED_IMAGE: (reviewId: string, imageIndex: number) =>
 			`/host/trip-reviews/${reviewId}/quarantined-images/${imageIndex}`,
@@ -287,6 +288,19 @@ export const API_ENDPOINTS = {
 		VERIFICATION_CARD: "/porter/verification/card",
 		ROUTE_QUALIFICATIONS: "/porter/route-qualifications",
 		ROUTE_QUALIFICATION_BY_ROUTE: (routeId: string) => `/porter/route-qualifications/${routeId}`,
+	},
+	PORTER_CERTIFICATES: {
+		MINE: "/porter/certificates",
+		DETAIL: (id: string) => `/porter/certificates/${id}`,
+		CREATE: "/porter/certificates",
+		UPDATE: (id: string) => `/porter/certificates/${id}`,
+		DELETE: (id: string) => `/porter/certificates/${id}`,
+		UPLOAD: "/porter/certificates/upload",
+	},
+	ADMIN_PORTER_CERTIFICATES: {
+		LIST: "/admin/porter-certificates",
+		VERIFY: (id: string) => `/admin/porter-certificates/${id}/verify`,
+		REJECT: (id: string) => `/admin/porter-certificates/${id}/reject`,
 	},
 	PORTER_LEVELS: {
 		MY_QUALIFICATIONS: "/porter/level-review/qualifications",

@@ -85,10 +85,15 @@ export function AvailablePortersResults({
 	}
 
 	return (
-		<div className="mt-5 space-y-3">
-			{query.data.items.map((porter) => (
-				<AvailablePorterCard key={porter.porterId} tripId={tripId} porter={porter} role={role} />
-			))}
+		<div className="mt-5 space-y-4">
+			<div
+				aria-label="Danh sách người hỗ trợ phù hợp"
+				className="max-h-[min(60vh,36rem)] space-y-3 overflow-y-auto pr-1.5 focus:outline-none"
+			>
+				{query.data.items.map((porter) => (
+					<AvailablePorterCard key={porter.porterId} tripId={tripId} porter={porter} role={role} />
+				))}
+			</div>
 			<Pagination
 				currentPage={query.data.pagination.page}
 				totalPages={query.data.pagination.totalPages}

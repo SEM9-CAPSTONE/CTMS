@@ -11,13 +11,13 @@ export const sentimentLabels: Record<Sentiment, string> = {
 	positive: "Tích cực",
 	neutral: "Trung lập",
 	negative: "Tiêu cực",
-	mixed: "Đa chiều",
+	mixed: "Trung lập",
 };
 export const sentimentStyles: Record<Sentiment, string> = {
 	positive: "bg-emerald-100 text-emerald-900",
 	neutral: "bg-slate-100 text-slate-700",
 	negative: "bg-rose-100 text-rose-900",
-	mixed: "bg-amber-100 text-amber-900",
+	mixed: "bg-slate-100 text-slate-700",
 };
 export const topicLabels: Record<Topic, string> = {
 	organization: "Tổ chức",
@@ -47,19 +47,22 @@ export const freshnessLabels: Record<string, string> = {
 
 export const moderationFlagLabels: Record<ModerationFlagType, string> = {
 	profanity_or_insult: "Từ ngữ thô tục hoặc xúc phạm",
+	personal_data_leak: "Tiết lộ thông tin cá nhân",
 	harassment: "Quấy rối hoặc đe dọa",
 	hate_speech: "Thù địch hoặc phân biệt đối xử",
 	inappropriate_image: "Hình ảnh không phù hợp",
-	spam_or_irrelevant: "Spam hoặc không liên quan",
+	spam_or_irrelevant: "Quảng cáo rác hoặc không liên quan",
 	contact_info_leak: "Lộ thông tin liên lạc cá nhân",
 	other: "Vi phạm khác",
 };
 
 export const detectionSourceLabels: Record<DetectionSource, string> = {
+	model: "Phân tích tự động",
+	rule: "Quy tắc bảo vệ dữ liệu",
 	regex: "Bộ lọc từ khóa",
-	perspective_api: "Perspective API",
-	gemini_safety: "Gemini Safety",
-	rekognition: "Rekognition",
+	perspective_api: "Phân tích ngôn ngữ",
+	gemini_safety: "Kiểm duyệt tự động",
+	rekognition: "Kiểm duyệt hình ảnh",
 	admin: "Quản trị viên",
 	system: "Hệ thống",
 };

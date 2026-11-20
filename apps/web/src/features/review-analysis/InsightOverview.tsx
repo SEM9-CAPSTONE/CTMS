@@ -6,7 +6,7 @@ import {
 	subTextClass,
 	topicLabels,
 } from "./constants";
-import type { InsightResponse, Sentiment } from "./types";
+import type { InsightResponse } from "./types";
 export function InsightOverview({ data }: { data: InsightResponse }) {
 	const c = data.coverage;
 	return (
@@ -64,37 +64,40 @@ export function InsightOverview({ data }: { data: InsightResponse }) {
 			<div className="grid gap-5 xl:grid-cols-2">
 				<section className={panelClass}>
 					<h2 className="font-semibold text-[#10221b]">Cảm nhận qua nhận xét</h2>
-					<p className={`mt-1 text-xs ${subTextClass}`}>
-						Tính trên {c.analyzed} đánh giá đã phân tích · không phải điểm sao
-					</p>
-					<div className="mt-5 space-y-4">
-						{(Object.keys(sentimentLabels) as Sentiment[]).map((key) => (
-							<div key={key}>
-								<div className="mb-1.5 flex justify-between text-sm">
-									<span className="font-medium text-[#10221b]">{sentimentLabels[key]}</span>
-									<span className="font-semibold text-[#164027]">{data.sentimentCounts[key]}</span>
+					<div className="mt-4 space-y-4">
+						{(["positive", "neutral", "negative"] as const).map((key) => {
+							const count =
+								key === "neutral"
+									? (data.sentimentCounts.neutral || 0) + (data.sentimentCounts.mixed || 0)
+									: data.sentimentCounts[key];
+							const label = key === "neutral" ? "Trung lập" : sentimentLabels[key];
+
+							return (
+								<div key={key}>
+									<div className="mb-1.5 flex justify-between text-sm">
+										<span className="font-medium text-[#10221b]">{label}</span>
+										<span className="font-semibold text-[#164027]">{count}</span>
+									</div>
+									<div className="h-2 overflow-hidden rounded-full bg-[#f0f3ed]">
+										<div
+											className={`h-full rounded-full ${sentimentStyles[key]}`}
+											style={{
+												width: `${c.analyzed ? (count / c.analyzed) * 100 : 0}%`,
+												backgroundColor: {
+													positive: "#527a3c",
+													neutral: "#a2b0a1",
+													negative: "#c7867a",
+												}[key],
+											}}
+										/>
+									</div>
 								</div>
-								<div className="h-2 overflow-hidden rounded-full bg-[#f0f3ed]">
-									<div
-										className={`h-full rounded-full ${sentimentStyles[key]}`}
-										style={{
-											width: `${c.analyzed ? (data.sentimentCounts[key] / c.analyzed) * 100 : 0}%`,
-											backgroundColor: {
-												positive: "#527a3c",
-												neutral: "#a2b0a1",
-												negative: "#c7867a",
-												mixed: "#c1a665",
-											}[key],
-										}}
-									/>
-								</div>
-							</div>
-						))}
+							);
+						})}
 					</div>
 				</section>
 				<section className={panelClass}>
 					<h2 className="font-semibold text-[#10221b]">Chủ đề được nhắc đến</h2>
-					<p className={`mt-1 text-xs ${subTextClass}`}>Một nhận xét có thể đề cập nhiều chủ đề</p>
 					{data.topics.length === 0 ? (
 						<p className={`py-12 text-center text-sm ${subTextClass}`}>
 							{c.analyzed

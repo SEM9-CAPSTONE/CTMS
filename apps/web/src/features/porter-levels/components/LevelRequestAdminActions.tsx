@@ -44,7 +44,7 @@ export function LevelRequestAdminActions({
 	const submitLabel = "Xác nhận";
 	return (
 		<form
-			className="space-y-4 border-t border-border pt-4"
+			className="space-y-4 pt-2"
 			onSubmit={handleSubmit(async (data) => {
 				try {
 					await onReview({

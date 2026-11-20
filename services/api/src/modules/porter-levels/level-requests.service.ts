@@ -29,7 +29,7 @@ import {
 	type LevelRequest,
 	LevelRequestStatus,
 } from "./level-requests.types";
-import { levelDossierHash } from "./porter-level-comparison";
+import { evaluateLevelCriteria, levelDossierHash } from "./porter-level-comparison";
 // biome-ignore lint/style/useImportType: Nest injection metadata
 import { PorterLevelsService } from "./porter-levels.service";
 import { LevelDecisionOutcome } from "./porter-levels.types";
@@ -82,7 +82,7 @@ export class LevelRequestsService {
 				dossier,
 				policy,
 				dossierHash: levelDossierHash(dossier),
-				comparison: null,
+				comparison: policy ? evaluateLevelCriteria(dossier, policy.definition) : null,
 				decision: await this.levels.decisionForRequest(manager, id),
 				evidence: await this.repo.evidence(manager, id),
 				events: await this.repo.events(manager, id),
@@ -143,6 +143,19 @@ export class LevelRequestsService {
 					);
 				if (ranks[dto.targetLevel] <= ranks[qualification.proficiency])
 					requestConflict("INVALID_TARGET_LEVEL", "Chỉ được yêu cầu cấp cao hơn cấp hiện tại.");
+				const dossier = await this.repo.levels.dossier(manager, qualification);
+				const policy = await this.repo.levels.policy(manager, dto.targetLevel, true);
+				if (!policy) {
+					requestConflict("POLICY_NOT_FOUND", "Tiêu chí cấp độ chưa được cấu hình.");
+				}
+				const comparison = evaluateLevelCriteria(dossier, policy.definition);
+				if (!comparison.allMet) {
+					throw new UnprocessableEntityException({
+						code: "UNMET_CRITERIA",
+						message: "Hồ sơ chưa đáp ứng đủ tiêu chí nâng cấp.",
+						details: comparison,
+					});
+				}
 				const rows = (await manager.query(
 					`INSERT INTO porter_level_requests(qualification_id,porter_id,route_id,current_level,current_verified,target_level,reason,submission_hash) VALUES($1,$2,$3,$4,$5,$6,$7,'') RETURNING id`,
 					[
@@ -307,6 +320,21 @@ export class LevelRequestsService {
 				);
 			if (ranks[request.targetLevel] <= ranks[qualification.proficiency])
 				requestConflict("INVALID_TARGET_LEVEL", "Cấp đề xuất không còn cao hơn cấp hiện tại.");
+			const dossier = await this.repo.levels.dossier(manager, qualification);
+			const policy = await this.repo.levels.policy(manager, request.targetLevel, true);
+			if (!policy) {
+				requestConflict("POLICY_NOT_FOUND", "Tiêu chí cấp độ chưa được cấu hình.");
+			}
+			const comparison = evaluateLevelCriteria(dossier, policy.definition);
+			if (
+				comparison.missingCertifications.length > 0 ||
+				comparison.expiredCertifications.length > 0
+			) {
+				requestConflict(
+					"CRITERIA_NO_LONGER_MET",
+					"Chứng chỉ chuyên môn không còn đáp ứng tiêu chí xét duyệt (đã hết hạn hoặc bị thu hồi)."
+				);
+			}
 			const evidence = (await this.repo.evidence(manager, id)).filter((item) => !item.removedAt);
 			await this.levels.applyDecision(
 				manager,

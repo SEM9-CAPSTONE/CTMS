@@ -305,6 +305,11 @@ export type IntendedPorterRole = "lead" | "support";
 export type PorterAvailabilityStatus = "available" | "unavailable";
 export type PorterRouteProficiency = "learning" | "proficient" | "expert";
 
+export interface AvailablePorterCertificate {
+	type: string;
+	name: string;
+}
+
 export interface AvailablePorter {
 	porterId: string;
 	displayName: string | null;
@@ -314,6 +319,8 @@ export interface AvailablePorter {
 	ratingAvg: number;
 	completedTrips: number;
 	proficiency?: PorterRouteProficiency;
+	certificates?: AvailablePorterCertificate[];
+	certifications?: string[];
 }
 
 export interface AvailablePortersQuery {

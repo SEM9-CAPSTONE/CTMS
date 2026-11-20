@@ -34,7 +34,7 @@ export function LevelRequestPorterActions({
 	});
 	if (detail.request.status !== "pending" && detail.request.status !== "needs_info") return null;
 	return (
-		<div className="space-y-4 border-t border-[#dfe8df] pt-4">
+		<div className="space-y-4 pt-2">
 			{detail.request.status === "pending" && (
 				<p className="text-sm">
 					Yêu cầu đang chờ Admin xử lý. Bạn có thể hủy; nội dung chỉ được sửa khi Admin yêu cầu bổ

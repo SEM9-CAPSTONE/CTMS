@@ -27,7 +27,8 @@ describe("AvailablePortersRepository", () => {
 					completedTrips: "18",
 					proficiency: null,
 				},
-			]);
+			])
+			.mockResolvedValueOnce([]);
 
 		const result = await repository.findEligibleCandidates({
 			routeId: ROUTE_ID,
@@ -70,10 +71,13 @@ describe("AvailablePortersRepository", () => {
 				{
 					porterId: "33333333-3333-4333-8333-333333333333",
 					displayName: "Porter A",
+					avatarUrl: undefined,
 					experienceYears: 4,
 					availabilityStatus: PorterAvailabilityStatus.AVAILABLE,
 					ratingAvg: 4.75,
 					completedTrips: 18,
+					certificates: [],
+					certifications: [],
 				},
 			],
 			total: 3,
@@ -97,7 +101,8 @@ describe("AvailablePortersRepository", () => {
 					completedTrips: 61,
 					proficiency: PorterRouteProficiency.EXPERT,
 				},
-			]);
+			])
+			.mockResolvedValueOnce([]);
 
 		const result = await repository.findEligibleCandidates({
 			routeId: ROUTE_ID,
@@ -119,5 +124,66 @@ describe("AvailablePortersRepository", () => {
 			[PorterRouteProficiency.PROFICIENT, PorterRouteProficiency.EXPERT],
 		]);
 		expect(result.items[0]?.proficiency).toBe(PorterRouteProficiency.EXPERT);
+	});
+
+	it("loads only verified and unexpired certificates for candidates in a single fixed query, exposing only type and name without sensitive details to Host", async () => {
+		const repository = new AvailablePortersRepository(PorterProfile, {} as EntityManager);
+		const candidateId = "55555555-5555-4555-8555-555555555555";
+		const query = jest
+			.spyOn(repository, "query")
+			.mockResolvedValueOnce([{ total: 1 }]) // Count query (1)
+			.mockResolvedValueOnce([
+				{
+					porterId: candidateId,
+					displayName: "Tùng Đỗ",
+					experienceYears: 8,
+					availabilityStatus: PorterAvailabilityStatus.AVAILABLE,
+					ratingAvg: 4.85,
+					completedTrips: 67,
+					proficiency: PorterRouteProficiency.EXPERT,
+				},
+			]) // List query (2)
+			.mockResolvedValueOnce([
+				{
+					porterId: candidateId,
+					type: "wfa",
+					name: "Sơ cấp cứu nơi hoang dã WFA",
+				},
+				{
+					porterId: candidateId,
+					type: "rescue",
+					name: "Cứu hộ địa hình núi dốc",
+				},
+			]); // Fixed batched certificates query (3)
+
+		const result = await repository.findEligibleCandidates({
+			routeId: ROUTE_ID,
+			role: IntendedPorterRole.SUPPORT,
+			excludedPorterIds: [],
+			page: 1,
+			limit: 10,
+		});
+
+		// Exactly 3 queries regardless of candidate count (count, list, batched certs)
+		expect(query).toHaveBeenCalledTimes(3);
+
+		const certSql = query.mock.calls[2][0].replace(/\s+/g, " ");
+		expect(certSql).toContain(
+			'SELECT c.porter_id AS "porterId", c.type, c.name FROM porter_certificates c'
+		);
+		expect(certSql).toContain("c.status = 'verified'");
+		expect(certSql).toContain("(c.expiry_date IS NULL OR c.expiry_date >= CURRENT_DATE)");
+		expect(certSql).toContain("c.deleted_at IS NULL");
+
+		const candidate = result.items[0];
+		expect(candidate.certificates).toEqual([
+			{ type: "wfa", name: "Sơ cấp cứu nơi hoang dã WFA" },
+			{ type: "rescue", name: "Cứu hộ địa hình núi dốc" },
+		]);
+		expect(candidate.certificates?.[0]).not.toHaveProperty("fileUrl");
+		expect(candidate.certificates?.[0]).not.toHaveProperty("certificateNumber");
+		expect(candidate.certificates?.[0]).not.toHaveProperty("issuedBy");
+		expect(candidate.certificates?.[0]).not.toHaveProperty("rejectionReason");
+		expect(candidate.certificates?.[0]).not.toHaveProperty("verifiedBy");
 	});
 });

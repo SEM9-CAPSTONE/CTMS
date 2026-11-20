@@ -22,12 +22,22 @@ export interface LevelEvidence {
 	version: number;
 }
 
+export interface DossierCertificate {
+	id?: string;
+	type: string;
+	name: string;
+	status: string; // 'verified' | 'pending' | 'rejected'
+	expiryDate: string | Date;
+	rejectionReason?: string | null;
+}
+
 export interface LevelDossier {
 	porterId: string;
 	porterName: string | null;
 	profileVersion: number;
 	experienceYears: number;
 	certifications: string[];
+	certificates?: DossierCertificate[];
 	skills: string[];
 	evidenceVersion: number;
 	verificationStatus: string | null;
@@ -47,11 +57,25 @@ export interface LevelQualification {
 	version: number;
 }
 
+export interface CertificateEvaluationItem {
+	reqCode: string;
+	name: string;
+	status: "verified" | "expired" | "pending" | "rejected" | "missing";
+	expiryDate?: string | Date | null;
+	rejectionReason?: string | null;
+	met: boolean;
+}
+
 export interface LevelComparison {
 	experience: boolean | null;
 	timesLed: boolean | null;
 	missingSkills: string[];
 	missingCertifications: string[];
+	expiredCertifications: string[];
+	rejectedCertifications: Array<{ type: string; name: string; rejectionReason?: string | null }>;
+	pendingCertifications: Array<{ type: string; name: string }>;
+	certificateDetails: CertificateEvaluationItem[];
+	allMet: boolean;
 }
 
 export enum LevelDecisionOutcome {

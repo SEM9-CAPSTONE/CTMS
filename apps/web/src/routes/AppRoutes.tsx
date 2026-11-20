@@ -79,6 +79,11 @@ const AdminPorterVerificationsPage = lazy(() =>
 		(module) => ({ default: module.AdminPorterVerificationsPage })
 	)
 );
+const AdminPorterCertificatesPage = lazy(() =>
+	import("../features/porter-certificates/pages/AdminPorterCertificatesPage").then((module) => ({
+		default: module.AdminPorterCertificatesPage,
+	}))
+);
 const AdminRefundsPage = lazy(() =>
 	import("../features/admin-refunds/pages/AdminRefundsPage").then((module) => ({
 		default: module.AdminRefundsPage,
@@ -198,7 +203,6 @@ const AdminRevenueAnalyticsPage = lazy(() =>
 const hostReportPaths = {
 	performance: RoutePath.HOST_PERFORMANCE_REPORTS,
 	revenue: RoutePath.HOST_REVENUE_ANALYTICS,
-	submitted: "/host/content-reports",
 } satisfies Record<HostReportTab, string>;
 
 const HostReportsPage = lazy(() =>
@@ -566,9 +570,7 @@ function AppRouteContent() {
 				onNavigateHome={() => navigateTo(RoutePath.HOME)}
 			>
 				<HostLayout allowMobile onLogout={handleLogout}>
-					<HostReportsPage activeTab="submitted" onTabChange={navigateToHostReport}>
-						<MyReportsPage actor={storedUser?.id ?? ""} />
-					</HostReportsPage>
+					<MyReportsPage actor={storedUser?.id ?? ""} />
 				</HostLayout>
 			</AppRoleGuard>
 		);
@@ -579,6 +581,7 @@ function AppRouteContent() {
 			<ReviewAnalysisPage
 				actor={storedUser?.id ?? ""}
 				initialTripId={new URLSearchParams(currentSearch).get("trip") ?? ""}
+				initialReviewId={new URLSearchParams(currentSearch).get("reviewId") ?? ""}
 			/>
 		);
 		return (
@@ -1141,6 +1144,18 @@ function AppRouteContent() {
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
 					<AdminPorterVerificationsPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+
+		case RoutePath.ADMIN_PORTER_CERTIFICATES:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminPorterCertificatesPage onLogout={handleLogout} />
 				</AppRoleGuard>
 			);
 

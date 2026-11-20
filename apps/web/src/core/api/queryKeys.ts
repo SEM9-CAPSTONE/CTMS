@@ -57,6 +57,8 @@ export const queryKeys = {
 		all: ["review-moderation"] as const,
 		queue: (actor: string, status: string, tripId?: string, page = 1) =>
 			["review-moderation", actor, "queue", status, tripId ?? "all", page] as const,
+		detail: (actor: string, reviewId: string) =>
+			["review-moderation", actor, "detail", reviewId] as const,
 		pendingBadge: (actor: string) => ["review-moderation", actor, "pending-badge"] as const,
 	},
 	reviewAnalytics: {
@@ -211,6 +213,13 @@ export const queryKeys = {
 		routeQualifications: ["porter", "route-qualifications"] as const,
 		routePorterQualifications: (routeId: string) =>
 			["trekking-routes", routeId, "porter-qualifications"] as const,
+	},
+	porterCertificates: {
+		all: ["porter-certificates"] as const,
+		my: ["porter-certificates", "mine"] as const,
+		detail: (id: string) => ["porter-certificates", "detail", id] as const,
+		adminList: (query?: Record<string, unknown>) =>
+			["admin-porter-certificates", "list", query] as const,
 	},
 	adminRefunds: {
 		all: ["admin-refunds"] as const,

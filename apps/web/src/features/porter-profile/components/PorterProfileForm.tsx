@@ -50,7 +50,7 @@ export function PorterProfileForm({
 						htmlFor="experienceYears"
 						className="text-xs font-extrabold uppercase tracking-wider text-[#4a5e51]"
 					>
-						Số năm kinh nghiệm Porter *
+						Số năm kinh nghiệm *
 					</label>
 					<div className="max-w-xs">
 						<input
@@ -167,7 +167,7 @@ export function PorterProfileForm({
 					) : (
 						<>
 							<Save size={16} />
-							<span>Lưu hồ sơ Porter</span>
+							<span>Lưu hồ sơ</span>
 						</>
 					)}
 				</button>

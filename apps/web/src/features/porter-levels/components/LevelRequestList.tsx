@@ -35,7 +35,6 @@ export function LevelRequestList({
 					},
 				]
 			: []),
-		{ key: "route", header: "Tuyến", render: (item) => item.routeName },
 		{
 			key: "level",
 			header: "Cấp đề nghị",
@@ -46,6 +45,7 @@ export function LevelRequestList({
 				</>
 			),
 		},
+		{ key: "route", header: "Tuyến minh chứng", render: (item) => item.routeName },
 		{
 			key: "status",
 			header: "Trạng thái",

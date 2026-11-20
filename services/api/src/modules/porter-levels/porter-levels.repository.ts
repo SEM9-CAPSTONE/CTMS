@@ -8,7 +8,12 @@ import {
 import { DataSource, type EntityManager } from "typeorm";
 import type { PorterRouteProficiency } from "../profiles/entities/porter-route-qualification.entity";
 import { type UserRole, UserStatus } from "../users/entities/user.entity";
-import type { LevelDossier, LevelPolicy, LevelQualification } from "./porter-levels.types";
+import type {
+	DossierCertificate,
+	LevelDossier,
+	LevelPolicy,
+	LevelQualification,
+} from "./porter-levels.types";
 
 const QUALIFICATION_SELECT = `SELECT q.id, q.porter_id AS "porterId", q.route_id AS "routeId",
 	q.proficiency, q.times_led AS "timesLed", q.verified_by AS "verifiedBy", q.version,
@@ -130,7 +135,20 @@ export class PorterLevelsRepository {
 			[qualification.porterId]
 		)) as Omit<LevelDossier, "timesLed">[];
 		if (!rows[0]) throw new NotFoundException("Porter profile not found");
-		return { ...rows[0], timesLed: qualification.timesLed };
+
+		let certRows: DossierCertificate[] = [];
+		try {
+			certRows = (await manager.query(
+				`SELECT id, type, name, status, expiry_date AS "expiryDate", rejection_reason AS "rejectionReason"
+				 FROM porter_certificates
+				 WHERE porter_id = $1 AND deleted_at IS NULL`,
+				[qualification.porterId]
+			)) as DossierCertificate[];
+		} catch {
+			certRows = [];
+		}
+
+		return { ...rows[0], certificates: certRows, timesLed: qualification.timesLed };
 	}
 
 	async audit(

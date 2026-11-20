@@ -68,16 +68,13 @@ export function PorterQualificationsPanel({
 	const routeNamesMap = new Map<string, string>(availableRoutes.map((r) => [r.id, r.name]));
 
 	return (
-		<section
-			data-testid="porter-qualifications-panel"
-			className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm sm:p-8"
-		>
+		<div data-testid="porter-qualifications-panel" className="space-y-4">
 			{/* Panel Header */}
-			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-[#e7eee7] pb-5">
+			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-[#e7eee7] pb-4">
 				<div>
-					<h2 className="text-lg font-extrabold text-[#10221b]">Năng lực theo tuyến trekking</h2>
+					<h3 className="text-sm font-bold text-[#10221b]">Tuyến trekking đã khai báo</h3>
 					<p className="mt-0.5 text-xs text-[#627769]">
-						Khai báo năng lực theo từng tuyến để Admin đối chiếu tiêu chí và xét cấp thủ công.
+						Khai báo tuyến và số lần dẫn để phục vụ đánh giá năng lực làm Trưởng đoàn.
 					</p>
 				</div>
 				<div className="flex items-center gap-2">
@@ -95,10 +92,10 @@ export function PorterQualificationsPanel({
 						onClick={handleOpenCreate}
 						disabled={isSubmitting}
 						data-testid="add-qualification-button"
-						className="flex items-center gap-1.5 rounded-xl bg-[#164027] px-4 py-2.5 text-xs font-extrabold text-white shadow-xs transition hover:bg-[#205234] disabled:cursor-not-allowed disabled:opacity-50"
+						className="flex items-center gap-1.5 rounded-xl bg-[#164027] px-3.5 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-[#205234] disabled:cursor-not-allowed disabled:opacity-50"
 					>
 						<Plus size={15} />
-						<span>Thêm năng lực tuyến</span>
+						<span>Khai báo tuyến</span>
 					</button>
 				</div>
 			</div>
@@ -196,6 +193,6 @@ export function PorterQualificationsPanel({
 				onSubmit={handleDialogSubmit}
 				isSubmitting={isSubmitting}
 			/>
-		</section>
+		</div>
 	);
 }

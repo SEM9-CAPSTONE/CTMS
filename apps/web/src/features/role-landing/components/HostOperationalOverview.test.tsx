@@ -115,4 +115,15 @@ describe("HostOperationalOverview trip selection", () => {
 		);
 		expect(screen.getByTestId("selected-map")).toHaveTextContent("soon");
 	});
+
+	it("shows only ongoing trips and hides published filter in monitorParticipants mode", () => {
+		setTrips([
+			trip("live"),
+			{ ...trip("soon"), status: "published", startsAt: "2026-10-20T06:00:00+07:00" },
+		]);
+		render(<HostOperationalOverview hostId="host" monitorParticipants />);
+		expect(screen.getByRole("button", { name: "live15/10/2026" })).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: /Sắp khởi hành/ })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "soon20/10/2026" })).not.toBeInTheDocument();
+	});
 });
