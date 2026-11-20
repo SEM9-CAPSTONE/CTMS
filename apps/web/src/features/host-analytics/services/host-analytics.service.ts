@@ -17,6 +17,7 @@ export const hostAnalyticsService = {
 		}
 		return httpClient.get<HostAnalyticsResponse>(
 			`${API_ENDPOINTS.HOST_ANALYTICS.SUMMARY}?${search.toString()}`,
+			undefined,
 			{ cache: "no-store" }
 		);
 	},
@@ -41,6 +42,7 @@ export const hostAnalyticsService = {
 	getLatestSuggestionJob: async (): Promise<HostSuggestionJobResponse> => {
 		return httpClient.get<HostSuggestionJobResponse>(
 			API_ENDPOINTS.HOST_ANALYTICS.SUGGESTIONS_LATEST,
+			undefined,
 			{ cache: "no-store" }
 		);
 	},
@@ -48,6 +50,7 @@ export const hostAnalyticsService = {
 	getSuggestionJobById: async (jobId: string): Promise<HostSuggestionJobResponse> => {
 		return httpClient.get<HostSuggestionJobResponse>(
 			API_ENDPOINTS.HOST_ANALYTICS.SUGGESTION_JOB(jobId),
+			undefined,
 			{ cache: "no-store" }
 		);
 	},
@@ -55,6 +58,7 @@ export const hostAnalyticsService = {
 	getQuickCreateContext: async (suggestionId: string): Promise<QuickCreateContextResponse> => {
 		return httpClient.get<QuickCreateContextResponse>(
 			API_ENDPOINTS.HOST_ANALYTICS.QUICK_CREATE_CONTEXT(suggestionId),
+			undefined,
 			{ cache: "no-store" }
 		);
 	},
