@@ -453,7 +453,7 @@ export class HostAnalyticsSuggestionsService {
 			const job = rows[0];
 			if (!job) return null;
 
-			const updated = await manager.query<JobRow[]>(
+			const updatedRaw = await manager.query<unknown>(
 				`UPDATE host_analytics_suggestion_jobs
 				 SET status = 'running',
 				     attempts = attempts + 1,
@@ -464,7 +464,8 @@ export class HostAnalyticsSuggestionsService {
 				 RETURNING *`,
 				[now.toISOString(), leaseToken, new Date(now.getTime() + 60_000).toISOString(), job.id]
 			);
-			return updated[0];
+			const updatedRows = this.unwrapReturning<JobRow>(updatedRaw);
+			return updatedRows[0] ?? null;
 		});
 
 		if (!claimed) return false;
@@ -579,7 +580,7 @@ export class HostAnalyticsSuggestionsService {
 	): Promise<void> {
 		const jobCreatedDateVn = vietnamDateKey(new Date(job.created_at));
 		await this.dataSource.transaction(async (manager) => {
-			const updated = await manager.query<Array<{ id: string }>>(
+			const updatedRaw = await manager.query<unknown>(
 				`UPDATE host_analytics_suggestion_jobs
 				 SET status = 'failed',
 				     error_code = $2,
@@ -590,7 +591,8 @@ export class HostAnalyticsSuggestionsService {
 				 RETURNING id`,
 				[job.id, errorCode, leaseToken]
 			);
-			if (!updated[0]) return;
+			const updatedRows = this.unwrapReturning<{ id: string }>(updatedRaw);
+			if (!updatedRows[0]) return;
 
 			if (refundDailyQuota && errorCode === "analysis_unavailable") {
 				await manager.query(
@@ -662,6 +664,14 @@ export class HostAnalyticsSuggestionsService {
 			finishedAt: job.finished_at ? new Date(job.finished_at).toISOString() : null,
 			suggestions,
 		};
+	}
+
+	private unwrapReturning<T>(result: unknown): T[] {
+		if (!Array.isArray(result)) return [];
+		if (Array.isArray(result[0])) {
+			return result[0] as T[];
+		}
+		return result as T[];
 	}
 
 	private secondsUntilVietnamMidnight(now: Date): number {

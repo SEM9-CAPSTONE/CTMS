@@ -10,8 +10,12 @@ import {
 	Res,
 	UseGuards,
 } from "@nestjs/common";
-import type { Response } from "express";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
+
+interface HttpResponseLike {
+	status(code: number): unknown;
+	setHeader(name: string, value: string): unknown;
+}
 import { Roles } from "../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
@@ -57,7 +61,7 @@ export class HostAnalyticsController {
 	async createSuggestionJob(
 		@CurrentUser() user: AuthenticatedUser,
 		@Body() body: CreateHostSuggestionJobDto,
-		@Res({ passthrough: true }) res: Response
+		@Res({ passthrough: true }) res: HttpResponseLike
 	): Promise<HostSuggestionJobResponseDto> {
 		try {
 			const { httpStatus, job } = await this.suggestionsService.createJob(user, body);
