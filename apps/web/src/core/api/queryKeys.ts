@@ -42,6 +42,15 @@ export const queryKeys = {
 		planning: (actor: string, month: string) =>
 			["demand-insights", actor, month, "planning"] as const,
 	},
+	hostAnalytics: {
+		all: ["host-analytics"] as const,
+		summary: (actor: string, from: string, to: string, areaCode: string) =>
+			["host-analytics", actor, "summary", from, to, areaCode] as const,
+		latestSuggestion: (actor: string) =>
+			["host-analytics", actor, "suggestions", "latest"] as const,
+		suggestionJob: (actor: string, jobId: string) =>
+			["host-analytics", actor, "suggestions", "job", jobId] as const,
+	},
 	reviewAnalysis: {
 		all: ["review-analysis"] as const,
 		trips: (actor: string, page: number) => ["review-analysis", actor, "trips", page] as const,
