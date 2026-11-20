@@ -21,7 +21,7 @@ export const AI_RECOMMENDATION_TIMEOUT_MS = 5000;
 export interface AiRecommendationRequest {
 	prompt_version: typeof RECOMMENDATION_PROMPT_VERSION;
 	model: string;
-	signal: Exclude<RecommendationSignalType, "none">;
+	signal: Exclude<RecommendationSignalType, "none" | "health_profile">;
 	preferences: {
 		tripTypes: TripType[];
 		difficulties: TrekkingRouteDifficulty[];

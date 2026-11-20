@@ -6,6 +6,7 @@ import {
 	HttpStatus,
 	Param,
 	ParseUUIDPipe,
+	Post,
 	Put,
 	Req,
 	UseGuards,
@@ -75,5 +76,17 @@ export class TripRecommendationsController {
 		@Param("tripId", new ParseUUIDPipe()) tripId: string
 	): Promise<TripRecommendationExplanationDto> {
 		return this.service.getExplanation(request.user.userId, tripId);
+	}
+
+	@Post("trip-recommendations/regenerate")
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: "Regenerate suggestions from the current consented profile without reusing AI order",
+	})
+	@ApiResponse({ status: 200, type: TripRecommendationsResponseDto })
+	regenerateRecommendations(
+		@Req() request: AuthenticatedRequest
+	): Promise<TripRecommendationsResponseDto> {
+		return this.service.getRecommendations(request.user.userId, { regenerate: true });
 	}
 }

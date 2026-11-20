@@ -7,8 +7,8 @@ import {
 	PrimaryGeneratedColumn,
 	UpdateDateColumn,
 } from "typeorm";
-// biome-ignore lint/style/useImportType: constructor-injected or referenced by TypeORM
 import { User } from "../../users/entities/user.entity";
+import type { ActivityProfile } from "./activity-profile";
 
 export enum BloodType {
 	A_PLUS = "A+",
@@ -70,6 +70,9 @@ export class HealthProfile {
 		default: FitnessLevel.BEGINNER,
 	})
 	physicalFitnessLevel!: FitnessLevel;
+
+	@Column({ name: "activity_profile", type: "jsonb", nullable: true })
+	activityProfile!: ActivityProfile | null;
 
 	@Column({ name: "dietary_restrictions", type: "varchar", length: 300, nullable: true })
 	dietaryRestrictions!: string | null;

@@ -12,6 +12,7 @@ import { type User, UserRole, UserStatus } from "../../users/entities/user.entit
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { UsersRepository } from "../../users/users.repository";
 import type { UpdateHealthProfileDto } from "../dto/update-health-profile.dto";
+import { mergeActivityNotes } from "../entities/activity-profile";
 import { Booking } from "../entities/booking.entity";
 import type { HealthProfile } from "../entities/health-profile.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
@@ -107,6 +108,23 @@ export class CamperHealthProfileService {
 			// Map updates
 			profile.bloodType = dto.bloodType;
 			profile.physicalFitnessLevel = dto.physicalFitnessLevel;
+			if (dto.activityProfile) {
+				const input = dto.activityProfile;
+				const values = {
+					comfortableDistanceKm: input.comfortableDistanceKm ?? null,
+					comfortableWalkingMinutes: input.comfortableWalkingMinutes ?? null,
+					activityNotes:
+						input.activityNotes !== undefined
+							? input.activityNotes?.trim() || null
+							: input.mobilityLimitations !== undefined || input.professionalAdvice !== undefined
+								? mergeActivityNotes(input.mobilityLimitations, input.professionalAdvice)
+								: (profile.activityProfile?.activityNotes ?? null),
+				};
+				profile.activityProfile = {
+					...values,
+					confirmedAt: new Date().toISOString(),
+				};
+			}
 			profile.dietaryRestrictions = dto.dietaryRestrictions || null;
 			profile.emergencyNotes = dto.emergencyNotes || null;
 			profile.allergies = dto.allergies;
@@ -309,6 +327,7 @@ export class CamperHealthProfileService {
 		return {
 			bloodType: entity.bloodType,
 			physicalFitnessLevel: entity.physicalFitnessLevel,
+			activityProfile: entity.activityProfile,
 			dietaryRestrictions: entity.dietaryRestrictions,
 			emergencyNotes: entity.emergencyNotes,
 			allergies: entity.allergies,

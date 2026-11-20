@@ -81,16 +81,15 @@ describe("buildExplanation", () => {
 		const sections = byKind(build({ ...NO_PROFILE, health: health() }));
 		expect(sections.fitness).toEqual({
 			kind: "fitness",
-			tone: "match",
-			title: "Vừa sức với thể lực của bạn",
+			tone: "info",
+			title: "Chưa đủ thông tin để đánh giá",
 			quote: {
 				source: "health_profile",
 				field: "Mức thể lực",
 				text: "Nâng cao (Trekking đèo dốc thường xuyên)",
 			},
-			detail:
-				"Cung đường có độ khó Khó, dài 8,5 km, đi bộ khoảng 4 giờ 30 phút, nằm trong mức bạn đã quen.",
-			conclusion: "Vì vậy bạn có thể đi trọn cung đường mà không bị quá sức.",
+			detail: "Cung đường có độ khó Khó, dài 8,5 km, đi bộ khoảng 4 giờ 30 phút",
+			conclusion: "Chưa đủ thông tin từ hồ sơ hoặc cung đường để đánh giá mức phù hợp.",
 		});
 		// The Route figures live in the fitness point, not repeated.
 		expect(sections.route).toBeUndefined();
@@ -137,7 +136,7 @@ describe("buildExplanation", () => {
 		expect(result.sections.some((section) => section.kind === "interest")).toBe(false);
 	});
 
-	it("quotes medical conditions, medication, allergies and diet with fitting advice", () => {
+	it("quotes medical conditions and medication while ignoring legacy allergy and diet data", () => {
 		const sections = byKind(
 			build({
 				...NO_PROFILE,
@@ -151,21 +150,18 @@ describe("buildExplanation", () => {
 		);
 		expect(sections.fitness).toMatchObject({
 			tone: "caution",
-			title: "Hơi thử thách so với thể lực hiện tại",
+			title: "Cần xác nhận thêm",
 		});
 		expect(sections.health_note).toMatchObject({
 			tone: "caution",
 			quote: { field: "Bệnh nền", text: "Hen suyễn" },
 		});
 		expect(sections.health_note.detail).toContain("Nhớ mang theo “Ventolin”");
-		expect(sections.allergy).toMatchObject({
-			tone: "caution",
-			quote: { field: "Dị ứng", text: "Phấn hoa (mức nặng)" },
-		});
-		expect(sections.diet).toMatchObject({ quote: { field: "Chế độ ăn", text: "Ăn chay" } });
+		expect(sections.allergy).toBeUndefined();
+		expect(sections.diet).toBeUndefined();
 	});
 
-	it("calls an easy Trip suitable for a recorded condition", () => {
+	it("does not infer medical suitability from an easy Route", () => {
 		const sections = byKind(
 			build(
 				{
@@ -178,10 +174,10 @@ describe("buildExplanation", () => {
 				{ trip: { difficulty: TrekkingRouteDifficulty.EASY, routeLengthMeters: 4_000 } }
 			)
 		);
-		expect(sections.fitness.tone).toBe("match");
+		expect(sections.fitness.tone).toBe("caution");
 		expect(sections.health_note).toMatchObject({
-			tone: "info",
-			title: "Phù hợp với bệnh nền đã ghi",
+			tone: "caution",
+			title: "Bệnh nền cần xác nhận thêm",
 		});
 	});
 
@@ -243,13 +239,13 @@ describe("buildExplanation", () => {
 		expect(easyDay.sections.some((item) => item.kind === "experience")).toBe(false);
 	});
 
-	it("concludes over all points and lists the cautions", () => {
+	it("does not mention legacy allergies in the summary", () => {
 		const { summary } = build({
 			...NO_PROFILE,
 			health: health({ allergies: [{ name: "Phấn hoa", severity: "CRITICAL" }] }),
 		});
 		expect(summary).toBe(
-			"Vì vậy chuyến này phù hợp với bạn về thể lực, loại chuyến, khu vực và mức giá, đúng với những gì bạn đã cung cấp. Trước khi đặt, hãy lưu ý về dị ứng."
+			"Vì vậy chuyến này phù hợp với bạn về loại chuyến, khu vực và mức giá, đúng với những gì bạn đã cung cấp."
 		);
 	});
 

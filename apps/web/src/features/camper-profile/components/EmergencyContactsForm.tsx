@@ -30,9 +30,6 @@ export function EmergencyContactsForm({
 			<div className="flex flex-col gap-3 border-b border-[#f0f4f1] pb-4 sm:flex-row sm:items-center sm:justify-between">
 				<div>
 					<h3 className="text-base font-extrabold text-[#164027]">Liên hệ khẩn cấp</h3>
-					<p className="text-xs font-medium text-[#627769]">
-						Lưu tối đa 2 người thân để đội vận hành liên hệ khi có tình huống khẩn cấp.
-					</p>
 				</div>
 				<button
 					type="button"

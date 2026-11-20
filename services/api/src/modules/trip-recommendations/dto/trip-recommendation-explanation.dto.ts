@@ -1,4 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
+import type { TripHealthAssessment } from "../trip-health-assessment";
 import type {
 	ExplanationKind,
 	ExplanationSource,
@@ -60,6 +61,8 @@ export class TripRecommendationExplanationSectionDto {
 }
 
 export class TripRecommendationExplanationDto {
+	@ApiProperty({ description: "Current activity-profile comparison; never a medical clearance" })
+	healthAssessment!: TripHealthAssessment;
 	@ApiProperty()
 	tripTitle!: string;
 

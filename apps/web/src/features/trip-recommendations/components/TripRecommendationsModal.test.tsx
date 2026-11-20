@@ -11,6 +11,7 @@ import { TripRecommendationsBanner } from "./TripRecommendationsModal";
 vi.mock("../services/trip-recommendations.service", () => ({
 	tripRecommendationsService: {
 		list: vi.fn(),
+		regenerate: vi.fn(),
 		getPreferences: vi.fn(),
 		getExplanation: vi.fn(),
 		replacePreferences: vi.fn(),
@@ -91,6 +92,7 @@ const openModal = () => fireEvent.click(screen.getByRole("button", { name: "Xem 
 describe("TripRecommendationsBanner", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		service.regenerate.mockResolvedValue(ready());
 		service.getPreferences.mockResolvedValue(preferences);
 		localStorage.setItem(
 			"authUser",
@@ -113,14 +115,14 @@ describe("TripRecommendationsBanner", () => {
 		expect(service.list).toHaveBeenCalledTimes(1);
 	});
 
-	it("shows suggestions with backend reason labels and opens the trip detail", async () => {
+	it("shows only suggested trip cards and opens the trip detail", async () => {
 		service.list.mockResolvedValue(ready());
 		const { onSelectTrip } = renderBanner();
 		openModal();
 		expect(await screen.findByText("Săn mây đỉnh Bà Nà")).toBeInTheDocument();
-		const reasons = screen.getByRole("list", { name: "Lý do gợi ý chuyến Săn mây đỉnh Bà Nà" });
-		expect(within(reasons).getByText("Phù hợp mức giá bạn chọn")).toBeInTheDocument();
-		expect(within(reasons).getByText("Cùng khu vực với chuyến bạn từng đi")).toBeInTheDocument();
+		expect(
+			screen.queryByRole("list", { name: "Lý do gợi ý chuyến Săn mây đỉnh Bà Nà" })
+		).not.toBeInTheDocument();
 		expect(document.body.textContent).not.toContain(TRIP_ID);
 		for (const element of document.body.querySelectorAll("[aria-label], [title], [alt]")) {
 			for (const name of ["aria-label", "title", "alt"]) {
@@ -179,6 +181,85 @@ describe("TripRecommendationsBanner", () => {
 		expect(await screen.findByText("Chưa có chuyến phù hợp lúc này")).toBeInTheDocument();
 	});
 
+	it("requires health sharing and links directly to the health profile", async () => {
+		service.list.mockResolvedValue(
+			ready({ status: "needs_health_consent", items: [], mode: null })
+		);
+		renderBanner();
+		openModal();
+		expect(
+			await screen.findByRole("heading", { name: "Cần cho phép chia sẻ hồ sơ sức khỏe" })
+		).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "Mở hồ sơ sức khỏe" })).toHaveAttribute(
+			"href",
+			"/camper/profile?tab=health_fitness"
+		);
+		expect(screen.queryByText(trip.title)).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: "Tạo lại gợi ý chuyến đi" })
+		).not.toBeInTheDocument();
+		expect(service.regenerate).not.toHaveBeenCalled();
+		service.list.mockResolvedValue(ready());
+		fireEvent.click(screen.getByRole("button", { name: "Kiểm tra lại quyền chia sẻ" }));
+		expect(await screen.findByText(trip.title)).toBeInTheDocument();
+	});
+
+	it("manually regenerates and replaces old suggestions with the fresh response", async () => {
+		service.list.mockResolvedValue(ready());
+		let finish!: (value: TripRecommendations) => void;
+		service.regenerate.mockReturnValue(
+			new Promise((resolve) => {
+				finish = resolve;
+			})
+		);
+		renderBanner();
+		openModal();
+		await screen.findByText(trip.title);
+		fireEvent.click(screen.getByRole("button", { name: "Tạo lại gợi ý chuyến đi" }));
+		await waitFor(() => expect(service.regenerate).toHaveBeenCalledTimes(1));
+		expect(screen.queryByText(trip.title)).not.toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Đang tạo gợi ý..." })).toBeDisabled();
+		finish(
+			ready({
+				items: [{ trip: { ...trip, title: "Dạo bước rừng Sơn Trà" }, reasons: ["fitness_match"] }],
+			})
+		);
+		expect(await screen.findByText("Dạo bước rừng Sơn Trà")).toBeInTheDocument();
+		expect(toast.success).toHaveBeenCalledWith("Đã tạo lại gợi ý từ hồ sơ mới nhất của bạn.");
+	});
+
+	it("clears prior recommendations when sharing has been revoked before regeneration", async () => {
+		service.list.mockResolvedValue(ready());
+		service.regenerate.mockResolvedValue(
+			ready({ status: "needs_health_consent", items: [], mode: null })
+		);
+		renderBanner();
+		openModal();
+		await screen.findByText(trip.title);
+		fireEvent.click(screen.getByRole("button", { name: "Tạo lại gợi ý chuyến đi" }));
+		expect(
+			await screen.findByRole("heading", { name: "Cần cho phép chia sẻ hồ sơ sức khỏe" })
+		).toBeInTheDocument();
+		expect(screen.queryByText(trip.title)).not.toBeInTheDocument();
+		expect(toast.success).not.toHaveBeenCalled();
+	});
+
+	it("hides old results and shows a Vietnamese toast if manual regeneration fails", async () => {
+		service.list.mockResolvedValue(ready());
+		service.regenerate.mockRejectedValue(new Error("Internal server error"));
+		renderBanner();
+		openModal();
+		await screen.findByText(trip.title);
+		fireEvent.click(screen.getByRole("button", { name: "Tạo lại gợi ý chuyến đi" }));
+		await waitFor(() =>
+			expect(toast.error).toHaveBeenCalledWith(
+				"Không thể tạo lại gợi ý chuyến đi. Vui lòng thử lại."
+			)
+		);
+		expect(screen.queryByText(trip.title)).not.toBeInTheDocument();
+		expect(screen.queryByText("Internal server error")).not.toBeInTheDocument();
+	});
+
 	it("shows a Vietnamese error with retry, never the API message", async () => {
 		service.list
 			.mockRejectedValueOnce(new HttpError("Internal server error", 500, {}))
@@ -225,40 +306,55 @@ describe("TripRecommendationsBanner", () => {
 		expect(client.getQueryData(["trip-recommendations", "camper-1", "list"])).toBeDefined();
 	});
 
-	it("shows what the suggestions are based on at the top, and that preferences do not filter", async () => {
-		service.list.mockResolvedValue(ready());
-		service.getPreferences.mockResolvedValue({
-			...preferences,
-			difficulties: ["hard"],
-			regions: ["ba_na_hoa_vang"],
-			minPrice: 500000,
-			maxPrice: 2500000,
-		});
+	it("keeps health assessments and preference summaries out of the results popup", async () => {
+		service.list.mockResolvedValue(
+			ready({
+				healthBasis: {
+					fitnessLevel: "Trung bình",
+					activityProfile: null,
+					hasMedicalConditions: false,
+				},
+				items: [
+					{
+						trip,
+						reasons: ["fitness_match"],
+						healthAssessment: {
+							status: "suitable",
+							summary: "Yêu cầu vận động trong mức khai báo.",
+							comparisons: [
+								{
+									label: "Thể lực và độ khó",
+									profileValue: "Trung bình",
+									tripValue: "Dễ",
+									result: "match",
+									detail: "Độ khó phù hợp.",
+								},
+							],
+							missingInformation: [],
+							profileConfirmedAt: null,
+						},
+					},
+				],
+			})
+		);
 		renderBanner();
 		openModal();
-		const basis = await screen.findByRole("region", { name: "Gợi ý đang dựa trên" });
-		const chips = await within(basis).findByRole("list", { name: "Sở thích của bạn" });
-		expect(
-			within(chips)
-				.getAllByRole("listitem")
-				.map((item) => item.textContent)
-		).toEqual(["Qua đêm", "Độ khó Khó", "Bà Nà – Hòa Vang", "500.000 đ – 2.500.000 đ"]);
-		expect(within(basis).getByText(/không ẩn chuyến nào/)).toBeInTheDocument();
-		// The basis card comes before the suggested trips, and there is no footer button any more.
-		const dialog = screen.getByRole("dialog", { name: "Gợi ý cho bạn" });
-		const trip = await within(dialog).findByText("Săn mây đỉnh Bà Nà");
-		expect(basis.compareDocumentPosition(trip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-		expect(within(dialog).getAllByRole("button", { name: "Sửa sở thích" })).toHaveLength(1);
-		expect(within(dialog).queryByRole("button", { name: "Chọn sở thích" })).toBeNull();
+		await screen.findByText("Săn mây đỉnh Bà Nà");
+		expect(screen.queryByText("Hồ sơ sức khỏe đã dùng")).not.toBeInTheDocument();
+		expect(screen.queryByText("Thể lực và độ khó")).not.toBeInTheDocument();
+		expect(screen.queryByText("Sở thích bổ sung")).not.toBeInTheDocument();
+		expect(service.getPreferences).not.toHaveBeenCalled();
+		expect(screen.getByRole("button", { name: "Sửa sở thích" })).toBeInTheDocument();
 	});
 
-	it("says suggestions use history when no preference was chosen", async () => {
+	it("loads preferences only when the Camper chooses to edit them", async () => {
 		service.list.mockResolvedValue(ready());
-		service.getPreferences.mockResolvedValue({ ...preferences, tripTypes: [], maxPrice: null });
 		renderBanner();
 		openModal();
-		expect(
-			await screen.findByText(/Chưa chọn sở thích — đang gợi ý theo lịch sử chuyến đi/)
-		).toBeInTheDocument();
+		await screen.findByText("Săn mây đỉnh Bà Nà");
+		expect(service.getPreferences).not.toHaveBeenCalled();
+		fireEvent.click(screen.getByRole("button", { name: "Sửa sở thích" }));
+		await screen.findByRole("dialog", { name: "Sở thích để gợi ý chuyến đi" });
+		expect(service.getPreferences).toHaveBeenCalled();
 	});
 });

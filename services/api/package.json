@@ -23,6 +23,7 @@
 		"seed:fresh": "ts-node src/seeds/main.seed.ts --fresh",
 		"seed:dev-admin": "ts-node src/seeds/main.seed.ts --fresh",
 		"seed:dev-trips": "ts-node src/seeds/main.seed.ts --fresh",
+		"seed:health-profile": "ts-node src/seeds/camper-health-profile.seed.ts",
 		"seed:settlements": "ts-node src/seeds/main.seed.ts --fresh",
 		"seed:financial-adjustments": "ts-node src/seeds/main.seed.ts --financial-adjustments-only",
 		"seed:performance-reports": "ts-node src/seeds/main.seed.ts --performance-reports-only",

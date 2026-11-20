@@ -37,6 +37,16 @@ class _Adapter implements HttpClientAdapter {
 
   /// Until the Camper saves preferences the server has nothing to personalize.
   bool needsPreferences = false;
+  bool needsHealthConsent = false;
+  String recommendedTitle = 'Săn mây đỉnh Bà Nà';
+
+  int get regenerationCalls => requests
+      .where(
+        (r) =>
+            r.uri.path == '/api/trip-recommendations/regenerate' &&
+            r.method == 'POST',
+      )
+      .length;
 
   int get recommendationCalls =>
       requests.where((r) => r.uri.path == '/api/trip-recommendations').length;
@@ -50,7 +60,21 @@ class _Adapter implements HttpClientAdapter {
     requests.add(options);
     if (options.method == 'PUT') needsPreferences = false;
     bodies.add(options.data);
-    final path = options.uri.path;
+    final path = options.uri.path == '/api/trip-recommendations/regenerate'
+        ? '/api/trip-recommendations'
+        : options.uri.path;
+    if (path.endsWith('/explanation') && needsHealthConsent) {
+      return ResponseBody.fromString(
+        jsonEncode({
+          'code': 'HEALTH_CONSENT_REQUIRED',
+          'message': 'Sharing consent required',
+        }),
+        403,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+        },
+      );
+    }
     if (path == '/api/trip-recommendations' && recommendationFailures > 0) {
       recommendationFailures--;
       return ResponseBody.fromString(
@@ -74,6 +98,11 @@ class _Adapter implements HttpClientAdapter {
       ],
     };
     final data = switch (path) {
+      '/api/trip-recommendations' when needsHealthConsent => <String, Object?>{
+        'status': 'needs_health_consent',
+        'items': <Object?>[],
+        'mode': null,
+      },
       '/api/trip-recommendations' when needsPreferences => <String, Object?>{
         'status': 'needs_preferences',
         'items': <Object?>[],
@@ -84,7 +113,10 @@ class _Adapter implements HttpClientAdapter {
         'status': 'ready',
         'items': [
           {
-            'trip': _trip(remainingSeats: remainingSeats),
+            'trip': {
+              ..._trip(remainingSeats: remainingSeats),
+              'title': recommendedTitle,
+            },
             'reasons': ['preferred_price', 'booked_region', 'unknown_code'],
           },
         ],
@@ -101,8 +133,7 @@ class _Adapter implements HttpClientAdapter {
         'tripTitle': 'Săn mây đỉnh Bà Nà',
         'reasons': ['fitness_match', 'preferred_price'],
         'healthConsidered': false,
-        'summary':
-            'Vì vậy chuyến này phù hợp với bạn về mức giá, đúng với những gì bạn đã cung cấp.',
+        'summary': 'Chuyến đi phù hợp với ngân sách bạn đã chọn.',
         'generatedAt': '2026-11-14T03:00:00.000Z',
         'sections': [
           {
@@ -190,20 +221,12 @@ void main() {
     await _openSuggestions(tester);
     expect(adapter.recommendationCalls, 1);
     expect(find.text('Gợi ý cho bạn'), findsOneWidget);
-    // What the suggestions are based on, at the top: read-only, not a filter.
-    expect(find.text('Gợi ý đang dựa trên'), findsOneWidget);
-    expect(
-      find.descendant(
-        of: find.byType(BottomSheet),
-        matching: find.text('Qua đêm'),
-      ),
-      findsOneWidget,
-    );
-    expect(find.text('Đến 2.000.000 đ'), findsOneWidget);
-    expect(find.textContaining('không ẩn chuyến nào'), findsOneWidget);
-    expect(find.text('Chọn sở thích'), findsNothing);
-    expect(find.text('Phù hợp mức giá bạn chọn'), findsOneWidget);
-    expect(find.text('Cùng khu vực với chuyến bạn từng đi'), findsOneWidget);
+    expect(find.text('Sở thích bổ sung'), findsNothing);
+    expect(find.text('Hồ sơ sức khỏe đã dùng'), findsNothing);
+    expect(find.text('Thể lực và độ khó'), findsNothing);
+    expect(find.text('Phù hợp mức giá bạn chọn'), findsNothing);
+    expect(find.text('Cùng khu vực với chuyến bạn từng đi'), findsNothing);
+    expect(find.byKey(ValueKey('recommended-$_tripId')), findsOneWidget);
     expect(find.text('unknown_code'), findsNothing);
     expect(find.textContaining(_tripId.substring(0, 8)), findsNothing);
 
@@ -221,7 +244,7 @@ void main() {
     await _pump(tester, adapter: adapter);
     await _openSuggestions(tester);
     expect(find.text('Cần thêm thông tin để gợi ý'), findsOneWidget);
-    expect(find.text('Phù hợp mức giá bạn chọn'), findsNothing);
+    expect(find.byKey(ValueKey('recommended-$_tripId')), findsNothing);
 
     await tester.tap(find.text('Cập nhật sở thích'));
     await tester.pumpAndSettle();
@@ -238,7 +261,99 @@ void main() {
       findsOneWidget,
     );
     expect(adapter.recommendationCalls, 2);
-    expect(find.text('Phù hợp mức giá bạn chọn'), findsOneWidget);
+    expect(find.byKey(ValueKey('recommended-$_tripId')), findsOneWidget);
+  });
+
+  testWidgets(
+    'requires sharing before showing suggestions and checks consent again',
+    (tester) async {
+      final adapter = _Adapter()..needsHealthConsent = true;
+      await _pump(tester, adapter: adapter);
+      await _openSuggestions(tester);
+      expect(find.text('Cần cho phép chia sẻ hồ sơ sức khỏe'), findsOneWidget);
+      expect(find.text('Mở hồ sơ sức khỏe'), findsOneWidget);
+      expect(find.text('Tạo lại gợi ý chuyến đi'), findsNothing);
+      expect(find.byKey(ValueKey('recommended-$_tripId')), findsNothing);
+      expect(adapter.regenerationCalls, 0);
+      adapter.needsHealthConsent = false;
+      await tester.tap(find.text('Kiểm tra lại quyền chia sẻ'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(ValueKey('recommended-$_tripId')), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'manual regeneration uses POST and replaces the old suggestions',
+    (tester) async {
+      final adapter = await _pump(tester);
+      await _openSuggestions(tester);
+      adapter.recommendedTitle = 'Dạo bước rừng Sơn Trà';
+      await tester.tap(find.text('Tạo lại gợi ý chuyến đi'));
+      await tester.pumpAndSettle();
+      expect(adapter.regenerationCalls, 1);
+      expect(adapter.recommendationCalls, 1);
+      final suggestions = find.descendant(
+        of: find.byType(BottomSheet),
+        matching: find.text('Dạo bước rừng Sơn Trà'),
+      );
+      await tester.ensureVisible(suggestions);
+      await tester.pumpAndSettle();
+      expect(suggestions, findsOneWidget);
+      expect(
+        find.text('Đã tạo lại gợi ý từ hồ sơ mới nhất của bạn.'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'revoked sharing removes old suggestions on manual regeneration',
+    (tester) async {
+      final adapter = await _pump(tester);
+      await _openSuggestions(tester);
+      adapter.needsHealthConsent = true;
+      await tester.tap(find.text('Tạo lại gợi ý chuyến đi'));
+      await tester.pumpAndSettle();
+      expect(find.text('Cần cho phép chia sẻ hồ sơ sức khỏe'), findsOneWidget);
+      expect(find.byKey(ValueKey('recommended-$_tripId')), findsNothing);
+      expect(adapter.regenerationCalls, 1);
+    },
+  );
+
+  testWidgets(
+    'a failed manual regeneration hides prior suggestions and shows a Vietnamese error',
+    (tester) async {
+      final adapter = await _pump(tester);
+      await _openSuggestions(tester);
+      adapter.recommendationFailures = 1;
+      await tester.tap(find.text('Tạo lại gợi ý chuyến đi'));
+      await tester.pumpAndSettle();
+      expect(find.text('Không tải được gợi ý chuyến đi'), findsOneWidget);
+      expect(find.byKey(ValueKey('recommended-$_tripId')), findsNothing);
+      expect(
+        find.text('Không thể tạo lại gợi ý chuyến đi. Vui lòng thử lại.'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('revoked sharing blocks explanation of an earlier suggestion', (
+    tester,
+  ) async {
+    final adapter = await _pump(tester);
+    await _openSuggestions(tester);
+    adapter.needsHealthConsent = true;
+    final details = find.descendant(
+      of: find.byType(BottomSheet),
+      matching: find.text('Xem chi tiết'),
+    );
+    await tester.ensureVisible(details);
+    await tester.pumpAndSettle();
+    await tester.tap(details);
+    await tester.pumpAndSettle();
+    expect(find.text('Cần cho phép chia sẻ hồ sơ sức khỏe'), findsOneWidget);
+    expect(find.text('Kết luận'), findsNothing);
+    expect(find.textContaining('Sharing consent required'), findsNothing);
   });
 
   testWidgets('an error shows a Vietnamese message and can retry', (
@@ -252,7 +367,7 @@ void main() {
 
     await tester.tap(find.text('Thử lại'));
     await tester.pumpAndSettle();
-    expect(find.text('Phù hợp mức giá bạn chọn'), findsOneWidget);
+    expect(find.byKey(ValueKey('recommended-$_tripId')), findsOneWidget);
   });
 
   testWidgets('rejects an inverted price range in the form', (tester) async {
@@ -317,7 +432,11 @@ void main() {
     );
     expect(find.text('“Đến 2.000.000 đ”'), findsOneWidget);
     expect(
-      find.text('→ Vì vậy chi phí đúng với ngân sách bạn đã đặt ra.'),
+      find.text('Vì vậy chi phí đúng với ngân sách bạn đã đặt ra.'),
+      findsNothing,
+    );
+    expect(
+      find.text('Chuyến đi phù hợp với ngân sách bạn đã chọn.'),
       findsOneWidget,
     );
     expect(find.text('Kết luận'), findsOneWidget);

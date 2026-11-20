@@ -33,9 +33,6 @@ export function SharingConsentCard({
 						<h3 className="text-base font-extrabold text-[#164027]">
 							Quyền chia sẻ thông tin y tế
 						</h3>
-						<p className="text-xs font-medium text-[#627769]">
-							Tuân thủ quy định bảo mật dữ liệu nhạy cảm (BR-025 & BR-217).
-						</p>
 					</div>
 				</div>
 
@@ -53,33 +50,16 @@ export function SharingConsentCard({
 			</div>
 
 			{/* Consent Explanation & Scope */}
-			<div className="flex flex-col gap-3 rounded-xl border border-[#dfe8df] bg-[#f9fbf9] p-4 text-xs font-medium text-[#4a5e51]">
-				<p className="font-semibold text-[#10221b]">Đối tượng được phép xem hồ sơ y tế:</p>
-				<ul className="list-disc pl-5 space-y-1 text-[#33463a]">
-					<li>
-						Chỉ <strong>Host (Trưởng đoàn)</strong> và <strong>Porter (Dẫn đường)</strong> thuộc
-						chuyến đi (Trip) mà bạn đã đăng ký tham gia (BR-025).
-					</li>
-					<li>
-						Thông tin <strong>không bao giờ được công khai</strong> hoặc chia sẻ cho các bên không
-						thuộc phạm vi cứu hộ khẩn cấp.
-					</li>
-					{consent.activeTripScope && (
-						<li>
-							Phạm vi Trip hiện tại:{" "}
-							<strong className="text-[#164027]">{consent.activeTripScope}</strong>
-						</li>
-					)}
-				</ul>
+			<div className="text-xs leading-5 text-[#627769]">
+				Chia sẻ với người tổ chức, người dẫn đường thuộc chuyến đã đăng ký và dùng để gợi ý chuyến
+				đi. Thông tin không công khai hoặc gửi cho dịch vụ AI bên ngoài.
 			</div>
 
 			{/* Actions: Grant or Revoke */}
 			<div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
 				<div className="flex items-center gap-2 text-xs font-semibold text-[#667a6d]">
 					<Lock size={14} className="text-[#164027]" />
-					<span>
-						Bạn có quyền chỉnh sửa hoặc thu hồi quyền chia sẻ bất kỳ lúc nào (BR-026/AC2).
-					</span>
+					<span>Thu hồi chia sẻ sẽ ngừng phân tích và gợi ý chuyến đi.</span>
 				</div>
 
 				{isGranted ? (

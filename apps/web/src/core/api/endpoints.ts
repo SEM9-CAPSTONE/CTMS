@@ -258,6 +258,7 @@ export const API_ENDPOINTS = {
 	},
 	TRIP_RECOMMENDATIONS: {
 		LIST: "/trip-recommendations",
+		REGENERATE: "/trip-recommendations/regenerate",
 		PREFERENCES: "/profiles/me/trip-preferences",
 		EXPLANATION: (tripId: string) => `/trip-recommendations/trips/${tripId}/explanation`,
 	},

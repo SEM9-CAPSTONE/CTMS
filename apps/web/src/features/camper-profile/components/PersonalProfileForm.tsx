@@ -16,9 +16,6 @@ export function PersonalProfileForm({ form, isDisabled = false }: PersonalProfil
 		<div className="flex flex-col gap-6 rounded-2xl border border-[#e0ebe0] bg-white p-6 shadow-sm">
 			<div className="border-b border-[#f0f4f1] pb-3">
 				<h3 className="text-base font-extrabold text-[#164027]">Thông tin cá nhân</h3>
-				<p className="text-xs font-medium text-[#627769]">
-					Cập nhật chi tiết cá nhân của bạn để phục vụ việc xác thực và trải nghiệm cắm trại.
-				</p>
 			</div>
 
 			<div className="grid grid-cols-1 sm:grid-cols-2 gap-5">

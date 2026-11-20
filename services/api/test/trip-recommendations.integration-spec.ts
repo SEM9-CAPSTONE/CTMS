@@ -183,7 +183,11 @@ describe("Trip recommendations (integration, real Postgres)", () => {
 			role,
 		]);
 		userIds.push(id);
-		return { id, accessToken: jwtService.sign({ sub: id, roles: [role] }) };
+		const account = { id, accessToken: jwtService.sign({ sub: id, roles: [role] }) };
+		// Existing test accounts explicitly consent unless a scenario overrides the persisted profile.
+		if (role === UserRole.CAMPER)
+			await setHealthProfile(account, { fitness: "EXPERT", consent: true });
+		return account;
 	}
 
 	async function createTrip(options: TripOptions): Promise<string> {
@@ -268,6 +272,10 @@ describe("Trip recommendations (integration, real Postgres)", () => {
 	const get = (path: string, account: Account) =>
 		request(app.getHttpServer())
 			.get(`/api${path}`)
+			.set("Authorization", `Bearer ${account.accessToken}`);
+	const regenerate = (account: Account) =>
+		request(app.getHttpServer())
+			.post("/api/trip-recommendations/regenerate")
 			.set("Authorization", `Bearer ${account.accessToken}`);
 	const put = (path: string, account: Account, body: object) =>
 		request(app.getHttpServer())
@@ -412,16 +420,89 @@ describe("Trip recommendations (integration, real Postgres)", () => {
 		expect(ids).toContain(later);
 	});
 
-	it("asks a new Camper to choose preferences before generating anything", async () => {
+	it("requires the Camper to enable health sharing before generating anything", async () => {
 		const camper = await createAccount(UserRole.CAMPER);
+		await setHealthProfile(camper, { fitness: "EXPERT", consent: false });
 		await createTrip({ title: "Khám phá bán đảo Sơn Trà" });
 		const response = await get("/trip-recommendations", camper).expect(200);
-		expect(response.body).toMatchObject({ status: "needs_preferences", items: [], mode: null });
+		expect(response.body).toMatchObject({ status: "needs_health_consent", items: [], mode: null });
 		const runs = await dataSource.query(
 			`SELECT 1 FROM "trip_recommendation_runs" WHERE "user_id" = $1`,
 			[camper.id]
 		);
 		expect(runs).toEqual([]);
+		expect((await regenerate(camper).expect(200)).body.status).toBe("needs_health_consent");
+		const existingProfile = (await get("/camper/health-profile", camper).expect(200)).body;
+		await request(app.getHttpServer())
+			.post("/api/camper/health-profile/consent/grant")
+			.set("Authorization", `Bearer ${camper.accessToken}`)
+			.expect(200);
+		const grantedProfile = (await get("/camper/health-profile", camper).expect(200)).body;
+		expect(grantedProfile.consent.isConsentGranted).toBe(true);
+		expect(grantedProfile.version).toBeGreaterThan(existingProfile.version);
+		for (const activityProfile of [
+			{ weeklyActiveDays: 8 },
+			{ activityNotes: "a".repeat(1201) },
+			{ comfortableDistanceKm: -1 },
+			{ confirmedAt: "2026-11-19T00:00:00Z" },
+		]) {
+			await put(`/camper/health-profile?version=${grantedProfile.version}`, camper, {
+				bloodType: "UNKNOWN",
+				physicalFitnessLevel: "INTERMEDIATE",
+				allergies: [],
+				medicalConditions: [],
+				isConsentGranted: true,
+				activityProfile,
+			}).expect(422);
+		}
+		await put(`/camper/health-profile?version=${grantedProfile.version}`, camper, {
+			bloodType: "UNKNOWN",
+			physicalFitnessLevel: "INTERMEDIATE",
+			allergies: [],
+			medicalConditions: [],
+			isConsentGranted: true,
+			activityProfile: {
+				comfortableDistanceKm: 8,
+				comfortableWalkingMinutes: 360,
+				activityNotes: null,
+			},
+		}).expect(200);
+		const [storedProfile] = await dataSource.query(
+			"SELECT physical_fitness_level FROM health_profiles WHERE user_id=$1",
+			[camper.id]
+		);
+		expect(storedProfile.physical_fitness_level).toBe("INTERMEDIATE");
+		const firstGeneration = (await regenerate(camper).expect(200)).body;
+		expect(firstGeneration.status).toBe("ready");
+		expect(firstGeneration.items[0].healthAssessment.status).toBe("suitable");
+		expect(firstGeneration.healthBasis.activityProfile.comfortableDistanceKm).toBe(8);
+		const saved = (await get("/camper/health-profile", camper).expect(200)).body;
+		expect(saved.activityProfile.confirmedAt).toBeTruthy();
+		await put(`/camper/health-profile?version=${saved.version}`, camper, {
+			bloodType: "UNKNOWN",
+			physicalFitnessLevel: "INTERMEDIATE",
+			allergies: [],
+			medicalConditions: [],
+			isConsentGranted: true,
+			activityProfile: {
+				comfortableDistanceKm: 3,
+				comfortableWalkingMinutes: 90,
+				activityNotes: null,
+			},
+		}).expect(200);
+		const regenerated = (await regenerate(camper).expect(200)).body;
+		expect(regenerated.healthBasis.activityProfile.comfortableDistanceKm).toBe(3);
+		expect(regenerated.items[0].healthAssessment.status).toBe("needs_review");
+		expect(regenerated.items[0].healthAssessment.comparisons).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ profileValue: "3 km", tripValue: "6 km", result: "caution" }),
+			])
+		);
+		const [profileRun] = await dataSource.query(
+			"SELECT signal_type FROM trip_recommendation_runs WHERE user_id=$1",
+			[camper.id]
+		);
+		expect(profileRun.signal_type).toBe("health_profile");
 	});
 
 	it("orders equally matching Trips by nearest departure, and never changes the Trips", async () => {
@@ -506,7 +587,7 @@ describe("Trip recommendations (integration, real Postgres)", () => {
 			mode: "rules",
 			signal_type: "preferences",
 			fallback_reason: "ai_not_configured",
-			rules_version: "trip-recommendation-rules-v2",
+			rules_version: "trip-recommendation-rules-v4",
 			eligible_count: 2,
 			candidate_count: 2,
 		});
@@ -685,12 +766,16 @@ describe("Trip recommendations (integration, real Postgres)", () => {
 		expect(runs[1]).toMatchObject({ mode: "ai", reused_run_id: runs[0].id, ai_ranking: null });
 		expect(runs[1].signal_fingerprint).toBe(runs[0].signal_fingerprint);
 
+		// An explicit regeneration bypasses the cached order, even with unchanged preferences.
+		await regenerate(camper).expect(200);
+		expect(aiStub.rank).toHaveBeenCalledTimes(2);
+
 		await put("/profiles/me/trip-preferences", camper, {
 			...NO_PREFERENCES,
 			regions: ["ba_na_hoa_vang"],
 		}).expect(200);
 		await recommendedIds(camper);
-		expect(aiStub.rank).toHaveBeenCalledTimes(2);
+		expect(aiStub.rank).toHaveBeenCalledTimes(3);
 	});
 
 	it("returns an empty list when nothing is eligible", async () => {
@@ -745,17 +830,23 @@ describe("Trip recommendations (integration, real Postgres)", () => {
 			],
 		}));
 
-		// Consent off: the profile exists but is ignored.
+		// Consent off: the profile exists but no recommendation is generated.
 		await setHealthProfile(camper, { fitness: "BEGINNER", consent: false });
-		expect(await recommendedIds(camper)).toEqual([expert, easy]);
+		expect(await recommendedIds(camper)).toEqual([]);
+		expect(aiStub.rank).not.toHaveBeenCalled();
 
 		await setHealthProfile(camper, { fitness: "BEGINNER", consent: true, conditions: true });
 		const response = await get("/trip-recommendations", camper).expect(200);
-		expect(response.body.items.map((item: { trip: { id: string } }) => item.trip.id)).toEqual([
-			easy,
-			expert,
-		]);
-		expect(response.body.items[0].reasons[0]).toBe("fitness_match");
+		expect(
+			response.body.items.map((item: { trip: { id: string } }) => item.trip.id).sort()
+		).toEqual([easy, expert].sort());
+		expect(
+			response.body.items.every(
+				(item: { healthAssessment: { status: string } }) =>
+					item.healthAssessment.status === "needs_review"
+			)
+		).toBe(true);
+		expect(response.body.items[0].reasons).not.toContain("fitness_match");
 		// The health change re-ranked locally; the AI was asked once and never saw health data.
 		expect(aiStub.rank).toHaveBeenCalledTimes(1);
 		expect(JSON.stringify(aiStub.rank.mock.calls)).not.toMatch(
@@ -827,7 +918,11 @@ describe("Trip recommendations (integration, real Postgres)", () => {
 		});
 		expect(section("price").quote.text).toBe("Đến 5.000.000 đ");
 		expect(section("price").detail).toBe("Giá chuyến là 1.850.000 đ/người.");
-		expect(response.body.summary).toMatch(/^Vì vậy chuyến này phù hợp với bạn về /);
+		expect(response.body.summary).toContain(
+			"Chuyến đi phù hợp với sở thích, kinh nghiệm và ngân sách của bạn."
+		);
+		expect(response.body.summary).toContain("Độ khó vượt mức bạn khai báo.");
+		expect(response.body.summary).not.toContain("Vì vậy");
 		expect(JSON.stringify(response.body)).not.toContain(suggested.slice(0, 8));
 
 		// Another Camper, a Trip that was not suggested, and a malformed id.
@@ -837,19 +932,16 @@ describe("Trip recommendations (integration, real Postgres)", () => {
 		await get(`/trip-recommendations/trips/${suggested}/explanation`, host).expect(403);
 	});
 
-	it("explains without health when consent is off", async () => {
+	it("blocks a previously generated explanation after health sharing is revoked", async () => {
 		const camper = await createCamperWithSignal();
 		const suggested = await createTrip({ title: "Khám phá bán đảo Sơn Trà" });
-		await setHealthProfile(camper, { fitness: "EXPERT", consent: false, conditions: true });
 		await recommendedIds(camper);
+		await setHealthProfile(camper, { fitness: "EXPERT", consent: false, conditions: true });
 		const response = await get(
 			`/trip-recommendations/trips/${suggested}/explanation`,
 			camper
-		).expect(200);
-		expect(response.body.healthConsidered).toBe(false);
-		const kinds = response.body.sections.map((section: { kind: string }) => section.kind);
-		expect(kinds).not.toContain("fitness");
-		expect(kinds).not.toContain("health_note");
+		).expect(403);
+		expect(response.body.code).toBe("HEALTH_CONSENT_REQUIRED");
 		expect(JSON.stringify(response.body)).not.toContain("Hen suyễn");
 	});
 });

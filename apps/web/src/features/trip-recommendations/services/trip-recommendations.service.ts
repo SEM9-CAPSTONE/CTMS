@@ -7,6 +7,8 @@ import type {
 } from "../types";
 
 export const tripRecommendationsService = {
+	regenerate: () =>
+		httpClient.post<TripRecommendations>(API_ENDPOINTS.TRIP_RECOMMENDATIONS.REGENERATE),
 	list: (signal?: AbortSignal) =>
 		httpClient.get<TripRecommendations>(API_ENDPOINTS.TRIP_RECOMMENDATIONS.LIST, undefined, {
 			signal,

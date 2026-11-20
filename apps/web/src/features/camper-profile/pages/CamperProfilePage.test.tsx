@@ -245,8 +245,8 @@ describe("CamperProfilePage", () => {
 		expect(await screen.findByText("Hoàn thiện hồ sơ")).toBeInTheDocument();
 		expect(screen.getByText("50%")).toBeInTheDocument();
 		expect(
-			screen.getByText("Đảm bảo an toàn tuyệt đối và quy trình ứng cứu khẩn cấp.")
-		).toBeInTheDocument();
+			screen.queryByText("Đảm bảo an toàn tuyệt đối và quy trình ứng cứu khẩn cấp.")
+		).not.toBeInTheDocument();
 
 		// Initially collapsed: shows progress and toggle button
 		const toggleButton = screen.getByRole("button", { name: /Chi tiết/i });

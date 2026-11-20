@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
+import type { ActivityProfile } from "../profiles/entities/activity-profile";
 import type { FitnessLevel } from "../profiles/entities/health-profile.entity";
 import type { TrekkingRouteDifficulty } from "../trekking-routes/entities/trekking-route.entity";
 import type { TripType } from "../trips/entities/trip.entity";
+import { type TripHealthAssessment, prioritizeHealth } from "./trip-health-assessment";
 import type { TripRegionCode } from "./trip-regions";
 
-export const RECOMMENDATION_RULES_VERSION = "trip-recommendation-rules-v2";
+export const RECOMMENDATION_RULES_VERSION = "trip-recommendation-rules-v4";
 export const RECOMMENDATION_PROMPT_VERSION = "trip-recommendation-v1";
 export const MAX_RECOMMENDATIONS = 6;
 export const MAX_AI_CANDIDATES = 30;
@@ -20,6 +22,7 @@ export type RecommendationSignalType =
 	| "none"
 	| "preferences"
 	| "history"
+	| "health_profile"
 	| "preferences_and_history";
 export type RecommendationFallbackReason =
 	| "ai_not_configured"
@@ -136,7 +139,7 @@ export function hasPreferenceSignal(preferences: TripPreferences): boolean {
 export function signalTypeOf(
 	preferences: TripPreferences,
 	history: HistoryProfile
-): RecommendationSignalType {
+): Exclude<RecommendationSignalType, "health_profile"> {
 	const fromPreferences = hasPreferenceSignal(preferences);
 	const fromHistory = history.bookingCount > 0;
 	if (fromPreferences && fromHistory) return "preferences_and_history";
@@ -271,6 +274,7 @@ export function defaultReasons(candidate: ScoredCandidate): RecommendationReason
 }
 
 export interface RankedCandidate {
+	healthAssessment?: TripHealthAssessment;
 	candidate: ScoredCandidate;
 	reasons: RecommendationReason[];
 }
@@ -408,90 +412,27 @@ export function applyCachedRanking(
 	return ranked;
 }
 
-/**
- * The only health facts recommendations use, and only when the Camper consented to share their
- * health profile. Allergies, notes and condition names are never read. Stays on the server.
- */
+/** Consented activity facts and support-needs flags stay on the server; no clinical names reach the AI. */
 export interface HealthSignal {
 	fitnessLevel: FitnessLevel;
 	hasMedicalConditions: boolean;
+	activityProfile?: ActivityProfile | null;
+	hasAllergies?: boolean;
+	hasDietaryRestrictions?: boolean;
 }
 
-export type FitnessFit = "good" | "stretch" | "too_hard";
+export {
+	fitnessFit,
+	isLongRoute,
+	LONG_ROUTE_METERS,
+	LONG_ROUTE_MINUTES,
+	type FitnessFit,
+} from "./trip-fitness.policy";
 
-/** Keyed by the enum string values (easy … expert, BEGINNER … EXPERT). */
-const DIFFICULTY_LEVEL: Readonly<Record<string, number>> = {
-	easy: 0,
-	moderate: 1,
-	hard: 2,
-	expert: 3,
-};
-const FITNESS_CEILING: Readonly<Record<string, number>> = {
-	BEGINNER: 0,
-	INTERMEDIATE: 1,
-	ADVANCED: 2,
-	EXPERT: 3,
-};
-/** A Route longer or slower than this counts one difficulty step harder. */
-export const LONG_ROUTE_METERS = 15_000;
-export const LONG_ROUTE_MINUTES = 8 * 60;
-
-export function isLongRoute(lengthMeters: number | null, durationMinutes: number | null): boolean {
-	return (
-		(lengthMeters !== null && lengthMeters > LONG_ROUTE_METERS) ||
-		(durationMinutes !== null && durationMinutes > LONG_ROUTE_MINUTES)
-	);
-}
-
-/** How a Trip's effort compares with the Camper's self-declared fitness; null when unknown. */
-export function fitnessFit(
-	fitnessLevel: FitnessLevel,
-	difficulty: TrekkingRouteDifficulty | null,
-	lengthMeters: number | null,
-	durationMinutes: number | null
-): FitnessFit | null {
-	if (difficulty === null) return null;
-	const effort =
-		(DIFFICULTY_LEVEL[difficulty] ?? 0) + (isLongRoute(lengthMeters, durationMinutes) ? 1 : 0);
-	const over = effort - (FITNESS_CEILING[fitnessLevel] ?? 0);
-	if (over <= 0) return "good";
-	return over === 1 ? "stretch" : "too_hard";
-}
-
-/**
- * Applied after the AI (or cached, or rule) order so no health fact reaches the AI: Trips well
- * beyond the Camper's fitness move behind the others (never removed), and Trips that suit it lead
- * with "Phù hợp thể lực của bạn". Recomputed on every generation, so a health profile change shows
- * immediately without asking the AI again.
- */
+/** Health tiers take precedence over preferences and AI ranking. */
 export function applyHealthFit(
 	ranked: readonly RankedCandidate[],
 	health: HealthSignal | null
 ): RankedCandidate[] {
-	if (!health) return [...ranked];
-	const suitable: RankedCandidate[] = [];
-	const tooHard: RankedCandidate[] = [];
-	for (const item of ranked) {
-		const { facts } = item.candidate;
-		const fit = fitnessFit(
-			health.fitnessLevel,
-			facts.difficulty,
-			facts.routeLengthMeters,
-			facts.routeDurationMinutes
-		);
-		if (fit === "too_hard") {
-			tooHard.push(item);
-		} else if (fit === "good") {
-			suitable.push({
-				candidate: item.candidate,
-				reasons: [
-					"fitness_match",
-					...item.reasons.filter((reason) => reason !== "fitness_match"),
-				].slice(0, MAX_REASONS_PER_TRIP) as RecommendationReason[],
-			});
-		} else {
-			suitable.push(item);
-		}
-	}
-	return [...suitable, ...tooHard];
+	return prioritizeHealth(ranked, health);
 }

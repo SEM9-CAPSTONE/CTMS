@@ -1,4 +1,5 @@
 import 'published_trip.dart';
+import 'trip_health_assessment.dart';
 
 /// Labels for the reason codes the backend has validated; AI text is never shown.
 const recommendationReasonLabels = <String, String>{
@@ -15,10 +16,19 @@ const recommendationReasonLabels = <String, String>{
 };
 
 class TripRecommendationItem {
-  const TripRecommendationItem({required this.trip, required this.reasons});
+  const TripRecommendationItem({
+    required this.trip,
+    required this.reasons,
+    this.healthAssessment,
+  });
 
   factory TripRecommendationItem.fromJson(Map<String, Object?> json) =>
       TripRecommendationItem(
+        healthAssessment: json['healthAssessment'] is Map<String, Object?>
+            ? TripHealthAssessment.fromJson(
+                json['healthAssessment'] as Map<String, Object?>,
+              )
+            : null,
         trip: PublishedTrip.fromJson(json['trip'] as Map<String, Object?>),
         reasons: [
           for (final reason in json['reasons'] as List<Object?>)
@@ -27,6 +37,7 @@ class TripRecommendationItem {
       );
 
   final PublishedTrip trip;
+  final TripHealthAssessment? healthAssessment;
 
   /// Already translated labels; unknown codes are dropped.
   final List<String> reasons;
@@ -34,24 +45,34 @@ class TripRecommendationItem {
 
 class TripRecommendations {
   const TripRecommendations({
+    this.healthBasis,
     required this.items,
     required this.needsPreferences,
+    this.needsHealthConsent = false,
   });
 
   factory TripRecommendations.fromJson(Map<String, Object?> json) =>
       TripRecommendations(
+        healthBasis: json['healthBasis'] is Map<String, Object?>
+            ? RecommendationHealthBasis.fromJson(
+                json['healthBasis'] as Map<String, Object?>,
+              )
+            : null,
         items: [
           for (final item in json['items'] as List<Object?>)
             TripRecommendationItem.fromJson(item as Map<String, Object?>),
         ],
         needsPreferences: json['status'] == 'needs_preferences',
+        needsHealthConsent: json['status'] == 'needs_health_consent',
       );
 
   final List<TripRecommendationItem> items;
+  final RecommendationHealthBasis? healthBasis;
 
   /// No preferences and no booking history yet: nothing was generated, the Camper must choose
   /// preferences first.
   final bool needsPreferences;
+  final bool needsHealthConsent;
 }
 
 /// match: why it fits; info: facts; caution: what to weigh before booking.
@@ -139,6 +160,7 @@ class TripRecommendationExplanationSection {
 /// "Vì sao gợi ý chuyến này" for a Trip from the Camper's latest suggestions.
 class TripRecommendationExplanation {
   const TripRecommendationExplanation({
+    this.healthAssessment,
     required this.sections,
     required this.summary,
     required this.healthConsidered,
@@ -146,6 +168,11 @@ class TripRecommendationExplanation {
 
   factory TripRecommendationExplanation.fromJson(Map<String, Object?> json) =>
       TripRecommendationExplanation(
+        healthAssessment: json['healthAssessment'] is Map<String, Object?>
+            ? TripHealthAssessment.fromJson(
+                json['healthAssessment'] as Map<String, Object?>,
+              )
+            : null,
         sections: [
           for (final section in json['sections'] as List<Object?>)
             TripRecommendationExplanationSection.fromJson(
@@ -157,10 +184,13 @@ class TripRecommendationExplanation {
       );
 
   final List<TripRecommendationExplanationSection> sections;
+  final TripHealthAssessment? healthAssessment;
 
   /// Overall "Vì vậy chuyến này phù hợp với bạn…".
   final String summary;
   final bool healthConsidered;
+
+  bool get hasDisplaySummary => summary.trim().isNotEmpty;
 }
 
 class TripRegionOption {
