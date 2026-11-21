@@ -302,11 +302,24 @@ describe("Host Business Analytics & Suggestions API (CTMS-415, integration)", ()
 				routeId: routeA,
 				areaCode: "DNG-SON-TRA",
 				tripType: "day_trip",
+				title: expect.stringContaining("Tháng "),
 				pricePerPerson: 650000,
 				capacityMin: 4,
+				capacityMax: 10,
+				meetingLongitude: 108.22,
+				meetingLatitude: 16.05,
+				startsAt: expect.any(String),
+				endsAt: expect.any(String),
+				meetingAt: expect.any(String),
+				bookingDeadline: expect.any(String),
 				suggestedMonth: monthHint,
 			},
 		});
+		// Verify schema temporal constraints on suggested schedule
+		const { bookingDeadline, meetingAt, startsAt, endsAt } = quickCtx.body.prefill;
+		expect(new Date(bookingDeadline).getTime()).toBeLessThan(new Date(meetingAt).getTime());
+		expect(new Date(meetingAt).getTime()).toBeLessThan(new Date(startsAt).getTime());
+		expect(new Date(startsAt).getTime()).toBeLessThan(new Date(endsAt).getTime());
 	});
 
 	async function createAccount(role: "host" | "camper", fullName: string): Promise<TestAccount> {

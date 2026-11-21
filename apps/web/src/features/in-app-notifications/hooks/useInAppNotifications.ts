@@ -2,8 +2,9 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { useCallback, useEffect, useRef } from "react";
 import { queryKeys } from "../../../core/api/queryKeys";
 import { useRealtimeConnection, useRealtimeEvent } from "../../../core/realtime/useRealtime";
+import { toast } from "../../../shared/components/Toast";
 import { getStoredAuthUser } from "../../auth/utils/tokenStorage";
-import { NOTIFICATION_EVENTS, NOTIFICATION_POLL_MS } from "../constants";
+import { NOTIFICATION_EVENTS } from "../constants";
 import { inAppNotificationsService } from "../services/in-app-notifications.service";
 
 export function useInAppNotifications(unread: boolean, open: boolean) {
@@ -18,7 +19,7 @@ export function useInAppNotifications(unread: boolean, open: boolean) {
 		enabled: enabled && open,
 		retry: false,
 		gcTime: 0,
-		refetchInterval: open ? NOTIFICATION_POLL_MS : false,
+		refetchInterval: open ? 3_000 : false,
 		refetchOnWindowFocus: "always" as const,
 	});
 	const count = useQuery({
@@ -27,12 +28,41 @@ export function useInAppNotifications(unread: boolean, open: boolean) {
 		enabled,
 		retry: false,
 		gcTime: 0,
-		refetchInterval: NOTIFICATION_POLL_MS,
+		refetchInterval: 3_000,
 		refetchOnWindowFocus: "always" as const,
 	});
 	const refresh = useCallback(() => {
 		void client.invalidateQueries({ queryKey: queryKeys.inAppNotifications.actor(actor) });
+		void client.invalidateQueries({ queryKey: ["review-moderation"] });
+		void client.invalidateQueries({ queryKey: ["review-analytics"] });
 	}, [actor, client]);
+
+	const prevUnreadRef = useRef<number | null>(null);
+	useEffect(() => {
+		const nextUnread = count.data?.unreadCount;
+		if (typeof nextUnread !== "number") return;
+		if (prevUnreadRef.current !== null && nextUnread > prevUnreadRef.current) {
+			void inAppNotificationsService
+				.list(true)
+				.then((page) => {
+					const latest = page.items[0];
+					if (!latest) return;
+					if (latest.eventType === NOTIFICATION_EVENTS.REVIEW_AUTO_HIDDEN) {
+						toast.warning(
+							`AI vừa tự động ẩn một đánh giá vi phạm trên chuyến "${latest.target?.title ?? "của bạn"}".`
+						);
+					} else if (latest.eventType === NOTIFICATION_EVENTS.REVIEW_MODERATION_FLAGGED) {
+						toast.info(
+							`AI phát hiện một đánh giá cần kiểm tra trên chuyến "${latest.target?.title ?? "của bạn"}".`
+						);
+					}
+					void client.invalidateQueries({ queryKey: ["review-moderation"] });
+					void client.invalidateQueries({ queryKey: ["review-analytics"] });
+				})
+				.catch(() => undefined);
+		}
+		prevUnreadRef.current = nextUnread;
+	}, [count.data?.unreadCount, client]);
 	const connection = useRealtimeConnection(enabled);
 	const lastEpoch = useRef(-1);
 	useEffect(() => {

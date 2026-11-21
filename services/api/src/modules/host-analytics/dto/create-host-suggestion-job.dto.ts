@@ -1,4 +1,12 @@
-import { IsISO8601, IsOptional, IsString, MaxLength } from "class-validator";
+import {
+	IsArray,
+	IsBoolean,
+	IsISO8601,
+	IsOptional,
+	IsString,
+	Matches,
+	MaxLength,
+} from "class-validator";
 
 export class CreateHostSuggestionJobDto {
 	@IsOptional()
@@ -13,4 +21,18 @@ export class CreateHostSuggestionJobDto {
 	@IsString()
 	@MaxLength(32)
 	areaCode?: string;
+
+	@IsOptional()
+	@IsString()
+	@Matches(/^\d{4}-(0[1-9]|1[0-2])$/)
+	monthHint?: string;
+
+	@IsOptional()
+	@IsArray()
+	@IsString({ each: true })
+	excludeRouteIds?: string[];
+
+	@IsOptional()
+	@IsBoolean()
+	refresh?: boolean;
 }

@@ -54,8 +54,18 @@ export function ModerationDecisionDialog({
 	const defaultReason: ModerationFlagType =
 		item.activeFlags[0]?.flagType || item.hiddenReason || "profanity_or_insult";
 
+	const maxFlagConfidence = item.activeFlags.reduce<number>((max, flag) => {
+		if (flag.detectionSource === "rule" || flag.confidence === null) {
+			return 1;
+		}
+		return Math.max(max, flag.confidence);
+	}, 0);
+
+	const canHideReview =
+		isCurrentlyHidden || isUnverified || item.activeFlags.length === 0 || maxFlagConfidence >= 0.5;
+
 	const [decision, setDecision] = useState<HostModerationDecisionAction>(
-		isCurrentlyHidden ? "restore" : "hide"
+		isCurrentlyHidden ? "restore" : canHideReview ? "hide" : "keep"
 	);
 	const [reason, setReason] = useState<ModerationFlagType>(defaultReason);
 	const [note, setNote] = useState("");
@@ -274,16 +284,19 @@ export function ModerationDecisionDialog({
 								{!isCurrentlyHidden && (
 									<>
 										<label
-											className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${
-												decision === "hide"
-													? "border-rose-600 bg-rose-50/60 text-rose-950"
-													: "border-[#dfe8df] bg-white hover:bg-[#f9faf8]"
+											className={`flex items-start gap-3 rounded-xl border p-3 transition ${
+												!canHideReview
+													? "cursor-not-allowed border-[#e5eae4] bg-[#f8faf7] opacity-60"
+													: decision === "hide"
+														? "cursor-pointer border-rose-600 bg-rose-50/60 text-rose-950"
+														: "cursor-pointer border-[#dfe8df] bg-white hover:bg-[#f9faf8]"
 											}`}
 										>
 											<input
 												type="radio"
 												name="decision"
 												value="hide"
+												disabled={!canHideReview}
 												checked={decision === "hide"}
 												onChange={() => setDecision("hide")}
 												className="mt-1 size-4 accent-rose-700"
@@ -291,7 +304,9 @@ export function ModerationDecisionDialog({
 											<div className="min-w-0">
 												<span className="text-sm font-semibold text-rose-900">Ẩn đánh giá</span>
 												<p className="text-xs text-[#667a6d]">
-													Ẩn đánh giá và cách ly ảnh đính kèm khỏi trang chuyến đi công khai.
+													{canHideReview
+														? "Ẩn đánh giá và cách ly ảnh đính kèm khỏi trang chuyến đi công khai."
+														: "Độ tin cậy vi phạm dưới 50% — theo quy định hệ thống, đánh giá này không được ẩn."}
 												</p>
 											</div>
 										</label>

@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { BadRequestException } from "@nestjs/common";
 import type {
+	AiRiskCode,
+	AiRiskItemDto,
 	ExcludedTripDto,
 	HostAnalyticsRationaleCode,
 	HostLeadTimeDto,
@@ -11,15 +13,26 @@ import type {
 	OperationsRouteBreakdownDto,
 	OperationsTripBreakdownDto,
 	SeasonalityMonthPointDto,
+	SuggestionWeatherSummaryDto,
 } from "./dto/host-analytics-response.dto";
 
 export const HOST_ANALYTICS_TIMEZONE = "Asia/Ho_Chi_Minh" as const;
 export const HOST_ANALYTICS_FORMULA_VERSION = "host-analytics-v1" as const;
-export const HOST_PLANNING_PROMPT_VERSION = "host-planning-v1" as const;
+export const HOST_PLANNING_PROMPT_VERSION = "host-planning-v2" as const;
+export const SUGGESTION_MIN_LEAD_DAYS = 14;
 export const SMALL_SAMPLE_MIN_TRIPS = 5;
 export const SMALL_SAMPLE_MIN_BOOKINGS = 20;
 export const SEASONALITY_MIN_SPAN_MONTHS = 12;
 export const UPCOMING_TRIPS_LIMIT = 20;
+
+export const ALLOWED_AI_RISK_CODES = [
+	"rain_risk",
+	"heat_risk",
+	"cold_risk",
+	"crowd_peak",
+	"off_peak_demand",
+	"short_lead_time",
+] as const;
 
 export const ALLOWED_RATIONALE_CODES: readonly HostAnalyticsRationaleCode[] = [
 	"high_fill_history",
@@ -86,10 +99,38 @@ export interface RouteCandidate {
 	missingData: string[];
 }
 
+export interface LatestCompletedTripTemplate {
+	id: string;
+	title: string;
+	routeId: string;
+	tripType: "day_trip" | "overnight";
+	areaCode: string | null;
+	capacityMin: number;
+	capacityMax: number | null;
+	pricePerPerson: number;
+	startsAt: Date;
+	endsAt: Date;
+	meetingAt: Date | null;
+	bookingDeadline: Date;
+	meetingLongitude: number | null;
+	meetingLatitude: number | null;
+	routeLengthMeters: number | null;
+}
+
+export interface SuggestedScheduleResult {
+	startsAt: Date;
+	endsAt: Date;
+	meetingAt: Date;
+	bookingDeadline: Date;
+}
+
 export interface AiPlanningSelectionItem {
 	candidateId: string;
 	monthHint: string;
 	rationaleCodes: HostAnalyticsRationaleCode[];
+	aiSeasonNote: string | null;
+	aiRisks: AiRiskItemDto[] | null;
+	aiConfidence: "low" | "medium" | null;
 }
 
 export interface SourceHashInput {
@@ -634,12 +675,297 @@ export function computeSourceHash(input: SourceHashInput): string {
 }
 
 export function buildAllowedFutureMonths(now: Date = new Date(), count = 6): string[] {
-	const currentMonth = monthKeyInVietnam(now);
+	// Align strictly with SUGGESTION_MIN_LEAD_DAYS (14 days) so allowedMonths and schedule dates never diverge
+	const earliestValid = new Date(now.getTime() + SUGGESTION_MIN_LEAD_DAYS * 86_400_000);
+	const startMonth = monthKeyInVietnam(earliestValid);
 	const months: string[] = [];
-	for (let i = 1; i <= count; i += 1) {
-		months.push(addMonthsToKey(currentMonth, i));
+	for (let i = 0; i < count; i += 1) {
+		months.push(addMonthsToKey(startMonth, i));
 	}
 	return months;
+}
+
+export function buildSuggestedTripTitle(baseTitle: string, monthHint: string): string {
+	const [year, month] = monthHint.split("-");
+	const suffix = year && month ? ` (Tháng ${Number(month)}/${year})` : "";
+	const cleaned = baseTitle.replace(/\s*\(Tháng\s+\d{1,2}\/\d{4}\)\s*$/i, "").trim();
+	const combined = `${cleaned}${suffix}`.trim();
+	if (combined.length <= 150) return combined;
+	return `${cleaned.slice(0, Math.max(1, 150 - suffix.length)).trim()}${suffix}`;
+}
+
+export interface MonthHolidayHighlightConfig {
+	label: string;
+	preferOvernight: boolean;
+	preferredDays: number[];
+	capacityBoostNote: string | null;
+}
+
+export function getMonthHolidayHighlight(monthHint: string): MonthHolidayHighlightConfig | null {
+	const [, monthStr] = monthHint.split("-");
+	const monthNum = Number(monthStr);
+	switch (monthNum) {
+		case 1:
+			return {
+				label: "Dịp Tết Dương lịch",
+				preferOvernight: true,
+				preferredDays: [1, 2, 3, 9, 10],
+				capacityBoostNote:
+					"Dịp nghỉ Tết Dương lịch nhu cầu đi nhóm tăng — ưu tiên tuyến Qua đêm và mở rộng sức chứa thêm 2–4 khách.",
+			};
+		case 2:
+			return {
+				label: "Kỳ nghỉ Tết Nguyên đán",
+				preferOvernight: true,
+				preferredDays: [6, 7, 12, 13, 14, 20, 21],
+				capacityBoostNote:
+					"Kỳ nghỉ Tết Nguyên đán dài ngày rất phù hợp cho hành trình cắm trại Qua đêm đầu xuân.",
+			};
+		case 4:
+			return {
+				label: "Giỗ Tổ Hùng Vương & Lễ 30/4",
+				preferOvernight: true,
+				preferredDays: [16, 17, 18, 24, 25, 30],
+				capacityBoostNote:
+					"Kỳ nghỉ lễ Giỗ Tổ & 30/4 dài ngày — ưu tiên tuyến Qua đêm và cân nhắc tăng sức chứa tối đa.",
+			};
+		case 5:
+			return {
+				label: "Kỳ nghỉ Lễ 30/4 – 01/05",
+				preferOvernight: true,
+				preferredDays: [1, 2, 8, 9],
+				capacityBoostNote: "Cuối tuần nối lễ 01/05 khách thường đặt chỗ sớm theo nhóm bạn bè.",
+			};
+		case 9:
+			return {
+				label: "Kỳ nghỉ Lễ Quốc khánh 02/09",
+				preferOvernight: true,
+				preferredDays: [2, 3, 4, 5],
+				capacityBoostNote:
+					"Kỳ nghỉ lễ Quốc khánh phù hợp mở chuyến Qua đêm với sức chứa linh hoạt.",
+			};
+		default:
+			return null;
+	}
+}
+
+export function formatVietnamShortDateOptionLabel(startsAt: Date): string {
+	const vn = new Date(startsAt.getTime() + 7 * 3600 * 1000);
+	const dowLabels = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"] as const;
+	const dow = dowLabels[vn.getUTCDay()] ?? "T7";
+	const dd = String(vn.getUTCDate()).padStart(2, "0");
+	const mm = String(vn.getUTCMonth() + 1).padStart(2, "0");
+	return `${dow}, ${dd}/${mm}`;
+}
+
+/**
+ * Computes a valid suggested schedule in `monthHint` matching the day-of-week and time-of-day
+ * (in Asia/Ho_Chi_Minh) of `latestTrip`, at least `SUGGESTION_MIN_LEAD_DAYS` (14) days from `now`,
+ * skipping any dates in `avoidedDateKeys` (e.g. RED weather days or Host schedule conflicts).
+ * Returns null if no valid schedule satisfies all create-trip.schema.ts constraints.
+ */
+export function computeSuggestedSchedule(
+	latestTrip: LatestCompletedTripTemplate,
+	monthHint: string,
+	now: Date = new Date(),
+	avoidedDateKeys: ReadonlySet<string> = new Set()
+): SuggestedScheduleResult | null {
+	const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(monthHint);
+	if (!match) return null;
+	const targetYear = Number(match[1]);
+	const targetMonth = Number(match[2]); // 1..12
+
+	const vnOffsetMs = 7 * 3600 * 1000;
+	const origStartVn = new Date(latestTrip.startsAt.getTime() + vnOffsetMs);
+	const targetDow = origStartVn.getUTCDay(); // 0..6
+	const origHour = origStartVn.getUTCHours();
+	const origMinute = origStartVn.getUTCMinutes();
+
+	const origDurationMs = latestTrip.endsAt.getTime() - latestTrip.startsAt.getTime();
+	// Minimum realistic duration based on route length (~2.5 km/h conservative trekking pace, min 2h)
+	const minRouteMs =
+		latestTrip.routeLengthMeters && latestTrip.routeLengthMeters > 0
+			? Math.max(2 * 3600 * 1000, Math.ceil((latestTrip.routeLengthMeters / 2500) * 3600 * 1000))
+			: 2 * 3600 * 1000;
+	const maxDayTripDurationMs = 14 * 3600 * 1000;
+	const rawDurationMs = Math.max(origDurationMs > 0 ? origDurationMs : minRouteMs, minRouteMs);
+	const durationMs =
+		latestTrip.tripType === "day_trip"
+			? Math.min(rawDurationMs, maxDayTripDurationMs)
+			: rawDurationMs;
+
+	// For day_trip, if original departure time + duration crosses midnight in Vietnam time, or has non-rounded seed minutes, normalize to 06:00 morning start
+	const crossesMidnightVn =
+		latestTrip.tripType === "day_trip" &&
+		origHour * 3600 * 1000 + origMinute * 60 * 1000 + durationMs >= 24 * 3600 * 1000;
+	const hasUnroundedSeedTime = origMinute !== 0 && origMinute !== 30;
+	const effectiveHour = crossesMidnightVn || hasUnroundedSeedTime ? 6 : origHour;
+	const effectiveMinute = crossesMidnightVn || hasUnroundedSeedTime ? 0 : origMinute;
+
+	const origMeetingOffsetMs =
+		latestTrip.meetingAt && latestTrip.meetingAt.getTime() < latestTrip.startsAt.getTime()
+			? latestTrip.startsAt.getTime() - latestTrip.meetingAt.getTime()
+			: 30 * 60 * 1000;
+	const meetingOffsetMs = Math.min(Math.max(origMeetingOffsetMs, 15 * 60 * 1000), 4 * 3600 * 1000);
+
+	const origDeadlineOffsetMs =
+		latestTrip.bookingDeadline.getTime() < latestTrip.startsAt.getTime()
+			? latestTrip.startsAt.getTime() - latestTrip.bookingDeadline.getTime()
+			: 2 * 86_400_000;
+	const deadlineOffsetMs = Math.max(
+		Math.min(origDeadlineOffsetMs, 7 * 86_400_000),
+		meetingOffsetMs + 60 * 60 * 1000
+	);
+
+	const earliestStartMs = now.getTime() + SUGGESTION_MIN_LEAD_DAYS * 86_400_000;
+	const earliestDateKeyVn = vietnamDateKey(new Date(earliestStartMs));
+	const forecastHorizonEndMs = Date.UTC(
+		now.getUTCFullYear(),
+		now.getUTCMonth(),
+		now.getUTCDate() + 15,
+		0,
+		0,
+		0
+	);
+	const daysInMonth = new Date(Date.UTC(targetYear, targetMonth, 0)).getUTCDate();
+
+	const resolveDayStartMs = (day: number): number => {
+		const candidateMs =
+			Date.UTC(targetYear, targetMonth - 1, day, effectiveHour, effectiveMinute, 0, 0) - vnOffsetMs;
+		const dateKey = `${String(targetYear).padStart(4, "0")}-${String(targetMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+		// If today is past 06:00 VN, keep the day +14 calendar date eligible by bumping morning start to 08:00 VN (or earliestStartMs + 30m)
+		if (dateKey === earliestDateKeyVn && candidateMs < earliestStartMs) {
+			const bumped = new Date(earliestStartMs + 30 * 60 * 1000);
+			bumped.setUTCMinutes(0, 0, 0);
+			const nextHourMs = bumped.getTime() + 60 * 60 * 1000;
+			if (vietnamDateKey(new Date(nextHourMs)) === dateKey) {
+				return nextHourMs;
+			}
+		}
+		return candidateMs;
+	};
+
+	const holidayConfig = getMonthHolidayHighlight(monthHint);
+	const holidayPreferredSet = new Set<number>(holidayConfig?.preferredDays ?? []);
+	const holidayPreferredDays: number[] = [];
+
+	// Collect candidate days: prioritize days inside the 15-day weather forecast horizon first so near-term suggestions always get live Open-Meteo forecasts
+	const inHorizonSameDow: number[] = [];
+	const inHorizonOtherDays: number[] = [];
+	const laterSameDow: number[] = [];
+	const laterOtherDays: number[] = [];
+	for (let day = 1; day <= daysInMonth; day += 1) {
+		const dayStartMs = resolveDayStartMs(day);
+		const inHorizon =
+			dayStartMs >= earliestStartMs && dayStartMs + durationMs <= forecastHorizonEndMs;
+		const dow = new Date(Date.UTC(targetYear, targetMonth - 1, day)).getUTCDay();
+		if (inHorizon) {
+			if (dow === targetDow) inHorizonSameDow.push(day);
+			else inHorizonOtherDays.push(day);
+		} else if (holidayPreferredSet.has(day)) {
+			holidayPreferredDays.push(day);
+		} else {
+			if (dow === targetDow) laterSameDow.push(day);
+			else laterOtherDays.push(day);
+		}
+	}
+
+	const orderedDays = [
+		...inHorizonSameDow,
+		...inHorizonOtherDays,
+		...holidayPreferredDays,
+		...laterSameDow,
+		...laterOtherDays,
+	];
+
+	for (const day of orderedDays) {
+		const dateKey = `${String(targetYear).padStart(4, "0")}-${String(targetMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+		if (avoidedDateKeys.has(dateKey)) continue;
+
+		const startsAtMs = resolveDayStartMs(day);
+		if (startsAtMs < earliestStartMs) continue;
+
+		const endsAtMs = startsAtMs + durationMs;
+		const meetingAtMs = startsAtMs - meetingOffsetMs;
+		const bookingDeadlineMs = startsAtMs - deadlineOffsetMs;
+
+		// Verify strict create-trip.schema.ts inequalities
+		if (
+			!(
+				now.getTime() < bookingDeadlineMs &&
+				bookingDeadlineMs < meetingAtMs &&
+				meetingAtMs < startsAtMs &&
+				startsAtMs < endsAtMs
+			)
+		) {
+			continue;
+		}
+
+		// day_trip must start and end on the same Vietnam calendar day
+		if (
+			latestTrip.tripType === "day_trip" &&
+			vietnamDateKey(new Date(startsAtMs)) !== vietnamDateKey(new Date(endsAtMs))
+		) {
+			continue;
+		}
+
+		return {
+			startsAt: new Date(startsAtMs),
+			endsAt: new Date(endsAtMs),
+			meetingAt: new Date(meetingAtMs),
+			bookingDeadline: new Date(bookingDeadlineMs),
+		};
+	}
+
+	return null;
+}
+
+const URL_PATTERN = /(https?:\/\/|www\.|\b[a-z0-9-]+\.(com|vn|org|net|gov|edu|io)\b)/i;
+
+/**
+ * Post-validation guard (Ràng buộc #2):
+ * Rejects any AI narrative containing URLs or numbers not present in the allowed input numbers
+ * (months 1..12, target year, or numbers explicitly in the weather summary).
+ */
+export function sanitizeAiNarrativeText(
+	text: unknown,
+	maxLength: number,
+	allowedNumbers: ReadonlySet<string>
+): string | null {
+	if (typeof text !== "string") return null;
+	const trimmed = text.trim();
+	if (!trimmed || trimmed.length > maxLength) return null;
+	if (URL_PATTERN.test(trimmed)) return null;
+
+	const numberTokens = trimmed.match(/\d+(?:[.,]\d+)?/g) ?? [];
+	for (const rawNum of numberTokens) {
+		const normalized = rawNum.replace(",", ".");
+		if (!allowedNumbers.has(normalized) && !allowedNumbers.has(rawNum)) {
+			return null;
+		}
+	}
+	return trimmed;
+}
+
+export function collectAllowedAiNumbers(
+	monthHint: string,
+	weatherSummary?: SuggestionWeatherSummaryDto | null
+): Set<string> {
+	const allowed = new Set<string>();
+	// Allow calendar month numbers 1..12
+	for (let m = 1; m <= 12; m += 1) {
+		allowed.add(String(m));
+		allowed.add(String(m).padStart(2, "0"));
+	}
+	const [year] = monthHint.split("-");
+	if (year) allowed.add(year);
+	if (weatherSummary?.summary) {
+		for (const token of weatherSummary.summary.match(/\d+(?:[.,]\d+)?/g) ?? []) {
+			allowed.add(token);
+			allowed.add(token.replace(",", "."));
+		}
+	}
+	return allowed;
 }
 
 export function buildRouteCandidates(
@@ -754,11 +1080,13 @@ export function buildRouteCandidates(
 
 export function validateAiPlanningSelection(
 	candidates: RouteCandidate[],
-	rawSelections: unknown
+	rawSelections: unknown,
+	weatherByCandidateId?: ReadonlyMap<string, SuggestionWeatherSummaryDto>
 ): AiPlanningSelectionItem[] {
 	if (!Array.isArray(rawSelections)) return [];
 	const byId = new Map(candidates.map((c) => [c.candidateId, c]));
 	const allowedCodeSet = new Set<string>(ALLOWED_RATIONALE_CODES);
+	const allowedRiskSet = new Set<string>(ALLOWED_AI_RISK_CODES);
 	const seenCandidates = new Set<string>();
 	const valid: AiPlanningSelectionItem[] = [];
 
@@ -787,11 +1115,40 @@ export function validateAiPlanningSelection(
 		}
 		if (rationaleCodes.length === 0) continue;
 
+		const allowedNums = collectAllowedAiNumbers(
+			monthHint,
+			weatherByCandidateId?.get(candidateId) ?? null
+		);
+		const aiSeasonNote = sanitizeAiNarrativeText(rec.aiSeasonNote, 280, allowedNums);
+
+		let aiRisks: AiRiskItemDto[] | null = null;
+		if (Array.isArray(rec.aiRisks)) {
+			const cleanRisks: AiRiskItemDto[] = [];
+			const seenRiskCodes = new Set<string>();
+			for (const r of rec.aiRisks) {
+				if (!r || typeof r !== "object") continue;
+				const rObj = r as Record<string, unknown>;
+				const code = typeof rObj.code === "string" ? rObj.code : null;
+				if (!code || !allowedRiskSet.has(code) || seenRiskCodes.has(code)) continue;
+				const note = sanitizeAiNarrativeText(rObj.note, 140, allowedNums);
+				if (!note) continue;
+				seenRiskCodes.add(code);
+				cleanRisks.push({ code: code as AiRiskCode, note });
+			}
+			aiRisks = cleanRisks.length > 0 ? cleanRisks.slice(0, 3) : null;
+		}
+
+		const aiConfidence =
+			rec.confidence === "low" || rec.confidence === "medium" ? rec.confidence : null;
+
 		seenCandidates.add(candidateId);
 		valid.push({
 			candidateId,
 			monthHint,
 			rationaleCodes: rationaleCodes.slice(0, 3),
+			aiSeasonNote,
+			aiRisks,
+			aiConfidence,
 		});
 	}
 

@@ -146,13 +146,15 @@ export function ReviewAnalysisPage({
 	};
 
 	return (
-		<div className="min-h-screen bg-[#f4f7f2] text-[#10221b]">
-			<header className="sticky top-0 z-30 border-b border-[#dfe8df] bg-white/95 backdrop-blur-sm shadow-2xs">
-				<div className="mx-auto flex min-h-20 max-w-7xl items-center gap-3 px-4 py-3 sm:gap-4 sm:px-6 lg:h-20 lg:py-0">
-					<div className="min-w-0 flex-1">
-						<h1 className="text-xl font-extrabold sm:text-2xl">Phân tích đánh giá</h1>
+		<div className="min-h-screen bg-[#f6f8f5] text-[#10221b]">
+			<header className="sticky top-[65px] z-30 border-b border-[#dfe8df] bg-white/95 backdrop-blur-sm lg:top-0">
+				<div className="mx-auto flex min-h-20 max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:h-20 lg:py-0">
+					<div className="min-w-0">
+						<h1 className="text-xl font-extrabold tracking-tight text-[#10221b] sm:text-2xl">
+							Phân tích đánh giá
+						</h1>
 						<p className="mt-0.5 text-sm text-[#667a6d]">
-							Tổng hợp cảm nhận, phân tích khía cạnh và tín hiệu an toàn từ đánh giá chuyến đi.
+							Tổng hợp cảm nhận, khía cạnh trải nghiệm và tín hiệu an toàn từ đánh giá chuyến đi.
 						</p>
 					</div>
 				</div>
@@ -233,17 +235,17 @@ export function ReviewAnalysisPage({
 							data && (
 								<>
 									{/* Sticky Mini-Nav Bar for fast section jumping */}
-									<div className="sticky top-20 z-20 -mx-4 mb-4 border-b border-[#dfe8df] bg-[#f6f8f6]/95 px-4 py-2.5 shadow-2xs backdrop-blur-xs">
-										<div className="flex items-center gap-2 overflow-x-auto px-1 no-scrollbar">
+									<div className="sticky top-[145px] z-20 rounded-2xl border border-[#dfe8df] bg-white/95 px-3 py-2 shadow-2xs backdrop-blur-xs lg:top-20">
+										<div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
 											{SECTIONS.map((sec) => (
 												<button
 													key={sec.id}
 													type="button"
 													onClick={() => scrollToSection(sec.id)}
-													className={`shrink-0 rounded-full px-3.5 py-1 text-xs font-semibold transition ${
+													className={`shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
 														activeSection === sec.id
 															? "bg-[#164027] text-white shadow-2xs"
-															: "border border-[#dfe8df] bg-white text-[#374151] hover:bg-[#edf4e8]"
+															: "text-[#374151] hover:bg-[#edf4e8]"
 													}`}
 												>
 													{sec.label}
