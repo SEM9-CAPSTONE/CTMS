@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/core/api/api_exception.dart';
-import 'package:mobile/features/porter/presentation/porter_schedule_screen.dart';
+import 'package:mobile/features/trip_operations/presentation/porter_trips_screen.dart';
+import '../porter/porter_trip_test_support.dart';
 import 'package:mobile/features/trip_operations/application/trip_operations_providers.dart';
 import 'package:mobile/features/trip_operations/data/trip_operations_api.dart';
 import 'package:mobile/features/trip_operations/domain/operational_trip.dart';
@@ -67,10 +68,11 @@ Future<void> _mount(
       overrides: [
         porterOperationsAccountProvider.overrideWithValue(_key.accountId),
         tripOperationsApiProvider.overrideWithValue(api),
+        ...trackingOverrides(),
       ],
       child: MaterialApp(
         home: schedule
-            ? const PorterScheduleScreen()
+            ? const PorterTripsScreen()
             : const Scaffold(body: TripLifecyclePanel(tripKey: _key)),
       ),
     ),
@@ -163,16 +165,16 @@ void main() {
   );
 
   testWidgets(
-    'schedule loads assigned Trips and navigates to real lifecycle actions',
+    'the trip tab shows assigned Trip details and lifecycle actions inline',
     (tester) async {
       final api = _Api();
       await _mount(tester, api, schedule: true);
-      expect(find.text('Đi bộ ven rừng Sơn Trà'), findsOneWidget);
+      expect(find.textContaining('Đi bộ ven rừng Sơn Trà'), findsWidgets);
       expect(find.text('Trekking Sơn Trà – Bãi Bắc'), findsNothing);
-      await tester.tap(find.text('Xem chuyến đi'));
-      await tester.pumpAndSettle();
+      expect(find.text('Xem chuyến đi'), findsNothing);
       expect(find.text('Bắt đầu chuyến đi'), findsOneWidget);
       expect(find.textContaining(_key.tripId), findsNothing);
+      await tester.pumpWidget(const SizedBox.shrink());
     },
   );
 

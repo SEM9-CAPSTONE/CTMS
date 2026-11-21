@@ -49,7 +49,7 @@ Chạy `pnpm --filter @ctms/api seed:porter-lifecycle` sau migration. Lệnh nà
 dữ liệu qua `main.seed.ts`, không xóa hay khởi tạo lại database. Dùng các tài khoản
 `host@ctms.local`, `camper@ctms.local` và `porter@ctms.local` đã có.
 
-Mở mobile bằng `porter@ctms.local` / `Porter@123`, chọn **Lịch → Xem chuyến đi**:
+Mở mobile bằng `porter@ctms.local` / `Porter@123`, vào tab **Chuyến đi** và chọn chuyến. Nút bắt đầu/kết thúc cùng bản đồ, vị trí thành viên và trạng thái lệch tuyến nằm trong trang này:
 
 - **Đi bộ ven rừng Sơn Trà**: chờ khởi hành, đã đến giờ, đủ khách xác nhận; kiểm tra bắt đầu rồi kết thúc.
 - **Ngắm biển từ đỉnh Bàn Cờ**: đang diễn ra, đã qua giờ kết thúc dự kiến; kiểm tra vẫn chờ Porter kết thúc.

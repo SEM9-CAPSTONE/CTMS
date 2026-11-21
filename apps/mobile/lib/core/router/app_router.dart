@@ -18,9 +18,8 @@ import '../../features/camper/presentation/camper_trips_screen.dart';
 import '../../features/offline_packages/application/offline_trip_providers.dart';
 import '../../features/porter/presentation/porter_alerts_screen.dart';
 import '../../features/porter/presentation/porter_incidents_screen.dart';
-import '../../features/porter/presentation/porter_map_screen.dart';
 import '../../features/porter/presentation/porter_overview_screen.dart';
-import '../../features/porter/presentation/porter_schedule_screen.dart';
+import '../../features/trip_operations/presentation/porter_trips_screen.dart';
 import '../../features/porter/presentation/porter_settings_screen.dart';
 import '../../features/porter/presentation/porter_shell_screen.dart';
 import '../../features/porter/presentation/porter_team_screen.dart';
@@ -163,16 +162,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/porter/schedule',
-                builder: (context, state) => const PorterScheduleScreen(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/porter/map',
-                builder: (context, state) => const PorterMapScreen(),
+                path: '/porter/trips',
+                builder: (context, state) => PorterTripsScreen(
+                  initialTripId: state.uri.queryParameters['tripId'],
+                ),
               ),
             ],
           ),
@@ -186,8 +179,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
-      // Reached from the porter shell's "Thêm" sheet, not the bottom nav —
-      // pushed on top of the whole shell rather than swapping a branch.
+      // Keep existing bookmarks pointing to the combined trip workspace.
+      GoRoute(
+        path: '/porter/map',
+        redirect: (context, state) => Uri(
+          path: '/porter/trips',
+          queryParameters: state.uri.queryParameters,
+        ).toString(),
+      ),
+      GoRoute(
+        path: '/porter/schedule',
+        redirect: (context, state) => Uri(
+          path: '/porter/trips',
+          queryParameters: state.uri.queryParameters,
+        ).toString(),
+      ),
       GoRoute(
         path: '/porter/team',
         builder: (context, state) => const PorterTeamScreen(),

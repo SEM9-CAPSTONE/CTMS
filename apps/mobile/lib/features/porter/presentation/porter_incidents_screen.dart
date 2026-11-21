@@ -163,7 +163,7 @@ class _PorterIncidentsScreenState extends ConsumerState<PorterIncidentsScreen> {
           if (context.canPop()) {
             context.pop();
           } else {
-            context.go('/porter/schedule');
+            context.go('/porter/trips');
           }
         },
       ),

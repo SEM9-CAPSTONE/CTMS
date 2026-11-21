@@ -11,8 +11,9 @@ import '../domain/operational_trip.dart';
 import 'trip_operations_copy.dart';
 
 class TripLifecyclePanel extends ConsumerStatefulWidget {
-  const TripLifecyclePanel({super.key, required this.tripKey});
+  const TripLifecyclePanel({super.key, required this.tripKey, this.onChanged});
   final TripOperationsKey tripKey;
+  final ValueChanged<TripLifecycle>? onChanged;
 
   @override
   ConsumerState<TripLifecyclePanel> createState() => _TripLifecyclePanelState();
@@ -57,13 +58,15 @@ class _TripLifecyclePanelState extends ConsumerState<TripLifecyclePanel> {
     }
     setState(() => _busy = true);
     try {
-      await ref
+      final result = await ref
           .read(tripOperationsApiProvider)
           .transition(key.accountId, key.tripId, start: start);
       if (!mounted ||
-          ref.read(porterOperationsAccountProvider) != key.accountId) {
+          ref.read(porterOperationsAccountProvider) != key.accountId ||
+          widget.tripKey != key) {
         return;
       }
+      widget.onChanged?.call(result);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           backgroundColor: AppColors.statusSuccess,

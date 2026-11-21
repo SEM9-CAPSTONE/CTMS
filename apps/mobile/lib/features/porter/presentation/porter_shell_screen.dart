@@ -5,12 +5,8 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 
-/// Bottom-nav frame for the Porter role — the mobile adaptation of §2.1
-/// AppSidebar (`docs/design/CTMS-DESIGN-SYSTEM.md`). The sidebar has 7
-/// items; per the desktop→mobile conversion rule ("> 5 mục thì 4 mục chính +
-/// Thêm"), only the top 4 get a [StatefulShellBranch] in
-/// `core/router/app_router.dart` — "Thêm" opens a sheet that pushes the rest
-/// (`Thành viên đoàn`, `Sự cố`, `Hồ sơ & cài đặt`) as regular routes.
+/// Porter navigation with overview, the combined trip workspace, and alerts.
+/// "Thêm" opens team, incident, and profile routes in a sheet.
 ///
 /// Styled with Brand Green background (#164027) and crisp white text/icons.
 class PorterShellScreen extends StatelessWidget {
@@ -27,12 +23,7 @@ class PorterShellScreen extends StatelessWidget {
     NavigationDestination(
       icon: Icon(Icons.event_note_outlined),
       selectedIcon: Icon(Icons.event_note_rounded),
-      label: 'Lịch',
-    ),
-    NavigationDestination(
-      icon: Icon(Icons.map_outlined),
-      selectedIcon: Icon(Icons.map_rounded),
-      label: 'Bản đồ',
+      label: 'Chuyến đi',
     ),
     NavigationDestination(
       icon: Icon(Icons.notifications_active_outlined),
@@ -59,12 +50,21 @@ class PorterShellScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.groups_outlined, color: AppColors.textPrimary),
+              leading: const Icon(
+                Icons.groups_outlined,
+                color: AppColors.textPrimary,
+              ),
               title: const Text(
                 'Thành viên đoàn',
-                style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
               ),
-              trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+              trailing: const Icon(
+                Icons.chevron_right,
+                color: AppColors.textSecondary,
+              ),
               onTap: () {
                 Navigator.of(sheetContext).pop();
                 context.push('/porter/team');
@@ -72,12 +72,21 @@ class PorterShellScreen extends StatelessWidget {
             ),
             const Divider(height: 1, thickness: 1, color: AppColors.border),
             ListTile(
-              leading: const Icon(Icons.report_gmailerrorred_outlined, color: AppColors.textPrimary),
+              leading: const Icon(
+                Icons.report_gmailerrorred_outlined,
+                color: AppColors.textPrimary,
+              ),
               title: const Text(
                 'Sự cố',
-                style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
               ),
-              trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+              trailing: const Icon(
+                Icons.chevron_right,
+                color: AppColors.textSecondary,
+              ),
               onTap: () {
                 Navigator.of(sheetContext).pop();
                 context.push('/porter/incidents');
@@ -85,12 +94,21 @@ class PorterShellScreen extends StatelessWidget {
             ),
             const Divider(height: 1, thickness: 1, color: AppColors.border),
             ListTile(
-              leading: const Icon(Icons.settings_outlined, color: AppColors.textPrimary),
+              leading: const Icon(
+                Icons.settings_outlined,
+                color: AppColors.textPrimary,
+              ),
               title: const Text(
                 'Hồ sơ & cài đặt',
-                style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
               ),
-              trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+              trailing: const Icon(
+                Icons.chevron_right,
+                color: AppColors.textSecondary,
+              ),
               onTap: () {
                 Navigator.of(sheetContext).pop();
                 context.push('/porter/settings');
@@ -110,9 +128,7 @@ class PorterShellScreen extends StatelessWidget {
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: AppColors.brandPrimary,
-          border: Border(
-            top: BorderSide(color: Color(0xFF0F2E1C), width: 1),
-          ),
+          border: Border(top: BorderSide(color: Color(0xFF0F2E1C), width: 1)),
           boxShadow: [
             BoxShadow(
               color: Color(0x33164027),
@@ -137,15 +153,13 @@ class PorterShellScreen extends StatelessWidget {
                   size: 24,
                 );
               }),
-              labelTextStyle: WidgetStateProperty.resolveWith(
-                (states) {
-                  final isSelected = states.contains(WidgetState.selected);
-                  return AppTypography.caption.copyWith(
-                    color: isSelected ? Colors.white : Colors.white70,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  );
-                },
-              ),
+              labelTextStyle: WidgetStateProperty.resolveWith((states) {
+                final isSelected = states.contains(WidgetState.selected);
+                return AppTypography.caption.copyWith(
+                  color: isSelected ? Colors.white : Colors.white70,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                );
+              }),
             ),
             child: NavigationBar(
               backgroundColor: AppColors.brandPrimary,

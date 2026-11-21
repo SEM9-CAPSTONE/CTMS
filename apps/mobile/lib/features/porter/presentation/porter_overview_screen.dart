@@ -47,17 +47,17 @@ class PorterOverviewScreen extends ConsumerWidget {
           _PorterShiftCard(
             dateLabel: _dateLabel(DateTime.now()),
             displayName: displayName,
-            onSchedule: () => context.go('/porter/schedule'),
+            onSchedule: () => context.go('/porter/trips'),
             onReport: () => context.push('/porter/incidents'),
           ),
           const SizedBox(height: AppSpacing.lg),
 
           // 2. Current Route Section Card (Tuyến đang vận hành)
-          _CurrentRouteCard(onOpenMap: () => context.go('/porter/map')),
+          _CurrentRouteCard(onOpenMap: () => context.go('/porter/trips')),
           const SizedBox(height: AppSpacing.lg),
 
           // 3. Shift Schedule Section Card (Lịch vận hành)
-          _ScheduleCard(onOpenSchedule: () => context.go('/porter/schedule')),
+          _ScheduleCard(onOpenSchedule: () => context.go('/porter/trips')),
           const SizedBox(height: AppSpacing.lg),
 
           // 4. Active Alerts Section Card (Cảnh báo cần xử lý)
@@ -66,7 +66,7 @@ class PorterOverviewScreen extends ConsumerWidget {
 
           // 5. Quick Actions Section Card (Tác vụ nhanh)
           _QuickActions(
-            onMap: () => context.go('/porter/map'),
+            onMap: () => context.go('/porter/trips'),
             onTeam: () => context.push('/porter/team'),
             onSettings: () => context.push('/porter/settings'),
           ),

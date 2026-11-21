@@ -127,7 +127,11 @@ The existing 24-hour complaint window and 72-hour settlement hold are measured f
 `actual_ended_at` when available, retaining their legacy completion/schedule fallback
 for historical Trips. Ending early or late never silently changes the window lengths.
 
-Mobile: **Lịch → Xem chuyến đi** reads real assigned Trips and presents separate
+Mobile: **Chuyến đi** combines assigned Trip selection, lifecycle actions, the map,
+and member GPS/off-route details in one tab. Both `/porter/schedule` and `/porter/map`
+redirect to `/porter/trips`, preserving the selected Trip query parameter. Tracking
+uses the selected Trip's confirmed lifecycle and stops when that Trip ends.
+The workspace presents separate
 confirmation dialogs for departure/completion, Vietnamese reasons and existing SnackBar
 feedback. Start/end require connectivity and are not queued offline. After timeout/failure,
 the client reloads current state before retrying. Checkpoint offline capture remains in
