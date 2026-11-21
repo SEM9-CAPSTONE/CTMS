@@ -48,7 +48,7 @@ class SurvivalChatFailure {
     }
     if (error.kind == ApiExceptionKind.network) {
       return SurvivalChatFailure(
-        'Kiểm tra kết nối mạng rồi thử lại.',
+        'Không kết nối được với trợ lý. Bạn có thể thử lại.',
         retryable: true,
         onlineAttemptUncertain: !error.connectionNotEstablished,
       );
@@ -84,7 +84,7 @@ class SurvivalChatFailure {
   }
 
   static const uncertain = SurvivalChatFailure(
-    'Trợ lý tạm thời gián đoạn. Hãy kết nối mạng rồi thử lại.',
+    'Trợ lý tạm thời gián đoạn. Bạn có thể thử lại sau.',
     retryable: true,
     onlineAttemptUncertain: true,
   );
