@@ -13,8 +13,8 @@ export interface TripStatusAdvanceResult {
 }
 
 /**
- * Keeps stored Trip status in step with the schedule: a published Trip becomes `ongoing` at
- * `startsAt` and `completed` at `endsAt` (directly, if the worker was down for the whole Trip).
+ * Legacy fallback for Trips without an assigned/pending-reconfirmation Porter. Assigned Trips
+ * wait for Porter confirmation; a manually started Trip never completes by schedule.
  */
 @Injectable()
 export class TripStatusScheduleService {

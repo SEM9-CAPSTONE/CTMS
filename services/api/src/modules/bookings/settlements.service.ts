@@ -80,7 +80,10 @@ export class SettlementsService {
 		const isSettled = Boolean(settlement);
 
 		const completedAt =
-			(trip as unknown as { completedAt?: Date }).completedAt ?? trip.endsAt ?? trip.updatedAt;
+			trip.actualEndedAt ??
+			(trip as unknown as { completedAt?: Date }).completedAt ??
+			trip.endsAt ??
+			trip.updatedAt;
 		const now = new Date();
 		const isCompleted = trip.status === TripStatus.COMPLETED;
 
@@ -201,7 +204,10 @@ export class SettlementsService {
 			}
 
 			const completedAt =
-				(trip as unknown as { completedAt?: Date }).completedAt ?? trip.endsAt ?? trip.updatedAt;
+				trip.actualEndedAt ??
+				(trip as unknown as { completedAt?: Date }).completedAt ??
+				trip.endsAt ??
+				trip.updatedAt;
 			const now = new Date();
 			const completedTime = new Date(completedAt).getTime();
 

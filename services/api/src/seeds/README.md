@@ -19,6 +19,7 @@ Run commands from the repository root:
 | `pnpm --filter @ctms/api seed:performance-reports` | Booking and trip performance reports. |
 | `pnpm --filter @ctms/api seed:bank-accounts` | Host and camper bank accounts. |
 | `pnpm --filter @ctms/api seed:group-bookings` | Group bookings and equipment. |
+| `pnpm --filter @ctms/api seed:health-profile` | Fill missing health and activity facts for the existing camper@ctms.local account through the master seed, retaining entered notes and activity values. |
 | `pnpm --filter @ctms/api seed:da-nang` | Repair recognized seed names, descriptions and route coordinates around Đà Nẵng. Preserves existing IDs, relations, statuses, bookings, photos and money. |
 
 All CLI seed commands use the master entry point, reject production and close the
@@ -41,3 +42,33 @@ route and trip IDs in place, and never creates accounts or runs migrations.
 not application seeds. Test runners call them explicitly; the master seed never
 runs their account creation or cleanup actions. Web E2E tests and the mobile OTP
 verification script reference their new locations.
+
+## Porter bắt đầu và kết thúc chuyến đi
+
+Chạy `pnpm --filter @ctms/api seed:porter-lifecycle` sau migration. Lệnh này chỉ bổ sung
+dữ liệu qua `main.seed.ts`, không xóa hay khởi tạo lại database. Dùng các tài khoản
+`host@ctms.local`, `camper@ctms.local` và `porter@ctms.local` đã có.
+
+Mở mobile bằng `porter@ctms.local` / `Porter@123`, chọn **Lịch → Xem chuyến đi**:
+
+- **Đi bộ ven rừng Sơn Trà**: chờ khởi hành, đã đến giờ, đủ khách xác nhận; kiểm tra bắt đầu rồi kết thúc.
+- **Ngắm biển từ đỉnh Bàn Cờ**: đang diễn ra, đã qua giờ kết thúc dự kiến; kiểm tra vẫn chờ Porter kết thúc.
+- **Đón bình minh trên bán đảo Sơn Trà**: ngày hôm sau; nút bắt đầu bị khóa và giải thích chưa đến giờ.
+
+Đây là chuyến đi cộng đồng không thu phí, không phát sinh giao dịch tiền. Seed không tạo tài khoản mới.
+Mỗi ngày bổ sung một bộ chuyến; chạy lại trong ngày giữ nguyên trạng thái, giờ thực tế,
+phân công, ghi chú và dữ liệu tài chính. Chuyến đã kết thúc không được đặt lại để chạy thử lần nữa.
+Xác nhận bắt đầu/kết thúc cần mạng; đồng bộ điểm kiểm tra ngoại tuyến giữ luồng hiện có.
+
+## Camper xem vị trí đoàn
+
+Chạy `pnpm --filter @ctms/api seed:member-locations` để bổ sung vị trí mới nhất cho
+`camper@ctms.local` và `porter@ctms.local` trong chuyến **Ngắm biển từ đỉnh Bàn Cờ**
+của bộ dữ liệu vận hành hôm nay. Chuyến phải đang diễn ra và khách đã vào đoàn;
+seed không đặt lại trạng thái nếu người dùng đã kết thúc chuyến.
+
+Mở mobile bằng `camper@ctms.local`, vào chi tiết chuyến → **Lộ trình & GPS** →
+**Vị trí các thành viên**. Khách đang ở ngoài tuyến khoảng 100 m; người dẫn đoàn
+ở trên tuyến và chưa có sự kiện trạng thái tuyến. Chọn người để đưa vị trí đó vào giữa sơ đồ.
+Vị trí chuyển thành cũ theo thời gian; chạy lại lệnh trên để thêm lượt đồng bộ mới.
+Lịch sử đã có, tài khoản, thông tin chuyến và toàn bộ số tiền được giữ nguyên.

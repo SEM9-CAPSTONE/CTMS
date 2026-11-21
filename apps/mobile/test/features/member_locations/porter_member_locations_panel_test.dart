@@ -21,6 +21,7 @@ Map<String, Object?> member({
   String? memberStatus = 'joined',
   int? seenSecondsAgo = 30,
   String? routeType,
+  double? distanceMeters,
   String? gpsType,
   String? checkpointName,
   String? behindStatus,
@@ -48,7 +49,12 @@ Map<String, Object?> member({
   'safety': {
     'route': routeType == null
         ? null
-        : {'type': routeType, 'eventTime': ago(60), 'receivedAt': ago(50)},
+        : {
+            'type': routeType,
+            'eventTime': ago(60),
+            'receivedAt': ago(50),
+            'distanceToRouteMeters': distanceMeters,
+          },
     'gps': gpsType == null
         ? null
         : {'type': gpsType, 'eventTime': ago(60), 'receivedAt': ago(50)},
@@ -138,7 +144,9 @@ void main() {
       tester.getTopLeft(find.byKey(Key('member-location-$id'))).dy;
 
   group('PorterMemberLocationsPanel (CTMS-066-T02)', () {
-    testWidgets('loading state says the data is not live', (tester) async {
+    testWidgets('shows loading without the explanatory subtitle', (
+      tester,
+    ) async {
       final pending = Completer<TripMemberLocations>();
       api.responses.add(() => pending.future);
 
@@ -149,7 +157,7 @@ void main() {
         find.text(
           'Vị trí server đã nhận gần nhất, không phải vị trí trực tiếp.',
         ),
-        findsOneWidget,
+        findsNothing,
       );
       pending.complete(locations([]));
       await tester.pump();
@@ -173,6 +181,7 @@ void main() {
               id: 'b',
               name: 'Bình Lệch',
               routeType: 'OFF_ROUTE',
+              distanceMeters: 80.6,
               checkpointName: 'Đèo Gió',
               behindStatus: 'SEVERELY_BEHIND',
               lagMinutes: 65,
@@ -198,7 +207,7 @@ void main() {
           find.byKey(const Key('member-freshness-n-unavailable')),
           findsOneWidget,
         );
-        expect(find.text('Lệch tuyến'), findsOneWidget);
+        expect(find.text('Lệch tuyến · 81 m'), findsOneWidget);
         expect(find.text('Chậm nghiêm trọng · 65 phút'), findsOneWidget);
         expect(
           find.textContaining('Checkpoint gần nhất: Đèo Gió'),

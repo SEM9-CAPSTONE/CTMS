@@ -10,6 +10,7 @@ import { UploadsModule } from "../uploads/uploads.module";
 import { WeatherModule } from "../weather/weather.module";
 import { TripFormDraftsController } from "./controllers/trip-form-drafts.controller";
 import { TripImagesController } from "./controllers/trip-images.controller";
+import { TripLifecycleController } from "./controllers/trip-lifecycle.controller";
 import { TripsController } from "./controllers/trips.controller";
 import { CheckpointVisit } from "./entities/checkpoint-visit.entity";
 import { PorterRequest } from "./entities/porter-request.entity";
@@ -18,6 +19,7 @@ import { AvailablePortersRepository } from "./repositories/available-porters.rep
 import { CheckpointVisitsRepository } from "./repositories/checkpoint-visits.repository";
 import { PorterRequestsRepository } from "./repositories/porter-requests.repository";
 import { PorterScheduleConflictSource } from "./repositories/porter-schedule-conflict-source";
+import { TripLifecycleRepository } from "./repositories/trip-lifecycle.repository";
 import { TripsRepository } from "./repositories/trips.repository";
 import { AvailablePortersService } from "./services/available-porters.service";
 import { CheckpointVisitsService } from "./services/checkpoint-visits.service";
@@ -28,6 +30,7 @@ import { TripAutoCancelWorker } from "./services/trip-auto-cancel.worker";
 import { TripFormDraftsService } from "./services/trip-form-drafts.service";
 import { TripImageCleanupWorker } from "./services/trip-image-cleanup.worker";
 import { TripImagesService } from "./services/trip-images.service";
+import { TripLifecycleService } from "./services/trip-lifecycle.service";
 import { TripReviewDeadlineService } from "./services/trip-review-deadline.service";
 import { TripRouteMapService } from "./services/trip-route-map.service";
 import { TripStatusScheduleService } from "./services/trip-status-schedule.service";
@@ -50,6 +53,7 @@ import { TripWeatherDecisionsRepository } from "./weather-decisions/trip-weather
 		InAppNotificationsModule,
 	],
 	controllers: [
+		TripLifecycleController,
 		TripsController,
 		TripImagesController,
 		TripFormDraftsController,
@@ -57,6 +61,8 @@ import { TripWeatherDecisionsRepository } from "./weather-decisions/trip-weather
 		HostWeatherPenaltiesController,
 	],
 	providers: [
+		TripLifecycleService,
+		TripLifecycleRepository,
 		TripFormDraftsService,
 		TripImagesService,
 		TripImageCleanupWorker,

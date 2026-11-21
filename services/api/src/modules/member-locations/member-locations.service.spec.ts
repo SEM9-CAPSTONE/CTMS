@@ -69,6 +69,7 @@ function progress(members: ScheduleProgressResult["members"] = []): ScheduleProg
 interface BuildOptions {
 	trip?: MemberLocationsTrip | null;
 	assignedPorter?: boolean;
+	joinedCamper?: boolean;
 	rows?: MemberLocationRow[];
 	evaluation?: ScheduleProgressResult;
 	maxAge?: string;
@@ -80,6 +81,7 @@ function build(options: BuildOptions = {}) {
 	const repository = {
 		findTrip: jest.fn().mockResolvedValue(trip),
 		isAssignedPorter: jest.fn().mockResolvedValue(options.assignedPorter ?? false),
+		isJoinedCamper: jest.fn().mockResolvedValue(options.joinedCamper ?? false),
 		findMembers: jest.fn().mockResolvedValue(options.rows ?? [camperRow()]),
 	};
 	const schedule = { getProgress: jest.fn().mockResolvedValue(options.evaluation ?? progress()) };
@@ -95,6 +97,18 @@ function build(options: BuildOptions = {}) {
 
 describe("MemberLocationsService (CTMS-066 / Jira CTMS-329)", () => {
 	describe("authorization (BR-172/173)", () => {
+		it("allows joined Campers to read active peers and excludes left members", async () => {
+			const { service } = build({
+				joinedCamper: true,
+				rows: [
+					camperRow(),
+					camperRow({ id: "left-member", memberStatus: BookingMemberStatus.LEFT }),
+				],
+			});
+			const result = await service.getMemberLocations(CAMPER_USER, TRIP);
+			expect(result.viewer).toBe("camper");
+			expect(result.members.map((member) => member.id)).toEqual(["member-1"]);
+		});
 		it("lets the Trip Host read the projection", async () => {
 			const { service, repository } = build();
 			const result = await service.getMemberLocations(HOST, TRIP);
@@ -198,7 +212,12 @@ describe("MemberLocationsService (CTMS-066 / Jira CTMS-329)", () => {
 
 	describe("synchronized safety flags (BR-246)", () => {
 		it("passes through synced route, GPS and checkpoint context", async () => {
-			const route = { type: SafetyEventType.OFF_ROUTE, eventTime: ago(90), receivedAt: ago(60) };
+			const route = {
+				type: SafetyEventType.OFF_ROUTE,
+				eventTime: ago(90),
+				receivedAt: ago(60),
+				distanceToRouteMeters: 65.4,
+			};
 			const gps = { type: SafetyEventType.GPS_RESTORED, eventTime: ago(50), receivedAt: ago(40) };
 			const lastCheckpoint = {
 				checkpointId: "cp-1",

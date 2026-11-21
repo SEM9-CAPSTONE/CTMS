@@ -98,13 +98,7 @@ class _PorterMemberLocationsPanelState
     );
     final data = controller.data;
     final now = widget.clock();
-    final children = <Widget>[
-      Text(
-        'Vị trí server đã nhận gần nhất, không phải vị trí trực tiếp.',
-        style: _caption,
-      ),
-      const SizedBox(height: AppSpacing.sm),
-    ];
+    final children = <Widget>[];
 
     final status = controller.errorStatus;
     if (controller.isLoading && data == null) {
@@ -178,7 +172,7 @@ class _PorterMemberLocationsPanelState
           children: [
             Expanded(
               child: Text(
-                'Cập nhật lúc ${_hhmm(data.generatedAt)} · tự làm mới mỗi phút',
+                'Cập nhật lúc ${_hhmm(data.generatedAt)}',
                 style: _caption,
               ),
             ),
@@ -222,7 +216,7 @@ class _MemberRow extends StatelessWidget {
     final flags = <Widget>[
       if (member.hasLeft) const CtmsStatusBadge(label: 'Đã rời đoàn'),
       if (member.offRoute)
-        const CtmsStatusBadge(label: 'Lệch tuyến', status: CtmsStatus.danger),
+        CtmsStatusBadge(label: member.routeLabel, status: CtmsStatus.danger),
       if (member.gpsDegraded)
         const CtmsStatusBadge(label: 'GPS yếu', status: CtmsStatus.warning),
       if (member.isBehind)

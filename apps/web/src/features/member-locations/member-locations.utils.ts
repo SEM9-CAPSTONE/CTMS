@@ -1,4 +1,10 @@
-import type { LocationFreshness, MemberLocation } from "./types";
+import type { LocationFreshness, MemberLocation, SyncedSafetyTransition } from "./types";
+
+export function formatOffRouteLabel(route: SyncedSafetyTransition | null): string {
+	const distance = route?.distanceToRouteMeters;
+	if (distance == null || !Number.isFinite(distance) || distance < 0) return "Lệch tuyến";
+	return `Lệch tuyến · ${Math.round(distance)} m`;
+}
 
 /**
  * Freshness at the viewer's current time, from the server's `lastSeenAt` and approved threshold, so

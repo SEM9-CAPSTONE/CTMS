@@ -25,6 +25,8 @@ export interface SyncedSafetyTransition {
 	type: SafetyEventType;
 	eventTime: string;
 	receivedAt: string;
+	/** Distance captured with this event, not a measurement of the latest GPS fix. */
+	distanceToRouteMeters?: number | null;
 }
 
 export interface SyncedCheckpointVisit {
@@ -80,7 +82,8 @@ export interface MemberLocation {
 export interface TripMemberLocations {
 	tripId: string;
 	tripStatus: string;
-	viewer: "host" | "porter";
+	viewer: "host" | "porter" | "camper";
+	route: MemberLocationsRoute | null;
 	generatedAt: string;
 	locationSource: "server_confirmed";
 	freshnessMaxAgeSeconds: number;
@@ -91,4 +94,10 @@ export interface MemberLocationsTrip {
 	id: string;
 	hostId: string;
 	status: string;
+	route?: MemberLocationsRoute | null;
+}
+
+export interface MemberLocationsRoute {
+	id: string;
+	geometry: { type: "LineString"; coordinates: number[][] };
 }

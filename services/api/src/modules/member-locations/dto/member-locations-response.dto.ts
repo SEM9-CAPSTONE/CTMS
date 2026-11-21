@@ -3,7 +3,7 @@ import { BookingMemberStatus } from "../../bookings/booking-member-status.enum";
 import { GpsParticipantRole } from "../../gps-tracking/gps-tracking.enums";
 import { SafetyEventType } from "../../safety-events/safety-events.enums";
 import { ScheduleStatus } from "../../schedule-progress/schedule-progress.evaluator";
-import { LocationFreshness } from "../member-locations.types";
+import { LocationFreshness, type MemberLocationsRoute } from "../member-locations.types";
 
 /** OpenAPI description of the CTMS-066 response (`GET /trips/:tripId/member-locations`). */
 export class SyncedLocationDto {
@@ -19,6 +19,12 @@ export class SyncedSafetyTransitionDto {
 	@ApiProperty({ enum: SafetyEventType }) type!: SafetyEventType;
 	@ApiProperty() eventTime!: string;
 	@ApiProperty() receivedAt!: string;
+	@ApiPropertyOptional({
+		type: Number,
+		nullable: true,
+		description: "Distance to Route at event capture, in meters",
+	})
+	distanceToRouteMeters?: number | null;
 }
 
 export class SyncedCheckpointVisitDto {
@@ -95,7 +101,8 @@ export class MemberLocationDto {
 export class TripMemberLocationsDto {
 	@ApiProperty() tripId!: string;
 	@ApiProperty() tripStatus!: string;
-	@ApiProperty({ enum: ["host", "porter"] }) viewer!: "host" | "porter";
+	@ApiProperty({ enum: ["host", "porter", "camper"] }) viewer!: "host" | "porter" | "camper";
+	@ApiProperty({ type: Object, nullable: true }) route!: MemberLocationsRoute | null;
 	@ApiProperty() generatedAt!: string;
 	@ApiProperty({ enum: ["server_confirmed"] }) locationSource!: "server_confirmed";
 	@ApiProperty() freshnessMaxAgeSeconds!: number;

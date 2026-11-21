@@ -17,6 +17,8 @@ import '../../../route_recovery/domain/recovery_geometry.dart';
 import '../../../route_recovery/presentation/recovery_overlay.dart';
 import '../../data/offline_mbtiles_provider.dart';
 import '../../domain/offline_map_models.dart';
+import '../../domain/synced_map_member.dart';
+import 'synced_member_pin.dart';
 
 /// Coordinate projection helper from geographic coordinates (lat, lon) to 2D canvas pixels.
 /// Uses a local equirectangular projection centered on the route bounding box.
@@ -143,6 +145,10 @@ class OfflineMapCanvas extends StatefulWidget {
     this.recoveryNotice,
     this.previewTileProvider,
     this.previewTileBounds,
+    this.syncedMembers = const [],
+    this.selectedMemberId,
+    this.onSelectSyncedMember,
+    this.overviewLabel,
   });
 
   final OfflineRouteGeometry? route;
@@ -155,6 +161,10 @@ class OfflineMapCanvas extends StatefulWidget {
   final String? mbtilesPath;
   final RecoveryTarget? recoveryTarget;
   final String? recoveryNotice;
+  final List<SyncedMapMember> syncedMembers;
+  final String? selectedMemberId;
+  final ValueChanged<SyncedMapMember>? onSelectSyncedMember;
+  final String? overviewLabel;
 
   /// Local visual harness only. Production still opens verified MBTiles.
   @visibleForTesting
@@ -531,6 +541,34 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
     });
   }
 
+  void focusOnSyncedMember(SyncedMapMember member, Size size) {
+    if (widget.route == null) return;
+    setState(() => _autoFollowGps = false);
+    if (_hasBasemap && _mapController != null) {
+      _mapController!.move(ll.LatLng(member.latitude, member.longitude),
+        15.0.clamp(_tileMinZoom, _tileMaxZoom));
+      return;
+    }
+    final viewport = OfflineMapViewport.fromRoute(route: widget.route!, size: size);
+    final point = viewport.geoToScreen(member.latitude, member.longitude);
+    setState(() {
+      _zoomScale = 1.7;
+      _panOffset = Offset((size.width / 2 - point.dx) * _zoomScale,
+        (size.height / 2 - point.dy) * _zoomScale);
+    });
+  }
+
+  Widget _memberPin(SyncedMapMember member) => SyncedMemberPin(
+    member: member, selected: member.id == widget.selectedMemberId,
+    onTap: () => widget.onSelectSyncedMember?.call(member));
+
+  Widget _vectorMember(SyncedMapMember member, OfflineMapViewport viewport) {
+    final point = viewport.geoToScreen(member.latitude, member.longitude,
+      panOffset: _panOffset, zoomScale: _zoomScale);
+    return Positioned(left: point.dx - 18, top: point.dy - 18,
+      width: 36, height: 36, child: _memberPin(member));
+  }
+
   void focusOnRecovery(Size size) {
     final point = widget.recoveryTarget?.point;
     final route = widget.route;
@@ -715,6 +753,7 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
   }
 
   String _buildSemanticsLabel(bool isStale) {
+    if (widget.overviewLabel != null) return widget.overviewLabel!;
     final route = widget.route;
     final sample = widget.location.sample;
     final routeDesc = route != null
@@ -867,6 +906,9 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
                         ),
                         MarkerLayer(
                           markers: [
+                            for (final member in widget.syncedMembers)
+                              Marker(point: ll.LatLng(member.latitude, member.longitude),
+                                width: 36, height: 36, child: _memberPin(member)),
                             if (widget.recoveryTarget != null && widget.recoveryTarget!.distanceMeters > 1)
                               Marker(
                                 point: ll.LatLng(
@@ -1092,6 +1134,10 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
                     ),
                 ],
 
+                if (!_hasBasemap && viewport != null)
+                  for (final member in widget.syncedMembers)
+                    _vectorMember(member, viewport),
+
                 // Empty state if route is null
                 if (viewport == null)
                   const Center(
@@ -1163,9 +1209,9 @@ class OfflineMapCanvasState extends State<OfflineMapCanvas>
                             width: 0.8,
                           ),
                         ),
-                        child: const Text(
-                          'Sơ đồ tuyến đường & trạm kiểm tra (Chưa có nền bản đồ)',
-                          style: TextStyle(
+                        child: Text(
+                          widget.overviewLabel ?? 'Sơ đồ tuyến đường & trạm kiểm tra (Chưa có nền bản đồ)',
+                          style: const TextStyle(
                             fontSize: 9.0,
                             fontWeight: FontWeight.w600,
                             color: AppColors.textMuted,

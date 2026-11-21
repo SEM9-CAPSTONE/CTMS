@@ -1,4 +1,5 @@
-import type { DataSource } from "typeorm";
+import { isUUID } from "class-validator";
+import type { DataSource, EntityManager } from "typeorm";
 import dataSource from "../shared/database/data-source";
 import { readableDemoTripTitle, tidyDemoCopyForReview } from "./main.seed";
 import {
@@ -11,16 +12,42 @@ import {
 	PORTER_NON_CONFLICT_TARGET_TRIP,
 	PORTER_SEED_FIXTURES,
 	PORTER_SEED_ROUTE_NAMES,
+	porterLifecycleFixtureId,
 	porterSeedTripWindowsOverlap,
 	refreshDaNangSeedData,
 	refreshPorterLevelDemoCopy,
 	rewriteDaNangSeedCopy,
 	runMasterSeed,
+	seedMemberLocations,
 } from "./main.seed";
 
 describe("Master seed entry point", () => {
+	it("does not recreate an ended operational Trip just to add member telemetry", async () => {
+		const query = jest.fn().mockResolvedValue([]);
+		const manager = { query } as unknown as EntityManager;
+		const ds = {
+			isInitialized: true,
+			transaction: (work: (m: EntityManager) => Promise<unknown>) => work(manager),
+		} as unknown as DataSource;
+		await expect(seedMemberLocations(ds, false)).resolves.toBeUndefined();
+		expect(query).toHaveBeenCalledTimes(1);
+		await expect(seedMemberLocations(ds)).rejects.toThrow("không đặt lại chuyến đã kết thúc");
+		expect(query).toHaveBeenCalledTimes(2);
+	});
+	it("generates stable RFC-valid UUIDs for operational Trips and related records", () => {
+		const key = "porter-lifecycle:2026-11-21:departure";
+		for (const suffix of ["", ":booking", ":member"]) {
+			const id = porterLifecycleFixtureId(key + suffix);
+			expect(isUUID(id)).toBe(true);
+			expect(porterLifecycleFixtureId(key + suffix)).toBe(id);
+		}
+		expect(porterLifecycleFixtureId(key)).not.toBe(porterLifecycleFixtureId(`${key}:booking`));
+	});
 	it.each([
+		"--member-locations-only",
+		"--porter-lifecycle-only",
 		"--da-nang-only",
+		"--health-profile-only",
 		"--financial-adjustments-only",
 		"--bank-accounts-only",
 		"--group-bookings-only",

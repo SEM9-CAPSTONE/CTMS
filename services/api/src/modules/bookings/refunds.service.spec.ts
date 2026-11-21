@@ -555,6 +555,18 @@ describe("RefundsService (CTMS-035)", () => {
 	});
 
 	describe("getBookingRefundInfo (CTMS-035)", () => {
+		it("uses the same actual completion time for eligibility, late-review classification and displayed deadline", async () => {
+			trip.status = TripStatus.COMPLETED;
+			trip.endsAt = new Date("2030-04-25T12:00:00Z");
+			trip.actualEndedAt = new Date("2030-05-01T10:00:00Z");
+			booking.status = BookingStatus.COMPLETED;
+			settledTrip = true;
+			const info = await service.getBookingRefundInfo("camper-uuid-1", ["camper"], booking.id);
+			expect(info.isEligible).toBe(true);
+			expect(info.policySource).not.toBe("late_complaint_manual_review");
+			expect(info.applicableWindow?.startsAt).toEqual(trip.actualEndedAt);
+			expect(info.applicableWindow?.deadline).toEqual(new Date("2030-05-02T10:00:00Z"));
+		});
 		it("returns refund eligibility and history for booking owner", async () => {
 			bookingsRepo.findOne.mockResolvedValue(booking);
 			tripsRepo.findOne.mockResolvedValue(trip);

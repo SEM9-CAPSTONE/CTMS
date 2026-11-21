@@ -86,6 +86,9 @@ class TripEndpoints {
       '/trips/$tripId/offline-packages/$version/download';
 
   String get assigned => '/trips/assigned';
+  String lifecycle(String tripId) => '/trips/$tripId/lifecycle';
+  String start(String tripId) => '${lifecycle(tripId)}/start';
+  String end(String tripId) => '${lifecycle(tripId)}/end';
   String incidents(String tripId) => '/trips/$tripId/incidents';
   String incidentMedia(String tripId, String id) =>
       '/trips/$tripId/incidents/$id/media';

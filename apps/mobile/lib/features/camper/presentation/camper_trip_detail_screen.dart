@@ -16,6 +16,7 @@ import '../../emergency_broadcasts/presentation/emergency_broadcasts_panel.dart'
 import '../../gps_tracking/presentation/gps_tracking_panel.dart';
 import '../../missed_alerts/missed_alerts_panel.dart';
 import '../../offline_map/presentation/offline_map_panel.dart';
+import '../../member_locations/presentation/camper_member_locations_panel.dart';
 import '../../offline_packages/presentation/offline_package_screen.dart';
 import '../../route_deviation/presentation/route_deviation_panel.dart';
 import '../../sync/application/device_sync_controller.dart';
@@ -543,6 +544,8 @@ class _CamperTripDetailScreenState
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 GpsTrackingPanel(tripId: effectiveTripId),
+                const SizedBox(height: AppSpacing.lg),
+                CamperMemberLocationsPanel(tripId: effectiveTripId),
                 const SizedBox(height: AppSpacing.lg),
                 RouteDeviationPanel(tripId: effectiveTripId),
                 const SizedBox(height: AppSpacing.lg),

@@ -242,6 +242,13 @@ describe("SettlementsService (CTMS-112 / CTMS-300 / CTMS-421)", () => {
 	});
 
 	describe("evaluateTripSettlement (PB AC-1 to PB AC-7)", () => {
+		it("measures the hold and complaint windows from the actual delayed return", async () => {
+			trip.actualEndedAt = new Date("2030-05-15T11:00:00Z");
+			const evaluation = await service.evaluateTripSettlement(trip.id);
+			expect(evaluation.completedAt).toEqual(trip.actualEndedAt);
+			expect(evaluation.isHoldPeriodSatisfied).toBe(false);
+			expect(evaluation.isComplaintWindowSatisfied).toBe(false);
+		});
 		it("evaluates eligible trip > 72h with 5% platform fee and 95% host net", async () => {
 			const evaluation = await service.evaluateTripSettlement("trip-uuid-1");
 
@@ -333,6 +340,12 @@ describe("SettlementsService (CTMS-112 / CTMS-300 / CTMS-421)", () => {
 	});
 
 	describe("settleTrip (BR-332, BR-334, BR-338)", () => {
+		it("cannot settle using the old scheduled end after a delayed actual return", async () => {
+			trip.actualEndedAt = new Date("2030-05-15T11:00:00Z");
+			await expect(service.settleTrip(trip.id, "admin-uuid-1")).rejects.toThrow("72-hour hold");
+			expect(settlementRepo.save).not.toHaveBeenCalled();
+			expect(walletRepo.save).not.toHaveBeenCalled();
+		});
 		it("successfully settles trip, credits host wallet, and writes ledger + audit log", async () => {
 			const result = await service.settleTrip("trip-uuid-1", "admin-uuid-1");
 
