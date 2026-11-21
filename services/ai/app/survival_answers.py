@@ -3,6 +3,7 @@
 import asyncio
 import hmac
 import json
+import logging
 import os
 import re
 from datetime import UTC, datetime
@@ -31,6 +32,7 @@ RESPONSE_FORMAT = "json_object"
 DRAFT_OUTPUT_TOKENS = 512
 VERIFICATION_OUTPUT_TOKENS = 64
 slots = asyncio.Semaphore(MAX_COMPLETIONS)
+logger = logging.getLogger(__name__)
 
 PROMPT_ARTIFACTS = {
     survival_prompt_v2.PROMPT_VERSION: {
@@ -293,7 +295,14 @@ async def generate_answer(payload: GenerationInput, *, include_trace: bool = Fal
                 }
             return answered
     except (TimeoutError, httpx.TimeoutException):
+        logger.warning("survival_generation_failure provider=%s reason=timeout", provider)
         raise HTTPException(504, detail={"code": "AI_TIMEOUT"}) from None
+    except httpx.HTTPStatusError as error:
+        # Provider exceptions can include credentials, request URLs and content.
+        # Only bounded operational metadata belongs in service diagnostics.
+        logger.warning("survival_generation_failure provider=%s reason=http status=%s",
+                       provider, error.response.status_code)
+        raise unavailable() from None
     except (httpx.HTTPError, ValidationError, ValueError, IndexError, KeyError, AttributeError, TypeError):
         raise unavailable() from None
 
