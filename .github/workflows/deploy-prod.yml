@@ -58,7 +58,7 @@ jobs:
     name: Deploy to VPS
     needs: docker
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 60
     environment:
       name: production
       url: https://ditrek.io.vn
