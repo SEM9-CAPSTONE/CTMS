@@ -15,9 +15,6 @@ export function ExperienceSkillsForm({ form }: ExperienceSkillsFormProps) {
 		<div className="flex flex-col gap-6 rounded-2xl border border-[#e0ebe0] bg-white p-6 shadow-sm">
 			<div className="border-b border-[#f0f4f1] pb-3">
 				<h3 className="text-base font-extrabold text-[#164027]">Kinh nghiệm cắm trại & Trekking</h3>
-				<p className="text-xs font-medium text-[#627769]">
-					Thông tin hỗ trợ Host và Porter đánh giá năng lực thể chất và khả năng thám hiểm của bạn.
-				</p>
 			</div>
 
 			<div className="grid grid-cols-1 sm:grid-cols-2 gap-5">

@@ -1,5 +1,10 @@
 ﻿import { useCallback, useEffect, useRef, useState } from "react";
 import { HttpError } from "../../../core/api";
+import {
+	currentReadIdentity,
+	isReputationAccessError,
+	useReadIdentity,
+} from "../../review-reputation/useAuthorizedRead";
 import { tripsService } from "../services/trips.service";
 import type { TripDetails } from "../types";
 import {
@@ -8,6 +13,11 @@ import {
 } from "./useTripAvailabilityRealtime";
 
 export function useTripDetail(tripId: string | undefined) {
+	const actor = useReadIdentity();
+	const actorRef = useRef(actor);
+	actorRef.current = actor;
+	const [owner, setOwner] = useState("");
+	const generation = useRef(0);
 	const [trip, setTrip] = useState<TripDetails | null>(null);
 	const [isLoading, setIsLoading] = useState<boolean>(true);
 	const [error, setError] = useState<string | null>(null);
@@ -35,6 +45,13 @@ export function useTripDetail(tripId: string | undefined) {
 	});
 
 	const fetchTrip = useCallback(async (id: string | undefined, isSilent = false) => {
+		const request = ++generation.current;
+		const viewer = actorRef.current;
+		const current = () =>
+			request === generation.current &&
+			tripIdRef.current === id &&
+			actorRef.current === viewer &&
+			currentReadIdentity() === viewer;
 		if (!id) {
 			setTrip(null);
 			setIsLoading(false);
@@ -51,11 +68,13 @@ export function useTripDetail(tripId: string | undefined) {
 
 		try {
 			const result = await tripsService.getById(id);
-			if (tripIdRef.current === id) {
+			if (current()) {
 				setTrip(result);
+				setOwner(`${viewer}:${id}`);
 			}
 		} catch (err) {
-			if (tripIdRef.current === id) {
+			if (current()) {
+				if (isReputationAccessError(err)) setTrip(null);
 				if (err instanceof HttpError) {
 					if (err.status === 404) {
 						setIsNotFound(true);
@@ -70,15 +89,21 @@ export function useTripDetail(tripId: string | undefined) {
 				}
 			}
 		} finally {
-			if (tripIdRef.current === id && !isSilent) {
+			if (current() && !isSilent) {
 				setIsLoading(false);
 			}
 		}
 	}, []);
 
 	useEffect(() => {
+		const requestGeneration = generation;
+		actorRef.current = actor;
+		setTrip(null);
 		void fetchTrip(tripId);
-	}, [tripId, fetchTrip]);
+		return () => {
+			requestGeneration.current++;
+		};
+	}, [tripId, actor, fetchTrip]);
 
 	const retry = useCallback(
 		(isSilent = false) => {
@@ -88,7 +113,7 @@ export function useTripDetail(tripId: string | undefined) {
 	);
 
 	return {
-		trip,
+		trip: owner === `${actor}:${tripId}` ? trip : null,
 		isLoading,
 		error,
 		isNotFound,

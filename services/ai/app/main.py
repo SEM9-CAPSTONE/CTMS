@@ -19,6 +19,8 @@ from openai import OpenAI, APIStatusError, APITimeoutError, APIConnectionError
 from pydantic import BaseModel
 
 from app.models import WeatherAdvisoryRequest, WeatherAdvisoryResponse
+from app.survival_answers import router as survival_answers_router
+from app.feedback_investigation import router as feedback_investigation_router
 from app.weather_advisory_service import WeatherAdvisoryService
 from app.review_analysis_service import (
     ReviewAnalysisRequest, ReviewAnalysisResponse, ReviewAnalysisService,
@@ -29,12 +31,26 @@ from app.review_moderation_service import (
     InvalidModerationOutput, ModerationProviderRefusal,
 )
 from app.demand_insight_service import DemandRequest, DemandResponse, DemandInsightService
+from app.host_trip_planning_service import (
+    HostTripPlanningRequest, HostTripPlanningResponse, HostTripPlanningService,
+)
+from app.weather_risk_review_service import (
+    InvalidWeatherReviewOutput, WeatherRiskReviewRequest, WeatherRiskReviewResponse, WeatherRiskReviewService,
+)
+from app.trip_recommendation_service import (
+    TripRecommendationRequest, TripRecommendationResponse, TripRecommendationService,
+)
+from app.guide_card_extraction_service import (
+    GuideCardExtractionRequest, GuideCardExtractionResponse, GuideCardExtractionService, InvalidGuideCardOutput,
+)
 
 app = FastAPI(
 	title="CTMS AI Service",
 	description="AI Survival Assistant, RAG, and weather safety advisory service.",
 	version="0.1.0",
 )
+app.include_router(survival_answers_router)
+app.include_router(feedback_investigation_router)
 
 
 class WeatherRiskRequest(BaseModel):
@@ -151,6 +167,29 @@ def get_demand_planning_service() -> DemandPlanningService:
 
 
 @lru_cache
+def get_host_trip_planning_service() -> HostTripPlanningService:
+    return HostTripPlanningService(build_analysis_client().with_options(timeout=40.0))
+
+
+@app.post("/host-trip-planning", response_model=HostTripPlanningResponse, dependencies=[Depends(require_review_token)])
+def host_trip_planning(payload: HostTripPlanningRequest, service: HostTripPlanningService = Depends(get_host_trip_planning_service)) -> HostTripPlanningResponse:
+    try:
+        return service.generate(payload)
+    except ReviewProviderRefusal:
+        raise HTTPException(status_code=422, detail={"code": "provider_refusal"}) from None
+    except InvalidReviewOutput:
+        raise HTTPException(status_code=422, detail={"code": "invalid_output"}) from None
+    except (APITimeoutError, APIConnectionError):
+        raise HTTPException(status_code=504, detail={"code": "provider_transport"}) from None
+    except APIStatusError as error:
+        terminal = {"credit_balance_exhausted", "insufficient_quota", "organization_spend_limit_exceeded", "project_spend_limit_exceeded", "organization_usage_limit_exceeded"}
+        code = error.code if isinstance(error.code, str) and error.code in terminal else "insufficient_quota" if error.type == "insufficient_quota" else "provider_failure"
+        raise HTTPException(status_code=error.status_code if 400 <= error.status_code < 500 else 502, detail={"code": code}) from None
+    except Exception:
+        raise HTTPException(status_code=502, detail={"code": "provider_failure"}) from None
+
+
+@lru_cache
 def get_review_moderation_service() -> ReviewModerationService:
     return ReviewModerationService(build_analysis_client().with_options(timeout=20.0))
 
@@ -233,6 +272,83 @@ def scan_review_moderation(payload: ReviewModerationRequest, service: ReviewMode
             code = "insufficient_quota"
         if code:
             raise HTTPException(status_code=429, detail={"code": code}) from None
+        raise HTTPException(status_code=status if status == 429 or 400 <= status < 500 else 502, detail={"code": "provider_failure"}) from None
+    except Exception:
+        raise HTTPException(status_code=502, detail={"code": "provider_failure"}) from None
+
+
+@lru_cache
+def get_weather_risk_review_service() -> WeatherRiskReviewService:
+    return WeatherRiskReviewService(build_analysis_client())
+
+
+@app.post("/weather-risk-review", response_model=WeatherRiskReviewResponse, dependencies=[Depends(require_review_token)])
+def review_weather_risk(payload: WeatherRiskReviewRequest, service: WeatherRiskReviewService = Depends(get_weather_risk_review_service)) -> WeatherRiskReviewResponse:
+    """Independent AI opinion on a Trip forecast; the rule-based level stays the official one."""
+    try:
+        return service.review(payload)
+    except InvalidWeatherReviewOutput:
+        raise HTTPException(status_code=422, detail={"code": "invalid_output"}) from None
+    except (APITimeoutError, APIConnectionError):
+        raise HTTPException(status_code=504, detail={"code": "provider_transport"}) from None
+    except APIStatusError as error:
+        status = error.status_code
+        raise HTTPException(status_code=status if status == 429 or 400 <= status < 500 else 502, detail={"code": "provider_failure"}) from None
+    except Exception:
+        raise HTTPException(status_code=502, detail={"code": "provider_failure"}) from None
+
+
+def get_guide_card_extraction_service() -> GuideCardExtractionService:
+    return GuideCardExtractionService(build_analysis_client())
+
+
+@app.post("/guide-card-extraction", response_model=GuideCardExtractionResponse, dependencies=[Depends(require_review_token)])
+def extract_guide_card(payload: GuideCardExtractionRequest, service: GuideCardExtractionService = Depends(get_guide_card_extraction_service)) -> GuideCardExtractionResponse:
+    """Reads the fields printed on a tour-guide card photo; the API decides labels, never this service."""
+    try:
+        return service.extract(payload)
+    except InvalidGuideCardOutput:
+        raise HTTPException(status_code=422, detail={"code": "invalid_output"}) from None
+    except (APITimeoutError, APIConnectionError):
+        raise HTTPException(status_code=504, detail={"code": "provider_transport"}) from None
+    except APIStatusError as error:
+        status = error.status_code
+        raise HTTPException(status_code=status if status == 429 or 400 <= status < 500 else 502, detail={"code": "provider_failure"}) from None
+    except Exception:
+        raise HTTPException(status_code=502, detail={"code": "provider_failure"}) from None
+
+
+@lru_cache
+def get_trip_recommendation_service() -> TripRecommendationService:
+    # The API waits 5 seconds and then uses its rule order, so the provider call stays below that.
+    provider = os.environ.get("TRIP_RECOMMENDATION_PROVIDER", "gemini")
+    key = os.environ.get("GEMINI_API_KEY")
+    if provider != "gemini" or not key:
+        raise HTTPException(status_code=503, detail={"code": "provider_not_configured"})
+    return TripRecommendationService(OpenAI(
+        api_key=key, base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        timeout=4.0, max_retries=0,
+    ))
+
+
+@app.post("/trip-recommendations", response_model=TripRecommendationResponse, dependencies=[Depends(require_review_token)])
+def rank_trip_recommendations(payload: TripRecommendationRequest, service: TripRecommendationService = Depends(get_trip_recommendation_service)) -> TripRecommendationResponse:
+    """Reorders already-eligible candidates; the API re-validates codes and reasons."""
+    model = os.environ.get("TRIP_RECOMMENDATION_MODEL", "").strip() or "gemini-3.1-flash-lite"
+    if payload.model != model:
+        raise HTTPException(status_code=422, detail={"code": "invalid_model"})
+    try:
+        return service.rank(payload)
+    except HTTPException:
+        raise
+    except ReviewProviderRefusal:
+        raise HTTPException(status_code=422, detail={"code": "provider_refusal"}) from None
+    except InvalidReviewOutput:
+        raise HTTPException(status_code=422, detail={"code": "invalid_output"}) from None
+    except (APITimeoutError, APIConnectionError):
+        raise HTTPException(status_code=504, detail={"code": "provider_transport"}) from None
+    except APIStatusError as error:
+        status = error.status_code
         raise HTTPException(status_code=status if status == 429 or 400 <= status < 500 else 502, detail={"code": "provider_failure"}) from None
     except Exception:
         raise HTTPException(status_code=502, detail={"code": "provider_failure"}) from None

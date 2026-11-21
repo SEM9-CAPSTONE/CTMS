@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Header, Post, Query, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -10,6 +10,8 @@ import { UserRole } from "../users/entities/user.entity";
 import { AnalyzeRouteDto } from "./dto/analyze-route.dto";
 // biome-ignore lint/style/useImportType: decorated DTO runtime metadata
 import { ImportSafetyDto } from "./dto/import-safety.dto";
+// biome-ignore lint/style/useImportType: DTO validation metadata
+import { VerifiedZonesQueryDto } from "./dto/verified-zones-query.dto";
 // biome-ignore lint/style/useImportType: Nest injection metadata
 import { RouteSafetyService } from "./route-safety.service";
 // biome-ignore lint/style/useImportType: Nest injection metadata
@@ -25,11 +27,27 @@ export class RouteSafetyController {
 		private readonly imports: SafetyImportService
 	) {}
 
+	@Get("verified-zones")
+	@Roles(UserRole.HOST, UserRole.ADMIN, UserRole.CAMPER, UserRole.PORTER)
+	@Header("Cache-Control", "private, no-store")
+	@ApiOperation({
+		summary: "Read Admin-verified danger zones in the visible map area; no route or trip required",
+	})
+	@ApiResponse({
+		status: 200,
+		description:
+			"Bounded GeoJSON containing published danger facts only, verification, generatedAt and truncation status",
+	})
+	@ApiResponse({ status: 422, description: "Invalid map bounds" })
+	verifiedZones(@Query() query: VerifiedZonesQueryDto) {
+		return this.safety.verifiedZones(query);
+	}
+
 	@Post("analyze")
 	@Roles(UserRole.HOST)
 	@ApiOperation({
 		summary:
-			"Fetch current NCHMF warnings and analyze an owned or unsaved route; source availability is explicit",
+			"Analyze drawn geometry with current warnings and nearby saved zones across the Host's own routes; source availability is explicit",
 	})
 	@ApiResponse({
 		status: 201,

@@ -10,6 +10,7 @@ export type SafetySourceType =
 	| "BASE_HISTORICAL"
 	| "RESOURCE"
 	| "HOST_DEFINED"
+	| "ADMIN_VERIFIED"
 	| "FIELD_OBSERVATION";
 export type SafetySeverity = "LOW" | "MEDIUM" | "HIGH" | "VERY_HIGH" | "UNKNOWN";
 export type SafetyLifecycle =
@@ -27,6 +28,8 @@ export interface SafetyCandidate {
 	sourceType: SafetySourceType;
 	source: string;
 	sourceReference: string;
+	routeName?: string | null;
+	labelPoint?: { type: "Point"; coordinates: [number, number] } | null;
 	hazardType: string;
 	severity: SafetySeverity;
 	geometry: SafetyGeometry;
@@ -51,6 +54,13 @@ export interface SafetyFeature {
 	id: string;
 	geometry: SafetyGeometry;
 	properties: Omit<SafetyCandidate, "geometry" | "id">;
+}
+
+export interface VerifiedZoneCollection {
+	type: "FeatureCollection";
+	features: SafetyFeature[];
+	generatedAt: string;
+	truncated: boolean;
 }
 
 export interface RouteSafetyResult {

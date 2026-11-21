@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: Nest injection metadata
 import { ConfigService } from "@nestjs/config";
+import { BookingMemberStatus } from "../bookings/booking-member-status.enum";
 import { GpsParticipantRole } from "../gps-tracking/gps-tracking.enums";
 // biome-ignore lint/style/useImportType: Nest injection metadata
 import { ScheduleProgressService } from "../schedule-progress/schedule-progress.service";
@@ -42,17 +43,18 @@ export class MemberLocationsService {
 
 	async getMemberLocations(userId: string, tripId: string): Promise<TripMemberLocations> {
 		const trip = await this.repository.findTrip(tripId);
-		// BR-172/173: outside the Host's or assigned Porter's scope the Trip is indistinguishable from absent.
+		// BR-172/173: callers outside ownership, assignment or joined membership cannot identify the Trip.
 		let viewer: TripMemberLocations["viewer"] | null = null;
 		if (trip?.hostId === userId) viewer = "host";
 		else if (trip && (await this.repository.isAssignedPorter(tripId, userId))) viewer = "porter";
+		else if (trip && (await this.repository.isJoinedCamper(tripId, userId))) viewer = "camper";
 		if (!trip || !viewer) throw new NotFoundException("Trip not found");
 		if (trip.status !== "ongoing") {
 			throw new ConflictException("Member locations are only available while the Trip is ongoing");
 		}
 
 		const [rows, progress] = await Promise.all([
-			this.repository.findMembers(tripId),
+			this.repository.findMembers(tripId, viewer === "camper"),
 			this.scheduleProgress.getProgress(userId, tripId),
 		]);
 		const evaluatedAt = progress.evaluatedAt.toISOString();
@@ -80,10 +82,13 @@ export class MemberLocationsService {
 			tripId,
 			tripStatus: trip.status,
 			viewer,
+			route: trip.route ?? null,
 			generatedAt: now.toISOString(),
 			locationSource: "server_confirmed",
 			freshnessMaxAgeSeconds: this.maxAge,
-			members: rows.map((row) => this.project(row, now, behind)),
+			members: rows
+				.filter((row) => viewer !== "camper" || row.memberStatus !== BookingMemberStatus.LEFT)
+				.map((row) => this.project(row, now, behind)),
 		};
 	}
 

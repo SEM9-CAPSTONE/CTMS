@@ -67,7 +67,7 @@ describe("BookingDetailsView", () => {
 	it("renders the authoritative aggregate and exactly one h1", () => {
 		render(<BookingDetailsView booking={booking} onBack={() => {}} />);
 		expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-		expect(screen.getByText(booking.id, { exact: false })).toBeVisible();
+		expect(screen.queryByText(booking.id, { exact: false })).not.toBeInTheDocument();
 		expect(screen.getByText("Chờ thanh toán", { exact: false })).toBeVisible();
 		expect(screen.getAllByText("Chưa thanh toán", { exact: false }).length).toBeGreaterThan(0);
 		expect(screen.getByText("Summit Trip")).toBeVisible();
@@ -89,7 +89,7 @@ describe("BookingDetailsView", () => {
 		).toBeVisible();
 		expect(
 			screen.getByText(
-				"Quyền hủy và số tiền hoàn thực tế được máy chủ xác định tại thời điểm gửi yêu cầu."
+				"Điều kiện hủy và số tiền hoàn được kiểm tra theo chính sách áp dụng cho đơn này."
 			)
 		).toBeVisible();
 	});

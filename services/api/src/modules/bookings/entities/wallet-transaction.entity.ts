@@ -12,6 +12,8 @@ import { Payout } from "./payout.entity";
 import { Settlement } from "./settlement.entity";
 
 export enum WalletTransactionType {
+	WALLET_TRANSFER_CREDIT = "wallet_transfer_credit",
+	WALLET_TRANSFER_DEBIT = "wallet_transfer_debit",
 	SETTLEMENT_CREDIT = "settlement_credit",
 	PAYOUT_DEBIT = "payout_debit",
 	PAYOUT_REFUND = "payout_refund",
@@ -19,6 +21,10 @@ export enum WalletTransactionType {
 	PENALTY_DEBIT = "penalty_debit",
 	/** A waived weather penalty given back to the Host. */
 	PENALTY_REFUND = "penalty_refund",
+	/** CTMS-114: Post-settlement refund deduction from host wallet. */
+	POST_SETTLEMENT_DEBIT = "post_settlement_debit",
+	/** CTMS-114: Post-payout recovery claim ledger entry. */
+	POST_PAYOUT_RECOVERY = "post_payout_recovery",
 }
 
 /**

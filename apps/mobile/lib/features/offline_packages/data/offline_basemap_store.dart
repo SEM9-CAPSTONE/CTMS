@@ -132,8 +132,22 @@ class OfflineBasemapStore {
       await purge(package.tripId);
       return null;
     }
+    return verifiedLocalPath(root, coreStore, package);
+  }
+
+  /// Saved-content viewing must not initialize an API client or make requests.
+  static Future<String?> verifiedLocalPath(
+    Directory root,
+    PackageDownloadStore coreStore,
+    OfflinePackage package,
+  ) async {
+    if (await coreStore.accessDenied(package.tripId)) return null;
+    if (!OfflinePackage.isTripId(package.tripId) ||
+        !OfflinePackage.isTripId(package.id)) {
+      throw const FormatException('Mã gói dữ liệu không hợp lệ.');
+    }
     try {
-      final dir = directory(package);
+      final dir = Directory('${root.path}/${package.tripId}/${package.id}');
       final json =
           jsonDecode(await File('${dir.path}/metadata.json').readAsString())
               as Map<String, Object?>;

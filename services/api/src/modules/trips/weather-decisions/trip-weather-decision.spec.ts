@@ -463,19 +463,32 @@ describe("TripWeatherDecisionWorker", () => {
 		const config = (enabled: string) => ({
 			get: (key: string) => (key.endsWith("ENABLED") ? enabled : undefined),
 		});
-		const idle = new TripWeatherDecisionWorker(config("false") as never, alerts as never);
+		const decisionService = { autoCancelDueTrips: jest.fn() };
+		const idle = new TripWeatherDecisionWorker(
+			config("false") as never,
+			alerts as never,
+			decisionService as never
+		);
 		idle.onApplicationBootstrap();
 		expect(alerts.sendDueAlerts).not.toHaveBeenCalled();
-		const worker = new TripWeatherDecisionWorker(config("false") as never, alerts as never);
+		const worker = new TripWeatherDecisionWorker(
+			config("false") as never,
+			alerts as never,
+			decisionService as never
+		);
 		await worker.startTick(() => NOW);
 		expect(alerts.sendDueAlerts).toHaveBeenCalledWith(NOW, 100);
 	});
 
 	it("survives a failed pass", async () => {
 		const alerts = { sendDueAlerts: jest.fn().mockRejectedValue(new Error("boom")) };
+		const decisionService = {
+			autoCancelDueTrips: jest.fn().mockResolvedValue({ checked: 0, cancelled: 0, failed: 0 }),
+		};
 		const worker = new TripWeatherDecisionWorker(
 			{ get: () => undefined } as never,
-			alerts as never
+			alerts as never,
+			decisionService as never
 		);
 		await expect(worker.startTick(() => NOW)).resolves.toBeUndefined();
 	});

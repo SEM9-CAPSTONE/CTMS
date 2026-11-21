@@ -14,6 +14,9 @@ import {
 	EmergencyBroadcastAlerts,
 	useEmergencyBroadcastListener,
 } from "../features/emergency-broadcasts";
+import type { HostReportTab } from "../features/host-reports/pages/HostReportsPage";
+import { HostTripMapPage } from "../features/role-landing/pages/HostTripMapPage";
+import type { RoleKey } from "../features/role-landing/types";
 import { PageSkeleton } from "../shared/components/PageSkeleton";
 import { AppRoleGuard } from "./AppRoleGuard";
 import { getAuthenticatedHomePath, getGuestOnlyRedirectPath } from "./authRedirect";
@@ -24,9 +27,15 @@ const ReviewAnalysisPage = lazy(() =>
 		default: module.ReviewAnalysisPage,
 	}))
 );
-const DemandInsightsPage = lazy(() =>
-	import("../features/demand-insights/DemandInsightsPage").then((module) => ({
-		default: module.DemandInsightsPage,
+const MyReportsPage = lazy(() =>
+	import("../features/content-reports/pages/MyReportsPage").then((module) => ({
+		default: module.MyReportsPage,
+	}))
+);
+
+const HostBusinessAnalyticsPage = lazy(() =>
+	import("../features/host-analytics/pages/HostBusinessAnalyticsPage").then((module) => ({
+		default: module.HostBusinessAnalyticsPage,
 	}))
 );
 
@@ -40,9 +49,24 @@ const SurvivalDocumentsPage = lazy(() =>
 		default: module.SurvivalDocumentsPage,
 	}))
 );
+const AdminSafetyHotspotsPage = lazy(() =>
+	import("../features/admin-safety-hotspots/pages/AdminSafetyHotspotsPage").then((module) => ({
+		default: module.AdminSafetyHotspotsPage,
+	}))
+);
+const AdminDangerZoneProposalsPage = lazy(() =>
+	import("../features/danger-zone-proposals/pages/AdminDangerZoneProposalsPage").then((module) => ({
+		default: module.AdminDangerZoneProposalsPage,
+	}))
+);
 const AdminContentReportsPage = lazy(() =>
 	import("../features/admin-content-reports/pages/AdminContentReportsPage").then((module) => ({
 		default: module.AdminContentReportsPage,
+	}))
+);
+const AdminAiInvestigationsPage = lazy(() =>
+	import("../features/admin-ai-investigations/AdminAiInvestigationsPage").then((module) => ({
+		default: module.AdminAiInvestigationsPage,
 	}))
 );
 const AdminPorterLevelsPage = lazy(() =>
@@ -55,6 +79,11 @@ const AdminPorterVerificationsPage = lazy(() =>
 		(module) => ({ default: module.AdminPorterVerificationsPage })
 	)
 );
+const AdminPorterCertificatesPage = lazy(() =>
+	import("../features/porter-certificates/pages/AdminPorterCertificatesPage").then((module) => ({
+		default: module.AdminPorterCertificatesPage,
+	}))
+);
 const AdminRefundsPage = lazy(() =>
 	import("../features/admin-refunds/pages/AdminRefundsPage").then((module) => ({
 		default: module.AdminRefundsPage,
@@ -65,19 +94,9 @@ const AdminUserAccountsPage = lazy(() =>
 		default: module.AdminUserAccountsPage,
 	}))
 );
-const AdminWeatherInterventionsPage = lazy(() =>
-	import("../features/weather-decisions/pages/AdminWeatherInterventionsPage").then((module) => ({
-		default: module.AdminWeatherInterventionsPage,
-	}))
-);
-const AdminWeatherPenaltiesPage = lazy(() =>
-	import("../features/weather-penalties/pages/AdminWeatherPenaltiesPage").then((module) => ({
-		default: module.AdminWeatherPenaltiesPage,
-	}))
-);
-const AdminWeatherRulesPage = lazy(() =>
-	import("../features/admin-weather-rules/pages/AdminWeatherRulesPage").then((module) => ({
-		default: module.AdminWeatherRulesPage,
+const AdminWeatherManagementPage = lazy(() =>
+	import("../features/admin-weather/pages/AdminWeatherManagementPage").then((module) => ({
+		default: module.AdminWeatherManagementPage,
 	}))
 );
 const ForgotPasswordPage = lazy(() =>
@@ -169,6 +188,26 @@ const RoleLandingPage = lazy(() =>
 const AdminSettlementsPage = lazy(() =>
 	import("../features/settlements/pages/AdminSettlementsPage").then((module) => ({
 		default: module.AdminSettlementsPage,
+	}))
+);
+const AdminPerformanceReportsPage = lazy(() =>
+	import("../features/performance-reports/pages/AdminPerformanceReportsPage").then((module) => ({
+		default: module.AdminPerformanceReportsPage,
+	}))
+);
+const AdminRevenueAnalyticsPage = lazy(() =>
+	import("../features/revenue-analytics/pages/AdminRevenueAnalyticsPage").then((module) => ({
+		default: module.AdminRevenueAnalyticsPage,
+	}))
+);
+const hostReportPaths = {
+	performance: RoutePath.HOST_PERFORMANCE_REPORTS,
+	revenue: RoutePath.HOST_REVENUE_ANALYTICS,
+} satisfies Record<HostReportTab, string>;
+
+const HostReportsPage = lazy(() =>
+	import("../features/host-reports/pages/HostReportsPage").then((module) => ({
+		default: module.HostReportsPage,
 	}))
 );
 const HostWalletPage = lazy(() =>
@@ -284,11 +323,11 @@ function AppRouteContent() {
 		};
 	}, []);
 
-	const navigateTo = (path: string) =>
+	const navigateTo = (path: string, state: { activeRole?: RoleKey } = {}) =>
 		guardedNavigation(() => {
 			const normalizedPath = path.startsWith("/") ? path : `/${path}`;
 			const nextLocation = new URL(normalizedPath, window.location.origin);
-			window.history.pushState({}, "", normalizedPath);
+			window.history.pushState(state, "", normalizedPath);
 			setCurrentPath(nextLocation.pathname.toLowerCase());
 			setCurrentSearch(nextLocation.search);
 		});
@@ -409,7 +448,11 @@ function AppRouteContent() {
 				fallback={camperUnauthorizedFallback}
 				onNavigateHome={() => navigateTo(RoutePath.HOME)}
 			>
-				<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+				<HostLayout
+					activeRole="camper"
+					onLogout={handleLogout}
+					onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+				>
 					<BookingListPage
 						onViewDetails={(bookingId) => navigateTo(`/bookings/${bookingId}?from=bookings`)}
 					/>
@@ -513,17 +556,32 @@ function AppRouteContent() {
 				onNavigateHome={() => navigateTo(RoutePath.HOME)}
 			>
 				<HostLayout allowMobile onLogout={handleLogout}>
-					<DemandInsightsPage actor={storedUser?.id ?? ""} />
+					<HostBusinessAnalyticsPage actor={storedUser?.id ?? ""} onNavigate={navigateTo} />
 				</HostLayout>
 			</AppRoleGuard>
 		);
 	}
-	if (currentPath === "/host/review-analysis" || currentPath === "/admin/review-analysis") {
+	const navigateToHostReport = (tab: HostReportTab) => navigateTo(hostReportPaths[tab]);
+	if (currentPath === "/host/content-reports") {
+		return (
+			<AppRoleGuard
+				allowedRoles={["host"]}
+				currentRoles={currentRoles}
+				onNavigateHome={() => navigateTo(RoutePath.HOME)}
+			>
+				<HostLayout allowMobile onLogout={handleLogout}>
+					<MyReportsPage actor={storedUser?.id ?? ""} />
+				</HostLayout>
+			</AppRoleGuard>
+		);
+	}
+	if (currentPath === "/host/review-analysis" || currentPath === RoutePath.ADMIN_REVIEW_ANALYSIS) {
 		const admin = currentPath.startsWith("/admin/");
 		const content = (
 			<ReviewAnalysisPage
 				actor={storedUser?.id ?? ""}
 				initialTripId={new URLSearchParams(currentSearch).get("trip") ?? ""}
+				initialReviewId={new URLSearchParams(currentSearch).get("reviewId") ?? ""}
 			/>
 		);
 		return (
@@ -605,6 +663,9 @@ function AppRouteContent() {
 					navigateTo(isHostDashboardTripDetail ? RoutePath.DASHBOARD : RoutePath.TRIPS)
 				}
 				backLabel={isHostDashboardTripDetail ? "Quay về tổng quan vận hành" : undefined}
+				showRecommendationReason={
+					isTripDetailRoute && navigationContext.get("from") === "recommendation"
+				}
 				canManageTrips={currentRoles.includes("host")}
 				currentUserId={storedUser?.id ?? null}
 				bookingAccess={
@@ -649,7 +710,11 @@ function AppRouteContent() {
 					fallback={camperUnauthorizedFallback}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+					<HostLayout
+						activeRole={isBookingFromTrip ? "camper" : undefined}
+						onLogout={handleLogout}
+						onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+					>
 						{tripFlow}
 					</HostLayout>
 				</AppRoleGuard>
@@ -679,7 +744,11 @@ function AppRouteContent() {
 				fallback={camperUnauthorizedFallback}
 				onNavigateHome={() => navigateTo(RoutePath.HOME)}
 			>
-				<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+				<HostLayout
+					activeRole="camper"
+					onLogout={handleLogout}
+					onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+				>
 					<BookingDetailsPage
 						bookingId={bookingId}
 						onBack={() => navigateTo(RoutePath.BOOKINGS)}
@@ -815,10 +884,13 @@ function AppRouteContent() {
 				>
 					{withPorterVerification(
 						<HostLayout
+							activeRole="porter"
 							onLogout={handleLogout}
 							onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
 						>
-							<PorterRequestsPage onBackHome={() => navigateTo(RoutePath.DASHBOARD)} />
+							<PorterRequestsPage
+								onBackHome={() => navigateTo(RoutePath.DASHBOARD, { activeRole: "porter" })}
+							/>
 						</HostLayout>
 					)}
 				</AppRoleGuard>
@@ -857,6 +929,9 @@ function AppRouteContent() {
 				<SearchTripsPage
 					onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
 					onNavigateToTripDetail={(tripId) => navigateTo(`/trips/${tripId}`)}
+					onNavigateToRecommendedTrip={(tripId) =>
+						navigateTo(`/trips/${tripId}?from=recommendation`)
+					}
 				/>
 			);
 
@@ -993,6 +1068,23 @@ function AppRouteContent() {
 				</AppRoleGuard>
 			);
 
+		case RoutePath.HOST_TRIP_MAP:
+			return (
+				<AppRoleGuard
+					allowedRoles={["host"]}
+					currentRoles={currentRoles}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<HostLayout
+						activeRole="host"
+						onLogout={handleLogout}
+						onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}
+					>
+						<HostTripMapPage hostId={storedUser?.id ?? ""} />
+					</HostLayout>
+				</AppRoleGuard>
+			);
+
 		case RoutePath.DASHBOARD: {
 			if (!storedUser || currentRoles.length === 0) {
 				return (
@@ -1055,6 +1147,18 @@ function AppRouteContent() {
 				</AppRoleGuard>
 			);
 
+		case RoutePath.ADMIN_PORTER_CERTIFICATES:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminPorterCertificatesPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+
 		case RoutePath.ADMIN_USERS:
 		case RoutePath.ADMIN_CONTENT_REPORTS:
 			return (
@@ -1072,6 +1176,18 @@ function AppRouteContent() {
 				</AppRoleGuard>
 			);
 
+		case RoutePath.ADMIN_AI_INVESTIGATIONS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminAiInvestigationsPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+
 		case RoutePath.ADMIN_SURVIVAL_DOCUMENTS:
 			return (
 				<AppRoleGuard
@@ -1081,6 +1197,28 @@ function AppRouteContent() {
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
 					<SurvivalDocumentsPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+		case RoutePath.ADMIN_SAFETY_HOTSPOTS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminSafetyHotspotsPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+		case RoutePath.ADMIN_DANGER_ZONE_PROPOSALS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminDangerZoneProposalsPage onLogout={handleLogout} />
 				</AppRoleGuard>
 			);
 		case RoutePath.ADMIN_AUDIT_LOGS:
@@ -1127,10 +1265,11 @@ function AppRouteContent() {
 					fallback={unauthorizedFallback}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<AdminWeatherRulesPage onLogout={handleLogout} />
+					<AdminWeatherManagementPage onLogout={handleLogout} initialTab="rules" />
 				</AppRoleGuard>
 			);
 
+		case RoutePath.ADMIN_WEATHER:
 		case RoutePath.ADMIN_WEATHER_INTERVENTIONS:
 			return (
 				<AppRoleGuard
@@ -1139,7 +1278,7 @@ function AppRouteContent() {
 					fallback={unauthorizedFallback}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<AdminWeatherInterventionsPage onLogout={handleLogout} />
+					<AdminWeatherManagementPage onLogout={handleLogout} initialTab="interventions" />
 				</AppRoleGuard>
 			);
 		case RoutePath.ADMIN_WEATHER_PENALTIES:
@@ -1150,7 +1289,7 @@ function AppRouteContent() {
 					fallback={unauthorizedFallback}
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
-					<AdminWeatherPenaltiesPage onLogout={handleLogout} />
+					<AdminWeatherManagementPage onLogout={handleLogout} initialTab="penalties" />
 				</AppRoleGuard>
 			);
 
@@ -1175,6 +1314,58 @@ function AppRouteContent() {
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
 					<AdminSettlementsPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+
+		case RoutePath.ADMIN_PERFORMANCE_REPORTS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminPerformanceReportsPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+
+		case RoutePath.HOST_PERFORMANCE_REPORTS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["host"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+						<HostReportsPage activeTab="performance" onTabChange={navigateToHostReport} />
+					</HostLayout>
+				</AppRoleGuard>
+			);
+
+		case RoutePath.ADMIN_REVENUE_ANALYTICS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminRevenueAnalyticsPage onLogout={handleLogout} />
+				</AppRoleGuard>
+			);
+
+		case RoutePath.HOST_REVENUE_ANALYTICS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["host"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<HostLayout onLogout={handleLogout} onNavigateToTrips={() => navigateTo(RoutePath.TRIPS)}>
+						<HostReportsPage activeTab="revenue" onTabChange={navigateToHostReport} />
+					</HostLayout>
 				</AppRoleGuard>
 			);
 

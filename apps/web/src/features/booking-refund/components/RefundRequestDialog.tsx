@@ -3,10 +3,12 @@ import { AlertCircle, Check, ExternalLink, Landmark, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { useBankAccounts, validateAccountHolderNameMatch } from "../../bank-accounts";
+import type { BookingStatus } from "../../booking-details/types";
 import { formatBookingMoney } from "../../booking-details/utils/booking-details-formatters";
 import { useCurrentUserProfile } from "../../camper-profile/hooks/useCurrentUserProfile";
 import { type RefundRequestFormData, refundRequestSchema } from "../schema/booking-refund.schema";
 import type { RefundError, RefundOrigin } from "../types";
+import { refundFlow } from "../utils/refund-flow";
 
 export interface RefundRequestDialogProps {
 	open: boolean;
@@ -14,6 +16,7 @@ export interface RefundRequestDialogProps {
 	error: RefundError | null;
 	maxRefundableAmount?: string;
 	defaultOrigin?: RefundOrigin;
+	bookingStatus?: BookingStatus | null;
 	onSubmit: (input: RefundRequestFormData) => Promise<void>;
 	onClose: () => void;
 	onClearError: () => void;
@@ -25,11 +28,13 @@ export function RefundRequestDialog({
 	error,
 	maxRefundableAmount,
 	defaultOrigin,
+	bookingStatus,
 	onSubmit,
 	onClose,
 	onClearError,
 }: RefundRequestDialogProps) {
 	const dialogRef = useRef<HTMLDialogElement>(null);
+	const flow = refundFlow(defaultOrigin, bookingStatus);
 
 	const { data: bankAccounts, isLoading: isLoadingAccounts } = useBankAccounts();
 	const { data: userProfile } = useCurrentUserProfile();
@@ -132,7 +137,7 @@ export function RefundRequestDialog({
 		>
 			<div className="flex items-center justify-between gap-3 border-b border-[#e7eee7] pb-3">
 				<h2 id="refund-request-dialog-title" className="text-xl font-extrabold text-[#10221b]">
-					Yêu cầu hoàn tiền & Khiếu nại
+					{flow.dialogTitle}
 				</h2>
 				<button
 					type="button"
@@ -164,14 +169,14 @@ export function RefundRequestDialog({
 
 				<div>
 					<label htmlFor="refund-reason" className="block text-sm font-bold text-[#10221b]">
-						Lý do yêu cầu <span className="text-rose-600">*</span>
+						{flow.reasonLabel} <span className="text-rose-600">*</span>
 					</label>
 					<textarea
 						id="refund-reason"
 						{...register("reason")}
 						rows={4}
 						disabled={isSubmitting}
-						placeholder="Mô tả chi tiết lý do yêu cầu hoàn tiền hoặc sự cố chuyến đi..."
+						placeholder={flow.reasonPlaceholder}
 						className="mt-1.5 w-full rounded-xl border border-[#cbd9ce] p-3 text-sm focus:border-[#164027] focus:outline-none disabled:bg-gray-100"
 					/>
 					{errors.reason && <p className="mt-1 text-xs text-rose-600">{errors.reason.message}</p>}
@@ -284,17 +289,15 @@ export function RefundRequestDialog({
 				<div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
 					<div className="flex items-center justify-between">
 						<span className="text-xs font-bold uppercase tracking-wider text-[#164027]">
-							Số tiền hoàn toàn bộ (100%)
-						</span>
-						<span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-extrabold text-[#164027]">
-							Rút hết
+							Số tiền đề nghị hoàn
 						</span>
 					</div>
 					<p className="mt-1.5 text-2xl font-black text-[#164027]">
 						{formatBookingMoney(maxRefundableAmount ?? null)}
 					</p>
 					<p className="mt-1 text-xs text-[#52665b]">
-						Hệ thống tự động thực hiện hoàn toàn bộ 100% số tiền của chuyến đi theo chính sách.
+						Yêu cầu sẽ được Quản trị viên xem xét. Tiền chỉ được hoàn sau khi yêu cầu được chấp
+						thuận và chuyển khoản được xác nhận.
 					</p>
 				</div>
 

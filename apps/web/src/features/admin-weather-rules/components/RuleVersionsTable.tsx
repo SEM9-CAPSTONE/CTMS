@@ -62,6 +62,7 @@ export function RuleVersionsTable({
 							<th className="px-5 py-4">Trọng số tiêu chí (Mưa/Gió/Nhiệt/Tầm nhìn/Dông)</th>
 							<th className="px-5 py-4">Điểm trần (Green/Yellow)</th>
 							<th className="px-5 py-4">Thời gian tạo</th>
+							<th className="px-5 py-4">Người tạo</th>
 							<th className="px-5 py-4 text-right">Thao tác</th>
 						</tr>
 					</thead>
@@ -106,6 +107,13 @@ export function RuleVersionsTable({
 
 								<td className="px-5 py-4 text-xs font-medium text-[#54655a]">
 									{formatDate(rule.createdAt)}
+								</td>
+
+								<td
+									className="px-5 py-4 text-xs font-medium text-[#54655a]"
+									data-testid={`rule-creator-${rule.version}`}
+								>
+									{rule.createdByName ?? "Không rõ"}
 								</td>
 
 								<td className="px-5 py-4 text-right">

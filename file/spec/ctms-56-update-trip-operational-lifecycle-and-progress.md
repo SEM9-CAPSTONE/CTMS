@@ -10,12 +10,15 @@ Use Case: Update Trip Operational Lifecycle and Progress
 
 Priority: Must Have
 
-Goal: Maintain authoritative operational Trip progress and checkpoint-arrival information while supporting Porter-led checkpoint confirmation and offline synchronization.
+Goal: Let an assigned Porter confirm actual Trip departure and completion, and maintain authoritative checkpoint progress with offline checkpoint synchronization.
 
 ## 2. Scope
 
 ### In Scope
 
+- Assigned Porter confirms Start Trip and End Trip on mobile.
+- Database-controlled actual timestamps, actor attribution, atomic audit and idempotent transitions.
+- Departure eligibility and required offline-package checks.
 - Operational Trip progress.
 - Checkpoint arrival confirmation.
 - Member checkpoint visits.
@@ -54,7 +57,16 @@ Checkpoint belongs to applicable Route/Trip context.
 
 ## 6. State & Lifecycle
 
-Operational Trip lifecycle follows authoritative Trip states.
+Assigned-Porter lifecycle: `published → ongoing → completed` through explicit Porter confirmation.
+Unassigned/pending-reconfirmation Porters cannot operate a Trip. Draft, pending-approval,
+rejected and cancelled Trips cannot start. Ending requires ongoing; a never-started Trip
+cannot complete directly. Repeating a successful action returns current state without rewriting
+timestamps or creating another audit. Starting a completed Trip is rejected.
+
+The schedule worker retains its legacy path only for Trips without an assigned or
+pending-reconfirmation Porter and without an actual start timestamp. It cannot start or
+finish assigned Trips, including when the scheduled end has passed. Existing completed
+Trips and historical timestamps are not backfilled or rewritten.
 
 For checkpoint progress:
 
@@ -87,7 +99,43 @@ Repeated confirmation does not create duplicate visit.
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+All endpoints require an authenticated, active Porter with a current `assigned` row.
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| GET | `/api/trips/:tripId/lifecycle` | Current status, planned/actual times, `canStart`, `canEnd`, `startBlockedReason`; private/no-store |
+| POST | `/api/trips/:tripId/lifecycle/start` | Confirm departure; no client-supplied time or state |
+| POST | `/api/trips/:tripId/lifecycle/end` | Confirm completion; no client-supplied time or state |
+
+Start requires server time at/after `starts_at` and before `ends_at`, active Route,
+no weather pause, and confirmed Booking participation at least `capacity_min`.
+Pending-payment and pending-reconfirmation Bookings do not count. A required offline
+package must pass the existing `PackageActivationService.assertDepartureReady` check
+regardless of the schedule worker's feature flag; successful departure locks its version.
+Blocked package diagnostics persist without a Trip state transition.
+
+Writes lock the Trip, revalidate and lock the Assignment, retain the Route through commit,
+then update status, actual timestamp and acting Porter together with `trip.started` or
+`trip.ended` audit. Concurrent retries serialize. Package lock and lifecycle update roll
+back together on failure. Planned `starts_at`/`ends_at` are retained.
+
+Added nullable columns: `actual_started_at`, `actual_ended_at`, `started_by_id`, `ended_by_id`.
+The database records actual times; legacy ongoing Trips may finish with unknown actual
+start time. Finishing does not complete Bookings, settle revenue, initiate refunds or
+change checkpoint visits; those keep their own authorized workflows.
+The existing 24-hour complaint window and 72-hour settlement hold are measured from
+`actual_ended_at` when available, retaining their legacy completion/schedule fallback
+for historical Trips. Ending early or late never silently changes the window lengths.
+
+Mobile: **Chuyến đi** combines assigned Trip selection, lifecycle actions, the map,
+and member GPS/off-route details in one tab. Both `/porter/schedule` and `/porter/map`
+redirect to `/porter/trips`, preserving the selected Trip query parameter. Tracking
+uses the selected Trip's confirmed lifecycle and stops when that Trip ends.
+The workspace presents separate
+confirmation dialogs for departure/completion, Vietnamese reasons and existing SnackBar
+feedback. Start/end require connectivity and are not queued offline. After timeout/failure,
+the client reloads current state before retrying. Checkpoint offline capture remains in
+the existing checkpoint flow.
 
 ## 10. Error & Edge Cases
 
@@ -112,4 +160,17 @@ TBD — Technical Design.
 
 ## 12. Open Decisions
 
-Exact Trip lifecycle enum/transitions remain governed by the authoritative Trip state model rather than being redefined here.
+No new Trip status enum is introduced. The explicit Porter transitions above amend the
+former schedule-only behavior for assigned Trips. Offline lifecycle actions are outside
+this implementation; offline checkpoint events retain their original context.
+
+## 13. Implementation verification
+
+- `test/trips.lifecycle.integration-spec.ts`: HTTP authorization, invalid states/times,
+  route/weather/participation blocks, required-package retry, concurrent idempotency,
+  transactional rollback, schedule-worker exclusion, and financial isolation.
+- `test/trips.status-schedule.integration-spec.ts`: legacy schedule behavior remains valid.
+- `apps/mobile/test/features/trip_operations/trip_operations_test.dart`: live schedule
+  navigation, both confirmations, cancel, disabled departure, in-flight operation and errors.
+- Main seed: `pnpm --filter @ctms/api seed:porter-lifecycle`; additive daily fixtures reuse
+  primary accounts and preserve all already-operated Trip/Booking records.

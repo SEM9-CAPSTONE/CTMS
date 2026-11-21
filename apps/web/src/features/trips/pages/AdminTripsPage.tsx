@@ -7,6 +7,9 @@ import {
 } from "../../../shared/components/AdminReviewFilters";
 import { RealtimeConnectionStatus } from "../../../shared/components/RealtimeConnectionStatus";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
+import { useRefreshAdminModerationCounts } from "../../admin-layout/hooks/useAdminModerationCounts";
+import { NotificationReviewTarget } from "../../in-app-notifications/components/NotificationReviewTarget";
+import { useNotificationReviewTarget } from "../../in-app-notifications/hooks/useNotificationReviewTarget";
 import { AdminTripReviewContent } from "../components/AdminTripReviewContent";
 import { TripReviewDecisionDialog } from "../components/TripReviewDecisionDialog";
 import { useAdminTripReviews, useReviewTrip } from "../hooks/useAdminTripReviews";
@@ -27,17 +30,21 @@ export interface AdminTripsPageProps {
 }
 
 export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
+	const notificationTripId = new URLSearchParams(window.location.search).get("tripId");
+	const notificationTarget = useNotificationReviewTarget(notificationTripId);
 	const [reviewOutcome, setReviewOutcome] = useState<TripReviewOutcomeFilter>("pending");
 	const [page, setPage] = useState(1);
 	const list = useAdminTripReviews(reviewOutcome, page);
 	const review = useReviewTrip();
+	const refreshModerationCounts = useRefreshAdminModerationCounts();
 	const [selectedId, setSelectedId] = useState<string>();
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const [dialogVersion, setDialogVersion] = useState<string | null>(null);
 
 	const refreshInBackground = useCallback(() => {
 		void list.reload(true);
-	}, [list.reload]);
+		refreshModerationCounts();
+	}, [list.reload, refreshModerationCounts]);
 	const realtimeState = useAdminTripReviewNotifications({ onChanged: refreshInBackground });
 
 	useEffect(() => {
@@ -47,8 +54,11 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 	}, [list.items]);
 
 	const selected = useMemo(
-		() => list.items.find((trip) => trip.id === selectedId) ?? null,
-		[list.items, selectedId]
+		() =>
+			notificationTripId
+				? notificationTarget.review
+				: (list.items.find((trip) => trip.id === selectedId) ?? null),
+		[list.items, selectedId, notificationTripId, notificationTarget.review]
 	);
 
 	useEffect(() => {
@@ -72,6 +82,7 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 			reason: values.action === "approve" ? undefined : values.reason,
 		});
 		if (!result) return;
+		refreshModerationCounts();
 		const messages = {
 			approve: `Đã đồng ý và xuất bản trip “${selected.title}”.`,
 			decline: `Đã từ chối trip “${selected.title}”. Trip được trả về bản nháp.`,
@@ -79,6 +90,7 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 		toast.success(messages[values.action], "Xét duyệt hoàn tất");
 		setDialogOpen(false);
 		await list.reload();
+		if (notificationTripId) await notificationTarget.query.refetch();
 	};
 
 	return (
@@ -95,18 +107,38 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 					<div className="mt-2">
 						<RealtimeConnectionStatus state={realtimeState} testId="trip-review-realtime-status" />
 					</div>
-					<AdminReviewFilters
-						value={reviewOutcome}
-						options={REVIEW_FILTERS}
-						onChange={(value) => {
-							setReviewOutcome(value);
-							setPage(1);
-							review.clearError();
-						}}
-					/>
+					{notificationTripId && (
+						<a
+							href="/admin/trips"
+							className="mt-3 inline-flex rounded-xl border border-emerald-200 px-3 py-2 text-sm font-semibold text-brand-primary hover:bg-brand-light"
+						>
+							Quay lại danh sách xét duyệt
+						</a>
+					)}
+					{!notificationTripId && (
+						<AdminReviewFilters
+							value={reviewOutcome}
+							options={REVIEW_FILTERS}
+							onChange={(value) => {
+								setReviewOutcome(value);
+								setPage(1);
+								review.clearError();
+							}}
+						/>
+					)}
 				</header>
 
-				{list.error && (
+				{notificationTripId && (
+					<NotificationReviewTarget
+						target={notificationTarget}
+						onReview={() => {
+							review.clearError();
+							setDialogVersion(selected?.updatedAt ?? null);
+							setDialogOpen(true);
+						}}
+					/>
+				)}
+				{!notificationTripId && list.error && (
 					<div
 						role="alert"
 						className="flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700"
@@ -125,7 +157,7 @@ export function AdminTripsPage({ onLogout }: AdminTripsPageProps) {
 						</button>
 					</div>
 				)}
-				{!list.error && (
+				{!notificationTripId && !list.error && (
 					<>
 						<AdminTripReviewContent
 							isLoading={list.isLoading}

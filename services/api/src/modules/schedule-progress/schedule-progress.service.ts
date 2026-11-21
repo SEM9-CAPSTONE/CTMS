@@ -55,6 +55,18 @@ export class ScheduleProgressService {
 	}
 
 	async getProgress(userId: string, tripId: string): Promise<ScheduleProgressResult> {
+		return this.evaluateProgress(userId, tripId, true);
+	}
+
+	async readProgress(userId: string, tripId: string): Promise<ScheduleProgressResult> {
+		return this.evaluateProgress(userId, tripId, false);
+	}
+
+	private async evaluateProgress(
+		userId: string,
+		tripId: string,
+		recordHistory: boolean
+	): Promise<ScheduleProgressResult> {
 		const trip = await this.repository.findTrip(tripId);
 		if (!trip) throw new NotFoundException("Trip not found");
 		const viewer = await this.resolveViewer(userId, tripId, trip.hostId);
@@ -105,7 +117,7 @@ export class ScheduleProgressService {
 				now,
 			});
 			result.members.push({ ...progress, fullName: camper.fullName });
-			if (!progress.reference) continue;
+			if (!recordHistory || !progress.reference) continue;
 			for (const level of progress.levelsReached) {
 				const lag =
 					level === BehindScheduleLevel.SEVERELY_BEHIND
@@ -124,7 +136,7 @@ export class ScheduleProgressService {
 				});
 			}
 		}
-		await this.repository.recordWarnings(warnings);
+		if (recordHistory) await this.repository.recordWarnings(warnings);
 		return result;
 	}
 

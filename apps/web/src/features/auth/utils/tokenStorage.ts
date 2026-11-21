@@ -48,6 +48,7 @@ export function removeRefreshToken(): void {
 
 export function setStoredAuthUser(user: StoredAuthUser): void {
 	localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+	window.dispatchEvent(new Event("ctms-auth-user-changed"));
 }
 
 export function getStoredAuthUser(): StoredAuthUser | null {
@@ -66,4 +67,5 @@ export function getStoredAuthUser(): StoredAuthUser | null {
 
 export function removeStoredAuthUser(): void {
 	localStorage.removeItem(AUTH_USER_KEY);
+	window.dispatchEvent(new Event("ctms-auth-user-changed"));
 }

@@ -120,6 +120,7 @@ export class SosService {
 		const trip = await this.assertTripParticipant(userId, tripId);
 
 		let updatedAlert: SosAlert | null = null;
+		let transition: Pick<AuditLog, "id" | "createdAt"> | undefined;
 
 		await this.dataSource.transaction(async (manager) => {
 			const alert = await this.sosRepository.findForUpdate(sosId, manager);
@@ -187,7 +188,7 @@ export class SosService {
 			updatedAlert = await manager.getRepository(SosAlert).save(alert);
 
 			// BR-191: Critical action audit logging
-			await manager.getRepository(AuditLog).save({
+			const audit = await manager.getRepository(AuditLog).save({
 				actorId: userId,
 				action: "SOS_CANCELLED",
 				targetType: "sos_alert",
@@ -202,11 +203,14 @@ export class SosService {
 				},
 				reason: dto.reason,
 			});
+			transition = audit;
 		});
 
 		if (updatedAlert) {
 			const alert = updatedAlert as SosAlert;
 			this.eventsGateway.emitSosStateChanged(trip.hostId, {
+				transitionId: transition?.id,
+				occurredAt: transition?.createdAt?.toISOString(),
 				sosId: alert.id,
 				tripId: alert.tripId,
 				senderId: alert.senderId,
@@ -230,6 +234,7 @@ export class SosService {
 		const trip = await this.assertTripHost(userId, tripId);
 
 		let updatedAlert: SosAlert | null = null;
+		let transition: Pick<AuditLog, "id" | "createdAt"> | undefined;
 
 		await this.dataSource.transaction(async (manager) => {
 			const alert = await this.sosRepository.findForUpdate(sosId, manager);
@@ -285,7 +290,7 @@ export class SosService {
 			updatedAlert = await manager.getRepository(SosAlert).save(alert);
 
 			// BR-191: Critical action audit logging
-			await manager.getRepository(AuditLog).save({
+			const audit = await manager.getRepository(AuditLog).save({
 				actorId: userId,
 				action: "SOS_ACKNOWLEDGED",
 				targetType: "sos_alert",
@@ -299,12 +304,15 @@ export class SosService {
 				},
 				reason: null,
 			});
+			transition = audit;
 		});
 
 		if (updatedAlert) {
 			const alert = updatedAlert as SosAlert;
 			// AC3 / AC6: Broadcast real-time event to sender and team only after commit
 			this.eventsGateway.emitSosStateChanged(trip.hostId, {
+				transitionId: transition?.id,
+				occurredAt: transition?.createdAt?.toISOString(),
 				sosId: alert.id,
 				tripId: alert.tripId,
 				senderId: alert.senderId,
@@ -334,6 +342,7 @@ export class SosService {
 		const trip = await this.assertTripHost(userId, tripId);
 
 		let updatedAlert: SosAlert | null = null;
+		let transition: Pick<AuditLog, "id" | "createdAt"> | undefined;
 
 		await this.dataSource.transaction(async (manager) => {
 			const alert = await this.sosRepository.findForUpdate(sosId, manager);
@@ -391,7 +400,7 @@ export class SosService {
 			updatedAlert = await manager.getRepository(SosAlert).save(alert);
 
 			// BR-191: Critical action audit logging
-			await manager.getRepository(AuditLog).save({
+			const audit = await manager.getRepository(AuditLog).save({
 				actorId: userId,
 				action: "SOS_CLOSED",
 				targetType: "sos_alert",
@@ -406,12 +415,15 @@ export class SosService {
 				},
 				reason: dto.resolutionNote,
 			});
+			transition = audit;
 		});
 
 		if (updatedAlert) {
 			const alert = updatedAlert as SosAlert;
 			// AC6: Broadcast real-time event to sender and team only after commit
 			this.eventsGateway.emitSosStateChanged(trip.hostId, {
+				transitionId: transition?.id,
+				occurredAt: transition?.createdAt?.toISOString(),
 				sosId: alert.id,
 				tripId: alert.tripId,
 				senderId: alert.senderId,

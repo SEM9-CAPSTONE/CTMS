@@ -111,7 +111,51 @@ Net Revenue ≠ Payout.
 
 ## 9. API / Integration Contract
 
-TBD — Technical Design.
+### 9.1 Area snapshot (BR-319)
+
+- `geo_areas(code, province_code, province_name, name, sort_order, active)` is the reporting area list. The MVP operates in Đà Nẵng only and uses its former districts: Hải Châu, Thanh Khê, Sơn Trà, Ngũ Hành Sơn, Liên Chiểu, Cẩm Lệ, Hòa Vang and Hoàng Sa. Codes look like `DNG-SON-TRA`.
+- `trips.province_code`, `trips.province_name`, `trips.area_code` and `trips.area_name` are copied from `geo_areas` while a Trip is a draft (`POST /trips`, draft update with `areaCode`). Reports read only these Trip columns. Renaming a `geo_areas` row later does not change historical reports.
+- `GET /api/geo-areas` (any signed-in user) returns the active areas for the trip form and report filter. An unknown or inactive `areaCode` on trip create/update is rejected with 422 (`areaCode`, `INVALID_AREA`).
+- The web trip form requires an area. The API keeps `areaCode` optional so existing drafts and integrations keep working; Trips without a snapshot are reported as "Chưa xác định khu vực".
+
+### 9.2 Fixed date basis (BR-326)
+
+`payments.succeeded_at` and `payouts.succeeded_at` are set by the `ctms_set_succeeded_at` trigger the first time a row becomes `succeeded`, so every code path records the same moment. Existing rows were backfilled from the first succeeded `payment_transactions` row (payments) or `updated_at`.
+
+| KPI | Source | Date basis | Response key |
+| --- | --- | --- | --- |
+| Gross Revenue | `payments` charge, `status = succeeded` | `payments.succeeded_at` | `payment_succeeded_at` |
+| Refund Amount | `payments` refund, `status = succeeded` | `payments.succeeded_at` | `refund_succeeded_at` |
+| Platform Fee | `settlements.platform_fee` snapshot | `settlements.settled_at` | `settled_at` |
+| Net Revenue | `settlements.net_amount` − `financial_adjustments` (`post_settlement_refund`, `post_payout_recovery`) | `settled_at` / adjustment `created_at` | `settled_at` |
+| Payout | `payouts`, `status = succeeded` | `payouts.succeeded_at` | `payout_succeeded_at` |
+| Held Funds | succeeded charges − succeeded refunds of Trips without a settlement | current balance (not windowed) | `current_balance` |
+| Pending payout / pending refunds | `payouts` / refund `payments` with `status = pending` | current balance | — |
+
+### 9.3 Endpoint
+
+`GET /api/reports/revenue` — roles `host`, `admin`.
+
+Query: `period` (`7d`, `30d`, `90d`, `12m`, `this_month`, `last_month`, `all`; default `30d`) or `from` + `to` (ISO 8601, both required, `from ≤ to`), `granularity` (`day`, `week`, `month`; default `month`; coarsened automatically when the window is longer than 92 days for `day` or 730 days for `week`), `areaCode`, `hostId` (admin only).
+
+Scope (BR-318): a Host is always limited to their own Trips and payouts; a `hostId` sent by a Host is ignored. Admin sees every Host, or one Host with `hostId`, and receives `hosts[]` for the filter.
+
+Response: `currency` (`VND`), `timeWindow`, `granularity`, `scope`, `dateBasis`, `kpis`, `payoutAreaScoped`, `timeSeries[]` (bucket start date in `Asia/Ho_Chi_Minh`), `byArea[]` (with `grossShare` %), `byTrip[]` (title, start date, area, booking count, each KPI, settlement date) and, for admins, `hosts[]`.
+
+Errors: 400 `INVALID_DATE_RANGE`, 401 without a token, 403 for other roles.
+
+### 9.4 Rules applied
+
+- **Currency (BR-327):** the platform settles in a single reporting currency, VND. The response states it in `currency`. Amounts are summed in SQL `numeric` and converted through integer minor units, never through floating point.
+- **Payout by area:** payouts are made per Host wallet, not per Trip. When `areaCode` is set, `kpis.payout`, `kpis.pendingPayout` and `timeSeries[].payout` are `null` and `payoutAreaScoped` is `false`. The UI explains this instead of allocating payouts to areas.
+- **Traceability (BR-329):** the sum of `byTrip` equals the KPI totals for gross revenue, refunds, platform fee, net revenue and held funds. Each row links back to the Trip and its ledger records.
+- Weather penalties deducted from the Host wallet are wallet operations, not revenue adjustments, and are not part of Net Revenue.
+
+### 9.5 Web
+
+`/host/reports/revenue` and `/admin/reports/revenue` (Admin sidebar "Báo cáo doanh thu"). In the Host sidebar, "Báo cáo tổng quan" sits right below "Tổng quan vận hành" and opens one page with two tabs: "Báo cáo hiệu suất" (`/host/reports/performance`, CTMS-101) and "Báo cáo doanh thu" (`/host/reports/revenue`). Recorded figures ("Đã ghi nhận trong kỳ") and waiting money ("Đang chờ xử lý") are separate card groups (BR-325). Each card shows its date basis in a tooltip.
+
+UI labels: Gross Revenue → "Tổng tiền khách trả", Refund Amount → "Tiền đã hoàn", Platform Fee → "Phí nền tảng", Net Revenue → "Thu nhập sau phí", Payout → "Đã rút về ngân hàng", Held Funds → "Tiền chưa quyết toán", pending payout → "Yêu cầu rút đang xử lý", pending refunds → "Hoàn tiền đang xử lý".
 
 ## 10. Error & Edge Cases
 

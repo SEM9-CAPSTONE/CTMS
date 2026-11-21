@@ -10,7 +10,7 @@ Use Case: View Each Member's Last Synced Location
 
 Priority: Must Have
 
-Goal: Allow Host to see the latest server-known location and synchronized safety state for eligible Trip members without presenting stale/unsynced device data as real-time information.
+Goal: Allow the owning Host, assigned Porters and joined Campers to see the latest server-known member locations and synchronized safety state without presenting stale/unsynced data as real-time information.
 
 Backlog story: As a Host, I want to view each Trip member's last synchronized location so I can understand the latest location the server actually knows.
 
@@ -33,6 +33,7 @@ Acceptance Criteria:
 - Synced safety flags.
 - Staleness semantics.
 - Host Trip-member authorization.
+- Joined Camper peer visibility on mobile, with route diagram and selectable last-synced positions.
 
 ### Out of Scope
 
@@ -43,6 +44,7 @@ Acceptance Criteria:
 ## 3. Actors & Authorization
 
 - Host managing the applicable Trip.
+- Assigned Porter and joined Camper of an ongoing Trip (peer visibility amendment).
 - System.
 
 ## 4. Preconditions & Dependencies
@@ -131,8 +133,8 @@ New read-only module `services/api/src/modules/member-locations`, registered in 
 | Case | Result |
 | --- | --- |
 | No token | 401 |
-| Role other than Host/Porter | 403 (server-granted roles via `RolesGuard`) |
-| Absent Trip, Trip of another Host, unassigned Porter | 404. Out-of-scope Trips are indistinguishable from absent ones (BR-172/173) |
+| Role other than Host/Porter/Camper | 403 (server-granted roles via `RolesGuard`) |
+| Absent Trip, unrelated Host, unassigned Porter, Camper without joined membership | 404. Out-of-scope Trips are indistinguishable from absent ones (BR-172/173) |
 | Trip not `ongoing` (checked after authorization) | 409 |
 | Malformed Trip ID | 422 |
 
@@ -172,7 +174,7 @@ Registered, removed and no-show members are excluded, and so are members of canc
   - ISO normalization;
   - pass-through of synced route, GPS and checkpoint data; behind-schedule attached only to the matching Camper; `null` when there is no evaluation.
 - **Integration** (`test/member-locations.integration-spec.ts`, PostgreSQL + PostGIS + HTTP), 5 passed:
-  - 401, 403 (Camper), 404 (other Host, unassigned Porter), 422, 409 (completed Trip), Porter allowed;
+  - 401, 404 (other Host, unassigned Porter, ineligible Camper), 422, 409 (completed Trip), assigned Porter and joined Camper allowed;
   - only eligible members, with no contact data;
   - the latest capture wins over a delayed older upload, and `lastSeenAt` equals the capture time;
   - a long-offline Porter keeps the last location as `stale`; a never-synced Camper has no location;
@@ -284,3 +286,50 @@ Both clients consume `GET /api/trips/:tripId/member-locations` (§13). They refr
 - [x] build:all passed.
 - [x] test:all passed (except the pre-existing `develop` failures listed above).
 - [ ] Required CI checks passed — runs on the PR.
+
+
+## Peer visibility amendment ? 2026-11-21
+
+`GET /api/trips/:tripId/member-locations` also accepts the Camper role. The caller
+must have their own `booking_members.user_id` on a confirmed Booking of this Trip,
+with `member_status=joined` and no `left_at`. Booking ownership, a registered
+member, cancelled/pending-reconfirmation/completed Booking, or membership in a
+different Trip does not grant access. Revoked participation returns 404; an
+otherwise authorized caller receives 409 when the Trip is no longer ongoing.
+
+Camper responses include joined, non-departed peers and assigned Porters, with
+names, last-synchronized coordinates, capture time, freshness and the same
+persisted OFF_ROUTE/ON_ROUTE_RECOVERED events used by the Host. Former members
+remain visible to the Host according to the existing historical policy, but are
+excluded from Camper responses. Contact and health details are never returned.
+Behind-schedule evaluation retains its existing scope: a Camper receives only
+their own evaluation, with null for peers rather than an invented safe state.
+
+The response viewer union adds `camper` and the nullable `route` contains the
+Route ID and LineString geometry for a local vector diagram. The endpoint does
+not infer a new off-route result from a single location, replace device safety
+detection, or label an absent route event as on-route. A recovery event is shown
+as the last synchronized recovery, with its recorded time.
+
+`safety.route.distanceToRouteMeters` returns the nullable distance stored with
+that exact safety event. Member views show `Lệch tuyến · N m`, rounded to whole
+meters, alongside the event's recorded time. Missing values remain unknown;
+zero is preserved. The GPS accuracy value and a newer GPS position must not be
+substituted for this event distance. Recovery/unknown states do not display an
+off-route distance. Generic descriptions under member-location headings are
+omitted; capture times and freshness badges remain visible.
+
+Mobile entry: booked Trip detail ? L? tr?nh & GPS ? V? tr? c?c th?nh vi?n. A
+selectable marker and list show each last-known position; stale/unknown positions
+remain distinct. The route display is a diagram without terrain tiles and reuses
+the existing map projection and navigation controls. Refresh occurs every minute
+and on app resume; freshness advances between refreshes. Network failures retain
+last-known data with a timestamp. HTTP 401/403/404/409 erase cached positions and
+remove the map. The API client binds requests to the current account; changing
+sessions replaces the controller, and late responses from disposed controllers
+are ignored. Unsynchronized local GPS is never merged into the peer projection.
+
+Verification: member-locations service and HTTP integration tests cover joined
+access, departed/removed/registered members, ineligible Bookings, Trip isolation,
+privacy and completion. Mobile tests cover markers, selection, stale/unknown
+states, failures, authorization revocation and in-flight refresh behavior.

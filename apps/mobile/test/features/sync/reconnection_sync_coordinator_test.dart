@@ -1,8 +1,13 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/core/api/api_exception.dart';
+import 'package:mobile/features/camper/application/ai_feedback_queue.dart';
+import 'package:mobile/features/camper/application/survival_chat_controller.dart';
+import 'package:mobile/features/camper/data/ai_feedback_store.dart';
+import 'package:mobile/features/camper/data/survival_chat_api.dart';
 import 'package:mobile/features/camper/profile/data/camper_health_profile_repository.dart';
 import 'package:mobile/features/camper/profile/domain/health_profile.dart';
 import 'package:mobile/features/gps_tracking/domain/gps_tracking_models.dart';
@@ -170,6 +175,78 @@ void main() {
 
     tearDown(() {
       fakeConnectivity.dispose();
+    });
+
+    test('delivers only opted-in feedback after SOS and retries the same mutation on reconnect', () async {
+      FlutterSecureStorage.setMockInitialValues({});
+      final sosStore = InMemorySosStore();
+      await sosStore.put(LocalSosAlert(
+        id: newSosId(),
+        tripId: tripId,
+        senderId: 'camper-a',
+        emergencyType: 'injury',
+        eventTime: now,
+      ));
+      final operations = <Map<String, dynamic>>[];
+      final order = <String>[];
+      final queue = AiFeedbackQueue(
+        account: 'camper-a',
+        store: AiFeedbackStore(),
+        clock: () => now,
+        send: (_, payload, _) async {
+          order.add('feedback');
+          operations.add(payload);
+          if (operations.length == 1) {
+            throw ApiException('unavailable', statusCode: 503);
+          }
+        },
+      );
+      addTearDown(queue.dispose);
+      final coordinator = ReconnectionSyncCoordinator(
+        connectivitySource: fakeConnectivity,
+        incidentStore: fakeIncidentStore,
+        incidentsApi: fakeIncidentsApi,
+        sosStore: sosStore,
+        sosApi: OrderTrackingSosApi(order.add),
+        feedbackQueue: queue,
+        clock: () => now,
+      );
+      addTearDown(coordinator.dispose);
+      const turn = SurvivalChatTurn(
+        '10f11929-5812-43da-bf2a-ad2505261226',
+        'Xếp ba lô thế nào?',
+        answer: SurvivalChatAnswer.local('Đặt đồ nặng gần lưng.'),
+      );
+      await queue.commit(turn, rating: AiAnswerRating.useful);
+      expect(operations, isEmpty);
+
+      Future<void> nextSync(int sentCount) async {
+        final done = Completer<void>();
+        void onChanged() {
+          if (!coordinator.isSyncing && operations.length >= sentCount && !done.isCompleted) {
+            done.complete();
+          }
+        }
+        coordinator.addListener(onChanged);
+        try {
+          fakeConnectivity.setConnected(true);
+          await done.future.timeout(const Duration(seconds: 3));
+        } finally {
+          coordinator.removeListener(onChanged);
+        }
+      }
+
+      await nextSync(1);
+      expect(order, ['sos', 'feedback']);
+      expect(queue.forTurn(turn)?.pending, isNotNull);
+      expect(coordinator.hasActiveRetryTimer, isTrue);
+      fakeConnectivity.setConnected(false);
+      await Future<void>.delayed(Duration.zero);
+      await nextSync(2);
+      expect(operations, hasLength(2));
+      expect(operations[1], operations[0]);
+      expect(queue.forTurn(turn)?.pending, isNull);
+      expect(coordinator.hasActiveRetryTimer, isFalse);
     });
 
     test('PB AC-1 & BR-243: Automatically synchronizes pending data when connectivity returns', () async {

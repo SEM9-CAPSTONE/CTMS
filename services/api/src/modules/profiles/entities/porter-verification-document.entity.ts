@@ -6,7 +6,22 @@ import {
 	ManyToOne,
 	PrimaryGeneratedColumn,
 } from "typeorm";
+
 import { PorterVerification } from "./porter-verification.entity";
+
+/** Reading of one card photo, or why it could not be read. */
+export type GuideCardExtraction =
+	| {
+			status: "read";
+			isGuideCard: boolean;
+			fullName: string | null;
+			cardNumber: string | null;
+			cardType: "noi_dia" | "quoc_te" | "tai_diem" | "unknown";
+			expiresOn: string | null;
+			confidence: number;
+			model: string;
+	  }
+	| { status: "unavailable"; code: string };
 
 @Entity({ name: "porter_verification_documents" })
 export class PorterVerificationDocument {
@@ -38,6 +53,10 @@ export class PorterVerificationDocument {
 
 	@Column({ name: "size_bytes", type: "integer" })
 	sizeBytes!: number;
+
+	/** What the AI read from this image at upload time; null for PDFs or when not read. */
+	@Column({ type: "jsonb", nullable: true })
+	extraction!: GuideCardExtraction | null;
 
 	@CreateDateColumn({ name: "uploaded_at", type: "timestamptz" })
 	uploadedAt!: Date;

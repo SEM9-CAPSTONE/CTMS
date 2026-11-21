@@ -7,7 +7,7 @@ import {
 	type LocalIncidentRecord,
 	type TripIncident,
 } from "../types";
-import { createIncidentRecord, generateIncidentId } from "./incident-record";
+import { createIncidentRecord } from "./incident-record";
 import {
 	classifySyncError,
 	mergeIncidentLists,
@@ -92,7 +92,7 @@ describe("createIncidentRecord (BR-162)", () => {
 		const original = crypto.randomUUID;
 		Object.defineProperty(crypto, "randomUUID", { value: undefined, configurable: true });
 		try {
-			expect(generateIncidentId()).toMatch(UUID_PATTERN);
+			expect(record().id).toMatch(UUID_PATTERN);
 		} finally {
 			Object.defineProperty(crypto, "randomUUID", { value: original, configurable: true });
 		}

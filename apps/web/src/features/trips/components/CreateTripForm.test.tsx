@@ -35,6 +35,7 @@ const fiveKilometerRoute: CreatedTrekkingRoute = {
 function renderForm(overrides: Partial<React.ComponentProps<typeof CreateTripForm>> = {}) {
 	const props: React.ComponentProps<typeof CreateTripForm> = {
 		activeRoutes: [activeRoute],
+		areas: [{ code: "DNG-SON-TRA", name: "Sơn Trà", provinceName: "Đà Nẵng" }],
 		isRouteLoading: false,
 		routeError: "",
 		isSubmitting: false,
@@ -52,6 +53,7 @@ function fillValidForm() {
 	fireEvent.change(screen.getByLabelText("Tuyến đã duyệt"), { target: { value: activeRoute.id } });
 	fireEvent.click(screen.getByLabelText("Chọn điểm tập trung trên bản đồ"));
 	fireEvent.change(screen.getByLabelText("Tên trip"), { target: { value: "  Bidoup morning  " } });
+	fireEvent.change(screen.getByLabelText("Khu vực"), { target: { value: "DNG-SON-TRA" } });
 	fireEvent.change(screen.getByLabelText("Bắt đầu"), { target: { value: "2099-10-01T09:00" } });
 	fireEvent.change(screen.getByLabelText("Kết thúc"), { target: { value: "2099-10-01T17:00" } });
 	fireEvent.change(screen.getByLabelText("Thời gian tập trung"), {
@@ -73,6 +75,7 @@ const rangePickerDefaults: CreateTripFormValues = {
 	routeId: activeRoute.id,
 	title: "Bidoup morning",
 	description: "",
+	areaCode: "DNG-SON-TRA",
 	coverImageUrl: "",
 	tripType: "day_trip",
 	startsAt: "2099-10-09T14:43",

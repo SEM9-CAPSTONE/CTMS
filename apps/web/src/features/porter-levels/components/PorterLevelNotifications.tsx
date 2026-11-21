@@ -19,7 +19,7 @@ export function PorterLevelNotifications({ onSelect }: { onSelect: (id: string) 
 								item.payload.kind}{" "}
 							· {levelName(item.payload.level)}
 						</p>
-						<p>Tuyến: {item.payload.routeName ?? item.payload.routeId}</p>
+						<p>Tuyến: {item.payload.routeName ?? "Chưa cập nhật tên tuyến"}</p>
 						<p>{item.payload.reason}</p>
 						<p className="text-xs">{new Date(item.createdAt).toLocaleString("vi-VN")}</p>
 						<div className="flex gap-2">

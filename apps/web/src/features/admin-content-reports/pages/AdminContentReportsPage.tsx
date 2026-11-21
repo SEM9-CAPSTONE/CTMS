@@ -1,6 +1,7 @@
 import { Flag, Loader2, RefreshCw } from "lucide-react";
 import { Card } from "../../../shared/components";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
+import { useAdminModerationCounts } from "../../admin-layout/hooks/useAdminModerationCounts";
 import { ReportDetailsPanel } from "../components/ReportDetailsPanel";
 import { ReportErrorNotice } from "../components/ReportErrorNotice";
 import { ReportQueueTable } from "../components/ReportQueueTable";
@@ -12,14 +13,21 @@ export function AdminContentReportsPage({
 }: { onLogout?: (allDevices: boolean) => Promise<void> }) {
 	const queue = useReportQueue();
 	const details = useReportDetails(queue.reload);
+	const moderationCounts = useAdminModerationCounts();
+	const pendingReportsCount = moderationCounts.data?.contentReports ?? 0;
 	return (
 		<AdminLayout activeItem="content-reports" onLogout={onLogout}>
 			<div className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6 lg:px-8">
 				<div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 					<div>
-						<h1 className="flex items-center gap-3 text-2xl font-extrabold text-[#10221b]">
+						<h1 className="flex flex-wrap items-center gap-3 text-2xl font-extrabold text-[#10221b]">
 							<Flag className="size-7 text-[#164027]" />
-							Báo cáo nội dung
+							<span>Báo cáo nội dung</span>
+							{pendingReportsCount > 0 && (
+								<span className="inline-flex items-center rounded-full bg-rose-600 px-2.5 py-0.5 text-xs font-bold text-white">
+									{pendingReportsCount} chờ xử lý
+								</span>
+							)}
 						</h1>
 						<p className="mt-1 text-sm text-[#667a6d]">
 							Xem danh sách báo cáo vi phạm và cập nhật trạng thái xử lý từ dữ liệu hệ thống.

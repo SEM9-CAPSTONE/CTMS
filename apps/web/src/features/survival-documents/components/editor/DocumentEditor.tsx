@@ -21,6 +21,7 @@ interface DocumentEditorProps {
 	onClose: () => void;
 	onOpenDuplicate: () => void;
 	onSourceChange: () => void;
+	onComposeVersion?: () => void;
 	onSubmit: (
 		metadata: SourceMetadata,
 		source?: PdfSource,
@@ -45,17 +46,17 @@ export function DocumentEditor({
 	onClose,
 	onOpenDuplicate,
 	onSourceChange,
+	onComposeVersion,
 	onSubmit,
 }: DocumentEditorProps) {
 	const saveBlocked = busy || !!duplicatePdf;
-	const { form, method, file, selectSource, submit, preparePublication, translated } =
-		useDocumentEditor({
-			initial,
-			editing: kind === "edit",
-			maxBytes,
-			busy: saveBlocked,
-			onSubmit,
-		});
+	const { form, method, file, selectSource, submit, preparePublication } = useDocumentEditor({
+		initial,
+		editing: kind === "edit",
+		maxBytes,
+		busy: saveBlocked,
+		onSubmit,
+	});
 	const { errors, isSubmitting } = form.formState;
 	const addingPdf = method !== "edit";
 	return (
@@ -94,6 +95,11 @@ export function DocumentEditor({
 										onSourceChange();
 									}}
 								/>
+								{onComposeVersion && (
+									<button type="button" className={SOURCE_BUTTON} onClick={onComposeVersion}>
+										Chỉnh sửa từ phiên bản hiện tại
+									</button>
+								)}
 								{method === "upload" ? (
 									<PdfUploadField
 										file={file}
@@ -126,9 +132,7 @@ export function DocumentEditor({
 					<DocumentMetadataDetails
 						register={form.register}
 						errors={errors.metadata ?? {}}
-						includeSourceUrl={method !== "url"}
-						editing={kind === "edit"}
-						translated={translated}
+						includeSourceUrl={method === "upload"}
 					/>
 				</fieldset>
 				{error && (

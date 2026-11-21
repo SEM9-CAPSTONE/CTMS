@@ -6,6 +6,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_client.dart';
+import '../../../core/api/api_exception.dart';
+import '../../offline_map/data/offline_map_package_reader.dart';
+import '../../offline_map/domain/offline_map_models.dart';
+import '../../offline_packages/application/package_download_controller.dart';
+import '../../offline_packages/data/package_integrity_service.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../gps_tracking/application/gps_tracking_controller.dart';
 import '../../gps_tracking/domain/gps_tracking_models.dart';
@@ -50,6 +55,7 @@ class RouteDeviationController extends ChangeNotifier {
     required this.gps,
     required this.api,
     required this.store,
+    this.readActivePackage,
     DateTime Function()? clock,
     Future<bool> Function()? isOnline,
     Future<void> Function()? alert,
@@ -65,6 +71,7 @@ class RouteDeviationController extends ChangeNotifier {
   final GpsTrackingController gps;
   final RouteDeviationApi api;
   final RouteDeviationStore store;
+  final Future<OfflineMapContext?> Function()? readActivePackage;
   final bool autoStart;
   final DateTime Function() _clock;
   final Future<bool> Function() _isOnline;
@@ -88,7 +95,11 @@ class RouteDeviationController extends ChangeNotifier {
   Timer? _tickTimer;
   Future<void> _queue = Future.value();
 
-  RouteDeviationContext? get context => record.context;
+  bool _packageAvailable = false;
+  GpsTrackingContext? _lastGpsContext;
+
+  RouteDeviationContext? get context =>
+      readActivePackage != null && !_packageAvailable ? null : record.context;
   RouteNavigationState get navigation => detector?.navigation ?? record.navigation;
   GpsQualityState get quality => detector?.quality ?? record.quality;
   List<LocalSafetyEvent> get events => record.events;
@@ -114,27 +125,47 @@ class RouteDeviationController extends ChangeNotifier {
     record = await store.read(tripId);
     _changed();
     await refreshContext();
+    _lastGpsContext = gps.context;
     _started = true;
     _onGpsChanged();
     unawaited(syncNow());
   }
 
-  /// Loads the Route context from the server, falling back to the cached copy so
-  /// detection keeps working offline (BR-238).
-  Future<void> refreshContext() async {
+  /// Server context supplies eligibility and the Trip lock. Package geometry is
+  /// always reopened from the account's verified active artifact.
+  Future<void> refreshContext() => _enqueue(() async {
+    final readPackage = readActivePackage;
     try {
-      final fresh = await api.context(tripId);
-      final changedRoute = record.context?.routeVersion != fresh.routeVersion;
+      final fresh = readPackage == null
+          ? await api.context(tripId)
+          : await _loadPackageContext(readPackage);
+      if (fresh == null) {
+        _markPackageUnavailable();
+        return;
+      }
+      final changedRoute =
+          record.context?.routeVersion != fresh.routeVersion ||
+          record.context?.packageId != fresh.packageId;
       record = await store.update(
         tripId,
         (current) => changedRoute
-            // A different geometry invalidates states detected against the old one.
             ? RouteDeviationRecord(context: fresh, events: current.events)
             : current.copyWith(context: fresh),
       );
-      if (changedRoute) _stopDetection();
+      if (_disposed) return;
+      if (changedRoute) {
+        _stopDetection();
+        activeWarning = null;
+        if (readPackage != null) _lastProcessedSampleAt = gps.lastSample?.capturedAt;
+      }
+      _packageAvailable = true;
+      gps.evidencePackageVersion = fresh.eligible ? fresh.packageVersion : null;
       error = null;
     } catch (_) {
+      if (readPackage != null) {
+        _markPackageUnavailable();
+        return;
+      }
       if (record.context == null) {
         status = RouteDeviationStatus.unavailable;
         error = 'Chưa tải được dữ liệu tuyến để phát hiện lệch tuyến.';
@@ -143,10 +174,73 @@ class RouteDeviationController extends ChangeNotifier {
       }
     }
     _updateStatus();
+    if (_started) _onGpsChanged();
+  });
+
+  Future<RouteDeviationContext?> _loadPackageContext(
+    Future<OfflineMapContext?> Function() readPackage,
+  ) async {
+    final active = await readPackage();
+    final fingerprint = active?.route.fingerprint;
+    if (active == null ||
+        active.tripId != tripId ||
+        fingerprint == null ||
+        !RegExp(r'^[a-f0-9]{64}$').hasMatch(fingerprint)) {
+      return null;
+    }
+    RouteDeviationContext serverContext;
+    try {
+      serverContext = await api.context(tripId);
+    } on ApiException catch (failure) {
+      if (failure.kind != ApiExceptionKind.network &&
+          failure.kind != ApiExceptionKind.timeout) {
+        rethrow;
+      }
+      final cached = record.context;
+      if (cached == null ||
+          cached.packageId != active.packageId ||
+          cached.packageVersion != active.packageVersion.toString() ||
+          cached.routeVersion != fingerprint) {
+        return null;
+      }
+      serverContext = cached;
+    }
+    if (serverContext.tripId != tripId ||
+        (serverContext.lockedPackageId != null &&
+            serverContext.lockedPackageId != active.packageId)) {
+      return null;
+    }
+    return RouteDeviationContext(
+      tripId: tripId,
+      eligible: serverContext.eligible,
+      reason: serverContext.reason,
+      participantRole: serverContext.participantRole,
+      routeId: active.route.routeId,
+      routeVersion: fingerprint,
+      packageId: active.packageId,
+      packageVersion: active.packageVersion.toString(),
+      lockedPackageId: serverContext.lockedPackageId,
+      coordinates: [
+        for (final point in active.route.points)
+          [point.longitude, point.latitude],
+      ],
+      configVersion: serverContext.configVersion,
+    );
+  }
+
+  void _markPackageUnavailable() {
+    if (_disposed) return;
+    _packageAvailable = false;
+    gps.evidencePackageVersion = null;
+    _stopDetection();
+    activeWarning = null;
+    status = RouteDeviationStatus.unavailable;
+    error = 'Cần gói an toàn đã kích hoạt để phát hiện lệch tuyến trên thiết bị này.';
+    _changed();
   }
 
   void _updateStatus() {
-    final current = record.context;
+    final current = context;
     if (current == null) {
       status = RouteDeviationStatus.unavailable;
     } else if (current.configVersion != supportedRouteDeviationConfigVersion ||
@@ -163,7 +257,12 @@ class RouteDeviationController extends ChangeNotifier {
 
   void _onGpsChanged() {
     if (!_started || _disposed) return;
-    final current = record.context;
+    if (readActivePackage != null && !identical(_lastGpsContext, gps.context)) {
+      _lastGpsContext = gps.context;
+      unawaited(refreshContext());
+      return;
+    }
+    final current = context;
     final canDetect =
         current != null &&
         current.eligible &&
@@ -214,7 +313,7 @@ class RouteDeviationController extends ChangeNotifier {
 
   Future<void> _persist(List<DetectedTransition> transitions) async {
     final active = detector;
-    final current = record.context;
+    final current = context;
     if (transitions.isEmpty || active == null || current == null) return;
     final offline = !await _isOnline();
     final created = [
@@ -232,6 +331,7 @@ class RouteDeviationController extends ChangeNotifier {
           noValidSampleSince: transition.noValidSampleSince,
           detectedOffline: offline,
           routeVersion: current.routeVersion,
+          packageVersion: current.packageVersion,
           configVersion: current.configVersion,
         ),
     ];
@@ -323,6 +423,7 @@ class RouteDeviationController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     gps.removeListener(_onGpsChanged);
+    if (readActivePackage != null) gps.evidencePackageVersion = null;
     _stopDetection();
     super.dispose();
   }
@@ -341,11 +442,20 @@ final routeDeviationStoreProvider = Provider<RouteDeviationStore>((ref) {
 
 final routeDeviationControllerProvider = ChangeNotifierProvider.autoDispose
     .family<RouteDeviationController, String>((ref, tripId) {
+      final store = ref.watch(packageDownloadStoreProvider.future);
       return RouteDeviationController(
         tripId: tripId,
         // `.notifier` reads the controller without rebuilding this one on every sample.
         gps: ref.watch(gpsTrackingControllerProvider(tripId).notifier),
         api: ref.watch(routeDeviationApiProvider),
         store: ref.watch(routeDeviationStoreProvider),
+        readActivePackage: () async {
+          final packages = await store;
+          if (packages == null) return null;
+          return DefaultOfflineMapPackageReader(
+            store: packages,
+            integrity: PackageIntegrityService(packages),
+          ).readActivePackage(tripId);
+        },
       );
     });

@@ -29,6 +29,7 @@ export interface HealthSharingConsent {
 }
 
 export interface HealthProfileData {
+	activityProfile?: ActivityProfile | null;
 	id: string;
 	camperId: string;
 	camperName: string;
@@ -42,6 +43,13 @@ export interface HealthProfileData {
 	accountStatus: AccountStatus;
 	updatedAt: string;
 	version: number;
+}
+
+export interface ActivityProfile {
+	comfortableDistanceKm: number | null;
+	comfortableWalkingMinutes: number | null;
+	activityNotes: string | null;
+	confirmedAt: string | null;
 }
 
 export interface HealthProfileResponse {

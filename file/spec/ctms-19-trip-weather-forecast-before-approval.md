@@ -135,3 +135,57 @@ Forecast rows are immutable apart from the one-time advice fields. A Trip keeps 
 - [x] Merged weather card reused on the Route page, Trip step 2 and Admin review.
 - [x] Gates and screenshots recorded.
 - [x] Jira key confirmed (CTMS-100).
+
+## 16. Hybrid Risk Review (leader decision C, 2026-11-13)
+
+No Jira key (leader-requested adjustment). Branch `chore/weather-hybrid-ai-review`.
+
+### Decision
+
+- The Admin thresholds (CTMS-20) keep deciding the official Green/Yellow/Red level. Booking blocks, Host decisions (policy §5) and Host penalties (policy §6) still use only that level, so every penalty keeps a clear, rule-based reason.
+- An AI gives an independent opinion on the same raw worst-hour readings. It never receives the thresholds or the rule-based level, so it cannot simply echo them.
+- When the two disagree, the Trip is listed for the Admin under Quản lý thời tiết › "Cần xem lại ngưỡng", so thresholds that look too strict or too loose can be reviewed. The Admin can mark each disagreement as seen.
+- Out of scope: auto-cancelling Trips on Red (policy §5.4 still says the system never auto-cancels; waiting on the leader).
+
+### Rules
+
+| Rule | Behaviour |
+| --- | --- |
+| HR-1 | `riskLevel` is never changed by the AI. The AI fields are informational only. |
+| HR-2 | Only the newest forecast of each `pending_approval`, `published` or `ongoing` Trip that has not ended is reviewed. A forecast is reviewed at most once. |
+| HR-3 | A failed review never breaks forecasting. Each forecast gets at most 3 attempts; a permanent failure (4xx other than 429) stops further attempts. |
+| HR-4 | Without `AI_REVIEW_SERVICE_TOKEN` the review is skipped entirely and Trips show no AI opinion. |
+| HR-5 | Host and Admin forecast responses carry `aiReview`; Camper/Porter responses (`trip-dates`, traveller history) never do. |
+| HR-6 | The disagreement list shows the newest forecast only, widest gap first (Green vs Red before one-step gaps), then soonest departure. |
+
+### API
+
+- `POST {AI_SERVICE_URL}/weather-risk-review` (services/ai, `X-CTMS-AI-Token`): input `rainfall_mm`, `wind_kph`, `temperature_c`, `visibility_m`, `thunderstorm`, `hours_covered` (extra fields rejected); output `level`, `reason` (Vietnamese, ≤ 2 sentences), `confidence` 0–1, `model`, `prompt_version`.
+- `GET /api/admin/weather/ai-mismatches` (Admin): `TripWeatherAiMismatchDto[]`.
+- `POST /api/admin/weather/ai-mismatches/:forecastId/acknowledge` (Admin): idempotent; 404 unknown forecast, 409 when the AI agrees with the thresholds.
+- `TripWeatherForecastResponseDto.aiReview`: `{ level, reason, confidence, reviewedAt, matchesRule, acknowledgedAt } | null`.
+
+### Implementation Record
+
+- Migration `1795200000000-AddTripWeatherAiReview`: `trip_weather_forecasts` gains `ai_risk_level`, `ai_reason`, `ai_confidence`, `ai_model`, `ai_reviewed_at`, `ai_review_attempts`, `ai_review_acknowledged_at`, `ai_review_acknowledged_by`, with CHECKs (all-or-nothing AI fields, confidence 0–1, acknowledgement needs a review) and a partial index for open disagreements.
+- services/ai: `weather_risk_review_service.py` (prompt v1, temperature 0, JSON output validated by Pydantic) and the endpoint in `main.py`, reusing `build_analysis_client()` (OpenAI or Gemini) and the internal token.
+- API: `HttpWeatherRiskReviewProvider`, `TripWeatherAiReviewService` (review queue, mismatch list, acknowledge), `WeatherAiReviewController`, repository queries, and `toTripWeatherForecastResponse(..., { includeAiReview })`. The review runs inside the existing `TripWeatherMonitorWorker` tick after `checkDueTrips`, so no new worker or env flag is needed.
+- Web: `features/weather-ai-review` (service, hooks, `WeatherAiMismatchPanel`, `AiRiskOpinionNote`); third tab "Cần xem lại ngưỡng" (`/admin/weather?tab=ai-review`, with a count) on `AdminWeatherManagementPage`; `TripWeatherForecastCard` shows the AI opinion for Host/Admin only.
+- Seed (`main.seed.ts`, step 6): Hải Vân (thresholds Red, AI Red), Lang Biang (thresholds Green, AI Red) and Mỹ Sơn (thresholds Yellow, AI Green).
+
+### Test Evidence
+
+- AI service pytest: 89 passed, including 9 new tests in `test_weather_risk_review_service.py`. The `test_knowledge_*` suites need `docling` and were not run on this machine.
+- API unit: `trip-weather-ai-review.service.spec.ts` (17) and `weather-risk-review.provider.spec.ts`; weather module total 190 passed.
+- API integration: `trip-weather-ai-review.integration-spec.ts` (4) together with the other weather suites (monitoring, Trip forecast, decisions, penalties): 5 suites, 24 tests passed.
+- Web vitest: `WeatherAiReview.test.tsx`, the third-tab case in `AdminWeatherManagementPage.test.tsx` and the AI-opinion case in `TripWeatherForecastCard.test.tsx`.
+- Seed: full `--fresh` run on a throwaway database; the 3 AI demo forecasts were stored as designed.
+
+### Gates
+
+- `pnpm lint:all`: 0 errors (12 existing warnings in files this change does not touch).
+- `pnpm build:all`: API and web pass.
+- API jest: 203 suites, 2453 tests passed.
+- Web vitest: the affected areas (weather-ai-review, admin-weather, admin-weather-rules, TripWeather cards) pass, 5 files and 37 tests. The full parallel run is slow on this machine; one timing failure in `WeatherDecisionComponents.test.tsx`, which this change does not touch, passes when run alone (13/13).
+- Default Playwright E2E: 62 passed, 39 failed, 32 did not run. The develop baseline is 61/39/32 and the failures are the same existing suites.
+- Screenshots (mocked API, real UI): the "Cần xem lại ngưỡng" tab, the "Người tạo" column, and the bounds error in the rule dialog.

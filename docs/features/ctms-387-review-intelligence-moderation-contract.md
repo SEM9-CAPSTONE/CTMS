@@ -443,3 +443,25 @@ Detailed DTOs and contracts will be formally locked prior to Layer 2 implementat
 - When a Camper edits a review that is currently `hidden`, newly uploaded images go straight to quarantine (`image_storage_state = 'quarantine_pending'` -> `'quarantined'`).
 - Images of prior revisions are preserved in storage/quarantine for historical evidence.
 - A background reconciliation worker periodically audits and recovers reviews stuck in `quarantine_pending`, `restore_pending`, or `failed` image storage states.
+
+---
+
+## 10. CTMS-411 Addendum (2026-11-20): AI Auto-Hide, Safeguards & Notification Workflow
+
+1. **Threshold & Evaluation**:
+   - Single source of truth in backend constants: `MODERATION_AUTO_HIDE_THRESHOLD_BPS = 8000` (`0.80`).
+   - Exact `0.80` (`8000` bps) routes to Host (`visible` + `trip.review.moderation_flagged`); strictly `> 8000` bps (e.g., `0.81`) or deterministic PII rule (`personal_data_leak`, `detection_source = 'rule'`) auto-hides (`moderation_status = 'hidden'`, `hidden_source = 'ai'`, `hidden_by = NULL`, image quarantine triggered, `trip.review.auto_hidden` sent to Host).
+   - Image items with `has_violation = true` are mirrored into `trip_review_moderation_flags` (`channel = 'image'`, `flag_type = 'inappropriate_image'`) so both text and image flags participate uniformly in policy evaluation.
+2. **Supplementary 24h Edit Window**:
+   - `trip_reviews.first_hidden_at` is written once on the first transition to `hidden` and never extended.
+   - `canEdit` allows editing while `now < max(created_at + 24h, first_hidden_at + 24h)` when `moderation_status = 'hidden'`, or `now < created_at + 24h` otherwise.
+3. **Safeguards & Idempotent Notifications**:
+   - `in_app_notifications` adds `review_id` and event types: `trip.review.moderation_flagged`, `trip.review.auto_hidden`, `trip.review.moderation_unverified`, `trip.review.moderation_reminder`, `trip.review.moderation_escalated`.
+   - Deduplication enforced by `UNIQUE (source_key, recipient_id)` across worker retries.
+   - 15-minute unverified timeout marks `moderation_verification_status = 'unverified'` and notifies Host.
+   - 7-day unresolved Host SLA sends reminder to Host and escalation to Admin (`/admin/content-reports`).
+4. **Precedence Invariants**:
+   - Host `restore` / `keep` on revision `R` prevents AI from auto-hiding revision `R` on re-scan.
+   - Admin `content_reports.status = 'actioned'` prevents both Host `restore` and AI clean re-scan from returning review to `visible`.
+5. **Compatibility**:
+   - `GET /api/host/trip-reviews/moderation-queue` remains unchanged until the UI PR removes the moderation queue tab. New deep-link endpoint `GET /api/host/trip-reviews/:reviewId/moderation-detail` supports opening any review directly from notifications regardless of pagination.

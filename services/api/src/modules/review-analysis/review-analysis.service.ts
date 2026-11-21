@@ -58,7 +58,7 @@ export class ReviewAnalysisService {
 				 FROM trips t
 				 LEFT JOIN trekking_routes tr ON tr.id = t.route_id
 				 ${filter}
-				 ORDER BY t.updated_at DESC, t.id LIMIT $2 OFFSET $3`,
+				 ORDER BY (SELECT COUNT(*) FROM trip_reviews r WHERE r.trip_id = t.id AND r.target = 'trip' AND r.moderation_status = 'visible') DESC, t.updated_at DESC, t.id LIMIT $2 OFFSET $3`,
 				[actorId, page.limit, (page.page - 1) * page.limit]
 			);
 			return {
@@ -291,7 +291,11 @@ export class ReviewAnalysisService {
 			}
 			coverage.ratio = coverage.eligible ? coverage.analyzed / coverage.eligible : 0;
 			const filtered = page.sentiment
-				? current.filter((row) => row.sentiment === page.sentiment)
+				? current.filter((row) =>
+						page.sentiment === "neutral"
+							? row.sentiment === "neutral" || row.sentiment === "mixed"
+							: row.sentiment === page.sentiment
+					)
 				: current;
 			return {
 				tripId,

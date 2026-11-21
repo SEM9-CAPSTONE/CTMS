@@ -53,7 +53,10 @@ export function useBookingRefund(bookingId: string) {
 
 	useEffect(() => {
 		void load();
+		const refresh = () => void load(true);
+		window.addEventListener("focus", refresh);
 		return () => {
+			window.removeEventListener("focus", refresh);
 			requestSequence.current += 1;
 		};
 	}, [load]);
@@ -135,7 +138,7 @@ export function useBookingRefund(bookingId: string) {
 		refundInfo,
 		isLoading,
 		isRefreshing,
-		isError: Boolean(actionError ?? error),
+		isError: Boolean(error),
 		error: actionError ?? error,
 		clearError,
 		isSubmitting,

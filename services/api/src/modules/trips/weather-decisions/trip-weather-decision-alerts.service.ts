@@ -43,8 +43,14 @@ export class TripWeatherDecisionAlertsService {
 		if (milestones.length === 0) return [];
 		const needsAdmins = milestones.some((milestone) => milestone !== "host_t48");
 		const adminIds = needsAdmins ? await this.repository.findActiveAdminIds() : [];
+		const recipientsOf = (milestone: WeatherAlertMilestone): string[] => {
+			if (milestone === "host_t48") return [target.hostId];
+			// The auto-cancel notice goes to the Host as well as every Admin.
+			if (milestone === "auto_cancelled") return [target.hostId, ...adminIds];
+			return adminIds;
+		};
 		const rows = milestones.flatMap((milestone) =>
-			(milestone === "host_t48" ? [target.hostId] : adminIds).map((recipientId) => ({
+			recipientsOf(milestone).map((recipientId) => ({
 				recipientId,
 				tripId: target.tripId,
 				milestone,

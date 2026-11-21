@@ -2,6 +2,7 @@ import {
 	fictionalPackageCore,
 	fictionalPackageSafety,
 } from "../../../test/support/offline-package-fixture";
+import { RightsStatus, UNREVIEWED_RIGHTS } from "../survival-documents/survival-documents.types";
 import { TripStatus } from "../trips/entities/trip.entity";
 import type {
 	NormalizedPackageHazard,
@@ -187,37 +188,60 @@ describe("CTMS-052 eligibility gates (BR-229/365/428)", () => {
 		input.guidance[0].excludedConditions = ["diving"];
 		rejects(PackageReason.GUIDANCE_COVERAGE_INCOMPLETE);
 	});
-	it.each(["rights", "version", "chunks", "approval", "complete", "pages", "checksum"])(
-		"blocks invalid guidance %s",
-		(invalid) => {
-			const unit = input.guidance[0];
-			switch (invalid) {
-				case "rights":
-					unit.source.rights.offlineRedistributionAllowed = false;
-					break;
-				case "version":
-					unit.currentPublishedVersionId = "new-version";
-					break;
-				case "chunks":
-					unit.chunkSet.status = "PENDING";
-					break;
-				case "approval":
-					unit.approval.status = "REVOKED";
-					break;
-				case "complete":
-					unit.complete = false;
-					break;
-				case "pages":
-					unit.pageRefs = [];
-					break;
-				case "checksum":
-					unit.source.checksum = "";
-					unit.chunkSet.sourceChecksum = "";
-					break;
-			}
-			rejects(PackageReason.GUIDANCE_COVERAGE_INCOMPLETE);
+	it("accepts approved current guidance from a published source without a separate rights review", () => {
+		const source = input.guidance[0].source;
+		source.rights = { ...UNREVIEWED_RIGHTS };
+		source.reviewedBy = null;
+		source.reviewedAt = null;
+		expect(validate).not.toThrow();
+	});
+	it("blocks guidance from an unlisted source even when its matching active set is ready", () => {
+		input.guidance[0].source.metadata = {
+			...input.guidance[0].source.metadata,
+			sourceUrl: "https://unlisted.example.com/manual.pdf",
+		};
+		rejects(PackageReason.GUIDANCE_COVERAGE_INCOMPLETE);
+	});
+	it.each([
+		"restriction",
+		"version",
+		"chunks",
+		"pointer",
+		"approval",
+		"complete",
+		"pages",
+		"checksum",
+	])("blocks invalid guidance %s", (invalid) => {
+		const unit = input.guidance[0];
+		switch (invalid) {
+			case "restriction":
+				unit.source.rights.rightsReviewStatus = RightsStatus.RESTRICTED;
+				break;
+			case "version":
+				unit.currentPublishedVersionId = "new-version";
+				break;
+			case "chunks":
+				unit.chunkSet.status = "PENDING";
+				break;
+			case "pointer":
+				unit.currentChunkSetId = "replacement-chunk-set";
+				break;
+			case "approval":
+				unit.approval.status = "REVOKED";
+				break;
+			case "complete":
+				unit.complete = false;
+				break;
+			case "pages":
+				unit.pageRefs = [];
+				break;
+			case "checksum":
+				unit.source.checksum = "";
+				unit.chunkSet.sourceChecksum = "";
+				break;
 		}
-	);
+		rejects(PackageReason.GUIDANCE_COVERAGE_INCOMPLETE);
+	});
 	it("blocks medical/personal content flags (BR-230)", () => {
 		input.guidance[0].containsPersonalData = true;
 		rejects(PackageReason.PERSONAL_DATA_FORBIDDEN);

@@ -53,7 +53,7 @@ export function BankAccountList({
 						</div>
 						<h2 className="text-base font-extrabold text-[#10221b]">{title}</h2>
 					</div>
-					<p className="mt-1 text-xs text-[#667a6d]">{description}</p>
+					{description && <p className="mt-1 text-xs text-[#667a6d]">{description}</p>}
 				</div>
 
 				<button
@@ -93,10 +93,12 @@ export function BankAccountList({
 						<p className="mt-2 text-xs font-bold text-[#10221b]">
 							Chưa có tài khoản ngân hàng nào được liên kết
 						</p>
-						<p className="mt-1 text-[11px] text-[#667a6d] max-w-sm">
-							Thêm tài khoản ngân hàng để hệ thống tự động điền khi bạn yêu cầu rút tiền hoặc nhận
-							tiền hoàn.
-						</p>
+						{description && (
+							<p className="mt-1 text-[11px] text-[#667a6d] max-w-sm">
+								Thêm tài khoản ngân hàng để hệ thống tự động điền khi bạn yêu cầu rút tiền hoặc nhận
+								tiền hoàn.
+							</p>
+						)}
 						<button
 							type="button"
 							onClick={() => setAddModalOpen(true)}

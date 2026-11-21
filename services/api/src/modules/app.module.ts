@@ -1,16 +1,21 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { DatabaseModule } from "../shared/database/database.module";
+import { AdminModerationModule } from "./admin-moderation/admin-moderation.module";
+import { AiAnswersModule } from "./ai-answers/ai-answers.module";
 import { AuthModule } from "./auth/auth.module";
 import { BookingsModule } from "./bookings/bookings.module";
 import { CheckpointArrivalsModule } from "./checkpoint-arrivals/checkpoint-arrivals.module";
 import { ContentReportsModule } from "./content-reports/content-reports.module";
+import { DangerZoneProposalsModule } from "./danger-zone-proposals/danger-zone-proposals.module";
 import { DemandInsightsModule } from "./demand-insights/demand-insights.module";
 import { DeviceSyncModule } from "./device-sync/device-sync.module";
 import { EmergencyBroadcastsModule } from "./emergency-broadcasts/emergency-broadcasts.module";
 import { EquipmentCatalogModule } from "./equipment-catalog/equipment-catalog.module";
+import { GeoAreasModule } from "./geo-areas/geo-areas.module";
 import { GpsTrackingModule } from "./gps-tracking/gps-tracking.module";
 import { HealthController } from "./health/health.controller";
+import { HostAnalyticsModule } from "./host-analytics/host-analytics.module";
 import { HostOverviewModule } from "./host-overview/host-overview.module";
 import { HostTripMapModule } from "./host-trip-map/host-trip-map.module";
 import { IncidentsModule } from "./incidents/incidents.module";
@@ -19,22 +24,31 @@ import { MemberLocationsModule } from "./member-locations/member-locations.modul
 import { OfflinePackageDownloadModule } from "./offline-package-download/offline-package-download.module";
 import { OfflinePackagesModule } from "./offline-packages/offline-packages.module";
 import { OverbookingEvaluationModule } from "./overbooking-evaluation/overbooking-evaluation.module";
+import { PerformanceReportsModule } from "./performance-reports/performance-reports.module";
 import { PorterLevelsModule } from "./porter-levels/porter-levels.module";
+import { PorterReviewsModule } from "./porter-reviews/porter-reviews.module";
 import { ProfilesModule } from "./profiles/profiles.module";
+import { RagModule } from "./rag/rag.module";
+import { RealtimeEvaluationModule } from "./realtime-evaluation/realtime-evaluation.module";
 import { RealtimeModule } from "./realtime/realtime.module";
+import { RevenueAnalyticsModule } from "./revenue-analytics/revenue-analytics.module";
 import { ReviewAnalysisModule } from "./review-analysis/review-analysis.module";
+import { RouteDeviationAnalysisModule } from "./route-deviation-analysis/route-deviation-analysis.module";
 import { RouteSafetyModule } from "./route-safety/route-safety.module";
 import { SafetyEventsModule } from "./safety-events/safety-events.module";
+import { SafetyHotspotsModule } from "./safety-hotspots/safety-hotspots.module";
 import { ScheduleProgressModule } from "./schedule-progress/schedule-progress.module";
 import { SosModule } from "./sos/sos.module";
 import { SurvivalDocumentsModule } from "./survival-documents/survival-documents.module";
 import { SyncEvaluationModule } from "./sync-evaluation/sync-evaluation.module";
 import { TrekkingRoutesModule } from "./trekking-routes/trekking-routes.module";
+import { TripRecommendationsModule } from "./trip-recommendations/trip-recommendations.module";
 import { TripReviewModerationModule } from "./trip-review-moderation/trip-review-moderation.module";
 import { TripReviewsModule } from "./trip-reviews/trip-reviews.module";
 import { TripsModule } from "./trips/trips.module";
 import { UploadsModule } from "./uploads/uploads.module";
 import { UsersModule } from "./users/users.module";
+import { WeatherRiskEvaluationModule } from "./weather-risk-evaluation/weather-risk-evaluation.module";
 import { WeatherModule } from "./weather/weather.module";
 
 @Module({
@@ -44,6 +58,7 @@ import { WeatherModule } from "./weather/weather.module";
 			envFilePath: ["../../.env", ".env"],
 		}),
 		DatabaseModule,
+		AdminModerationModule,
 		AuthModule,
 		BookingsModule,
 		CheckpointArrivalsModule,
@@ -53,11 +68,13 @@ import { WeatherModule } from "./weather/weather.module";
 		EmergencyBroadcastsModule,
 		EquipmentCatalogModule,
 		GpsTrackingModule,
+		HostAnalyticsModule,
 		HostOverviewModule,
 		HostTripMapModule,
 		IncidentsModule,
 		ProfilesModule,
 		PorterLevelsModule,
+		PorterReviewsModule,
 		RealtimeModule,
 		RouteSafetyModule,
 		SafetyEventsModule,
@@ -65,10 +82,19 @@ import { WeatherModule } from "./weather/weather.module";
 		MemberLocationsModule,
 		SosModule,
 		OverbookingEvaluationModule,
+		WeatherRiskEvaluationModule,
+		RealtimeEvaluationModule,
+		RouteDeviationAnalysisModule,
+		SafetyHotspotsModule,
+		DangerZoneProposalsModule,
+		PerformanceReportsModule,
+		RevenueAnalyticsModule,
+		GeoAreasModule,
 		SyncEvaluationModule,
 		UsersModule,
 		TrekkingRoutesModule,
 		TripsModule,
+		TripRecommendationsModule,
 		TripReviewsModule,
 		TripReviewModerationModule,
 		ReviewAnalysisModule,
@@ -76,6 +102,8 @@ import { WeatherModule } from "./weather/weather.module";
 		WeatherModule,
 		SurvivalDocumentsModule,
 		KnowledgeChunksModule,
+		RagModule,
+		AiAnswersModule,
 		OfflinePackagesModule,
 		OfflinePackageDownloadModule,
 	],

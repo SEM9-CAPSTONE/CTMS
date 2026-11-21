@@ -1,119 +1,187 @@
 <mxfile host="65bd71144e">
     <diagram id="backend-package-diagram" name="Backend Package Diagram">
-        <mxGraphModel dx="1349" dy="428" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1450" pageHeight="720" background="#ffffff" math="0" shadow="0">
+        <mxGraphModel dx="1450" dy="880" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1725" pageHeight="980" background="#ffffff" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
-                <mxCell id="pkg_routes" value="Routes" style="shape=folder;fontStyle=1;tabWidth=110;tabHeight=28;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=13;fontColor=#000000;align=center;" parent="1" vertex="1">
-                    <mxGeometry x="410" y="40" width="340" height="110" as="geometry"/>
+
+                <!-- ==================== COLUMN 1 (LEFT): SERVICES, TEMPLATES, UTILS ==================== -->
+                <mxCell id="pkg_services" value="Services" style="shape=folder;fontStyle=1;tabWidth=115;tabHeight=30;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=15;fontColor=#000000;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="85" y="25" width="275" height="285" as="geometry"/>
                 </mxCell>
-                <mxCell id="pkg_controllers" value="Controllers" style="shape=folder;fontStyle=1;tabWidth=120;tabHeight=28;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=13;fontColor=#000000;align=center;" parent="1" vertex="1">
-                    <mxGeometry x="410" y="270" width="340" height="110" as="geometry"/>
+                <mxCell id="content_services" value="&lt;b&gt;Core Domain Logic&lt;/b&gt;&lt;br&gt;&amp;bull; Auth, OTP &amp;amp; Role Profiles&lt;br&gt;&amp;bull; Routes, Weather &amp;amp; Offline ZIP&lt;br&gt;&amp;bull; Trips, Bookings &amp;amp; Refunds&lt;br&gt;&lt;b&gt;Field &amp;amp; AI Logic&lt;/b&gt;&lt;br&gt;&amp;bull; GPS, Deviation &amp;amp; Arrivals&lt;br&gt;&amp;bull; Offline Sync, SOS &amp;amp; Alerts&lt;br&gt;&amp;bull; AI RAG &amp;amp; Review Analysis" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontColor=#000000;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;spacingRight=6;" parent="1" vertex="1">
+                    <mxGeometry x="97" y="67" width="251" height="231" as="geometry"/>
                 </mxCell>
-                <mxCell id="pkg_models" value="Models" style="shape=folder;fontStyle=1;tabWidth=110;tabHeight=28;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=13;fontColor=#000000;align=center;" parent="1" vertex="1">
-                    <mxGeometry x="410" y="500" width="340" height="110" as="geometry"/>
+
+                <mxCell id="pkg_templates" value="Templates" style="shape=folder;fontStyle=1;tabWidth=120;tabHeight=30;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=15;fontColor=#000000;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="85" y="370" width="275" height="230" as="geometry"/>
                 </mxCell>
-                <mxCell id="pkg_services" value="Services" style="shape=folder;fontStyle=1;tabWidth=105;tabHeight=26;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=13;fontColor=#000000;align=center;" parent="1" vertex="1">
-                    <mxGeometry x="80" y="100" width="220" height="105" as="geometry"/>
+                <mxCell id="content_templates" value="&lt;b&gt;Email Templates&lt;/b&gt;&lt;br&gt;&amp;bull; OTP &amp;amp; Account Security&lt;br&gt;&amp;bull; Booking &amp;amp; Refund Receipts&lt;br&gt;&lt;b&gt;Alert &amp;amp; Push Templates&lt;/b&gt;&lt;br&gt;&amp;bull; SOS &amp;amp; Broadcast Payloads&lt;br&gt;&amp;bull; Weather &amp;amp; Trip Reminders" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontColor=#000000;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;spacingRight=6;" parent="1" vertex="1">
+                    <mxGeometry x="97" y="412" width="251" height="176" as="geometry"/>
                 </mxCell>
-                <mxCell id="pkg_templates" value="Templates" style="shape=folder;fontStyle=1;tabWidth=105;tabHeight=26;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=13;fontColor=#000000;align=center;" parent="1" vertex="1">
-                    <mxGeometry x="80" y="280" width="220" height="105" as="geometry"/>
+
+                <mxCell id="pkg_utils" value="Utils" style="shape=folder;fontStyle=1;tabWidth=105;tabHeight=30;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=15;fontColor=#000000;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="85" y="660" width="275" height="260" as="geometry"/>
                 </mxCell>
-                <mxCell id="pkg_utils" value="Utils" style="shape=folder;fontStyle=1;tabWidth=105;tabHeight=26;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=13;fontColor=#000000;align=center;" parent="1" vertex="1">
-                    <mxGeometry x="80" y="460" width="220" height="105" as="geometry"/>
+                <mxCell id="content_utils" value="&lt;b&gt;Geo &amp;amp; Crypto Helpers&lt;/b&gt;&lt;br&gt;&amp;bull; PostGIS &amp;amp; Haversine Math&lt;br&gt;&amp;bull; GPX, GeoJSON &amp;amp; MBTiles&lt;br&gt;&amp;bull; SHA-256 &amp;amp; Token Hashing&lt;br&gt;&lt;b&gt;Common Helpers&lt;/b&gt;&lt;br&gt;&amp;bull; Date, Currency &amp;amp; Paging&lt;br&gt;&amp;bull; Idempotency &amp;amp; Retry Utils" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontColor=#000000;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;spacingRight=6;" parent="1" vertex="1">
+                    <mxGeometry x="97" y="702" width="251" height="206" as="geometry"/>
                 </mxCell>
-                <mxCell id="pkg_middlewares" value="Middlewares" style="shape=folder;fontStyle=1;tabWidth=110;tabHeight=26;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=13;fontColor=#000000;align=center;" parent="1" vertex="1">
-                    <mxGeometry x="860" y="140" width="220" height="105" as="geometry"/>
+
+                <!-- ==================== COLUMN 2 (CENTER): ROUTES, CONTROLLERS, MODELS ==================== -->
+                <mxCell id="pkg_routes" value="Routes" style="shape=folder;fontStyle=1;tabWidth=125;tabHeight=30;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=15;fontColor=#000000;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="475" y="25" width="470" height="260" as="geometry"/>
                 </mxCell>
-                <mxCell id="pkg_configs" value="Configs" style="shape=folder;fontStyle=1;tabWidth=105;tabHeight=26;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=13;fontColor=#000000;align=center;" parent="1" vertex="1">
-                    <mxGeometry x="860" y="420" width="220" height="105" as="geometry"/>
+                <mxCell id="routes_g1" value="&lt;b&gt;Core &amp;amp; Trip Routes&lt;/b&gt;&lt;br&gt;&amp;bull; /auth &amp;amp; /users&lt;br&gt;&amp;bull; /profiles &amp;amp; /porters&lt;br&gt;&amp;bull; /trekking-routes&lt;br&gt;&amp;bull; /weather &amp;amp; /route-safety&lt;br&gt;&amp;bull; /trips &amp;amp; /bookings&lt;br&gt;&amp;bull; /equipment-catalog" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontColor=#000000;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;spacingRight=6;" parent="1" vertex="1">
+                    <mxGeometry x="488" y="67" width="216" height="205" as="geometry"/>
                 </mxCell>
-                <mxCell id="pkg_socket" value="Socket" style="shape=folder;fontStyle=1;tabWidth=100;tabHeight=26;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=13;fontColor=#000000;align=center;" parent="1" vertex="1">
-                    <mxGeometry x="1160" y="245" width="210" height="90" as="geometry"/>
+                <mxCell id="routes_g2" value="&lt;b&gt;Field, SOS &amp;amp; AI Routes&lt;/b&gt;&lt;br&gt;&amp;bull; /offline-packages&lt;br&gt;&amp;bull; /gps-tracking &amp;amp; /arrivals&lt;br&gt;&amp;bull; /device-sync &amp;amp; /events&lt;br&gt;&amp;bull; /sos &amp;amp; /incidents&lt;br&gt;&amp;bull; /survival-docs (RAG)&lt;br&gt;&amp;bull; /trip-reviews &amp;amp; /overview" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontColor=#000000;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;spacingRight=6;" parent="1" vertex="1">
+                    <mxGeometry x="716" y="67" width="216" height="205" as="geometry"/>
                 </mxCell>
-                <mxCell id="pkg_realtime" value="Realtime" style="shape=folder;fontStyle=1;tabWidth=100;tabHeight=26;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=13;fontColor=#000000;align=center;" parent="1" vertex="1">
-                    <mxGeometry x="1180" y="440" width="190" height="85" as="geometry"/>
+
+                <mxCell id="pkg_controllers" value="Controllers" style="shape=folder;fontStyle=1;tabWidth=135;tabHeight=30;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=15;fontColor=#000000;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="475" y="355" width="470" height="265" as="geometry"/>
                 </mxCell>
-                <mxCell id="edge_routes_controllers" value="&amp;lt;&amp;lt;dispatch&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.501;entryY=0.264;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="pkg_routes" target="pkg_controllers" edge="1">
+                <mxCell id="ctrl_g1" value="&lt;b&gt;Core &amp;amp; Trip Controllers&lt;/b&gt;&lt;br&gt;&amp;bull; Auth &amp;amp; User Accounts&lt;br&gt;&amp;bull; Role Profiles &amp;amp; Porters&lt;br&gt;&amp;bull; Trekking Routes &amp;amp; Safety&lt;br&gt;&amp;bull; Weather Forecast &amp;amp; Rules&lt;br&gt;&amp;bull; Offline Map Packages&lt;br&gt;&amp;bull; Trips, Bookings &amp;amp; Gear" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontColor=#000000;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;spacingRight=6;" parent="1" vertex="1">
+                    <mxGeometry x="488" y="397" width="216" height="210" as="geometry"/>
+                </mxCell>
+                <mxCell id="ctrl_g2" value="&lt;b&gt;Field, SOS &amp;amp; AI Controllers&lt;/b&gt;&lt;br&gt;&amp;bull; GPS &amp;amp; Off-Route Check&lt;br&gt;&amp;bull; Checkpoint &amp;amp; Schedule&lt;br&gt;&amp;bull; Offline Buffer &amp;amp; Sync&lt;br&gt;&amp;bull; SOS, Incidents &amp;amp; Alerts&lt;br&gt;&amp;bull; AI Survival &amp;amp; RAG Docs&lt;br&gt;&amp;bull; Reviews &amp;amp; Host Overview" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontColor=#000000;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;spacingRight=6;" parent="1" vertex="1">
+                    <mxGeometry x="716" y="397" width="216" height="210" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="pkg_models" value="Models" style="shape=folder;fontStyle=1;tabWidth=125;tabHeight=30;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=15;fontColor=#000000;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="475" y="690" width="470" height="260" as="geometry"/>
+                </mxCell>
+                <mxCell id="mod_g1" value="&lt;b&gt;Core &amp;amp; Trip Entities&lt;/b&gt;&lt;br&gt;&amp;bull; User, Profile, PorterLevel&lt;br&gt;&amp;bull; TrekkingRoute, Checkpoint&lt;br&gt;&amp;bull; WeatherRule, RouteHazard&lt;br&gt;&amp;bull; OfflinePackage, Basemap&lt;br&gt;&amp;bull; Trip, Booking, Refund&lt;br&gt;&amp;bull; EquipmentItem, AuditLog" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontColor=#000000;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;spacingRight=6;" parent="1" vertex="1">
+                    <mxGeometry x="488" y="732" width="216" height="205" as="geometry"/>
+                </mxCell>
+                <mxCell id="mod_g2" value="&lt;b&gt;Field, SOS &amp;amp; AI Entities&lt;/b&gt;&lt;br&gt;&amp;bull; GpsLog, CheckpointVisit&lt;br&gt;&amp;bull; SyncBatch, SafetyEvent&lt;br&gt;&amp;bull; SosAlert, TripIncident&lt;br&gt;&amp;bull; EmergencyBroadcast&lt;br&gt;&amp;bull; SurvivalDoc, RagChunk&lt;br&gt;&amp;bull; TripReview, ContentReport" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontColor=#000000;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;spacingRight=6;" parent="1" vertex="1">
+                    <mxGeometry x="716" y="732" width="216" height="205" as="geometry"/>
+                </mxCell>
+
+                <!-- ==================== COLUMN 3 (RIGHT-CENTER): MIDDLEWARES, CONFIGS ==================== -->
+                <mxCell id="pkg_middlewares" value="Middlewares" style="shape=folder;fontStyle=1;tabWidth=135;tabHeight=30;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=15;fontColor=#000000;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="1065" y="70" width="275" height="295" as="geometry"/>
+                </mxCell>
+                <mxCell id="content_middlewares" value="&lt;b&gt;Auth &amp;amp; Access Control&lt;/b&gt;&lt;br&gt;&amp;bull; JWT Auth Guard&lt;br&gt;&amp;bull; Role-Based Access Guard&lt;br&gt;&lt;b&gt;Validation &amp;amp; Protection&lt;/b&gt;&lt;br&gt;&amp;bull; DTO Validation Pipe&lt;br&gt;&amp;bull; Rate Limiter Guard&lt;br&gt;&lt;b&gt;Interceptors &amp;amp; Filters&lt;/b&gt;&lt;br&gt;&amp;bull; Audit &amp;amp; Response Logging&lt;br&gt;&amp;bull; Global Exception Filter" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontColor=#000000;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;spacingRight=6;" parent="1" vertex="1">
+                    <mxGeometry x="1077" y="112" width="251" height="240" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="pkg_configs" value="Configs" style="shape=folder;fontStyle=1;tabWidth=115;tabHeight=30;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=15;fontColor=#000000;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="1065" y="565" width="275" height="285" as="geometry"/>
+                </mxCell>
+                <mxCell id="content_configs" value="&lt;b&gt;Core &amp;amp; Data Store&lt;/b&gt;&lt;br&gt;&amp;bull; App, CORS &amp;amp; Env Schema&lt;br&gt;&amp;bull; PostgreSQL / PostGIS DB&lt;br&gt;&amp;bull; Redis &amp;amp; BullMQ Queues&lt;br&gt;&lt;b&gt;External Integrations&lt;/b&gt;&lt;br&gt;&amp;bull; Offline &amp;amp; Media Storage&lt;br&gt;&amp;bull; AI RAG &amp;amp; Weather API&lt;br&gt;&amp;bull; SMTP Mailer &amp;amp; FCM Push" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontColor=#000000;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;spacingRight=6;" parent="1" vertex="1">
+                    <mxGeometry x="1077" y="607" width="251" height="231" as="geometry"/>
+                </mxCell>
+
+                <!-- ==================== COLUMN 4 (FAR-RIGHT): SOCKET, REALTIME ==================== -->
+                <mxCell id="pkg_socket" value="Socket" style="shape=folder;fontStyle=1;tabWidth=110;tabHeight=30;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=15;fontColor=#000000;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="1460" y="215" width="245" height="260" as="geometry"/>
+                </mxCell>
+                <mxCell id="content_socket" value="&lt;b&gt;Gateway &amp;amp; Rooms&lt;/b&gt;&lt;br&gt;&amp;bull; WS JWT Handshake&lt;br&gt;&amp;bull; Trip &amp;amp; Role Rooms&lt;br&gt;&amp;bull; Auto-Reconnect State&lt;br&gt;&lt;b&gt;Live Event Channels&lt;/b&gt;&lt;br&gt;&amp;bull; SOS &amp;amp; Incident Stream&lt;br&gt;&amp;bull; Live GPS &amp;amp; Deviation&lt;br&gt;&amp;bull; Trip Slot Availability" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontColor=#000000;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;spacingRight=6;" parent="1" vertex="1">
+                    <mxGeometry x="1472" y="257" width="221" height="205" as="geometry"/>
+                </mxCell>
+
+                <mxCell id="pkg_realtime" value="Realtime" style="shape=folder;fontStyle=1;tabWidth=115;tabHeight=30;tabPosition=left;html=1;boundedLbl=1;labelInHeader=1;container=0;collapsible=0;recursiveResize=0;fillColor=#f8f9fa;strokeColor=#000000;fontSize=15;fontColor=#000000;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="1460" y="585" width="245" height="235" as="geometry"/>
+                </mxCell>
+                <mxCell id="content_realtime" value="&lt;b&gt;Event Watchers&lt;/b&gt;&lt;br&gt;&amp;bull; PG LISTEN / NOTIFY&lt;br&gt;&amp;bull; BullMQ Job Subscribers&lt;br&gt;&lt;b&gt;Event Broadcasters&lt;/b&gt;&lt;br&gt;&amp;bull; Emergency Broadcasts&lt;br&gt;&amp;bull; Sync &amp;amp; Missed Alerts" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;fontSize=13;fontColor=#000000;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;spacingRight=6;" parent="1" vertex="1">
+                    <mxGeometry x="1472" y="627" width="221" height="180" as="geometry"/>
+                </mxCell>
+
+                <!-- ==================== DEPENDENCY EDGES ==================== -->
+                <mxCell id="edge_routes_controllers" value="&amp;lt;&amp;lt;dispatch&amp;gt;&amp;gt;" style="html=1;verticalAlign=middle;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0.113;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="pkg_routes" target="pkg_controllers" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="edge_routes_middlewares" value="&amp;lt;&amp;lt;apply&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.55;exitDx=0;exitDy=0;entryX=0;entryY=0.4;entryDx=0;entryDy=0;" parent="1" source="pkg_routes" target="pkg_middlewares" edge="1">
+
+                <mxCell id="edge_routes_middlewares" value="&amp;lt;&amp;lt;apply&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;exitX=1;exitY=0.55;exitDx=0;exitDy=0;entryX=0;entryY=0.38;entryDx=0;entryDy=0;" parent="1" source="pkg_routes" target="pkg_middlewares" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="edge_controllers_services" value="&amp;lt;&amp;lt;invoke logic&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=0;exitY=0.35;exitDx=0;exitDy=0;entryX=1;entryY=0.65;entryDx=0;entryDy=0;" parent="1" source="pkg_controllers" target="pkg_services" edge="1">
+
+                <mxCell id="edge_controllers_services" value="&amp;lt;&amp;lt;invoke logic&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;exitX=0;exitY=0.35;exitDx=0;exitDy=0;entryX=1;entryY=0.72;entryDx=0;entryDy=0;" parent="1" source="pkg_controllers" target="pkg_services" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="edge_controllers_utils" value="&amp;lt;&amp;lt;transform&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=0;exitY=0.8;exitDx=0;exitDy=0;entryX=1;entryY=0.4;entryDx=0;entryDy=0;" parent="1" source="pkg_controllers" target="pkg_utils" edge="1">
+
+                <mxCell id="edge_controllers_utils" value="&amp;lt;&amp;lt;transform&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;exitX=0;exitY=0.8;exitDx=0;exitDy=0;entryX=1;entryY=0.35;entryDx=0;entryDy=0;" parent="1" source="pkg_controllers" target="pkg_utils" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="edge_controllers_middlewares" value="&amp;lt;&amp;lt;guard &amp;amp; validate&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.35;exitDx=0;exitDy=0;entryX=0;entryY=0.8;entryDx=0;entryDy=0;" parent="1" source="pkg_controllers" target="pkg_middlewares" edge="1">
+
+                <mxCell id="edge_controllers_middlewares" value="&amp;lt;&amp;lt;guard &amp;amp; validate&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.85;entryDx=0;entryDy=0;" parent="1" source="pkg_controllers" target="pkg_middlewares" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="edge_controllers_models" value="&amp;lt;&amp;lt;query &amp;amp; persist&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.503;entryY=0.264;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="pkg_controllers" target="pkg_models" edge="1">
-                    <mxGeometry relative="1" as="geometry">
-                        <mxPoint as="offset"/>
-                        <mxPoint x="580" y="500" as="targetPoint"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="edge_controllers_configs" value="&amp;lt;&amp;lt;load config&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.85;exitDx=0;exitDy=0;entryX=0;entryY=0.4;entryDx=0;entryDy=0;" parent="1" source="pkg_controllers" target="pkg_configs" edge="1">
+
+                <mxCell id="edge_controllers_models" value="&amp;lt;&amp;lt;query &amp;amp; persist&amp;gt;&amp;gt;" style="html=1;verticalAlign=middle;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0.115;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="pkg_controllers" target="pkg_models" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="edge_services_templates" value="&amp;lt;&amp;lt;render&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=orthogonalEdgeStyle;curved=1;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=0;exitY=0.6;exitDx=0;exitDy=0;entryX=0;entryY=0.35;entryDx=0;entryDy=0;" parent="1" source="pkg_services" target="pkg_templates" edge="1">
+
+                <mxCell id="edge_controllers_configs" value="&amp;lt;&amp;lt;load config&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;exitX=1;exitY=0.86;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" parent="1" source="pkg_controllers" target="pkg_configs" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+
+                <mxCell id="edge_services_templates" value="&amp;lt;&amp;lt;render&amp;gt;&amp;gt;" style="html=1;verticalAlign=middle;endArrow=open;dashed=1;endSize=8;edgeStyle=orthogonalEdgeStyle;curved=1;strokeColor=#000000;fontColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;exitX=0;exitY=0.6;exitDx=0;exitDy=0;entryX=0;entryY=0.38;entryDx=0;entryDy=0;" parent="1" source="pkg_services" target="pkg_templates" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <Array as="points">
-                            <mxPoint x="30" y="163"/>
-                            <mxPoint x="30" y="317"/>
+                            <mxPoint x="42" y="196"/>
+                            <mxPoint x="42" y="457"/>
                         </Array>
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="edge_utils_templates" value="&amp;lt;&amp;lt;compile&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;edgeStyle=orthogonalEdgeStyle;curved=1;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=0;exitY=0.4;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;" parent="1" source="pkg_utils" target="pkg_templates" edge="1">
+
+                <mxCell id="edge_utils_templates" value="&amp;lt;&amp;lt;compile&amp;gt;&amp;gt;" style="html=1;verticalAlign=middle;endArrow=open;dashed=1;endSize=8;edgeStyle=orthogonalEdgeStyle;curved=1;strokeColor=#000000;fontColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;exitX=0;exitY=0.45;exitDx=0;exitDy=0;entryX=0;entryY=0.72;entryDx=0;entryDy=0;" parent="1" source="pkg_utils" target="pkg_templates" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <Array as="points">
-                            <mxPoint x="30" y="502"/>
-                            <mxPoint x="30" y="354"/>
+                            <mxPoint x="42" y="777"/>
+                            <mxPoint x="42" y="536"/>
                         </Array>
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="edge_models_configs" value="&amp;lt;&amp;lt;connect DB&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.85;entryDx=0;entryDy=0;" parent="1" source="pkg_models" target="pkg_configs" edge="1">
+
+                <mxCell id="edge_models_configs" value="&amp;lt;&amp;lt;connect DB&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;exitX=1;exitY=0.52;exitDx=0;exitDy=0;entryX=0;entryY=0.82;entryDx=0;entryDy=0;" parent="1" source="pkg_models" target="pkg_configs" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="edge_socket_middlewares" value="&amp;lt;&amp;lt;authenticate&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=0;exitY=0.4;exitDx=0;exitDy=0;entryX=1;entryY=0.6;entryDx=0;entryDy=0;" parent="1" source="pkg_socket" target="pkg_middlewares" edge="1">
+
+                <mxCell id="edge_socket_middlewares" value="&amp;lt;&amp;lt;authenticate&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;exitX=0;exitY=0.35;exitDx=0;exitDy=0;entryX=1;entryY=0.65;entryDx=0;entryDy=0;" parent="1" source="pkg_socket" target="pkg_middlewares" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="edge_socket_controllers" value="&amp;lt;&amp;lt;handle event&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=0;exitY=0.65;exitDx=0;exitDy=0;entryX=1;entryY=0.6;entryDx=0;entryDy=0;" parent="1" source="pkg_socket" target="pkg_controllers" edge="1">
+
+                <mxCell id="edge_socket_controllers" value="&amp;lt;&amp;lt;handle event&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;exitX=0;exitY=0.92;exitDx=0;exitDy=0;entryX=1;entryY=0.45;entryDx=0;entryDy=0;" parent="1" source="pkg_socket" target="pkg_controllers" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="edge_socket_configs" value="&amp;lt;&amp;lt;load config&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=0;exitY=0.9;exitDx=0;exitDy=0;entryX=0.85;entryY=0;entryDx=0;entryDy=26;" parent="1" source="pkg_socket" target="pkg_configs" edge="1">
+
+                <mxCell id="edge_socket_configs" value="&amp;lt;&amp;lt;load config&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;exitX=0.12;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.22;entryDx=0;entryDy=0;" parent="1" source="pkg_socket" target="pkg_configs" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="edge_socket_realtime" value="&amp;lt;&amp;lt;broadcast&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.45;entryY=0;entryDx=0;entryDy=0;" parent="1" source="pkg_socket" target="pkg_realtime" edge="1">
+
+                <mxCell id="edge_socket_realtime" value="&amp;lt;&amp;lt;broadcast&amp;gt;&amp;gt;" style="html=1;verticalAlign=middle;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0.128;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="pkg_socket" target="pkg_realtime" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="edge_realtime_configs" value="&amp;lt;&amp;lt;load config&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=11;labelBackgroundColor=#ffffff;exitX=0;exitY=0.6;exitDx=0;exitDy=0;entryX=1;entryY=0.75;entryDx=0;entryDy=0;" parent="1" source="pkg_realtime" target="pkg_configs" edge="1">
+
+                <mxCell id="edge_realtime_configs" value="&amp;lt;&amp;lt;load config&amp;gt;&amp;gt;" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;endSize=8;rounded=0;strokeColor=#000000;fontColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;exitX=0;exitY=0.6;exitDx=0;exitDy=0;entryX=1;entryY=0.6;entryDx=0;entryDy=0;" parent="1" source="pkg_realtime" target="pkg_configs" edge="1">
                     <mxGeometry relative="1" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>

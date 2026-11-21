@@ -172,6 +172,9 @@ Provider: **Firebase Cloud Messaging HTTP v1** (Android and iOS). The API signs 
 - **PD-2.** Booking updates pushed: `confirmed` after the payment callback, `expired`, `cancelled` by a Trip cancellation (Host, Admin weather decision, auto-cancel) and `pending_reconfirmation` after a reschedule. A Camper's own actions (self-cancel, answering a weather reschedule, paying in the app) are not pushed back to the same Camper.
 - **PD-3.** User notification preferences belong to CTMS-091. Until then every ordinary category is on; the `PUSH_PREFERENCES` hook is ready. SOS, emergency broadcasts and Red weather alerts are mandatory and bypass preferences (BR-196).
 - **PD-4.** Emergency broadcasts (CTMS-081) are pushed as a mandatory safety category even though Section 2 lists only four categories, because BR-196 forbids suppressing them.
+- **PD-5 (CTMS-384).** iOS is not configured (APNs key, `GoogleService-Info.plist`, push capability): no Mac is available to build or check it. The client code is platform-neutral.
+- **PD-6 (CTMS-384).** `firebase_messaging` 17 deprecates registration tokens (`getToken` / `onTokenRefresh`) in favour of Installation IDs (`register()` / `onRegistered`). The app keeps registration tokens because the API sends to FCM `message.token`; moving to Installation IDs needs both sides verified against the real Firebase project.
+- **PD-7 (CTMS-384).** Hosts and Admins use the web dashboard, not the app, so the "new SOS" push reaches a Host only once a Host app exists; on mobile, Campers get their own SOS state changes.
 
 ## 13. Implementation Record — Logic (Jira CTMS-383, CTMS-090-T01)
 
@@ -210,4 +213,34 @@ Provider: **Firebase Cloud Messaging HTTP v1** (Android and iOS). The API signs 
   - no device → `skipped: no_device`; an `UNREGISTERED` token is disabled.
   - Found and fixed while testing: TypeORM returns `[rows, count]` for `UPDATE/DELETE … RETURNING` (the claim and sign-out used the wrong shape), and the app/database clock skew left fresh rows not yet "due".
 - **Gates:** `lint:all` 0 errors (12 existing warnings); `build:all` pass; API unit 197 suites / 2400 tests pass; web Vitest 260 files / 1757 tests pass (`test:all` run per package: no `pytest` on this machine for `@ctms/ai`). Integration: the new `push-notifications` suite 9/9, and every suite touching the changed code passes (`bookings.cancel`, `bookings.create`, `trip-weather-decisions`, `websocket-reconnect`, `websocket-auth`, `sos-realtime-delivery`, …). Remaining failures are pre-existing: the known baseline (sync-evaluation 4, overbooking-evaluation 4, trekking-route-checkpoints 2, incidents.report 1, trip-reviews 1, review-analysis 16); the new develop suites `route-recovery` (27) and `offline-basemaps` (4) fail before any test code with "SASL: client password must be a string" (their own pg connection needs a password variable this machine does not set); `trips.review` 1 and `trip-weather-monitoring` failed only inside the shard because of leftover data and pass alone. Shards 2 and 3 crashed Jest, so their suites were run one by one (all pass). Default Playwright E2E: 61 passed / 38 failed / 32 did not run, same as the develop baseline.
+
+## 15. Implementation Record — UI (Jira CTMS-384, CTMS-090-T02, mobile)
+
+- **Dependencies:** `firebase_core` ^5.1.0 and `firebase_messaging` ^17.0.1 (approved with the plan). No local-notification package: the OS shows background pushes; a push received while the app is open is shown in the app.
+- **Android build:** `settings.gradle.kts` declares `com.google.gms.google-services` 4.4.2 (`apply false`); `app/build.gradle.kts` applies it **only when `android/app/google-services.json` exists**, so the app builds and runs without the team's Firebase project (PD-1) and reports push as unavailable. `POST_NOTIFICATIONS` (Android 13+) comes from the plugin manifest.
+- **New feature `apps/mobile/lib/features/push_notifications/`:**
+  - `data/push_messaging_port.dart`: `PushMessagingPort` interface and `FirebasePushMessaging`. `initialize()` returns false (never throws) on web/desktop or when Firebase cannot start (no config file), so nothing is attempted or faked;
+  - `data/push_devices_api.dart`: `PUT` / `DELETE /me/push-devices` (CTMS-383) and the on-device store of event ids already shown (last 200, secure storage);
+  - `domain/push_models.dart`: availability states (`idle`, `unavailable`, `permissionDenied`, `registering`, `enabled`, `error`), `PushNotice` (key = `eventId`, else `pushId`), and `pushRouteFor`: Camper Booking / weather / emergency / SOS pushes open `/camper/trips`, Porter request pushes open `/porter/alerts`; anything not allowed for the signed-in role opens that role's home (the router's role guard applies too), so a push for another account reveals nothing;
+  - `application/push_notifications_controller.dart`: follows the signed-in user (`authControllerProvider`). For a Camper or Porter it asks for permission, gets the token and registers it; it is `enabled` only after the API accepted it. It re-registers on token refresh, removes the token before sign-out, shows a foreground push once (dedupe by event id across deliveries and restarts), opens the related screen on tap, and handles the push that launched the app after the session is restored;
+  - `presentation/push_notification_widgets.dart`: `PushNotificationOverlay` (in-app banner with "Xem" / "Đóng"; red emergency style for SOS, emergency and Red weather) and `PushNotificationsSettingsCard` ("Thông báo đẩy" status with guidance and "Thử lại").
+- **Existing code (small insertions):**
+  - `core/lifecycle/session_hooks.dart` (new) + `AuthController.logout` runs the hook first, bounded to 5 s, never blocking or failing the sign-out; `main.dart` wires it to `unregister()`;
+  - `app.dart`: keeps the controller alive and wraps the router in the overlay (`MaterialApp.router` `builder`);
+  - the settings card on the Camper profile (above "Tài khoản & Phiên đăng nhập") and the Porter settings (above the logout actions);
+  - `ApiClient.delete` accepts an optional body (backwards compatible).
+- **Not covered:** iOS (PD-5); an expired session (`clearSession`) cannot call the API, so that device keeps its token until the next sign-in on the phone moves it.
+
+## 16. Test Evidence — CTMS-384
+
+- **Flutter tests** (`test/features/push_notifications/`, 18):
+  - registration after a Camper signs in, `enabled` only after the API accepts; re-registration on token refresh; `unavailable` without Firebase and no permission prompt; permission refused then allowed with "Thử lại"; no token / API failure → `error` with a Vietnamese message, then recovery; removal before sign-out, once, tolerant of failure; Host role and sign-out reset;
+  - a foreground push shown once although delivered twice (**AC-4**); opening routes per role; cold-start push opened after the session is restored; banner "Xem" navigates and clears;
+  - `pushRouteFor` never opens another role's screens (**AC-5**); notice keys from FCM data;
+  - settings card states and retry; unavailable text; overlay banner and navigation;
+  - `AuthController.logout` runs the push clean-up before the API sign-out, and a failing clean-up never blocks it.
+- **Existing suite:** every Flutter test still passes (the overlay and hook are inert without a Firebase project).
+- **Screenshots** (rendered from widget tests): settings card enabled / permission denied / unavailable; foreground banner, ordinary and emergency.
+- **Device E2E:** not possible yet — needs the Firebase project (PD-1) and a device or emulator; to be run when PD-1 is resolved.
+- **Gates:** `flutter analyze`: no issues; `flutter test`: 548 tests pass (18 new); `flutter build apk --debug` succeeds **without** `google-services.json` (the first attempt hit the known Kotlin incremental-cache error on Windows when the project and the Pub cache are on different drives; rebuilt with `--android-project-arg=kotlin.incremental=false`, no project file changed); `lint:all` 0 errors (12 existing warnings); `build:all` pass; web Vitest 1757/1757 and API Jest 2400/2400 pass. Integration and web Playwright not rerun: no API or web code changed. Device E2E pending PD-1.
 

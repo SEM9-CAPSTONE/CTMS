@@ -128,6 +128,7 @@ describe("Porter level requests state machine (real PostgreSQL + HTTP)", () => {
 				[porterId]
 			);
 			await db.query("DELETE FROM porter_level_requests WHERE porter_id=$1", [porterId]);
+			await db.query("DELETE FROM porter_certificates WHERE porter_id=ANY($1)", [ids]);
 			await db.query("DELETE FROM porter_level_policies WHERE updated_by=ANY($1)", [ids]);
 			await db.query("DELETE FROM audit_logs WHERE actor_id=ANY($1)", [ids]);
 			await db.query("DELETE FROM porter_route_qualifications WHERE id=$1", [qualificationId]);
@@ -469,5 +470,111 @@ describe("Porter level requests state machine (real PostgreSQL + HTTP)", () => {
 				})
 				.expect(201);
 		}
+	});
+	it("enforces criteria evaluation on submission and prevents approval when criteria become unmet", async () => {
+		const currentExpertPolicy = (
+			await request(app.getHttpServer())
+				.get(`${levels}/policies`)
+				.set("Authorization", auth(adminId, "admin"))
+				.expect(200)
+		).body.find((p: { level: string }) => p.level === "expert");
+
+		await request(app.getHttpServer())
+			.put(`${levels}/policies/expert`)
+			.set("Authorization", auth(adminId, "admin"))
+			.send({
+				expectedVersion: currentExpertPolicy.version,
+				name: "Tiêu chuẩn Chuyên gia",
+				minExperienceYears: 3,
+				minTimesLed: null,
+				requiredSkills: [],
+				requiredCertifications: ["wfa"],
+				responsibilities: "Phụ trách tuyến",
+			})
+			.expect(200);
+
+		// Current qualification for porterId
+		const qual = (
+			await db.query(
+				"SELECT id, version FROM porter_route_qualifications WHERE porter_id=$1 AND route_id=$2",
+				[porterId, routeId]
+			)
+		)[0];
+
+		// Current porter experienceYears = 2, so minExperienceYears: 3 fails!
+		const failExpRes = await request(app.getHttpServer())
+			.post(base)
+			.set("Authorization", auth(porterId))
+			.field("routeId", routeId)
+			.field("targetLevel", "expert")
+			.field("reason", "Please assess my Route experience")
+			.field("expectedQualificationVersion", String(qual.version))
+			.expect(422);
+
+		expect(failExpRes.body).toMatchObject({
+			code: "UNMET_CRITERIA",
+			details: {
+				allMet: false,
+				missingCertifications: ["wfa"],
+				experience: false,
+			},
+		});
+
+		// Give porter 3 years experience and a valid WFA certificate
+		await db.query("UPDATE porter_profiles SET experience_years = 3 WHERE porter_id = $1", [
+			porterId,
+		]);
+		const certId = randomUUID();
+		await db.query(
+			`INSERT INTO porter_certificates(id, porter_id, type, name, status, expiry_date)
+			 VALUES($1, $2, 'wfa', 'Sơ cấp cứu nơi hoang dã WFA', 'verified', CURRENT_DATE + interval '30 days')`,
+			[certId, porterId]
+		);
+
+		// Now submission succeeds!
+		const successRes = await request(app.getHttpServer())
+			.post(base)
+			.set("Authorization", auth(porterId))
+			.field("routeId", routeId)
+			.field("targetLevel", "expert")
+			.field("reason", "Please assess my Route experience with WFA")
+			.field("expectedQualificationVersion", String(qual.version))
+			.expect(201);
+
+		const testReqId = successRes.body.id;
+
+		// While request is pending, expire the WFA certificate (yesterday in UTC+7)
+		await db.query(
+			`UPDATE porter_certificates SET expiry_date = CURRENT_DATE - interval '1 day' WHERE id = $1`,
+			[certId]
+		);
+
+		// Admin attempts to approve -> blocked with 409 CRITERIA_NO_LONGER_MET
+		const d = (
+			await request(app.getHttpServer())
+				.get(`${adminBase}/${testReqId}`)
+				.set("Authorization", auth(adminId, "admin"))
+				.expect(200)
+		).body;
+
+		await request(app.getHttpServer())
+			.post(`${adminBase}/${testReqId}/approve`)
+			.set("Authorization", auth(adminId, "admin"))
+			.send({
+				expectedVersion: d.request.version,
+				reason: "Approved after review",
+				expectedQualificationVersion: d.qualification.version,
+				expectedPolicyVersion: d.policy?.version,
+				expectedDossierHash: d.dossierHash,
+			})
+			.expect(409)
+			.expect((res) => {
+				expect(res.body.code).toBe("CRITERIA_NO_LONGER_MET");
+			});
+
+		// Clean up test certificate & request
+		await db.query("DELETE FROM porter_certificates WHERE id = $1", [certId]);
+		await db.query("DELETE FROM porter_level_request_events WHERE request_id = $1", [testReqId]);
+		await db.query("DELETE FROM porter_level_requests WHERE id = $1", [testReqId]);
 	});
 });

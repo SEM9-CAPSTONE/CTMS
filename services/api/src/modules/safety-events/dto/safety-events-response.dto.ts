@@ -1,4 +1,4 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
 	GpsParticipantRole,
 	GpsTrackingIneligibleReason,
@@ -64,6 +64,9 @@ export class RouteDeviationContextResponseDto {
 
 	@ApiProperty({ example: "v3" })
 	configVersion!: string;
+
+	@ApiPropertyOptional({ format: "uuid" })
+	lockedPackageId?: string;
 }
 
 export class SafetyEventIngestResultDto {

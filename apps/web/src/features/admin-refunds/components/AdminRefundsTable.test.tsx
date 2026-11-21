@@ -76,7 +76,7 @@ describe("AdminRefundsTable", () => {
 		expect(screen.getByText("NGUYEN VAN A")).toBeInTheDocument();
 
 		const detailBtn = screen.getByRole("button", {
-			name: "Xem chi tiết hoàn tiền #refund-1",
+			name: "Xem hoàn tiền của Nguyen Van A cho chuyến Trekking Fansipan 3N2D",
 		});
 		await user.click(detailBtn);
 		expect(onOpenDetail).toHaveBeenCalledWith(mockRefund);

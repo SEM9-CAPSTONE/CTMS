@@ -1,6 +1,7 @@
 import { CheckCircle2, Clock, Loader2, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "../../../shared/components/Button";
+import { ReputationSummary } from "../../review-reputation/ReputationSummary";
 import type { PorterRequest, PorterRequestStatus } from "../types";
 
 const statusLabels: Record<PorterRequestStatus, string> = {
@@ -76,6 +77,14 @@ export function PorterRequestCard({
 		<li className="rounded-2xl border border-[#dfe8df] bg-white p-5 shadow-sm">
 			<div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 				<div className="min-w-0">
+					{mode === "host" && (
+						<div className="mb-3">
+							<p className="break-words font-bold text-[#10221b]">
+								{request.porterDisplayName?.trim() || "Chưa cập nhật tên người hỗ trợ"}
+							</p>
+							<ReputationSummary value={request.reputation} />
+						</div>
+					)}
 					<div className="flex flex-wrap items-center gap-2">
 						<h3 className="text-base font-extrabold text-[#10221b]">
 							{trip?.title ?? "Yêu cầu Porter"}
@@ -94,7 +103,7 @@ export function PorterRequestCard({
 					)}
 					<div className="mt-2 space-y-1 text-xs font-semibold text-[#667a6d]">
 						<p>
-							Vai trò: {request.requestedRole === "lead" ? "Trưởng nhóm Porter" : "Porter hỗ trợ"}
+							Vai trò: {request.requestedRole === "lead" ? "Trưởng nhóm hỗ trợ" : "Người hỗ trợ"}
 						</p>
 						<p>Hạn phản hồi: {formatDateTime(request.expiresAt)}</p>
 						{isPending && isExpired && (

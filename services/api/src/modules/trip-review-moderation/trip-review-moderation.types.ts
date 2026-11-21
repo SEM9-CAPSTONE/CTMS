@@ -59,6 +59,29 @@ export interface PiiMaskResult {
 }
 
 export type ModerationStatus = "visible" | "hidden";
+export type ModerationHiddenSource = "ai" | "host" | "admin";
+export type ModerationVerificationStatus = "pending" | "verified" | "unverified";
+
+export interface EvaluableModerationFlag {
+	flagType: ModerationFlagType;
+	detectionSource: DetectionSource;
+	confidence: number | null;
+}
+
+export type AutoModerationOutcome =
+	| {
+			action: "auto_hide";
+			hiddenReason: ModerationFlagType;
+			maxConfidenceBps: number;
+	  }
+	| {
+			action: "notify_host";
+			maxConfidenceBps: number;
+	  }
+	| {
+			action: "clean";
+			maxConfidenceBps: number;
+	  };
 
 export type ImageStorageState =
 	| "live"
@@ -105,4 +128,21 @@ export interface ModerationQueueItem {
 		targetImageIndex: number | null;
 		createdAt: Date;
 	}>;
+}
+
+export interface HostReviewModerationDetail extends ModerationQueueItem {
+	reviewerName: string | null;
+	hiddenAt: Date | null;
+	firstHiddenAt: Date | null;
+	hiddenSource: ModerationHiddenSource | null;
+	moderationVerificationStatus: ModerationVerificationStatus;
+	adminActioned: boolean;
+	latestDecision: {
+		id: string;
+		revision: number;
+		decision: HostModerationDecision;
+		reason: ModerationFlagType | null;
+		note: string | null;
+		createdAt: Date;
+	} | null;
 }

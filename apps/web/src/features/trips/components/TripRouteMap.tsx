@@ -3,6 +3,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { MapPin } from "lucide-react";
 import type { Map as MapLibreMap, MapMouseEvent, Marker } from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
+import { VerifiedDangerZonesLayer } from "../../route-safety/components/VerifiedDangerZonesLayer";
 import type { CreatedTrekkingRoute, Position } from "../../trekking-routes/types";
 import { approximateLengthMeters } from "../../trekking-routes/utils/route-import";
 import { DEFAULT_ROUTE_CENTER, getRouteMapStyleUrl } from "../../trekking-routes/utils/route-map";
@@ -125,6 +126,12 @@ export function TripRouteMap({
 					setMapReady(true);
 				});
 				map.on("click", (event: MapMouseEvent) => {
+					const target = event.originalEvent?.target;
+					if (
+						target instanceof Element &&
+						target.closest("[data-safety-ui], .maplibregl-popup, .maplibregl-ctrl")
+					)
+						return;
 					if (disabledRef.current || !routeRef.current) return;
 					onMeetingPointChangeRef.current([
 						Number(event.lngLat.lng.toFixed(6)),
@@ -278,6 +285,14 @@ export function TripRouteMap({
 						<MapPin className="size-4" />
 					</span>
 				)}
+				<VerifiedDangerZonesLayer
+					map={mapRef.current}
+					ready={mapReady}
+					fallback={fallback}
+					bounds={{ west: -180, south: -90, east: 180, north: 90 }}
+					project={([lng, lat]) => [((lng + 180) / 360) * 100, ((90 - lat) / 180) * 100]}
+					areaClicksEnabled={disabled}
+				/>
 				{!route && (
 					<div className="absolute inset-0 flex items-center justify-center bg-white/70 p-6 text-center">
 						<p className="max-w-sm text-sm font-bold text-[#667a6d]">

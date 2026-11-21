@@ -221,7 +221,7 @@ it("shows only the reminders for an Admin, linking to the intervention page, and
 	openInbox();
 	expect(await screen.findByRole("link", { name: reminder.tripTitle })).toHaveAttribute(
 		"href",
-		"/admin/weather-interventions"
+		"/admin/weather"
 	);
 	expect(screen.queryByText("Thay đổi dự báo")).not.toBeInTheDocument();
 	expect(list).not.toHaveBeenCalled();

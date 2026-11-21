@@ -6,6 +6,23 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/ctms_button.dart';
 import '../domain/review_models.dart';
 
+String _vietnameseHiddenReason(String? code) {
+  switch (code) {
+    case 'profanity_or_insult':
+      return 'Ngôn từ thô tục, xúc phạm danh dự';
+    case 'personal_data_leak':
+      return 'Tiết lộ thông tin cá nhân';
+    case 'spam_or_irrelevant':
+      return 'Nội dung quảng cáo rác hoặc không liên quan';
+    case 'harassment':
+      return 'Quấy rối hoặc đe dọa';
+    case 'inappropriate_image':
+      return 'Hình ảnh không phù hợp';
+    default:
+      return 'Vi phạm tiêu chuẩn cộng đồng';
+  }
+}
+
 class ReviewForm extends StatefulWidget {
   const ReviewForm({
     super.key,
@@ -114,13 +131,56 @@ class _ReviewFormState extends State<ReviewForm> {
                     ),
                   ),
                 ),
-                if (widget.saved != null) const Chip(label: Text('Đã gửi')),
+                if (widget.saved != null)
+                  Chip(
+                    label: Text(
+                      widget.saved!.isHidden ? 'Đang bị ẩn' : 'Đã gửi',
+                    ),
+                  ),
               ],
             ),
+            if (widget.saved?.isHidden == true) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF8E6),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFF3D18A)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.saved!.hiddenSource == 'ai'
+                          ? 'Hệ thống đã tự động ẩn đánh giá này do phát hiện nội dung vi phạm tiêu chuẩn cộng đồng. Lý do: ${_vietnameseHiddenReason(widget.saved!.hiddenReason)}.'
+                          : 'Chủ chuyến đã ẩn đánh giá này do nội dung vi phạm tiêu chuẩn cộng đồng. Lý do: ${_vietnameseHiddenReason(widget.saved!.hiddenReason)}.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: const Color(0xFF7A4B00),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      widget.saved!.canEdit && widget.saved!.editExpiresAt != null
+                          ? 'Bạn có thể chỉnh sửa lại nội dung trước ${DateFormat('HH:mm dd/MM/yyyy').format(widget.saved!.editExpiresAt!.toUtc().add(const Duration(hours: 7)))} để hệ thống kiểm duyệt và hiển thị lại.'
+                          : 'Đã hết thời hạn 24 giờ chỉnh sửa bổ sung kể từ lần ẩn đầu tiên.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: const Color(0xFF7A4B00),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if (widget.saved?.editExpiresAt != null)
-              Text(
-                'Hạn chỉnh sửa: ${DateFormat('HH:mm dd/MM/yyyy').format(widget.saved!.editExpiresAt!.toUtc().add(const Duration(hours: 7)))}',
-                style: Theme.of(context).textTheme.bodySmall,
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  'Hạn chỉnh sửa: ${DateFormat('HH:mm dd/MM/yyyy').format(widget.saved!.editExpiresAt!.toUtc().add(const Duration(hours: 7)))}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ),
             const SizedBox(height: 12),
             Wrap(

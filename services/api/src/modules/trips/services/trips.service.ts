@@ -12,9 +12,14 @@ import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { DEFAULT_CANCELLATION_POLICY } from "../../bookings/cancellation-policy";
+import { InAppNotificationType } from "../../in-app-notifications/in-app-notification.entity";
+// biome-ignore lint/style/useImportType: Nest injection metadata
+import { InAppNotificationsService } from "../../in-app-notifications/in-app-notifications.service";
+import { TripPorterStatus } from "../../profiles/entities/trip-porter.entity";
 import { publishBookingUpdates } from "../../realtime/booking-updates";
 // biome-ignore lint/style/useImportType: Nest constructor injection requires runtime metadata
 import { EventsGateway } from "../../realtime/events.gateway";
+import { readReviewReputations, reputationFor } from "../../review-reputation/review-reputation";
 import { TrekkingRouteStatus } from "../../trekking-routes/entities/trekking-route.entity";
 import { UserRole } from "../../users/entities/user.entity";
 import { TripWeatherForecastStatus } from "../../weather/entities/trip-weather-forecast.entity";
@@ -87,6 +92,8 @@ export interface TripScheduleChangeOptions {
 	auditReason?: string;
 	/** Runs inside the same transaction after the change, e.g. to record the decision. */
 	withinTransaction?: (manager: EntityManager, updated: TripResponseDto) => Promise<void>;
+	/** Actor written to the cancel audit entry; `null` when the system cancels on its own. */
+	auditActorId?: string | null;
 }
 
 @Injectable()
@@ -100,7 +107,8 @@ export class TripsService {
 		/** Forecast for each Trip's own dates on the search list; optional for unit fixtures. */
 		@Optional()
 		@Inject(TripWeatherForecastService)
-		private readonly tripWeatherForecasts?: TripWeatherForecastService
+		private readonly tripWeatherForecasts?: TripWeatherForecastService,
+		@Optional() private readonly inAppNotifications?: InAppNotificationsService
 	) {}
 
 	async search(query: SearchTripsQueryDto, viewerId?: string): Promise<PaginatedTripsResponseDto> {
@@ -175,13 +183,11 @@ export class TripsService {
 			throw new NotFoundException("Trip not found");
 		}
 
-		if (!isOwningHost && !isAdmin) {
-			const sanitizedTrip = { ...trip };
-			sanitizedTrip.routeId = undefined;
-			return sanitizedTrip;
-		}
+		const details = isOwningHost || isAdmin ? trip : { ...trip, routeId: undefined };
+		if (!actor.roles?.includes(UserRole.CAMPER)) return details;
 
-		return trip;
+		const ratings = await readReviewReputations(this.dataSource, "host", [trip.hostId]);
+		return { ...details, hostReputation: reputationFor(ratings, trip.hostId) };
 	}
 
 	async getMyTrips(hostId: string): Promise<TripResponseDto[]> {
@@ -193,7 +199,24 @@ export class TripsService {
 	}
 
 	async getPorterAssignmentHistory(hostId: string): Promise<HostPorterAssignmentTripDto[]> {
-		return this.tripsRepository.findPorterAssignmentHistoryByHost(hostId);
+		const trips = await this.tripsRepository.findPorterAssignmentHistoryByHost(hostId);
+		const ratings = await readReviewReputations(
+			this.dataSource,
+			"porter",
+			trips.flatMap(({ assignments }) =>
+				assignments
+					.filter(({ status }) => status === TripPorterStatus.ASSIGNED)
+					.map(({ porterId }) => porterId)
+			)
+		);
+		return trips.map((trip) => ({
+			...trip,
+			assignments: trip.assignments.map((assignment) =>
+				assignment.status === TripPorterStatus.ASSIGNED
+					? { ...assignment, reputation: reputationFor(ratings, assignment.porterId) }
+					: assignment
+			),
+		}));
 	}
 
 	async getAssignedTrips(porterId: string): Promise<PorterAssignedTripResponseDto[]> {
@@ -306,6 +329,8 @@ export class TripsService {
 				]);
 			}
 
+			await this.assertActiveArea(repository, dto.areaCode);
+
 			const trip = await repository.createDraft({
 				hostId,
 				routeId: dto.routeId,
@@ -329,6 +354,8 @@ export class TripsService {
 					string,
 					unknown
 				>,
+				areaCode: dto.areaCode,
+
 				waypoints: sortWaypointsByPlannedAt(dto.waypoints).map((waypoint, index) =>
 					toWaypointInput(waypoint, index, schedule.startsAt)
 				),
@@ -428,6 +455,8 @@ export class TripsService {
 				]);
 			}
 
+			await this.assertActiveArea(repository, dto.areaCode);
+
 			const updated = await repository.updateDraft(tripId, {
 				hostId,
 				routeId: dto.routeId,
@@ -451,6 +480,7 @@ export class TripsService {
 					string,
 					unknown
 				>,
+				areaCode: dto.areaCode,
 				waypoints: toDraftWaypointInputs(
 					final
 						? dto.waypoints.map((w) => fromWaypointDto(w, w.id))
@@ -584,10 +614,17 @@ export class TripsService {
 					reason: "host_configure_trip_waypoints",
 				});
 
-				return {
-					trip: updated,
-					submittedForReview: lockedTrip.status !== TripStatus.PENDING_APPROVAL,
-				};
+				const submittedForReview = lockedTrip.status !== TripStatus.PENDING_APPROVAL;
+				if (submittedForReview) {
+					await this.inAppNotifications?.enqueueTripReview(
+						manager,
+						tripId,
+						InAppNotificationType.REVIEW_REQUESTED,
+						new Date(updated.updatedAt).toISOString(),
+						new Date(updated.updatedAt)
+					);
+				}
+				return { trip: updated, submittedForReview };
 			}
 		);
 		if (result.submittedForReview) this.emitTripReviewRequested(result.trip);
@@ -693,6 +730,13 @@ export class TripsService {
 				after: { ...this.buildWaypointAuditSnapshot(updated), weatherForecast: weather },
 				reason: "host_submit_trip_for_approval",
 			});
+			await this.inAppNotifications?.enqueueTripReview(
+				manager,
+				tripId,
+				InAppNotificationType.REVIEW_REQUESTED,
+				new Date(updated.updatedAt).toISOString(),
+				new Date(updated.updatedAt)
+			);
 			return { trip: updated, submitted: true };
 		});
 		if (result.submitted) this.emitTripReviewRequested(result.trip);
@@ -956,7 +1000,30 @@ export class TripsService {
 		);
 		let reminded = 0;
 		for (const trip of reminders) {
-			await this.dataSource.transaction(async (manager: EntityManager) => {
+			const sent = await this.dataSource.transaction(async (manager: EntityManager) => {
+				if (this.inAppNotifications) {
+					const locked = await manager
+						.withRepository(this.tripsRepository)
+						.findByIdForReview(trip.id);
+					if (
+						!locked ||
+						locked.status !== TripStatus.PENDING_APPROVAL ||
+						new Date(locked.trip.updatedAt).getTime() !== new Date(trip.updatedAt).getTime()
+					)
+						return false;
+					const existing: { id: string }[] = await manager.query(
+						`SELECT id FROM audit_logs WHERE target_id = $1 AND action = 'trip.review.reminder_sent'
+						 AND created_at >= COALESCE((
+							SELECT submitted.created_at FROM audit_logs submitted
+							WHERE submitted.target_type = 'trip' AND submitted.target_id = $1
+							 AND (submitted.action = 'trip.submitted_for_approval' OR
+								(submitted.action = 'trip_waypoints.configured' AND submitted."before"->>'status' = 'draft'))
+							ORDER BY submitted.created_at DESC, submitted.id DESC LIMIT 1
+						), $2::timestamptz) LIMIT 1`,
+						[trip.id, trip.updatedAt]
+					);
+					if (existing.length > 0) return false;
+				}
 				await manager.getRepository(AuditLog).save({
 					actorId: null,
 					action: "trip.review.reminder_sent",
@@ -970,7 +1037,16 @@ export class TripsService {
 					},
 					reason: "admin_review_deadline_reminder",
 				});
+				await this.inAppNotifications?.enqueueTripReview(
+					manager,
+					trip.id,
+					InAppNotificationType.REVIEW_REMINDER,
+					new Date(trip.updatedAt).toISOString(),
+					now
+				);
+				return true;
 			});
+			if (!sent) continue;
 			reminded += 1;
 			this.emitTripReviewReminder(trip);
 		}
@@ -1072,6 +1148,13 @@ export class TripsService {
 				},
 				reason: TRIP_REVIEW_AUTO_REJECT_REASON,
 			});
+			await this.inAppNotifications?.enqueueTripReview(
+				manager,
+				tripId,
+				InAppNotificationType.AUTO_REJECTED,
+				new Date(locked.trip.updatedAt).toISOString(),
+				rejectedAt
+			);
 			return updated;
 		});
 	}
@@ -1173,7 +1256,7 @@ export class TripsService {
 			if (!updated) throw new Error("Failed to load cancelled Trip");
 
 			await manager.getRepository(AuditLog).save({
-				actorId: hostId,
+				actorId: options.auditActorId === undefined ? hostId : options.auditActorId,
 				action: "trip.cancelled",
 				targetType: "trip",
 				targetId: tripId,
@@ -1270,6 +1353,17 @@ export class TripsService {
 	async releaseSeats(tripId: string, manager: EntityManager): Promise<void> {
 		const repository = manager.withRepository(this.tripsRepository);
 		await repository.recomputeSeatsTaken(tripId);
+	}
+
+	/** CTMS-110 / BR-319. The area snapshot may only come from an active `geo_areas` row. */
+	private async assertActiveArea(repository: TripsRepository, areaCode?: string): Promise<void> {
+		if (areaCode === undefined) return;
+		const area = await repository.findActiveArea(areaCode);
+		if (!area) {
+			throw this.validationException([
+				{ field: "areaCode", errors: ["INVALID_AREA: area must be an active reporting area"] },
+			]);
+		}
 	}
 
 	private assertCreateTripPayload(dto: CreateTripDto): {

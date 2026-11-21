@@ -54,10 +54,10 @@ Generate frontend in this order:
 4. **Query Keys** (add to `core/api/queryKeys.ts`)
 5. **Service** (`services/feature.service.ts`) — typed API calls
 6. **Hooks** (`hooks/`) — TanStack Query wrappers
-7. **Components** (`components/`) — small, focused UI pieces
-8. **Pages** (`pages/`) — composing components
+7. **Components** (`components/`) — BẮT BUỘC theo chuẩn Impeccable: không lồng card trong card, không icon rác ở thẻ chỉ số, phân cấp 3 tầng typography, thang 4px, semantic tokens, tái sử dụng shared components
+8. **Pages** (`pages/`) — composing components theo chuẩn Impeccable (khoảng thở `space-y-6`, không có dòng phụ dưới `<h1>`)
 9. **Routes** (`routes/`) — route definitions
-10. **i18n** (`core/i18n/locales/{en,vi}/<featureName>.json` + register)
+10. **i18n** (`core/i18n/locales/{en,vi}/<featureName>.json` + register, 100% tiếng Việt tự nhiên)
 11. **Schema** (`schema/`) — Zod validation for forms
 
 ### Phase 4 — Type Alignment Check

@@ -1,21 +1,32 @@
 import { useState } from "react";
 import type { Position } from "../../trekking-routes/types";
-import { featureColor, isDisplayableFeature, isMutedFeature } from "../map-symbols";
-import { safetyPopupContent } from "../safety-popup";
+import {
+	featureColor,
+	featureMarkerPoint,
+	isDisplayableFeature,
+	isMutedFeature,
+} from "../map-symbols";
+import { safetyText } from "../messages";
 import type { SafetyCollection } from "../types";
+import { SafetyDetailsModal } from "./SafetyDetailsModal";
 import { SafetySymbol } from "./SafetySymbol";
 
 export function SafetyMapFallback({
 	data,
 	project,
-}: { data?: SafetyCollection; project: (position: Position) => Position }) {
+	areaClicksEnabled = true,
+}: {
+	data?: SafetyCollection;
+	project: (position: Position) => Position;
+	areaClicksEnabled?: boolean;
+}) {
 	const [selectedId, setSelectedId] = useState<string>();
 	const features = data?.features.filter(isDisplayableFeature) ?? [];
 	const selected = features.find((feature) => feature.id === selectedId);
 	return (
 		<div className="pointer-events-none absolute inset-0">
 			<svg
-				aria-hidden="true"
+				aria-hidden={areaClicksEnabled ? undefined : true}
 				viewBox="0 0 100 100"
 				preserveAspectRatio="none"
 				className="absolute inset-0 h-full w-full"
@@ -44,6 +55,20 @@ export function SafetyMapFallback({
 					return polygons.map((polygon, index) => (
 						<path
 							key={`${feature.id}:${index}`}
+							role={areaClicksEnabled ? "button" : undefined}
+							tabIndex={areaClicksEnabled ? 0 : undefined}
+							aria-label={areaClicksEnabled ? feature.properties.description : undefined}
+							className={areaClicksEnabled ? "pointer-events-auto cursor-pointer" : undefined}
+							onClick={(event) => {
+								if (!areaClicksEnabled) return;
+								event.stopPropagation();
+								setSelectedId(feature.id);
+							}}
+							onKeyDown={(event) => {
+								if (!areaClicksEnabled || (event.key !== "Enter" && event.key !== " ")) return;
+								event.preventDefault();
+								setSelectedId(feature.id);
+							}}
 							d={polygon
 								.map((ring) => `M${ring.map((point) => project(point).join(",")).join(" L")}Z`)
 								.join(" ")}
@@ -58,17 +83,22 @@ export function SafetyMapFallback({
 				})}
 			</svg>
 			{features.map((feature) => {
-				if (feature.geometry.type !== "Point") return null;
-				const [x, y] = project(feature.geometry.coordinates);
+				const point = featureMarkerPoint(feature);
+				if (!point) return null;
+				const [x, y] = project(point.coordinates);
 				return (
 					<button
 						data-safety-ui
 						data-safety-symbol={feature.properties.sourceType === "RESOURCE" ? "water" : "hazard"}
 						key={feature.id}
 						type="button"
-						aria-label={feature.properties.description.split(" — ")[0]}
-						onClick={() => setSelectedId(feature.id)}
-						className="pointer-events-auto absolute z-10 -translate-x-1/2 -translate-y-1/2 drop-shadow-md"
+						aria-label={`${feature.properties.sourceType === "ADMIN_VERIFIED" ? `${safetyText.verifiedZone.title}: ` : ""}${feature.properties.description.split(" — ")[0]}`}
+						onPointerDown={(event) => event.stopPropagation()}
+						onClick={(event) => {
+							event.stopPropagation();
+							setSelectedId(feature.id);
+						}}
+						className={`pointer-events-auto absolute flex size-11 touch-manipulation -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white bg-white/95 p-1 shadow-sm ${feature.properties.sourceType === "HOST_DEFINED" || feature.properties.sourceType === "ADMIN_VERIFIED" ? "z-20" : "z-10"}`}
 						style={{ left: `${x}%`, top: `${y}%`, opacity: isMutedFeature(feature) ? 0.45 : 1 }}
 					>
 						<SafetySymbol
@@ -79,25 +109,7 @@ export function SafetyMapFallback({
 				);
 			})}
 			{selected && (
-				<aside
-					data-safety-ui
-					aria-label="Thông tin bản đồ"
-					className="pointer-events-auto absolute top-12 left-3 z-30 max-w-60 rounded-lg bg-white p-3 pr-7 shadow-lg"
-				>
-					<button
-						type="button"
-						aria-label="Đóng thông tin"
-						onClick={() => setSelectedId(undefined)}
-						className="absolute top-1 right-2 text-lg"
-					>
-						×
-					</button>
-					<div
-						ref={(element) => {
-							element?.replaceChildren(safetyPopupContent(selected));
-						}}
-					/>
-				</aside>
+				<SafetyDetailsModal feature={selected} onClose={() => setSelectedId(undefined)} />
 			)}
 		</div>
 	);

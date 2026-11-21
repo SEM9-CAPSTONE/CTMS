@@ -18,7 +18,7 @@ In scope:
 
 - Host create/update workflow, metadata validation and route ownership. Saving, submitting and approving a Route do not require or generate start/finish checkpoints or waypoints.
 - Automatic safety preview after route geometry changes.
-- Unified external, Host-defined and authorized Trip-incident features.
+- Unified external, nearby Host-defined zones across the requesting Host's own Routes, and authorized Trip-incident features, including before a new Route is saved.
 - PostGIS proximity/intersection/distance and independent lifecycle evaluation.
 - Source, severity, observed/issued/fetched/validity times, verification and position accuracy in the UI.
 - Controlled Admin import from explicitly approved sources with stable identity and quarantine.
@@ -35,7 +35,7 @@ Out of scope:
 
 ## 3 Actors and authorization
 
-The backend enforces Host role for analysis. A saved `routeId` must exist and belong to the Host; supplied geometry can represent unsaved edits. Without `routeId`, preview is supported, but cannot expose another Host's route zones or incidents. Trip incidents are read only through Trips owned by the requesting Host and, for saved routes, matching that route. Camper receives no new permissions.
+The backend enforces Host role for analysis. A saved `routeId` must exist and belong to the Host; supplied geometry can represent unsaved edits. With or without `routeId`, nearby danger zones may come from any Route owned by that Host. Another Host's private route zones and incidents remain excluded. Trip incidents are read only through Trips owned by the requesting Host and, for saved routes, matching that route. Shared external evidence retains its existing authorization and verification contract. Camper receives no new permissions.
 
 Admin alone may call controlled import. A source must appear in `ROUTE_SAFETY_APPROVED_SOURCES` and each import supplies a permission reference. This is a deployment gate, not evidence that a readable endpoint automatically permits reuse.
 
@@ -56,7 +56,7 @@ Existing authenticated active account, route authorization and PostGIS database 
 | BR-474 | Canonical provenance, geometry role, verification and independent position accuracy. |
 | BR-475 | Longitude/latitude GeoJSON; valid route; geography-meter proximity; segment/area intersection. |
 | BR-476 | Non-blocking decision support, UNKNOWN for no evidence, explicit partial coverage. |
-| BR-477 | Preserve Host danger-zone ownership, DRAFT restriction and audits. |
+| BR-477 amended 2026-11-16 | Show nearby saved zones from the requesting Host's own Routes while drawing a new Route or editing one. Preserve origin name, UNVERIFIED status, timestamps, ownership, DRAFT writes and audits; do not copy zones or share another Host's private records. |
 | BR-478 | Approved Admin import, idempotent identity, no old overwrite, invalid quarantine. |
 | BR-479 | Read authoritative incidents within existing Trip authorization; do not fabricate positions. |
 | BR-480 | Debounce, bounded response, cache isolation, no stale response on changed geometry, stable map source. |
@@ -75,9 +75,9 @@ Safety: explicit provider validity is authoritative; expiry at the deadline is E
 3. After 500 ms without geometry change, the UI requests analysis for the exact geometry.
 4. Backend validates Host context, saved-route ownership and geometry.
 5. PostGIS finds relevant live and stored features within the configured proximity of the complete route.
-6. Analysis merges external records, selected route's Host zones and authorized Trip incidents, then computes lifecycle.
+6. Analysis merges external records, nearby saved zones across the Host's own Routes and authorized Trip incidents, then computes lifecycle. A saved Point zone's relevance uses proximity plus its radius; Polygon zones use geography proximity to the complete drawn line.
 7. Backend returns canonical GeoJSON and a summary. Only ACTIVE non-resource evidence contributes to the risk maximum.
-8. MapLibre updates a stable source with `setData`; Host can expand details to review source, time, lifecycle, verification and distance.
+8. MapLibre updates a stable source with `setData`; Host can expand details to review source, time, lifecycle, verification and distance. Saved zones show the originating Route name, full description, severity, radius where applicable and update time. Marker/popup clicks do not add drawing vertices. The same zone is not rendered twice when persisted and analyzed data overlap.
 9. Further drawing hides the previous geometry's result until a matching analysis arrives.
 10. Host may adjust the route, then uses the existing save/update workflow. Analysis error or missing data cannot block saving.
 
@@ -96,7 +96,7 @@ External data is stored separately in `external_safety_features`; the unique key
 - Analysis returns at most 500 features and flags truncation. Summary/risk describe returned evidence, never complete coverage of every risk on the route.
 - Provider-specific raw payload, credentials and internal import errors are not part of the frontend contract.
 
-Defaults are 300 m Point proximity, 360-minute current-data fallback age and 1440-minute field-incident fallback age, configurable on the backend. These are product parameters and are not scientific safety standards. UI refresh is 60 seconds; this is not a promise that the source updates every minute.
+Defaults are 300 m proximity (plus a saved Point zone's radius), 360-minute current-data fallback age and 1440-minute field-incident fallback age, configurable on the backend. Saved Polygon zones within 300 m of the drawn line are also relevant. These are product parameters and are not scientific safety standards. UI refresh is 60 seconds; this is not a promise that the source updates every minute.
 
 ## 10 Error and edge cases
 
@@ -124,6 +124,10 @@ Defaults are 300 m Point proximity, 360-minute current-data fallback age and 144
 | Point near middle of line versus far point | Meter threshold applies to full route | Real PostGIS |
 | Current versus expired/historical/resource record | Only appropriate active evidence affects risk | Lifecycle/service/PostGIS tests |
 | Host zone and authorized Trip incident | Unified features without duplicating source records | Real PostGIS |
+| New Route without routeId or unsaved edit near another own Route | Nearby saved Point/Polygon zones appear with origin name and UNVERIFIED status; source rows remain unchanged | PostGIS/HTTP + UI |
+| Other Host's private zone or distant own zone | Omitted even if routeId is absent | PostGIS/HTTP |
+| Point radius reaches the proximity corridor | Include based on distance to the zone area, not just its center | PostGIS |
+| Click marker/popup while drawing; preview with duplicate persisted evidence | Open details without adding/moving a vertex; show one marker per saved zone | UI |
 | Repeated controlled import and malformed records | Stable identity, independent quarantine | Real PostGIS/import unit tests |
 | Debounced geometry change with late response | Correct line's result only | Hook/browser tests |
 | Provider or analysis failure | No fabricated current data and no save block | Unit/UI/browser tests |
@@ -137,3 +141,9 @@ For reproducible configuration, schema, API examples and operational limits, see
 ## Scope completion amendment — 2026-10-30
 
 Host route creation must show three independent groups: dangerous areas, nearby hazard points, and nearby mapped water. Sources are NCHMF, VNDMS and OpenStreetMap respectively. Results retain real source geometries and source times, include distance to the full route, and refresh after geometry changes. Water data is unverified map context; ended VNDMS events are labeled as ended/history. A failed source must be visible independently of successful sources. The same behavior applies to unsaved edits; ownership checks precede all provider calls.
+
+## Shared published danger layer amendment — 2026-11-16
+
+Admin-published danger zones automatically appear in the visible map area before any vertex, Route or Trip is selected, including zones originating on another Host's route. They remain visible during drawing, preview and Trip use. GET /api/route-safety/verified-zones refreshes after pan/zoom and every 15 seconds independently of route analysis. Pending/rejected candidates and unpublished private zones are excluded. Publication requires a CTMS-118 applied hazard correction based on current CTMS-117 confirmation; CONFIRMED alone does not publish.
+
+Display VERIFIED provenance and full severity, description, radius and update details through a 44 px marker, including an interior marker for polygons. Marker/details clicks cannot change route geometry. Own-Host unpublished zones retain proximity analysis and UNVERIFIED labels. Published zones from multiple paths render once. Failures offer retry without blocking form actions; truncation asks the user to zoom in. Subsequent user confirmation sets Point circles to a fixed 5 m display radius without changing saved radii or approval/analysis data. All details open in the shared application Modal outside the map, including fallback mode; recorded radius and map decoration are labeled separately. See docs/business-rules/route-safety-v2.md, amended BR-475/477, for publication and privacy rules. Mobile/offline eligibility is unchanged.

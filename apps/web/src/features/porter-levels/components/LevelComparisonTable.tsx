@@ -1,61 +1,112 @@
-import type { ReviewContext } from "../types";
-export function LevelComparisonTable({ context }: { context: ReviewContext }) {
+import { DataTable } from "../../../shared/components";
+import type { GlobalPorterLevelOverview, ReviewContext } from "../types";
+
+const CERT_LABELS: Record<string, string> = {
+	wfa: "Sơ cứu nơi hoang dã (WFA)",
+	rescue: "Cứu hộ địa hình / Leo núi",
+	guide_card: "Thẻ hướng dẫn viên du lịch",
+};
+
+function formatCertLabel(codeOrName: string): string {
+	return CERT_LABELS[codeOrName.trim().toLowerCase()] ?? codeOrName;
+}
+
+export function LevelComparisonTable({
+	context,
+	globalOverview,
+}: {
+	context: ReviewContext;
+	globalOverview?: GlobalPorterLevelOverview | null;
+}) {
 	const { dossier, policy } = context;
-	if (!policy) return <p role="alert">Admin cần cấu hình tiêu chí của cấp này trước khi duyệt.</p>;
+	if (!policy)
+		return (
+			<p role="alert" className="text-sm text-amber-800">
+				Chưa có tiêu chí cho cấp này.
+			</p>
+		);
+
+	const def = policy.definition;
+	const minTrips = def.minCompletedTrips ?? def.minTimesLed;
+	const actualTrips = globalOverview ? globalOverview.metrics.completedTrips : dossier.timesLed;
+
+	const actualCertText = globalOverview
+		? globalOverview.metrics.verifiedCertificatesCount > 0
+			? `${globalOverview.metrics.verifiedCertificatesCount} chứng chỉ đã xác minh`
+			: "Chưa có chứng chỉ hợp lệ"
+		: dossier.certifications.length > 0
+			? dossier.certifications.map(formatCertLabel).join(", ")
+			: "Chưa cập nhật";
+
 	const rows = [
-		[
-			"Kinh nghiệm",
-			`${dossier.experienceYears} năm`,
-			policy.definition.minExperienceYears ?? "Chưa đặt",
-		],
-		["Dẫn tuyến", `${dossier.timesLed} lần (tự khai)`, policy.definition.minTimesLed ?? "Chưa đặt"],
-		[
-			"Kỹ năng tự khai",
-			dossier.skills.join(", ") || "Chưa khai",
-			policy.definition.requiredSkills.join(", ") || "Chưa đặt",
-		],
-		[
-			"Chứng chỉ tự khai",
-			dossier.certifications.join(", ") || "Chưa khai",
-			policy.definition.requiredCertifications.join(", ") || "Chưa đặt",
-		],
-	];
+		minTrips != null
+			? {
+					label: "Tổng chuyến hoàn thành",
+					actual: `${actualTrips} chuyến`,
+					required: `${minTrips} chuyến`,
+				}
+			: null,
+		def.minTotalKm != null
+			? {
+					label: "Tổng quãng đường đã dẫn",
+					actual: globalOverview ? `${globalOverview.metrics.totalKmLed} km` : "0 km",
+					required: `${def.minTotalKm} km`,
+				}
+			: null,
+		def.minAverageRating != null
+			? {
+					label: "Điểm đánh giá trung bình",
+					actual: globalOverview
+						? `${globalOverview.metrics.averageRating.toFixed(1)}★ (${globalOverview.metrics.reviewCount} lượt)`
+						: "Chưa có đánh giá",
+					required: `>= ${def.minAverageRating}★`,
+				}
+			: null,
+		def.minExperienceYears != null
+			? {
+					label: "Kinh nghiệm",
+					actual: `${dossier.experienceYears} năm`,
+					required: `${def.minExperienceYears} năm`,
+				}
+			: null,
+		def.requiredCertifications.length > 0
+			? {
+					label: "Chứng chỉ bắt buộc",
+					actual: actualCertText,
+					required: def.requiredCertifications.map(formatCertLabel).join(", "),
+				}
+			: null,
+		def.requiredSkills.length > 0
+			? {
+					label: "Kỹ năng bắt buộc",
+					actual: dossier.skills.join(", ") || "Chưa cập nhật",
+					required: def.requiredSkills.join(", "),
+				}
+			: null,
+	].filter((row): row is { label: string; actual: string; required: string } => row !== null);
+
 	return (
-		<div className="space-y-3">
-			<p className="text-sm font-bold">
-				Đối chiếu với {policy.definition.name} · phiên bản {policy.version}
-			</p>
-			<div className="overflow-x-auto">
-				<table className="w-full text-left text-sm">
-					<thead>
-						<tr>
-							{["Tiêu chí", "Hồ sơ Porter", "Yêu cầu của cấp đích"].map((heading) => (
-								<th key={heading} className="p-2">
-									{heading}
-								</th>
-							))}
-						</tr>
-					</thead>
-					<tbody>
-						{rows.map(([label, actual, required]) => (
-							<tr key={label} className="border-t border-[#dfe8df]">
-								<th scope="row" className="p-2 font-medium">
-									{label}
-								</th>
-								<td className="p-2">{actual}</td>
-								<td className="p-2">{required}</td>
-							</tr>
-						))}
-					</tbody>
-				</table>
+		<details className="rounded-xl bg-[#f8faf7] px-4 py-2.5 text-sm">
+			<summary className="cursor-pointer py-1 text-xs font-semibold text-[#164027]">
+				Đối chiếu với {def.name}
+			</summary>
+			<div className="mt-2.5 pb-1">
+				{rows.length ? (
+					<DataTable
+						ariaLabel="Đối chiếu hồ sơ người hỗ trợ"
+						rows={rows}
+						getRowKey={(row) => row.label}
+						minWidthClassName="min-w-[480px]"
+						columns={[
+							{ key: "label", header: "Tiêu chí", render: (row) => row.label },
+							{ key: "actual", header: "Hồ sơ", render: (row) => row.actual },
+							{ key: "required", header: "Yêu cầu", render: (row) => row.required },
+						]}
+					/>
+				) : (
+					<p className="text-xs text-[#667a6d]">Chưa có yêu cầu cụ thể cho cấp này.</p>
+				)}
 			</div>
-			<p className="whitespace-pre-wrap text-sm">
-				Phạm vi phụ trách: {policy.definition.responsibilities}
-			</p>
-			<p className="text-sm text-[#627769]">
-				Đối chiếu hỗ trợ Admin đánh giá, không tự đổi cấp. Admin kiểm tra bằng chứng và ghi lý do
-				cho quyết định cuối cùng.
-			</p>
-		</div>
+		</details>
 	);
 }

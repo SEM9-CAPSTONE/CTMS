@@ -118,3 +118,14 @@ not been downloaded. Never substitute a tile containing provider/key errors.
 The backend prepares raster asynchronously after core publication; opening a map
 is not a generation trigger. Both map readiness and the absence of approved
 upstream safety inputs are described in the [backend integration contract](../../docs/features/CTMS-307-Offline-Basemap-Backend.md).
+
+## 2026-11-14 — Generic regional basemap preparation
+
+CTMS-307 prepares a raster from the exact core package's route and every checkpoint,
+with a minimum 1,500 m buffer. Preparation is region-independent within the documented
+Mercator/resource limits; Son Tra is a demo region, not an application restriction.
+Preflight rejects excessive area/tile counts before fetching raw OSM. An independently
+validated raster is bound immutably to its package/version; newer versions never borrow
+an older package binding and ongoing trips keep their existing locked version.
+Compose runs the dedicated worker with the existing durable retries and advisory lock.
+No Route/Trip lifecycle, source approval, package activation or mobile UI rules change.

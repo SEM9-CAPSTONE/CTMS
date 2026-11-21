@@ -1,6 +1,7 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { ContentReportStatus } from "../content-report-status.enum";
 import type { ContentReport } from "../entities/content-report.entity";
+import { ContentReportType } from "../report-submission.types";
 
 export class ReportReporterDto {
 	@ApiProperty({ format: "uuid" })
@@ -11,6 +12,8 @@ export class ReportReporterDto {
 }
 
 export class ContentReportResponseDto {
+	@ApiPropertyOptional({ enum: ContentReportType })
+	reportType?: ContentReportType;
 	@ApiProperty({ format: "uuid" })
 	id!: string;
 
@@ -55,6 +58,7 @@ export function toContentReportResponse(
 	reporter: ReportReporterDto
 ): ContentReportResponseDto {
 	return {
+		...(report.reportType ? { reportType: report.reportType } : {}),
 		id: report.id,
 		reporter: { id: reporter.id, fullName: reporter.fullName },
 		targetType: report.targetType,

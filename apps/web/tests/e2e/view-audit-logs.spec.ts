@@ -100,8 +100,8 @@ test.describe("Admin view audit logs UI", () => {
 		});
 
 		await page.goto("/admin/audit-logs");
-		await expect(page.getByRole("navigation", { name: "Administration navigation" })).toBeVisible();
-		await expect(page.getByRole("button", { name: "Nhật ký hệ thống" })).toHaveAttribute(
+		await expect(page.getByRole("navigation", { name: "Điều hướng quản trị" })).toBeVisible();
+		await expect(page.getByRole("link", { name: "Nhật ký hệ thống" })).toHaveAttribute(
 			"aria-current",
 			"page"
 		);

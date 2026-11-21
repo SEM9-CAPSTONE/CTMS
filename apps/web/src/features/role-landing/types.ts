@@ -45,14 +45,13 @@ export interface TimelineItem {
 }
 
 export interface DashboardConfig {
-	role: RoleKey;
+	role: Exclude<RoleKey, "admin">;
 	figmaName: string;
 	productLabel: string;
 	title: string;
 	subtitle: string;
 	accent: string;
 	soft: string;
-	navTitle: string;
 	navItems: SidebarItem[];
 	metrics: Metric[];
 	primaryPanel: {

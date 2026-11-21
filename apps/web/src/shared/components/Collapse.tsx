@@ -37,12 +37,12 @@ export const Collapse: React.FC<CollapseProps> = ({
 			<button
 				type="button"
 				onClick={onToggle}
-				className={`absolute top-6 z-40 hidden lg:flex size-6 items-center justify-center rounded-full border border-[#dfe8df] bg-white text-[#164027] shadow-md transition-all duration-300 hover:bg-[#f1f5f0] hover:scale-105 active:scale-95 ${
+				className={`sidebar-edge-toggle hidden lg:grid ${
 					isCollapsed ? "left-4 rotate-180" : "left-[calc(100%-12px)]"
 				} ${buttonClassName}`}
 				aria-label={isCollapsed ? "Mở rộng sidebar" : "Thu gọn sidebar"}
 			>
-				<ChevronLeft className="size-3.5" />
+				<ChevronLeft aria-hidden="true" className="size-3.5" />
 			</button>
 		</div>
 	);

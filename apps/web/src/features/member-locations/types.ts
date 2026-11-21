@@ -7,6 +7,7 @@ export interface SyncedSafetyTransition {
 	type: "OFF_ROUTE" | "ON_ROUTE_RECOVERED" | "GPS_DEGRADED" | "GPS_RESTORED";
 	eventTime: string;
 	receivedAt: string;
+	distanceToRouteMeters?: number | null;
 }
 
 export interface MemberLocation {
@@ -49,7 +50,7 @@ export interface MemberLocation {
 export interface TripMemberLocations {
 	tripId: string;
 	tripStatus: string;
-	viewer: "host" | "porter";
+	viewer: "host" | "porter" | "camper";
 	generatedAt: string;
 	locationSource: "server_confirmed";
 	freshnessMaxAgeSeconds: number;

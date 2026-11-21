@@ -1,8 +1,54 @@
 export const API_ENDPOINTS = {
+	IN_APP_NOTIFICATIONS: {
+		LIST: "/in-app-notifications",
+		COUNT: "/in-app-notifications/unread-count",
+		READ: (id: string) => `/in-app-notifications/${id}/read`,
+	},
+	HOST_MONITORING: {
+		ALERTS: (tripId: string) => `/host/monitoring/active-trips/${tripId}/alerts`,
+		ACTIVE_TRIPS: "/host/monitoring/active-trips",
+		PARTICIPANT: (tripId: string, role: string, participantId: string) =>
+			`/host/monitoring/active-trips/${tripId}/participants/${role}/${participantId}`,
+	},
+	MY_CONTENT_REPORTS: {
+		LIST: "/me/content-reports",
+		DETAIL: (id: string) => `/me/content-reports/${id}`,
+	},
+	PACKAGE_DEPARTURE_NOTIFICATIONS: {
+		LIST: "/offline-package-notifications",
+		READ: (id: string) => `/offline-package-notifications/${id}/read`,
+	},
+	ADMIN_MODERATION_COUNTS: "/admin/moderation/counts",
+	AI_INVESTIGATIONS: {
+		LIST: "/admin/ai-investigations",
+		CASE: (id: string) => `/admin/ai-investigations/${id}`,
+	},
+	SAFETY_HOTSPOTS: {
+		LIST: "/admin/safety-hotspots",
+		EVIDENCE: (id: string) => `/admin/safety-hotspots/${id}/evidence`,
+		TARGETS: (id: string) => `/admin/safety-hotspots/${id}/corrective-targets`,
+		ACTIONS: (id: string) => `/admin/safety-hotspots/${id}/corrective-actions`,
+		REVIEW: (id: string) => `/admin/safety-hotspots/${id}/review`,
+		REVIEWS: (id: string) => `/admin/safety-hotspots/${id}/reviews`,
+	},
+	DANGER_ZONE_PROPOSALS: {
+		ADMIN_LIST: "/admin/danger-zone-proposals",
+		APPROVE: (id: string) => `/admin/danger-zone-proposals/${id}/approve`,
+		REJECT: (id: string) => `/admin/danger-zone-proposals/${id}/reject`,
+		FOR_ROUTE: (routeId: string) => `/trekking-routes/${routeId}/danger-zone-proposals`,
+	},
 	DEMAND_INSIGHTS: {
 		PERIODS: "/host/demand-insights",
 		REPORT: (month: string) => `/host/demand-insights/${month}`,
 		PLANNING: (month: string) => `/host/demand-insights/${month}/planning-suggestions`,
+	},
+	HOST_ANALYTICS: {
+		SUMMARY: "/host/analytics",
+		SUGGESTIONS: "/host/analytics/suggestions",
+		SUGGESTIONS_LATEST: "/host/analytics/suggestions/latest",
+		SUGGESTIONS_HISTORY: "/host/analytics/suggestions/history",
+		SUGGESTION_JOB: (id: string) => `/host/analytics/suggestions/${id}`,
+		QUICK_CREATE_CONTEXT: (id: string) => `/host/analytics/suggestions/${id}/quick-create-context`,
 	},
 	REVIEW_ANALYSIS: {
 		TRIPS: "/review-analysis/trips",
@@ -14,6 +60,7 @@ export const API_ENDPOINTS = {
 	},
 	HOST_REVIEW_MODERATION: {
 		QUEUE: "/host/trip-reviews/moderation-queue",
+		DETAIL: (reviewId: string) => `/host/trip-reviews/${reviewId}/moderation-detail`,
 		DECISION: (reviewId: string) => `/host/trip-reviews/${reviewId}/decisions`,
 		QUARANTINED_IMAGE: (reviewId: string, imageIndex: number) =>
 			`/host/trip-reviews/${reviewId}/quarantined-images/${imageIndex}`,
@@ -27,11 +74,18 @@ export const API_ENDPOINTS = {
 		IMPORT_URL: "/admin/survival-documents/import-url",
 		DETAIL: (id: string) => `/admin/survival-documents/${id}`,
 		VERSIONS: (id: string) => `/admin/survival-documents/${id}/versions`,
+		EDIT_DRAFTS: (id: string) => `/admin/survival-documents/${id}/edit-drafts`,
+		EDIT_DRAFT: (id: string, draftId: string) =>
+			`/admin/survival-documents/${id}/edit-drafts/${draftId}`,
 		IMPORT_VERSION_URL: (id: string) => `/admin/survival-documents/${id}/versions/import-url`,
 		VERSION: (id: string, versionId: string, suffix: string) =>
 			`/admin/survival-documents/${id}/versions/${versionId}/${suffix}`,
 	},
-	ROUTE_SAFETY: { ANALYZE: "/route-safety/analyze", TERRAIN: "/route-safety/terrain" },
+	ROUTE_SAFETY: {
+		ANALYZE: "/route-safety/analyze",
+		TERRAIN: "/route-safety/terrain",
+		VERIFIED_ZONES: "/route-safety/verified-zones",
+	},
 	HOST_OVERVIEW: "/host/monitoring/overview",
 	PORTER_LEVEL_REQUESTS: {
 		MINE: "/porter/level-requests",
@@ -176,6 +230,9 @@ export const API_ENDPOINTS = {
 		DECISION_ALERTS: "/me/weather-decision-alerts",
 		READ_DECISION_ALERT: (alertId: string) => `/me/weather-decision-alerts/${alertId}/read`,
 		ADMIN_INTERVENTIONS: "/admin/weather-interventions",
+		ADMIN_AI_MISMATCHES: "/admin/weather/ai-mismatches",
+		ADMIN_AI_MISMATCH_ACKNOWLEDGE: (forecastId: string) =>
+			`/admin/weather/ai-mismatches/${forecastId}/acknowledge`,
 		RESCHEDULE_RESPONSE: (bookingId: string) =>
 			`/bookings/${bookingId}/weather-reschedule-response`,
 		MY_PENALTIES: "/me/weather-penalties",
@@ -208,6 +265,12 @@ export const API_ENDPOINTS = {
 	PROFILE: {
 		ME: "/profiles/me",
 	},
+	TRIP_RECOMMENDATIONS: {
+		LIST: "/trip-recommendations",
+		REGENERATE: "/trip-recommendations/regenerate",
+		PREFERENCES: "/profiles/me/trip-preferences",
+		EXPLANATION: (tripId: string) => `/trip-recommendations/trips/${tripId}/explanation`,
+	},
 	USERS: {
 		LIST: "/users",
 		DETAIL: (userId: string) => `/users/${userId}`,
@@ -230,8 +293,22 @@ export const API_ENDPOINTS = {
 		VERIFICATION_DOCUMENTS: "/porter/verification/documents",
 		VERIFICATION_DOCUMENT: (documentId: string) => `/porter/verification/documents/${documentId}`,
 		VERIFICATION_SUBMIT: "/porter/verification/submit",
+		VERIFICATION_CARD: "/porter/verification/card",
 		ROUTE_QUALIFICATIONS: "/porter/route-qualifications",
 		ROUTE_QUALIFICATION_BY_ROUTE: (routeId: string) => `/porter/route-qualifications/${routeId}`,
+	},
+	PORTER_CERTIFICATES: {
+		MINE: "/porter/certificates",
+		DETAIL: (id: string) => `/porter/certificates/${id}`,
+		CREATE: "/porter/certificates",
+		UPDATE: (id: string) => `/porter/certificates/${id}`,
+		DELETE: (id: string) => `/porter/certificates/${id}`,
+		UPLOAD: "/porter/certificates/upload",
+	},
+	ADMIN_PORTER_CERTIFICATES: {
+		LIST: "/admin/porter-certificates",
+		VERIFY: (id: string) => `/admin/porter-certificates/${id}/verify`,
+		REJECT: (id: string) => `/admin/porter-certificates/${id}/reject`,
 	},
 	PORTER_LEVELS: {
 		MY_QUALIFICATIONS: "/porter/level-review/qualifications",
@@ -243,8 +320,16 @@ export const API_ENDPOINTS = {
 		DECISIONS: (id: string) => `/admin/porter-levels/qualifications/${id}/decisions`,
 		HISTORY: (id: string) => `/admin/porter-levels/qualifications/${id}/history`,
 		MY_POLICIES: "/porter/level-review/policies",
+		MY_OVERVIEW: "/porter/level-review/overview",
 		MY_SKILLS: "/porter/level-review/skills",
 		MY_HISTORY: "/porter/level-review/history",
+		GLOBAL_PORTERS: "/admin/porter-levels/porters",
+		GLOBAL_PORTER_OVERVIEW: (porterId: string) =>
+			`/admin/porter-levels/porters/${porterId}/overview`,
+		GLOBAL_PORTER_DECISION: (porterId: string) =>
+			`/admin/porter-levels/porters/${porterId}/decision`,
+		GLOBAL_PORTER_NOTIFY_GAPS: (porterId: string) =>
+			`/admin/porter-levels/porters/${porterId}/notify-gaps`,
 	},
 	ADMIN_PORTER_VERIFICATIONS: {
 		LIST: "/admin/porter-verifications",
@@ -254,6 +339,7 @@ export const API_ENDPOINTS = {
 	},
 	ADMIN_REFUNDS: {
 		LIST: "/admin/refunds",
+		APPROVE: (obligationId: string) => `/admin/refunds/${obligationId}/approve`,
 		CONFIRM: (obligationId: string) => `/admin/refunds/${obligationId}/confirm`,
 		REJECT: (obligationId: string) => `/admin/refunds/${obligationId}/reject`,
 	},
@@ -266,6 +352,10 @@ export const API_ENDPOINTS = {
 		ADMIN_PAYOUTS: "/settlements/admin/payouts",
 		ADMIN_CONFIRM_PAYOUT: (id: string) => `/settlements/admin/payouts/${id}/confirm`,
 		ADMIN_REJECT_PAYOUT: (id: string) => `/settlements/admin/payouts/${id}/reject`,
+		ADMIN_RECONCILE: "/settlements/admin/reconcile",
+		ADMIN_RECONCILIATION_BOOKINGS: "/settlements/admin/reconciliation-bookings",
+		ADMIN_ADJUSTMENTS: "/settlements/admin/adjustments",
+		ADMIN_RESOLVE_ADJUSTMENT: (id: string) => `/settlements/admin/adjustments/${id}/resolve`,
 	},
 	BANK_ACCOUNTS: {
 		GET_ALL: "/profiles/me/bank-accounts",
@@ -280,4 +370,9 @@ export const API_ENDPOINTS = {
 	DEVICE_SYNC: {
 		STATUS: (tripId: string) => `/trips/${tripId}/device-sync/status`,
 	},
+	REPORTS: {
+		PERFORMANCE: "/reports/performance",
+		REVENUE: "/reports/revenue",
+	},
+	GEO_AREAS: "/geo-areas",
 } as const;

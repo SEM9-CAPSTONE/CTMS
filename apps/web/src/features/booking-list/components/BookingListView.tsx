@@ -161,7 +161,6 @@ function BookingCard({
 					<h2 className="text-base font-extrabold sm:text-lg">
 						{booking.tripPresentation?.currentTitle ?? "Chuyến đi không còn thông tin hiển thị"}
 					</h2>
-					<p className="mt-0.5 break-all text-xs text-[#667a6d]">Mã: {booking.id}</p>
 				</div>
 				<div className="flex flex-wrap gap-1.5 text-xs font-bold">
 					<span

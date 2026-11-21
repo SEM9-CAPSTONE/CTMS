@@ -1,3 +1,5 @@
+import "./setup-survival-source-policy";
+
 const DEFAULT_TEST_DATABASE_URL = "postgresql://ctms:ctms@127.0.0.1:5432/ctms_test";
 
 const databaseUrl = process.env.TEST_DATABASE_URL ?? DEFAULT_TEST_DATABASE_URL;
@@ -10,6 +12,7 @@ if (!databaseName.endsWith("_test")) {
 }
 
 process.env.NODE_ENV = "test";
+process.env.KNOWLEDGE_WORKER_ENABLED = "false";
 process.env.TRIP_STATUS_WORKER_ENABLED = "false";
 process.env.TRIP_WEATHER_MONITOR_WORKER_ENABLED = "false";
 process.env.TRIP_WEATHER_DECISION_WORKER_ENABLED = "false";

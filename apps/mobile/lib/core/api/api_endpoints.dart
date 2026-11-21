@@ -5,6 +5,7 @@ class ApiEndpoints {
 
   static const auth = AuthEndpoints();
   static const bookings = BookingEndpoints();
+  static const porterReviews = PorterReviewEndpoints();
   static const trekking = TrekkingEndpoints();
   static const trips = TripEndpoints();
   static const weather = WeatherEndpoints();
@@ -34,6 +35,16 @@ class BookingEndpoints {
   String getById(String id) => '/bookings/$id';
   String get create => '/bookings';
   String cancel(String id) => '/bookings/$id/cancel';
+  String items(String id) => '/bookings/$id/items';
+  String pay(String id) => '/bookings/$id/pay';
+  String syncPayment(String id) => '/bookings/$id/sync-payment';
+  String refunds(String id) => '/bookings/$id/refunds';
+  String equipmentForTrip(String tripId) =>
+      '/equipment-catalog/for-trip/$tripId';
+  String get bankAccounts => '/profiles/me/bank-accounts';
+  String bankAccount(String id) => '/profiles/me/bank-accounts/$id';
+  String defaultBankAccount(String id) =>
+      '/profiles/me/bank-accounts/$id/default';
   String payments(String id) => '/bookings/$id/payments';
   String complete(String id) => '/bookings/$id/complete';
   String reviewContext(String id) => '/bookings/$id/reviews/context';
@@ -43,6 +54,15 @@ class BookingEndpoints {
   String review(String id) => '/trip-reviews/$id';
   String completeTripBookings(String tripId) =>
       '/bookings/trip/$tripId/complete-all';
+}
+
+class PorterReviewEndpoints {
+  const PorterReviewEndpoints();
+  String get participations => '/porter-reviews/participations';
+  String context(String bookingId) =>
+      '/bookings/$bookingId/porter-reviews/context';
+  String create(String bookingId) => '/bookings/$bookingId/porter-reviews';
+  String update(String reviewId) => '/porter-reviews/$reviewId';
 }
 
 class TrekkingEndpoints {
@@ -66,12 +86,21 @@ class TripEndpoints {
       '/trips/$tripId/offline-packages/$version/download';
 
   String get assigned => '/trips/assigned';
+  String lifecycle(String tripId) => '/trips/$tripId/lifecycle';
+  String start(String tripId) => '${lifecycle(tripId)}/start';
+  String end(String tripId) => '${lifecycle(tripId)}/end';
   String incidents(String tripId) => '/trips/$tripId/incidents';
   String incidentMedia(String tripId, String id) =>
       '/trips/$tripId/incidents/$id/media';
 
   String get getAll => '/trips';
   String getById(String id) => '/trips/$id';
+  String images(String tripId) => '/trips/$tripId/images';
+  String get recommendations => '/trip-recommendations';
+  String get regenerateRecommendations => '/trip-recommendations/regenerate';
+  String get preferences => '/profiles/me/trip-preferences';
+  String recommendationExplanation(String tripId) =>
+      '/trip-recommendations/trips/$tripId/explanation';
   String members(String tripId) => '/trips/$tripId/members';
   String gpsLogs(String tripId) => '/trips/$tripId/gps-logs';
   String gpsTrackingContext(String tripId) =>
@@ -111,7 +140,7 @@ class AiEndpoints {
   String get conversations => '/ai/conversations';
   String messages(String conversationId) =>
       '/ai/conversations/$conversationId/messages';
-  String get feedback => '/ai/messages/feedback';
+  String get feedback => '/ai/answers/feedback';
 }
 
 class SosEndpoints {

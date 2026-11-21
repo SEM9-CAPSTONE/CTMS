@@ -48,28 +48,24 @@ void main() {
       ProviderScope(
         overrides: [routeDeviationControllerProvider.overrideWith((ref, id) => controller)],
         child: MaterialApp(
-          theme: theme ?? AppTheme.light(),
+          theme: (theme ?? AppTheme.light()).copyWith(splashFactory: InkRipple.splashFactory),
           home: Scaffold(
             body: SingleChildScrollView(child: RouteDeviationPanel(tripId: tripId)),
           ),
         ),
       ),
     );
-    await tester.runAsync(() async {
-      await gps.start();
-      await controller.start();
-    });
+    await gps.start();
+    await controller.start();
     await tester.pump();
     return controller;
   }
 
   Future<void> walk(WidgetTester tester, RouteDeviationController controller, double meters) async {
-    await tester.runAsync(() async {
-      now = now.add(const Duration(seconds: 10));
-      location.next = sampleOffRoute(now, meters);
-      await gps.sampleNow();
-      await controller.tick();
-    });
+    now = now.add(const Duration(seconds: 10));
+    location.next = sampleOffRoute(now, meters);
+    await gps.sampleNow();
+    await controller.tick();
     await tester.pump();
   }
 
@@ -97,7 +93,7 @@ void main() {
     expect(find.textContaining('Đang xác nhận lệch tuyến: 2/3'), findsOneWidget);
 
     await walk(tester, controller, 65);
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('off-route-dialog')), findsOneWidget);
     expect(find.text('Có thể lệch tuyến'), findsOneWidget);
@@ -107,7 +103,7 @@ void main() {
     expect(find.textContaining('phát hiện khi offline'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('off-route-dialog-dismiss')));
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('off-route-dialog')), findsNothing);
     expect(find.byKey(const Key('off-route-banner')), findsOneWidget, reason: 'state persists');
     await tester.pumpWidget(const SizedBox());

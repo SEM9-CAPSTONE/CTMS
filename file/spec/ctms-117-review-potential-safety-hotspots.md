@@ -22,7 +22,7 @@ Acceptance Criteria:
 
 | Source  | Criterion                                                                                     |
 | ------- | --------------------------------------------------------------------------------------------- |
-| PB AC-1 | PotentialSafetyHotspot follows `DETECTED → UNDER_REVIEW → CONFIRMED or DISMISSED`.            |
+| PB AC-1 | Detection creates PotentialSafetyHotspot directly in `UNDER_REVIEW`; Admin can decide `CONFIRMED` or `DISMISSED`. Legacy `DETECTED` records remain reviewable. |
 | PB AC-2 | Only authorized Admin/Host may review applicable evidence.                                    |
 | PB AC-3 | AI/analytics cannot self-confirm a hotspot.                                                   |
 | PB AC-4 | Review decision and evidence are auditable.                                                   |
@@ -62,7 +62,7 @@ PotentialSafetyHotspot exists.
 
 | BR             | Rule                                                                                                                                                                                                                                                                       |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| BR-357         | PotentialSafetyHotspot follows the lifecycle DETECTED → UNDER_REVIEW → CONFIRMED or DISMISSED. Authorized Admins/Hosts may review the evidence; analytics/AI must not self-CONFIRM a hotspot or directly modify authoritative Route/safety data.                           |
+| BR-357         | Detection creates PotentialSafetyHotspot in UNDER_REVIEW. Admin may decide CONFIRMED or DISMISSED directly. Legacy DETECTED records remain reviewable. Authorized reviewers inspect evidence; analytics/AI must not self-CONFIRM or modify authoritative safety data. |
 | BR-358         | Only a PotentialSafetyHotspot with status = CONFIRMED may be used as the basis for proposing corrective action to authoritative safety data. Any corrective action must pass the existing authorization and validation rules.                                              |
 | BR-361         | Safety statistics and hotspot aggregates may be retained longer than raw GPS data, but they must minimize personal data, enforce authorization, and must not expose raw member locations to Hosts/Admins outside authorized operational, safety-review, or audit purposes. |
 | BR-423         | A CONFIRMED hotspot does not automatically require a Route geometry change. The reviewer must select an appropriate corrective-action type, or explicitly record a no-data-change/other action together with the reason.                                                   |
@@ -72,21 +72,21 @@ PotentialSafetyHotspot exists.
 
 ## 6. State & Lifecycle
 
-`DETECTED`
-→ `UNDER_REVIEW`
+`UNDER_REVIEW`
 → `CONFIRMED`
 
 or
 
-`DETECTED`
-→ `UNDER_REVIEW`
+`UNDER_REVIEW`
 → `DISMISSED`
+
+Legacy `DETECTED` and current `UNDER_REVIEW` records may transition directly to `CONFIRMED` or `DISMISSED`.
 
 ## 7. Business Flow
 
 1. Authorized reviewer opens detected hotspot.
 2. Verify authorization.
-3. Transition to UNDER_REVIEW when applicable.
+3. Offer CONFIRMED or DISMISSED immediately, without an intermediate status change.
 4. Review supporting deviation evidence.
 5. Decide CONFIRMED or DISMISSED.
 6. Persist reviewer/decision/evidence context.
@@ -120,7 +120,10 @@ TBD — Technical Design.
 
 | Source | Scenario                                  | Expected Result | Test Type |
 | ------ | ----------------------------------------- | --------------- | --------- |
-| BR-357 | DETECTED → UNDER_REVIEW                   | Accepted        | State     |
+| BR-357 | New detection starts UNDER_REVIEW          | Accepted        | State     |
+| BR-357 | UNDER_REVIEW → CONFIRMED or DISMISSED      | Accepted        | State     |
+| BR-357 | Legacy DETECTED → either decision         | Accepted        | State     |
+| BR-357 | Request targets UNDER_REVIEW              | Rejected        | Validation |
 | BR-357 | Human confirms                            | CONFIRMED       | E2E       |
 | BR-357 | AI confirms                               | Rejected        | Safety    |
 | BR-357 | Dismiss                                   | DISMISSED       | State     |
@@ -130,3 +133,11 @@ TBD — Technical Design.
 ## 12. Open Decisions
 
 None for the approved hotspot lifecycle.
+
+## Web map consumer amendment — 2026-11-16
+
+CONFIRMED establishes eligible evidence; it does not itself publish a map hazard. Once Admin applies ADD_HAZARD_AREA or UPDATE_HAZARD_AREA under CTMS-118, the matching authoritative hazard becomes visible through the shared viewport layer without a selected Route, Trip or drawn geometry. Current confirmation, evidence and applied hazard snapshot must match. Pending/rejected/reopened evidence is excluded. Public reads expose safety facts and verification, never review reasons, evidence or member data. See docs/business-rules/route-safety-v2.md, amended BR-475/477. No automatic review or corrective write is introduced.
+
+## Review transitions and danger-zone proposals — 2026-11-16
+
+Updated 2026-11-18: detection places candidates directly in UNDER_REVIEW. POST /api/admin/safety-hotspots/:id/review {status, reason} accepts CONFIRMED or DISMISSED from UNDER_REVIEW; legacy DETECTED records also remain actionable. Finalized decisions cannot be changed or replayed (409 INVALID_TRANSITION). GET /api/admin/safety-hotspots/:id/reviews lists the stored decisions. The Admin page offers "Xác nhận điểm nóng" and "Bác bỏ" immediately; each requires a reason and decision confirmation. Host and field-incident danger-zone proposals remain a separate queue ("Đề xuất điểm nguy hiểm"); they do not create or confirm hotspots. See docs/business-rules/route-safety-v2.md, "Danger-zone proposals and Admin review".

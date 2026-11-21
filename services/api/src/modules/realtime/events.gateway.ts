@@ -16,6 +16,7 @@ import { BookingMemberStatus } from "../bookings/booking-member-status.enum";
 import type { EmergencyBroadcastPayload } from "../emergency-broadcasts/emergency-broadcasts.types";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { GpsParticipationSource } from "../gps-tracking/gps-participation.source";
+import type { NotificationView } from "../in-app-notifications/in-app-notifications.service";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { PushNotificationsService } from "../push-notifications/push-notifications.service";
 import { UserRole, UserStatus } from "../users/entities/user.entity";
@@ -67,6 +68,14 @@ export enum RealtimeResumeError {
 	INVALID_CURSOR = "INVALID_CURSOR",
 }
 
+/** CTMS-100: event names used only by the real-time performance evaluation; never pushed. */
+export type RealtimeEvaluationProbeEvent = "evaluation.probe.sos" | "evaluation.probe.normal";
+
+/** CTMS-100, BR-265: answer to `realtime.ack`, stamped with the server clock. */
+export type RealtimeDeliveryAck =
+	| { ok: true; acknowledgedAt: string }
+	| { ok: false; error: "NOT_AUTHENTICATED" | "INVALID_EVENT_ID" };
+
 /** CTMS-082: answer to `realtime.resume`; only events the caller may receive now are returned. */
 export type RealtimeResumeAck =
 	| {
@@ -115,6 +124,8 @@ export interface BookingUpdatedPayload {
 }
 
 export interface SosStateChangedPayload {
+	transitionId?: string;
+	occurredAt?: string;
 	sosId: string;
 	tripId: string;
 	senderId: string;
@@ -273,6 +284,22 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 	}
 
 	/**
+	 * CTMS-100, BR-265: an authenticated client confirms it received an event. Only the event id is
+	 * read and nothing is stored here; the caller keeps the server time as `acknowledged_at`.
+	 */
+	@SubscribeMessage("realtime.ack")
+	acknowledgeDelivery(
+		@ConnectedSocket() client: Socket,
+		@MessageBody() body: { eventId?: unknown } | undefined
+	): RealtimeDeliveryAck {
+		if (!this.sessions.has(client.id)) return { ok: false, error: "NOT_AUTHENTICATED" };
+		if (typeof body?.eventId !== "string" || !UUID_PATTERN.test(body.eventId)) {
+			return { ok: false, error: "INVALID_EVENT_ID" };
+		}
+		return { ok: true, acknowledgedAt: new Date().toISOString() };
+	}
+
+	/**
 	 * CTMS-078 PB AC-4/AC-5: join a Trip room only when the server-owned Trip relationship allows it.
 	 * Authentication alone grants nothing; the decision is re-evaluated on every subscribe, so a
 	 * reconnecting client must subscribe again.
@@ -389,6 +416,21 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 		this.publish("trip.review.updated", payload, { roles: [UserRole.ADMIN] });
 	}
 
+	/** Durable CTMS-379 outbox owns retries; this event never queues background pushes. */
+	async emitInAppNotification(userId: string, payload: NotificationView): Promise<void> {
+		if (!this.server) throw new Error("Realtime server is not ready");
+		// Recovery must not replay a Trip title/reference after its authorization changes.
+		// Clients fetch the authenticated inbox to resolve current content permissions.
+		const event = { notificationId: payload.id, occurredAt: payload.occurredAt };
+		const meta = await this.realtimeEvents.record(
+			"notification.created",
+			event,
+			{ userIds: [userId], roles: [], tripId: null },
+			payload.id
+		);
+		this.server.to(userRoom(userId)).emit("notification.created", event, meta);
+	}
+
 	emitTripReviewRequested(payload: {
 		tripId: string;
 		title: string;
@@ -418,7 +460,6 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 	}) {
 		this.publish("trip.review.auto_rejected", payload, {
 			userIds: [payload.hostId],
-			roles: [UserRole.ADMIN],
 		});
 	}
 
@@ -573,7 +614,24 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect, 
 
 	/** CTMS-077 / CTMS-080: SOS state transition, routed only to the Trip Host and the SOS sender. */
 	emitSosStateChanged(hostId: string, payload: SosStateChangedPayload) {
-		this.publish("sos.state_changed", payload, { userIds: [hostId, payload.senderId] });
+		this.publish(
+			"sos.state_changed",
+			payload,
+			{ userIds: [hostId, payload.senderId] },
+			payload.transitionId
+		);
+	}
+
+	/**
+	 * CTMS-100: a synthetic event for the real-time evaluation, sent through the same store-then-emit
+	 * path as every protected event (SOS included) and only to the given evaluation accounts.
+	 */
+	emitEvaluationProbe(
+		name: RealtimeEvaluationProbeEvent,
+		userIds: string[],
+		payload: { probe: true; index: number }
+	) {
+		this.publish(name, payload, { userIds });
 	}
 
 	/**

@@ -1,9 +1,32 @@
 import { ApiProperty } from "@nestjs/swagger";
+import { IsDateString, IsIn, Matches } from "class-validator";
 import type { PorterVerificationDocument } from "../entities/porter-verification-document.entity";
 import {
+	GuideCardType,
 	type PorterVerification,
 	PorterVerificationStatus,
 } from "../entities/porter-verification.entity";
+
+/** The tour-guide card the Porter declares (bug-list item #4). */
+export class GuideCardDto {
+	@ApiProperty({
+		enum: GuideCardType,
+		description: "Domestic or international; site-only cards are not accepted",
+	})
+	@IsIn(Object.values(GuideCardType), {
+		message: "Chỉ nhận thẻ hướng dẫn viên nội địa hoặc quốc tế",
+	})
+	cardType!: GuideCardType;
+
+	@ApiProperty({ example: "123456789", description: "9 digits as printed on the card" })
+	@Matches(/^\d{9}$/, { message: "Số thẻ hướng dẫn viên gồm đúng 9 chữ số" })
+	cardNumber!: string;
+
+	@ApiProperty({ example: "2030-01-01", description: "Valid through this date (YYYY-MM-DD)" })
+	@IsDateString({ strict: true }, { message: "Ngày hết hạn không hợp lệ" })
+	@Matches(/^\d{4}-\d{2}-\d{2}$/, { message: "Ngày hết hạn phải có dạng YYYY-MM-DD" })
+	expiresOn!: string;
+}
 
 export class PorterVerificationDocumentDto {
 	@ApiProperty({ format: "uuid" })
@@ -44,6 +67,13 @@ export class PorterVerificationResponseDto {
 	@ApiProperty({ description: "0 when no verification record exists yet" })
 	version!: number;
 
+	@ApiProperty({
+		type: GuideCardDto,
+		nullable: true,
+		description: "Null until the Porter declares a card",
+	})
+	guideCard!: GuideCardDto | null;
+
 	@ApiProperty({ type: [PorterVerificationDocumentDto] })
 	documents!: PorterVerificationDocumentDto[];
 }
@@ -72,6 +102,7 @@ export function toPorterVerificationResponse(
 		reviewedAt: verification.reviewedAt,
 		rejectionReason: verification.rejectionReason,
 		version: verification.version,
+		guideCard: toGuideCardDto(verification),
 		documents: documents.map(toPorterVerificationDocumentDto),
 	};
 }
@@ -84,6 +115,22 @@ export function defaultPorterVerificationResponse(porterId: string): PorterVerif
 		reviewedAt: null,
 		rejectionReason: null,
 		version: 0,
+		guideCard: null,
 		documents: [],
+	};
+}
+
+function toGuideCardDto(verification: PorterVerification): GuideCardDto | null {
+	if (
+		!verification.guideCardType ||
+		!verification.guideCardNumber ||
+		!verification.guideCardExpiresOn
+	) {
+		return null;
+	}
+	return {
+		cardType: verification.guideCardType,
+		cardNumber: verification.guideCardNumber,
+		expiresOn: verification.guideCardExpiresOn,
 	};
 }

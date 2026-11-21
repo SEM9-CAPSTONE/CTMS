@@ -77,7 +77,7 @@ export class TripWeatherDecisionDto {
 		| null;
 	@ApiPropertyOptional({ nullable: true, type: String }) decidedBy!: string | null;
 	@ApiPropertyOptional({ nullable: true, type: String }) deciderName!: string | null;
-	@ApiProperty({ enum: ["host", "admin"] }) deciderRole!: string;
+	@ApiProperty({ enum: ["host", "admin", "system"] }) deciderRole!: string;
 	@ApiProperty({ enum: ADMIN_WEATHER_DECISIONS }) decision!: string;
 	@ApiProperty() reason!: string;
 	@ApiPropertyOptional({ nullable: true, type: String }) safetyPlan!: string | null;

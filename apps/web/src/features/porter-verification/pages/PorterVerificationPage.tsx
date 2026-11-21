@@ -20,6 +20,7 @@ import {
 import { LogoutActions } from "../../auth/components/LogoutActions";
 import { RegisterStepper } from "../../auth/components/RegisterStepper";
 import { PORTER_REGISTER_STEPS } from "../../auth/constants";
+import { GuideCardForm } from "../components/GuideCardForm";
 import { PorterQualificationGuidance } from "../components/PorterQualificationGuidance";
 import {
 	PORTER_VERIFICATION_MAX_DOCUMENTS,
@@ -101,8 +102,8 @@ function StatusPanel({
 					<div>
 						<p className="text-sm font-extrabold">Tải lên chứng chỉ dẫn đường</p>
 						<p className="text-xs font-medium">
-							Vui lòng tải ít nhất 1 tài liệu (chứng chỉ dẫn đường, thẻ hướng dẫn viên...) để Admin
-							xác minh trước khi bạn nhận yêu cầu dẫn đoàn.
+							Nhập thông tin thẻ hướng dẫn viên và tải ảnh mặt trước của thẻ (cùng các chứng chỉ
+							khác nếu có) để Admin xác minh trước khi bạn nhận yêu cầu dẫn đoàn.
 						</p>
 					</div>
 				</div>
@@ -169,6 +170,13 @@ export function PorterVerificationPage({ onLogout, onContinue }: PorterVerificat
 							</div>
 						)}
 
+						<GuideCardForm
+							card={verification.guideCard}
+							isEditable={state.isEditable}
+							isSaving={state.isSavingCard}
+							onSave={state.saveGuideCard}
+						/>
+
 						<section aria-label="Tài liệu đã tải lên" className="space-y-2">
 							<div className="flex items-center justify-between">
 								<h2 className="text-sm font-extrabold">Tài liệu đã tải lên</h2>
@@ -214,11 +222,21 @@ export function PorterVerificationPage({ onLogout, onContinue }: PorterVerificat
 						)}
 
 						{state.isEditable && (
-							<div className="flex justify-end">
+							<div className="flex flex-col items-end gap-1">
+								{!verification.guideCard && (
+									<p className="text-xs font-medium text-[#667a6d]">
+										Lưu thông tin thẻ hướng dẫn viên trước khi nộp hồ sơ.
+									</p>
+								)}
 								<Button
 									type="button"
 									size="lg"
-									disabled={state.documents.length === 0 || state.isUploading || state.isSubmitting}
+									disabled={
+										state.documents.length === 0 ||
+										!verification.guideCard ||
+										state.isUploading ||
+										state.isSubmitting
+									}
 									onClick={() => setConfirmOpen(true)}
 								>
 									<Send className="mr-2 inline size-4" />

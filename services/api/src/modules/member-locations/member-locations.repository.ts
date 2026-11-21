@@ -18,7 +18,10 @@ export class MemberLocationsRepository {
 
 	async findTrip(tripId: string): Promise<MemberLocationsTrip | null> {
 		const rows = await this.db.query<MemberLocationsTrip[]>(
-			`SELECT id, host_id AS "hostId", status::text AS status FROM trips WHERE id=$1`,
+			`SELECT t.id, t.host_id AS "hostId", t.status::text AS status,
+			 CASE WHEN r.id IS NULL THEN NULL ELSE jsonb_build_object('id',r.id,
+			 'geometry',ST_AsGeoJSON(r.route_geom)::jsonb) END AS route
+			 FROM trips t LEFT JOIN trekking_routes r ON r.id=t.route_id WHERE t.id=$1`,
 			[tripId]
 		);
 		return rows[0] ?? null;
@@ -32,8 +35,19 @@ export class MemberLocationsRepository {
 		return rows.length > 0;
 	}
 
+	/** Booking ownership alone does not confer peer-location access. */
+	async isJoinedCamper(tripId: string, userId: string): Promise<boolean> {
+		const rows: unknown[] = await this.db.query(
+			`SELECT 1 FROM booking_members m JOIN bookings b ON b.id=m.booking_id
+			 WHERE b.trip_id=$1 AND m.user_id=$2 AND b.status='confirmed'
+			 AND m.member_status='joined' AND m.left_at IS NULL LIMIT 1`,
+			[tripId, userId]
+		);
+		return rows.length > 0;
+	}
+
 	/** Eligible members use the same rule as CTMS-369: joined/left Campers of confirmed/completed bookings, assigned Porters. */
-	async findMembers(tripId: string): Promise<MemberLocationRow[]> {
+	async findMembers(tripId: string, activeOnly = false): Promise<MemberLocationRow[]> {
 		return this.db.query<MemberLocationRow[]>(
 			`SELECT p.id, p.user_id AS "userId", u.full_name AS name, p.role, p.member_status AS "memberStatus",
 			 (SELECT jsonb_build_object('id',g.id,'latitude',ST_Y(g.location::geometry),'longitude',ST_X(g.location::geometry),
@@ -45,7 +59,8 @@ export class MemberLocationsRepository {
 			   UNION ALL
 			   SELECT s.received_at FROM safety_events s WHERE s.trip_id=$1 AND s.user_id=p.user_id AND s.participant_role::text=p.role
 			   AND s.event_type::text <> 'BEHIND_SCHEDULE') x) AS "lastSyncedAt",
-			 (SELECT jsonb_build_object('type',s.event_type,'eventTime',s.event_time,'receivedAt',s.received_at)
+			 (SELECT jsonb_build_object('type',s.event_type,'eventTime',s.event_time,'receivedAt',s.received_at,
+			   'distanceToRouteMeters',s.distance_to_route_meters)
 			  FROM safety_events s WHERE s.trip_id=$1 AND s.user_id=p.user_id AND s.participant_role::text=p.role
 			  AND s.event_type=ANY($7::safety_event_type[])
 			  ORDER BY s.event_time DESC,s.received_at DESC,s.id DESC LIMIT 1) AS route,
@@ -61,6 +76,7 @@ export class MemberLocationsRepository {
 			  SELECT m.id,m.user_id,m.member_status::text AS member_status,$4::text AS role
 			  FROM booking_members m JOIN bookings b ON b.id=m.booking_id
 			  WHERE b.trip_id=$1 AND b.status=ANY($2::booking_status[]) AND m.member_status=ANY($3::booking_member_status[])
+			   AND (NOT $9::boolean OR (m.member_status='joined' AND m.left_at IS NULL))
 			  UNION ALL
 			  SELECT tp.porter_id,tp.porter_id,NULL::text,$5::text
 			  FROM trip_porters tp WHERE tp.trip_id=$1 AND tp.status=$6
@@ -75,6 +91,7 @@ export class MemberLocationsRepository {
 				TripPorterStatus.ASSIGNED,
 				[SafetyEventType.OFF_ROUTE, SafetyEventType.ON_ROUTE_RECOVERED],
 				[SafetyEventType.GPS_DEGRADED, SafetyEventType.GPS_RESTORED],
+				activeOnly,
 			]
 		);
 	}

@@ -9,6 +9,11 @@ import { useTripOperations } from "../hooks/useTripOperations";
 import type { TripDetails } from "../types";
 import { TripDetailPage } from "./TripDetailPage";
 
+// The authenticated status card has its own query tests and real HTTP E2E.
+vi.mock("../../offline-package-policy/components/DepartureBlockStatus", () => ({
+	DepartureBlockStatus: () => null,
+}));
+
 vi.mock("../hooks/useTripDetail", () => ({
 	useTripDetail: vi.fn(),
 }));

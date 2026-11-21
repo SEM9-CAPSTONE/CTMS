@@ -13,7 +13,7 @@ import 'package:mobile/features/offline_packages/data/package_download_store.dar
 import 'package:mobile/features/offline_packages/data/package_integrity_service.dart';
 import 'package:mobile/features/offline_packages/domain/offline_package.dart';
 import 'package:mobile/features/offline_packages/domain/offline_trip.dart';
-import 'package:mobile/features/offline_packages/presentation/offline_route_diagram.dart';
+import 'package:mobile/features/offline_map/presentation/widgets/offline_map_canvas.dart';
 import 'package:mobile/features/offline_packages/presentation/saved_offline_packages_screen.dart';
 
 import 'package_integrity_fixture.dart';
@@ -55,6 +55,8 @@ Uint8List _tripZip({String tripId = testTripId, bool malformed = false}) =>
         },
         'checkpoints.json': [
           {
+            'id': 'saved-stop-1',
+            'radiusMeters': 30,
             'routeId': 'route-1',
             'name': _checkpoint,
             'type': 'rest',
@@ -191,19 +193,27 @@ void main() {
         tripId: testTripId,
         version: 1,
       ));
+      final map = savedTripMapProvider((
+        accountId: 'camper-1',
+        tripId: testTripId,
+        version: 1,
+      ));
       await tester.runAsync(() async {
         await activate(_tripZip(), title: 'Đường rừng Đà Lạt');
         container.listen(saved, (_, _) {});
         container.listen(content, (_, _) {});
         await container.read(saved.future);
         await container.read(content.future);
+        container.listen(map, (_, _) {});
+        await container.read(map.future);
       });
 
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(
-            home: Scaffold(body: SavedOfflinePackagesButton()),
+          child: MaterialApp(
+            theme: ThemeData(splashFactory: InkRipple.splashFactory),
+            home: const Scaffold(body: SavedOfflinePackagesButton()),
           ),
         ),
       );
@@ -213,9 +223,9 @@ void main() {
 
       await tester.tap(find.text('Đường rừng Đà Lạt'));
       await tester.pumpAndSettle();
-      expect(find.byType(OfflineRouteDiagram), findsOneWidget);
+      expect(find.byType(OfflineMapCanvas), findsOneWidget);
       expect(
-        tester.getSize(find.byType(OfflineRouteDiagram)).width,
+        tester.getSize(find.byType(OfflineMapCanvas)).width,
         greaterThan(100),
       );
 
@@ -229,7 +239,10 @@ void main() {
       await tester.tap(find.text('Giữ an toàn khi đi rừng'));
       await tester.pumpAndSettle();
       expect(find.text(_guideText), findsOneWidget);
-      expect(find.text('Phiên bản tài liệu · $_versionId'), findsOneWidget);
+      expect(find.text('Sổ tay an toàn'), findsOneWidget);
+      expect(find.text('Đơn vị xuất bản'), findsOneWidget);
+      expect(find.text('Trang 4 · 4.2'), findsOneWidget);
+      expect(find.textContaining(_versionId), findsNothing);
 
       container.read(_account.notifier).state = 'camper-2';
       await tester.pumpAndSettle();

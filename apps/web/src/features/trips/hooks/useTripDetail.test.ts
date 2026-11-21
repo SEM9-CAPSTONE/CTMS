@@ -93,6 +93,24 @@ describe("useTripDetail", () => {
 		vi.clearAllMocks();
 	});
 
+	it.each([401, 403, 404, 503])(
+		"refresh %i clears denied reputation but retains service failures",
+		async (status) => {
+			const rated = {
+				...mockTripDetails,
+				hostReputation: { ratingAverage: 4.25, ratingCount: 12 },
+			};
+			vi.mocked(tripsService.getById).mockResolvedValue(rated);
+			const { result } = renderHook(() => useTripDetail("trip-1"));
+			await waitFor(() => expect(result.current.trip).toEqual(rated));
+			vi.mocked(tripsService.getById).mockRejectedValue(new HttpError("failure", status, {}));
+			await act(async () => {
+				await result.current.retry(true);
+			});
+			expect(result.current.trip).toEqual(status === 503 ? rated : null);
+		}
+	);
+
 	it("fetches trip details by tripId successfully", async () => {
 		vi.mocked(tripsService.getById).mockResolvedValue(mockTripDetails);
 

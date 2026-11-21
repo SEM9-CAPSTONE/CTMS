@@ -4,17 +4,42 @@ import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from "@ne
 import { ConfigService } from "@nestjs/config";
 // biome-ignore lint/style/useImportType: Nest injection
 import { DataSource, type EntityManager } from "typeorm";
+import { InAppNotificationType } from "../in-app-notifications/in-app-notification.entity";
+// biome-ignore lint/style/useImportType: Nest injection
+import { InAppNotificationsService } from "../in-app-notifications/in-app-notifications.service";
 import { maskPii } from "./pii-masker";
+// biome-ignore lint/style/useImportType: Nest injection
+import { TripReviewImageStorageService } from "./trip-review-image-storage.service";
 import {
+	MODERATION_HOST_SLA_MS,
 	MODERATION_LEASE_DURATION_MS,
 	MODERATION_MAX_ATTEMPTS,
+	MODERATION_NOTIFY_HOST_MIN_THRESHOLD_BPS,
+	MODERATION_UNVERIFIED_TIMEOUT_MS,
 } from "./trip-review-moderation.constants";
+import { confidenceToBasisPoints, evaluateModerationPolicy } from "./trip-review-moderation.policy";
 import {
 	ModerationProviderError,
 	// biome-ignore lint/style/useImportType: Nest injection
 	TripReviewModerationProvider,
 } from "./trip-review-moderation.provider";
-import type { ReviewModerationOutboxRecord } from "./trip-review-moderation.types";
+import type {
+	EvaluableModerationFlag,
+	ImageStorageState,
+	ModerationHiddenSource,
+	ModerationStatus,
+	ReviewModerationOutboxRecord,
+} from "./trip-review-moderation.types";
+
+interface LockedReviewRow {
+	revision: number;
+	tripId: string;
+	hostId: string;
+	moderationStatus: ModerationStatus;
+	hiddenSource: ModerationHiddenSource | null;
+	images: string[] | null;
+	imageStorageState: ImageStorageState;
+}
 
 @Injectable()
 export class TripReviewModerationWorker implements OnModuleInit, OnModuleDestroy {
@@ -25,7 +50,9 @@ export class TripReviewModerationWorker implements OnModuleInit, OnModuleDestroy
 	constructor(
 		private readonly dataSource: DataSource,
 		private readonly provider: TripReviewModerationProvider,
-		private readonly configService: ConfigService
+		private readonly configService: ConfigService,
+		private readonly imageStorage: TripReviewImageStorageService,
+		private readonly notifications: InAppNotificationsService
 	) {}
 
 	onModuleInit(): void {
@@ -35,7 +62,7 @@ export class TripReviewModerationWorker implements OnModuleInit, OnModuleDestroy
 		if (enabled !== "true") return;
 		this.timer = setInterval(() => {
 			void this.tick();
-		}, 3000);
+		}, 1000);
 		this.timer.unref();
 	}
 
@@ -48,6 +75,8 @@ export class TripReviewModerationWorker implements OnModuleInit, OnModuleDestroy
 		this.busy = true;
 		try {
 			await this.processPendingOutbox(5);
+			await this.processUnverifiedTimeouts();
+			await this.processHostModerationSlaEscalations();
 		} catch (err) {
 			this.logger.error(`Moderation worker tick failed: ${err}`);
 		} finally {
@@ -57,7 +86,8 @@ export class TripReviewModerationWorker implements OnModuleInit, OnModuleDestroy
 
 	/**
 	 * Process a single outbox entry, managing leases, calling AI service,
-	 * enforcing late-writing fencing, and persisting structured results.
+	 * enforcing late-writing fencing, persisting structured results,
+	 * applying auto-hide/restore policy, and enqueueing idempotent notifications.
 	 */
 	async processOutboxRecord(outboxId: string): Promise<boolean> {
 		const leaseToken = randomUUID();
@@ -167,16 +197,42 @@ export class TripReviewModerationWorker implements OnModuleInit, OnModuleDestroy
 		}
 
 		// 5. Persist results conditionally with late-writing revision fencing & lease fencing
-		return await this.dataSource.transaction(async (manager: EntityManager) => {
+		const postCommit = await this.dataSource.transaction(async (manager: EntityManager) => {
 			// A. Acquire revision fence on parent review
-			const currentReviews: Array<{ revision: number }> = await manager.query(
-				"SELECT revision FROM trip_reviews WHERE id = $1 FOR UPDATE",
+			const currentReviews: LockedReviewRow[] = await manager.query(
+				`SELECT revision,
+				        trip_id AS "tripId",
+				        host_id AS "hostId",
+				        moderation_status AS "moderationStatus",
+				        hidden_source AS "hiddenSource",
+				        images,
+				        image_storage_state AS "imageStorageState"
+				 FROM trip_reviews
+				 WHERE id = $1
+				 FOR UPDATE`,
 				[record.reviewId]
 			);
-			if (!currentReviews.length) return false;
+			if (!currentReviews.length) {
+				return { ok: false as const, imagesToQuarantine: null, imagesToRestore: null };
+			}
 
-			const isObsoleteRevision = currentReviews[0].revision > record.sourceRevision;
-			const flagLifecycleStatus = isObsoleteRevision ? "superseded" : "active";
+			const currentReview = currentReviews[0];
+			const isObsoleteRevision = currentReview.revision > record.sourceRevision;
+
+			// Respect prior Host restore/keep on the same revision so re-scan never re-hides it
+			const hostDecisions: Array<{ decision: string }> = await manager.query(
+				`SELECT decision
+				 FROM trip_review_moderation_decisions
+				 WHERE review_id = $1 AND revision = $2 AND decision IN ('restore', 'keep')
+				 LIMIT 1`,
+				[record.reviewId, record.sourceRevision]
+			);
+			const hasHostKeptOrRestored = hostDecisions.length > 0;
+			const flagLifecycleStatus = isObsoleteRevision
+				? "superseded"
+				: hasHostKeptOrRestored
+					? "resolved"
+					: "active";
 
 			// B. Enforce lease fence on run row
 			const completedAt = new Date();
@@ -202,11 +258,12 @@ export class TripReviewModerationWorker implements OnModuleInit, OnModuleDestroy
 			);
 
 			if (updateRun[1] === 0 && updateRun.length === 0) {
-				// Fenced out by expired lease! Rollback.
 				throw new Error("LEASE_EXPIRED_FENCE");
 			}
 
-			// C. Insert image items
+			const evaluableFlags: EvaluableModerationFlag[] = [];
+
+			// C. Insert image items and mirror image violations into moderation flags
 			for (const img of scanResponse.image_items) {
 				await manager.query(
 					`INSERT INTO trip_review_moderation_image_items (
@@ -228,6 +285,34 @@ export class TripReviewModerationWorker implements OnModuleInit, OnModuleDestroy
 						completedAt,
 					]
 				);
+
+				if (img.has_violation === true && img.flag_type) {
+					const imgBps = confidenceToBasisPoints(img.confidence ?? null, "model");
+					const effectiveImgLifecycle =
+						imgBps >= MODERATION_NOTIFY_HOST_MIN_THRESHOLD_BPS ? flagLifecycleStatus : "resolved";
+					await manager.query(
+						`INSERT INTO trip_review_moderation_flags (
+							run_id, review_id, source_revision, channel, target_image_index,
+							flag_type, detection_source, confidence, evidence, quote, lifecycle_status
+						 ) VALUES ($1, $2, $3, 'image', $4, $5, 'model', $6, $7, NULL, $8)
+						 ON CONFLICT DO NOTHING`,
+						[
+							runId,
+							record.reviewId,
+							record.sourceRevision,
+							img.image_index,
+							img.flag_type,
+							img.confidence ?? null,
+							img.evidence ?? "Hình ảnh không phù hợp với tiêu chuẩn cộng đồng",
+							effectiveImgLifecycle,
+						]
+					);
+					evaluableFlags.push({
+						flagType: img.flag_type,
+						detectionSource: "model",
+						confidence: img.confidence ?? null,
+					});
+				}
 			}
 
 			// D. Insert rule-detected PII flags
@@ -248,13 +333,21 @@ export class TripReviewModerationWorker implements OnModuleInit, OnModuleDestroy
 						flagLifecycleStatus,
 					]
 				);
+				evaluableFlags.push({
+					flagType: pii.flagType,
+					detectionSource: "rule",
+					confidence: null,
+				});
 			}
 
 			// E. Insert model-detected text flags (personal_data_leak is forbidden for model)
 			for (const flag of scanResponse.flags) {
 				if (flag.flag_type === "personal_data_leak") {
-					continue; // Model is strictly forbidden from generating personal_data_leak
+					continue;
 				}
+				const textBps = confidenceToBasisPoints(flag.confidence, "model");
+				const effectiveTextLifecycle =
+					textBps >= MODERATION_NOTIFY_HOST_MIN_THRESHOLD_BPS ? flagLifecycleStatus : "resolved";
 				await manager.query(
 					`INSERT INTO trip_review_moderation_flags (
 						run_id, review_id, source_revision, channel, target_image_index,
@@ -269,9 +362,14 @@ export class TripReviewModerationWorker implements OnModuleInit, OnModuleDestroy
 						flag.confidence,
 						flag.evidence,
 						flag.quote,
-						flagLifecycleStatus,
+						effectiveTextLifecycle,
 					]
 				);
+				evaluableFlags.push({
+					flagType: flag.flag_type,
+					detectionSource: "model",
+					confidence: flag.confidence,
+				});
 			}
 
 			// F. Insert aspect sentiments
@@ -312,14 +410,215 @@ export class TripReviewModerationWorker implements OnModuleInit, OnModuleDestroy
 				);
 			}
 
-			// H. Mark outbox entry as processed
+			// H. Evaluate auto-hide / notify-host / auto-restore policy for current revision
+			let imagesToQuarantine: string[] | null = null;
+			let imagesToRestore: string[] | null = null;
+
+			if (!isObsoleteRevision) {
+				await manager.query(
+					`UPDATE trip_reviews
+					 SET moderation_verification_status = 'verified'
+					 WHERE id = $1`,
+					[record.reviewId]
+				);
+
+				if (!hasHostKeptOrRestored) {
+					const outcome = evaluateModerationPolicy(evaluableFlags);
+					const reviewImages = Array.isArray(currentReview.images) ? currentReview.images : [];
+					const hasImages = reviewImages.length > 0;
+
+					if (outcome.action === "auto_hide") {
+						const nextImageState: ImageStorageState = hasImages
+							? "quarantine_pending"
+							: currentReview.imageStorageState;
+						await manager.query(
+							`UPDATE trip_reviews
+							 SET moderation_status = 'hidden',
+							     hidden_at = clock_timestamp(),
+							     first_hidden_at = COALESCE(first_hidden_at, clock_timestamp()),
+							     hidden_reason = $1,
+							     hidden_by = NULL,
+							     hidden_source = 'ai',
+							     hidden_revision = $2,
+							     image_storage_state = $3
+							 WHERE id = $4`,
+							[outcome.hiddenReason, record.sourceRevision, nextImageState, record.reviewId]
+						);
+						await this.notifications.enqueueTripReviewModeration(manager, {
+							tripId: currentReview.tripId,
+							reviewId: record.reviewId,
+							eventType: InAppNotificationType.REVIEW_AUTO_HIDDEN,
+							sourceKey: `review-moderation:auto-hidden:${record.reviewId}:rev:${record.sourceRevision}`,
+							occurredAt: completedAt,
+						});
+						if (hasImages) {
+							imagesToQuarantine = reviewImages;
+						}
+					} else if (outcome.action === "notify_host") {
+						await this.notifications.enqueueTripReviewModeration(manager, {
+							tripId: currentReview.tripId,
+							reviewId: record.reviewId,
+							eventType: InAppNotificationType.REVIEW_MODERATION_FLAGGED,
+							sourceKey: `review-moderation:flagged:${record.reviewId}:rev:${record.sourceRevision}`,
+							occurredAt: completedAt,
+						});
+					} else if (
+						outcome.action === "clean" &&
+						currentReview.moderationStatus === "hidden" &&
+						currentReview.hiddenSource === "ai"
+					) {
+						const adminReports: Array<{ id: string }> = await manager.query(
+							`SELECT id
+							 FROM content_reports
+							 WHERE target_id = $1
+							   AND target_type IN ('trip_review', 'review')
+							   AND status = 'actioned'
+							 LIMIT 1`,
+							[record.reviewId]
+						);
+						if (adminReports.length === 0) {
+							const nextImageState: ImageStorageState = hasImages ? "restore_pending" : "live";
+							await manager.query(
+								`UPDATE trip_reviews
+								 SET moderation_status = 'visible',
+								     hidden_at = NULL,
+								     hidden_reason = NULL,
+								     hidden_by = NULL,
+								     hidden_source = NULL,
+								     hidden_revision = NULL,
+								     image_storage_state = $1
+								 WHERE id = $2`,
+								[nextImageState, record.reviewId]
+							);
+							if (hasImages) {
+								imagesToRestore = reviewImages;
+							}
+						}
+					}
+				}
+			}
+
+			// I. Mark outbox entry as processed
 			await manager.query(
 				"UPDATE trip_review_moderation_outbox SET processed_at = clock_timestamp() WHERE id = $1",
 				[record.id]
 			);
 
-			return true;
+			return { ok: true as const, imagesToQuarantine, imagesToRestore };
 		});
+
+		if (!postCommit.ok) return false;
+
+		if (postCommit.imagesToQuarantine) {
+			const moved = await this.imageStorage.quarantineImages(postCommit.imagesToQuarantine);
+			await this.dataSource.query(
+				"UPDATE trip_reviews SET image_storage_state = $1 WHERE id = $2",
+				[moved ? "quarantined" : "quarantine_failed", record.reviewId]
+			);
+		} else if (postCommit.imagesToRestore) {
+			const restored = await this.imageStorage.restoreImages(postCommit.imagesToRestore);
+			await this.dataSource.query(
+				"UPDATE trip_reviews SET image_storage_state = $1 WHERE id = $2",
+				[restored ? "live" : "restore_failed", record.reviewId]
+			);
+		}
+
+		return true;
+	}
+
+	/**
+	 * Safeguard 1 (15 minutes): If AI moderation fails/retries past 15 minutes
+	 * or exhausts max attempts, mark the review as unverified and notify Host.
+	 */
+	async processUnverifiedTimeouts(now: Date = new Date()): Promise<number> {
+		const cutoff = new Date(now.getTime() - MODERATION_UNVERIFIED_TIMEOUT_MS);
+		const stuckRows: Array<{ reviewId: string; tripId: string; revision: number }> =
+			await this.dataSource.query(
+				`SELECT DISTINCT r.id AS "reviewId", r.trip_id AS "tripId", r.revision
+				 FROM trip_reviews r
+				 INNER JOIN trip_review_moderation_outbox o
+				   ON o.review_id = r.id
+				   AND o.source_revision = r.revision
+				   AND o.processed_at IS NULL
+				 LEFT JOIN trip_review_moderation_runs run
+				   ON run.review_id = r.id
+				   AND run.source_revision = r.revision
+				 WHERE r.moderation_verification_status <> 'unverified'
+				   AND (
+				     o.created_at <= $1
+				     OR (run.text_scan_status = 'failed' AND run.attempts >= $2)
+				   )`,
+				[cutoff, MODERATION_MAX_ATTEMPTS]
+			);
+
+		let updatedCount = 0;
+		for (const row of stuckRows) {
+			await this.dataSource.transaction(async (manager) => {
+				await manager.query(
+					`UPDATE trip_reviews
+					 SET moderation_verification_status = 'unverified'
+					 WHERE id = $1 AND revision = $2`,
+					[row.reviewId, row.revision]
+				);
+				await this.notifications.enqueueTripReviewModeration(manager, {
+					tripId: row.tripId,
+					reviewId: row.reviewId,
+					eventType: InAppNotificationType.REVIEW_MODERATION_UNVERIFIED,
+					sourceKey: `review-moderation:unverified:${row.reviewId}:rev:${row.revision}`,
+					occurredAt: now,
+				});
+			});
+			updatedCount += 1;
+		}
+		return updatedCount;
+	}
+
+	/**
+	 * Safeguard 2 (7 days): If a visible review with active <= 80% flags remains
+	 * unresolved by Host for >= 7 days, send a Host reminder and escalate to Admins.
+	 */
+	async processHostModerationSlaEscalations(now: Date = new Date()): Promise<number> {
+		const cutoff = new Date(now.getTime() - MODERATION_HOST_SLA_MS);
+		const overdueRows: Array<{ reviewId: string; tripId: string; revision: number }> =
+			await this.dataSource.query(
+				`SELECT r.id AS "reviewId", r.trip_id AS "tripId", r.revision
+				 FROM trip_reviews r
+				 INNER JOIN trip_review_moderation_flags f
+				   ON f.review_id = r.id
+				   AND f.source_revision = r.revision
+				   AND f.lifecycle_status = 'active'
+				 WHERE r.moderation_status = 'visible'
+				   AND NOT EXISTS (
+				     SELECT 1
+				     FROM trip_review_moderation_decisions d
+				     WHERE d.review_id = r.id AND d.revision = r.revision
+				   )
+				 GROUP BY r.id, r.trip_id, r.revision
+				 HAVING MIN(f.created_at) <= $1`,
+				[cutoff]
+			);
+
+		let escalatedCount = 0;
+		for (const row of overdueRows) {
+			await this.dataSource.transaction(async (manager) => {
+				await this.notifications.enqueueTripReviewModeration(manager, {
+					tripId: row.tripId,
+					reviewId: row.reviewId,
+					eventType: InAppNotificationType.REVIEW_MODERATION_REMINDER,
+					sourceKey: `review-moderation:sla-reminder:${row.reviewId}:rev:${row.revision}`,
+					occurredAt: now,
+				});
+				await this.notifications.enqueueTripReviewModeration(manager, {
+					tripId: row.tripId,
+					reviewId: row.reviewId,
+					eventType: InAppNotificationType.REVIEW_MODERATION_ESCALATED,
+					sourceKey: `review-moderation:sla-escalated:${row.reviewId}:rev:${row.revision}`,
+					occurredAt: now,
+				});
+			});
+			escalatedCount += 1;
+		}
+		return escalatedCount;
 	}
 
 	/**

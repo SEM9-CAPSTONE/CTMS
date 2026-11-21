@@ -1,5 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { PaymentStatus, PaymentTransactionStatus } from "../entities/payment.entity";
+import {
+	PaymentStatus,
+	PaymentTransactionStatus,
+	RefundReviewStatus,
+} from "../entities/payment.entity";
 import { RefundOrigin } from "../refund-policy";
 
 export class BookingRefundItemDto {
@@ -11,6 +15,12 @@ export class BookingRefundItemDto {
 
 	@ApiProperty({ enum: PaymentStatus })
 	status!: PaymentStatus;
+
+	@ApiPropertyOptional({ enum: RefundReviewStatus })
+	reviewStatus?: RefundReviewStatus | null;
+
+	@ApiPropertyOptional()
+	lateRequest?: boolean;
 
 	@ApiPropertyOptional({ enum: PaymentTransactionStatus })
 	transactionStatus?: PaymentTransactionStatus;

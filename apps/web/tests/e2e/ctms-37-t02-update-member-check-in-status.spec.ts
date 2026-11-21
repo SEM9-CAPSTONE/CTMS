@@ -4,7 +4,7 @@ import { type Page, expect, test } from "@playwright/test";
 
 const API_ROOT = path.resolve(process.cwd(), "../../services/api");
 const TS_NODE = path.join(API_ROOT, "node_modules/ts-node/dist/bin.js");
-const DB_HELPER = path.join(API_ROOT, "src/seeds/db-helper.ts");
+const DB_HELPER = path.join(API_ROOT, "test/helpers/db-helper.ts");
 const API = process.env.CTMS_E2E_API_BASE_URL ?? "http://localhost:3000/api";
 const PASSWORD = "S3curePass!";
 const suffix = `${Date.now()}-${Math.floor(Math.random() * 100000)}`;

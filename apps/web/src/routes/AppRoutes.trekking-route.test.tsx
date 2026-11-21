@@ -164,6 +164,15 @@ describe("AppRoutes trekking route navigation", () => {
 		vi.mocked(hostOverviewService.get).mockResolvedValue(overviewFixture());
 	});
 
+	it("opens the route list from the Host dashboard action", async () => {
+		await renderRoutes();
+		expect(await screen.findByRole("button", { name: "Tạo chuyến đi" })).toBeInTheDocument();
+		await userEvent.click(screen.getByRole("button", { name: "Quản lí tuyến" }));
+
+		expect(await screen.findByText("Trekking Routes Page")).toBeInTheDocument();
+		expect(window.location.pathname).toBe("/host/trekking-routes");
+	});
+
 	it("navigates to create route", async () => {
 		await renderRoutes();
 		await userEvent.click(await screen.findByRole("button", { name: /Tuyến của tôi:/ }));
@@ -211,6 +220,7 @@ describe("AppRoutes trekking route navigation", () => {
 			await renderRoutes();
 
 			expect(screen.queryByRole("button", { name: /Tuyến của tôi:/ })).not.toBeInTheDocument();
+			expect(screen.queryByRole("button", { name: "Quản lí tuyến" })).not.toBeInTheDocument();
 			expect(
 				screen.queryByRole("button", { name: "Quản lý tuyến trekking" })
 			).not.toBeInTheDocument();
@@ -232,7 +242,7 @@ describe("AppRoutes trekking route navigation", () => {
 		);
 
 		await renderRoutes();
-		await userEvent.click(screen.getByRole("button", { name: "Quản lý user" }));
+		await userEvent.click(screen.getByRole("button", { name: "Quản lý người dùng" }));
 		await waitForPage();
 
 		expect(window.location.pathname).toBe("/admin/users");

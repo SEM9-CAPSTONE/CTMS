@@ -30,7 +30,7 @@ export function UserAccountsTable({
 				</thead>
 				<tbody className="divide-y divide-[#e8efe7]">
 					{users.map((user) => {
-						const displayName = user.fullName || user.email || user.phone || user.id;
+						const displayName = user.fullName || user.email || user.phone || "Chưa cập nhật họ tên";
 						const isCurrentUser = user.id === currentUserId;
 						return (
 							<tr key={user.id} className="hover:bg-[#f8faf7]">

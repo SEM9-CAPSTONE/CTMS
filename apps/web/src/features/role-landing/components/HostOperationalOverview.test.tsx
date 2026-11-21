@@ -10,6 +10,12 @@ vi.mock("./HostTripMap", () => ({
 	HostTripMap: ({ trip }: { trip: TripDetails }) => <div data-testid="selected-map">{trip.id}</div>,
 }));
 
+vi.mock("./HostActiveTripMap", () => ({
+	HostActiveTripMap: ({ tripId }: { tripId: string }) => (
+		<div data-testid="selected-map">{tripId}</div>
+	),
+}));
+
 const now = Date.parse("2026-10-15T09:00:00+07:00");
 function trip(id: string): TripDetails {
 	return {
@@ -66,9 +72,15 @@ describe("HostOperationalOverview trip selection", () => {
 			"aria-pressed",
 			"true"
 		);
-		expect(screen.getByRole("button", { name: "abcd" })).toHaveAttribute("aria-pressed", "true");
-		fireEvent.click(screen.getByRole("button", { name: "abc" }));
-		expect(screen.getByRole("button", { name: "abc" })).toHaveAttribute("aria-pressed", "true");
+		expect(screen.getByRole("button", { name: "abcd15/10/2026" })).toHaveAttribute(
+			"aria-pressed",
+			"true"
+		);
+		fireEvent.click(screen.getByRole("button", { name: "abc15/10/2026" }));
+		expect(screen.getByRole("button", { name: "abc15/10/2026" })).toHaveAttribute(
+			"aria-pressed",
+			"true"
+		);
 		expect(screen.getByTestId("selected-map")).toHaveTextContent("abc");
 		fireEvent.click(screen.getByRole("button", { name: "Xem chi tiết chuyến đi" }));
 		expect(navigate).toHaveBeenCalledWith("abc");
@@ -77,14 +89,14 @@ describe("HostOperationalOverview trip selection", () => {
 	it("preserves the selection on refresh and falls back if the selected trip finishes", () => {
 		setTrips([trip("abcd"), trip("abc")]);
 		const { rerender } = render(<HostOperationalOverview hostId="host" />);
-		fireEvent.click(screen.getByRole("button", { name: "abc" }));
+		fireEvent.click(screen.getByRole("button", { name: "abc15/10/2026" }));
 		setTrips([trip("abcd"), trip("abc")]);
 		rerender(<HostOperationalOverview hostId="host" />);
 		expect(screen.getByTestId("selected-map")).toHaveTextContent("abc");
 		setTrips([trip("abcd"), { ...trip("abc"), status: "completed" }]);
 		rerender(<HostOperationalOverview hostId="host" />);
 		expect(screen.getByTestId("selected-map")).toHaveTextContent("abcd");
-		expect(screen.queryByRole("button", { name: "abc" })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "abc15/10/2026" })).not.toBeInTheDocument();
 	});
 
 	it("filters the trip list by status and selects the first trip of the chosen status", () => {
@@ -93,11 +105,25 @@ describe("HostOperationalOverview trip selection", () => {
 			{ ...trip("soon"), status: "published", startsAt: "2026-10-20T06:00:00+07:00" },
 		]);
 		render(<HostOperationalOverview hostId="host" />);
-		expect(screen.getByRole("button", { name: "live" })).toBeInTheDocument();
-		expect(screen.queryByRole("button", { name: "soon" })).not.toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "live15/10/2026" })).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "soon20/10/2026" })).not.toBeInTheDocument();
 		fireEvent.click(screen.getByRole("button", { name: /Sắp khởi hành\s*1/ }));
-		expect(screen.queryByRole("button", { name: "live" })).not.toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "soon" })).toHaveAttribute("aria-pressed", "true");
+		expect(screen.queryByRole("button", { name: "live15/10/2026" })).not.toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "soon20/10/2026" })).toHaveAttribute(
+			"aria-pressed",
+			"true"
+		);
 		expect(screen.getByTestId("selected-map")).toHaveTextContent("soon");
+	});
+
+	it("shows only ongoing trips and hides published filter in monitorParticipants mode", () => {
+		setTrips([
+			trip("live"),
+			{ ...trip("soon"), status: "published", startsAt: "2026-10-20T06:00:00+07:00" },
+		]);
+		render(<HostOperationalOverview hostId="host" monitorParticipants />);
+		expect(screen.getByRole("button", { name: "live15/10/2026" })).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: /Sắp khởi hành/ })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "soon20/10/2026" })).not.toBeInTheDocument();
 	});
 });

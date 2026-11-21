@@ -58,7 +58,7 @@ describe("AdminPayoutsTable", () => {
 		);
 
 		const detailButton = screen.getByRole("button", {
-			name: /Xem chi tiết yêu cầu payout-12345678/i,
+			name: /Xem yêu cầu rút tiền của/i,
 		});
 		expect(detailButton).toBeInTheDocument();
 

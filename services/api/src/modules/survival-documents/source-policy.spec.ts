@@ -6,7 +6,12 @@ import { fictionalPdf as pdf } from "../../../test/support/survival-source-fixtu
 import { parseMetadata } from "./dto/source.dto";
 import { PdfSourceService } from "./pdf-source.service";
 import { SourceFilesService } from "./source-files.service";
-import { assertRights, validatePublicationMetadata, validateSourceMetadata } from "./source-policy";
+import {
+	assertApprovedSource,
+	assertRights,
+	validatePublicationMetadata,
+	validateSourceMetadata,
+} from "./source-policy";
 import {
 	Classification,
 	MedicalStatus,
@@ -44,6 +49,54 @@ const file = (changes: Partial<Express.Multer.File> = {}) =>
 	}) as Express.Multer.File;
 
 describe("CTMS-050 source policy and private storage", () => {
+	it("matches only approved exact hostnames and permits an uploaded PDF by exact checksum", () => {
+		const checksum = createHash("sha256").update(pdf).digest("hex");
+		const source = (sourceUrl?: string, hash = checksum) => ({
+			metadata: { ...metadata, sourceUrl },
+			checksum: hash,
+			processingApprovedAt: null,
+		});
+		expect(() => assertApprovedSource(source("https://example.org/manual.pdf"))).not.toThrow();
+		expect(() => assertApprovedSource(source("http://example.org/manual.pdf"))).toThrow();
+		for (const host of ["sub.example.org", "example.org.other.com", "unlisted.example.com"])
+			expect(() => assertApprovedSource(source(`https://${host}/manual.pdf`))).toThrow();
+		expect(() => assertApprovedSource(source())).toThrow();
+		const legacy = { ...source(), processingApprovedAt: "2026-11-17T12:00:00Z" };
+		expect(() => assertApprovedSource(legacy)).toThrow();
+		expect(() => assertApprovedSource({ ...legacy, rights: permitted })).toThrow();
+		expect(() =>
+			assertApprovedSource({
+				...legacy,
+				rights: permitted,
+				reviewedBy: "admin",
+				reviewedAt: "2026-11-17T12:00:00Z",
+			})
+		).not.toThrow();
+		const previous = process.env.SURVIVAL_KNOWLEDGE_APPROVED_SHA256;
+		try {
+			process.env.SURVIVAL_KNOWLEDGE_APPROVED_SHA256 = checksum.toUpperCase();
+			expect(() => assertApprovedSource(source())).not.toThrow();
+			expect(() => assertApprovedSource(source(undefined, "0".repeat(64)))).toThrow();
+		} finally {
+			process.env.SURVIVAL_KNOWLEDGE_APPROVED_SHA256 = previous ?? "";
+		}
+	});
+	it("requires publication provenance for Admin source confirmation without granting other uses", () => {
+		const source = {
+			metadata: {
+				sourceTitle: metadata.sourceTitle,
+				classification: metadata.classification,
+				locale: "vi",
+			},
+			checksum: createHash("sha256").update(pdf).digest("hex"),
+			rights: { ...UNREVIEWED_RIGHTS, sourceReviewConfirmed: true },
+		};
+		const publication = { ...source, publishedBy: "admin", publishedAt: "2026-11-18T12:00:00Z" };
+		expect(() => assertApprovedSource(source)).toThrow();
+		expect(() => assertApprovedSource({ ...publication, rights: UNREVIEWED_RIGHTS })).toThrow();
+		expect(() => assertApprovedSource(publication)).not.toThrow();
+		expect(() => assertRights(source.metadata, source.rights, "OFFLINE")).toThrow();
+	});
 	it("accepts today's Vietnam calendar date before UTC midnight, but rejects tomorrow", () => {
 		jest.useFakeTimers().setSystemTime(new Date("2026-11-03T18:00:00Z"));
 		try {
@@ -102,7 +155,7 @@ describe("CTMS-050 source policy and private storage", () => {
 		).toThrow();
 		expect(() => validatePublicationMetadata({ ...metadata, originalLocale: "en" })).toThrow();
 	});
-	it("separates AI, offline, translation and medical decisions", () => {
+	it("accepts Admin source confirmation and preserves separate use restrictions and explicit rejection", () => {
 		expect(() => assertRights(metadata, permitted)).not.toThrow();
 		expect(() => assertRights(metadata, permitted, "OFFLINE")).toThrow();
 		expect(() => assertRights(metadata, permitted, "TRANSLATION")).toThrow();
@@ -111,6 +164,12 @@ describe("CTMS-050 source policy and private storage", () => {
 		).not.toThrow();
 		expect(() =>
 			assertRights({ ...metadata, classification: Classification.FIRST_AID }, permitted)
+		).not.toThrow();
+		expect(() =>
+			assertRights(
+				{ ...metadata, classification: Classification.FIRST_AID },
+				{ ...permitted, medicalContentReviewStatus: MedicalStatus.REJECTED }
+			)
 		).toThrow();
 		expect(() =>
 			assertRights(

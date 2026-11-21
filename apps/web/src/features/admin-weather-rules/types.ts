@@ -22,6 +22,8 @@ export interface WeatherRiskRuleItem {
 	yellowMaxScore: number;
 	isActive: boolean;
 	createdBy?: string | null;
+	/** Full name of the Admin who created this version. */
+	createdByName?: string | null;
 	createdAt: string;
 }
 

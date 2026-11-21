@@ -188,5 +188,64 @@ describe("TripReviewsService", () => {
 				service.update("camper", "missing", { expectedRevision: 1, rating: 4 })
 			).rejects.toBeInstanceOf(NotFoundException);
 		});
+
+		it("allows editing within 24h of firstHiddenAt even after initial 24h window expired", async () => {
+			const hiddenReview = {
+				...review,
+				createdAt: new Date("2026-11-04T01:00:00Z"),
+				moderationStatus: "hidden" as const,
+				firstHiddenAt: new Date("2026-11-05T10:00:00Z"),
+				hiddenSource: "ai" as const,
+			};
+			// 43 hours after createdAt, but only 10 hours after firstHiddenAt -> allowed
+			repository.now.mockResolvedValue(new Date("2026-11-05T20:00:00Z"));
+			repository.find.mockResolvedValue(hiddenReview);
+
+			const updated = await service.update("camper", "review", {
+				expectedRevision: 1,
+				rating: 4,
+				comment: "Đã chỉnh sửa lịch sự hơn",
+			});
+			expect(updated.revision).toBe(2);
+			expect(repository.update).toHaveBeenCalled();
+		});
+
+		it("rejects editing once 24h supplementary window from firstHiddenAt has expired", async () => {
+			const expiredHiddenReview = {
+				...review,
+				createdAt: new Date("2026-11-04T01:00:00Z"),
+				moderationStatus: "hidden" as const,
+				firstHiddenAt: new Date("2026-11-05T10:00:00Z"),
+				hiddenSource: "ai" as const,
+			};
+			// 25 hours after firstHiddenAt -> expired
+			repository.now.mockResolvedValue(new Date("2026-11-06T11:00:00Z"));
+			repository.find.mockResolvedValue(expiredHiddenReview);
+
+			await expect(
+				service.update("camper", "review", {
+					expectedRevision: 1,
+					rating: 4,
+					comment: "Quá hạn sửa bổ sung",
+				})
+			).rejects.toBeInstanceOf(ConflictException);
+			expect(repository.update).not.toHaveBeenCalled();
+		});
+
+		it("distinguishes AI auto-hide notice from host manual hide notice in context()", async () => {
+			repository.listOwn.mockResolvedValue([
+				{
+					...review,
+					moderationStatus: "hidden",
+					hiddenReason: "profanity_or_insult",
+					hiddenSource: "ai",
+					firstHiddenAt: new Date("2026-11-04T02:00:00Z"),
+				},
+			]);
+
+			const ctx = await service.context("camper", "booking");
+			expect(ctx.reviews[0].moderationNotice).toContain("Hệ thống đã tự động ẩn");
+			expect(ctx.reviews[0].hiddenSource).toBe("ai");
+		});
 	});
 });

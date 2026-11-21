@@ -55,11 +55,8 @@ export function ReportDetailsPanel({
 					<ReportStatusBadge status={report.status} />
 					<dl className="space-y-3 text-sm">
 						{[
-							["Mã báo cáo", report.id],
 							["Người báo cáo", report.reporter.fullName || "Chưa cập nhật họ tên"],
-							["ID người báo cáo", report.reporter.id],
 							["Loại đối tượng", report.targetType],
-							["ID đối tượng", report.targetId],
 							["Lý do", report.reason],
 							["Ngày tạo", new Date(report.createdAt).toLocaleString("vi-VN")],
 							["Cập nhật lần cuối", new Date(report.updatedAt).toLocaleString("vi-VN")],

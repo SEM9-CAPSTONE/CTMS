@@ -8,6 +8,7 @@ const UNSAFE_PDF_NAME =
 	/^(?:JavaScript|JS|Launch|EmbeddedFile|RichMedia|OpenAction|AA|XFA|Encrypt)$/;
 const UNSAFE_PDF_MESSAGE =
 	"PDF chứa mã hóa, nội dung chủ động hoặc tệp đính kèm không được hỗ trợ.";
+const MAX_PDF_BYTES = 50 * 1024 * 1024;
 
 async function validatePdfStructure(bytes: Buffer): Promise<void> {
 	let document: PDFDocument;
@@ -41,8 +42,8 @@ async function validatePdfStructure(bytes: Buffer): Promise<void> {
 }
 
 export function sourceMaxBytes(): number {
-	const value = Number(process.env.SURVIVAL_DOCUMENT_MAX_BYTES ?? 10 * 1024 * 1024);
-	if (!Number.isSafeInteger(value) || value < 1024 || value > 50 * 1024 * 1024)
+	const value = Number(process.env.SURVIVAL_DOCUMENT_MAX_BYTES ?? MAX_PDF_BYTES);
+	if (!Number.isSafeInteger(value) || value < 1024 || value > MAX_PDF_BYTES)
 		throw new Error("Invalid SURVIVAL_DOCUMENT_MAX_BYTES");
 	return value;
 }

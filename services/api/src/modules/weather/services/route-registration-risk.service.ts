@@ -45,6 +45,137 @@ export const TRIP_FORECAST_MAX_AGE_MS = 6 * 60 * 60 * 1000;
  */
 export const TRIP_FORECAST_BLOCKING_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
 
+export type BookingWeatherOutcome = "allowed" | "blocked" | "missing";
+
+interface BookingWeatherVerdict {
+	eligibility: RegistrationEligibilityResponseDto;
+	blocked: boolean;
+}
+
+/**
+ * The booking is judged by the forecast for the Trip's own dates (e.g. a Trip on 10/11 by the 10/11
+ * forecast), not by the Route's current weather. Uses the latest stored forecast for the same
+ * schedule, made within TRIP_FORECAST_MAX_AGE_MS. Returns null when no such forecast exists, so the
+ * caller falls back to the Route assessment rule.
+ */
+export function tripForecastVerdict(
+	routeId: string,
+	forecast: TripWeatherForecast | null,
+	trip: BookingTripSchedule,
+	now: Date
+): BookingWeatherVerdict | null {
+	if (
+		!forecast ||
+		forecast.tripStartsAt.getTime() !== trip.startsAt.getTime() ||
+		forecast.tripEndsAt.getTime() !== trip.endsAt.getTime() ||
+		now.getTime() - forecast.createdAt.getTime() > TRIP_FORECAST_MAX_AGE_MS
+	) {
+		return null;
+	}
+	if (forecast.status === TripWeatherForecastStatus.OUT_OF_RANGE) {
+		// The Trip is beyond the provider horizon: there is no forecast for its dates yet, and today's
+		// weather says nothing about them, so the booking is not blocked on weather.
+		return {
+			blocked: false,
+			eligibility: {
+				allowed: true,
+				routeId,
+				riskLevel: null,
+				assessmentTime: forecast.createdAt,
+				compositeScore: null,
+				reasons: [],
+			},
+		};
+	}
+	if (!forecast.riskLevel || forecast.compositeScore === null) return null;
+	const eligibility: RegistrationEligibilityResponseDto = {
+		allowed: forecast.riskLevel !== RiskLevel.RED,
+		routeId,
+		riskLevel: forecast.riskLevel,
+		assessmentTime: forecast.createdAt,
+		compositeScore: forecast.compositeScore,
+		reasons: [],
+	};
+	const withinBlockingWindow =
+		trip.startsAt.getTime() - now.getTime() <= TRIP_FORECAST_BLOCKING_WINDOW_MS;
+	if (!eligibility.allowed && !withinBlockingWindow) {
+		// Red but more than 3 days out: low reliability, allow and let the Host decide later.
+		return { blocked: false, eligibility: { ...eligibility, allowed: true } };
+	}
+	if (!eligibility.allowed && forecast.criteriaScores) {
+		extractFailingCriteriaReasons(forecast.criteriaScores, eligibility.reasons);
+	}
+	return { blocked: !eligibility.allowed, eligibility };
+}
+
+/** Route rule used when no current trip-date forecast decides; null when no assessment exists. */
+export function routeAssessmentVerdict(
+	routeId: string,
+	latestAssessment: WeatherRiskAssessment | null
+): BookingWeatherVerdict | null {
+	if (!latestAssessment) return null;
+	const eligibility: RegistrationEligibilityResponseDto = {
+		allowed: latestAssessment.riskLevel !== RiskLevel.RED,
+		routeId,
+		riskLevel: latestAssessment.riskLevel,
+		assessmentTime: latestAssessment.createdAt,
+		compositeScore: latestAssessment.compositeScore,
+		reasons: [],
+	};
+	if (!eligibility.allowed) {
+		extractFailingCriteriaReasons(latestAssessment.criteriaScores, eligibility.reasons);
+	}
+	return { blocked: !eligibility.allowed, eligibility };
+}
+
+function extractFailingCriteriaReasons(
+	criteria: WeatherCriteriaScoresDetail,
+	reasons: RegistrationBlockedReasonDto[]
+): void {
+	if (!criteria) return;
+
+	if (criteria.rainfall?.level === RiskLevel.RED) {
+		reasons.push({
+			criterion: "rainfall",
+			level: RiskLevel.RED,
+			value: criteria.rainfall.value,
+			message: `Lượng mưa (${criteria.rainfall.value}mm) vượt quá ngưỡng nguy hiểm Mức Đỏ`,
+		});
+	}
+	if (criteria.wind?.level === RiskLevel.RED) {
+		reasons.push({
+			criterion: "wind",
+			level: RiskLevel.RED,
+			value: criteria.wind.value,
+			message: `Tốc độ gió (${criteria.wind.value}km/h) vượt quá ngưỡng nguy hiểm Mức Đỏ`,
+		});
+	}
+	if (criteria.temperature?.level === RiskLevel.RED) {
+		reasons.push({
+			criterion: "temperature",
+			level: RiskLevel.RED,
+			value: criteria.temperature.value,
+			message: `Nhiệt độ (${criteria.temperature.value}°C) ở ngưỡng nguy hiểm Mức Đỏ`,
+		});
+	}
+	if (criteria.visibility?.level === RiskLevel.RED) {
+		reasons.push({
+			criterion: "visibility",
+			level: RiskLevel.RED,
+			value: criteria.visibility.value,
+			message: `Tầm nhìn xa (${criteria.visibility.value}m) thấp hơn ngưỡng an toàn Mức Đỏ`,
+		});
+	}
+	if (criteria.thunderstorm?.level === RiskLevel.RED) {
+		reasons.push({
+			criterion: "thunderstorm",
+			level: RiskLevel.RED,
+			value: criteria.thunderstorm.value,
+			message: "Phát hiện hoạt động dông sét nguy hiểm",
+		});
+	}
+}
+
 @Injectable()
 export class RouteRegistrationRiskService {
 	private readonly logger = new Logger(RouteRegistrationRiskService.name);
@@ -76,7 +207,7 @@ export class RouteRegistrationRiskService {
 		const reasons: RegistrationBlockedReasonDto[] = [];
 
 		if (isRed) {
-			this.extractFailingCriteriaReasons(latestAssessment.criteriaScores, reasons);
+			extractFailingCriteriaReasons(latestAssessment.criteriaScores, reasons);
 			if (reasons.length === 0) {
 				reasons.push({
 					criterion: "composite_score",
@@ -179,97 +310,94 @@ export class RouteRegistrationRiskService {
 		now: Date = new Date()
 	): Promise<RegistrationEligibilityResponseDto> {
 		if (trip) {
-			const decision = await this.tripDateWeatherDecision(routeId, manager, trip, now);
-			if (decision) return decision;
+			const forecast = await manager.getRepository(TripWeatherForecast).findOne({
+				where: { tripId: trip.id },
+				order: { createdAt: "DESC", id: "DESC" },
+			});
+			const verdict = tripForecastVerdict(routeId, forecast, trip, now);
+			if (verdict?.blocked) {
+				throw new ConflictException(
+					"Không thể đặt chỗ do dự báo thời tiết trong ngày diễn ra chuyến đi ở mức BÁO ĐỘNG ĐỎ (RED)"
+				);
+			}
+			if (verdict) return verdict.eligibility;
 		}
 		const latestAssessment = await manager.getRepository(WeatherRiskAssessment).findOne({
 			where: { routeId },
 			order: { createdAt: "DESC" },
 		});
-		if (!latestAssessment) {
+		const verdict = routeAssessmentVerdict(routeId, latestAssessment);
+		if (!verdict) {
 			throw new ConflictException(
 				"Chưa có đánh giá rủi ro thời tiết cho tuyến này. Mức rủi ro cần được tính toán trước khi đặt chỗ."
 			);
 		}
-
-		const eligibility: RegistrationEligibilityResponseDto = {
-			allowed: latestAssessment.riskLevel !== RiskLevel.RED,
-			routeId,
-			riskLevel: latestAssessment.riskLevel,
-			assessmentTime: latestAssessment.createdAt,
-			compositeScore: latestAssessment.compositeScore,
-			reasons: [],
-		};
-		if (!eligibility.allowed) {
-			this.extractFailingCriteriaReasons(latestAssessment.criteriaScores, eligibility.reasons);
+		if (verdict.blocked) {
 			throw new ConflictException(
 				"Không thể đặt chỗ mới do rủi ro thời tiết của tuyến đang ở mức BÁO ĐỘNG ĐỎ (RED)"
 			);
 		}
-
-		return eligibility;
+		return verdict.eligibility;
 	}
 
 	/**
-	 * The booking is judged by the forecast for the Trip's own dates (e.g. a Trip on 10/11 by the 10/11
-	 * forecast), not by the Route's current weather. Uses the latest stored forecast for the same
-	 * schedule, made within TRIP_FORECAST_MAX_AGE_MS. Returns null when no such forecast exists, so the
-	 * caller falls back to the Route assessment rule.
+	 * Read-only form of `assertBookingWeatherAllowed` for many Trips at once: the same trip-date
+	 * forecast policy with the Route assessment fallback, from two set queries and without locks or
+	 * audit records. "missing" means no assessment exists, so a booking would be refused.
 	 */
-	private async tripDateWeatherDecision(
-		routeId: string,
-		manager: EntityManager,
-		trip: BookingTripSchedule,
-		now: Date
-	): Promise<RegistrationEligibilityResponseDto | null> {
-		const forecast = await manager.getRepository(TripWeatherForecast).findOne({
-			where: { tripId: trip.id },
-			order: { createdAt: "DESC", id: "DESC" },
-		});
-		if (
-			!forecast ||
-			forecast.tripStartsAt.getTime() !== trip.startsAt.getTime() ||
-			forecast.tripEndsAt.getTime() !== trip.endsAt.getTime() ||
-			now.getTime() - forecast.createdAt.getTime() > TRIP_FORECAST_MAX_AGE_MS
-		) {
-			return null;
-		}
-		if (forecast.status === TripWeatherForecastStatus.OUT_OF_RANGE) {
-			// The Trip is beyond the provider horizon: there is no forecast for its dates yet, and today's
-			// weather says nothing about them, so the booking is not blocked on weather.
-			return {
-				allowed: true,
-				routeId,
-				riskLevel: null,
-				assessmentTime: forecast.createdAt,
-				compositeScore: null,
-				reasons: [],
-			};
-		}
-		if (!forecast.riskLevel || forecast.compositeScore === null) return null;
-		const eligibility: RegistrationEligibilityResponseDto = {
-			allowed: forecast.riskLevel !== RiskLevel.RED,
-			routeId,
-			riskLevel: forecast.riskLevel,
-			assessmentTime: forecast.createdAt,
-			compositeScore: forecast.compositeScore,
-			reasons: [],
-		};
-		const withinBlockingWindow =
-			trip.startsAt.getTime() - now.getTime() <= TRIP_FORECAST_BLOCKING_WINDOW_MS;
-		if (!eligibility.allowed && !withinBlockingWindow) {
-			// Red but more than 3 days out: low reliability, allow and let the Host decide later.
-			return { ...eligibility, allowed: true };
-		}
-		if (!eligibility.allowed) {
-			if (forecast.criteriaScores) {
-				this.extractFailingCriteriaReasons(forecast.criteriaScores, eligibility.reasons);
-			}
-			throw new ConflictException(
-				"Không thể đặt chỗ do dự báo thời tiết trong ngày diễn ra chuyến đi ở mức BÁO ĐỘNG ĐỎ (RED)"
+	async evaluateBookingWeatherForTrips(
+		trips: ReadonlyArray<BookingTripSchedule & { routeId: string }>,
+		manager: EntityManager = this.requireDataSource().manager,
+		now: Date = new Date()
+	): Promise<Map<string, BookingWeatherOutcome>> {
+		const outcomes = new Map<string, BookingWeatherOutcome>();
+		if (trips.length === 0) return outcomes;
+		const forecasts = await manager
+			.getRepository(TripWeatherForecast)
+			.createQueryBuilder("forecast")
+			.distinctOn(["forecast.tripId"])
+			.where("forecast.tripId IN (:...tripIds)", { tripIds: trips.map((trip) => trip.id) })
+			.orderBy("forecast.tripId")
+			.addOrderBy("forecast.createdAt", "DESC")
+			.addOrderBy("forecast.id", "DESC")
+			.getMany();
+		const forecastByTrip = new Map(forecasts.map((forecast) => [forecast.tripId, forecast]));
+		const undecided: Array<BookingTripSchedule & { routeId: string }> = [];
+		for (const trip of trips) {
+			const verdict = tripForecastVerdict(
+				trip.routeId,
+				forecastByTrip.get(trip.id) ?? null,
+				trip,
+				now
 			);
+			if (verdict) outcomes.set(trip.id, verdict.blocked ? "blocked" : "allowed");
+			else undecided.push(trip);
 		}
-		return eligibility;
+		if (undecided.length === 0) return outcomes;
+		const assessments = await manager
+			.getRepository(WeatherRiskAssessment)
+			.createQueryBuilder("assessment")
+			.distinctOn(["assessment.routeId"])
+			.where("assessment.routeId IN (:...routeIds)", {
+				routeIds: [...new Set(undecided.map((trip) => trip.routeId))],
+			})
+			.orderBy("assessment.routeId")
+			.addOrderBy("assessment.createdAt", "DESC")
+			.getMany();
+		const assessmentByRoute = new Map(assessments.map((row) => [row.routeId, row]));
+		for (const trip of undecided) {
+			const verdict = routeAssessmentVerdict(
+				trip.routeId,
+				assessmentByRoute.get(trip.routeId) ?? null
+			);
+			outcomes.set(trip.id, !verdict ? "missing" : verdict.blocked ? "blocked" : "allowed");
+		}
+		return outcomes;
+	}
+
+	private requireDataSource(): DataSource {
+		if (!this.dataSource) throw new Error("DataSource required for weather evaluation");
+		return this.dataSource;
 	}
 
 	private assertActiveAccount(actor: AuthenticatedUser): void {
@@ -281,54 +409,6 @@ export class RouteRegistrationRiskService {
 			throw new ForbiddenException(
 				"Account is not active. Suspended or unverified accounts cannot perform registration operations."
 			);
-		}
-	}
-
-	private extractFailingCriteriaReasons(
-		criteria: WeatherCriteriaScoresDetail,
-		reasons: RegistrationBlockedReasonDto[]
-	): void {
-		if (!criteria) return;
-
-		if (criteria.rainfall?.level === RiskLevel.RED) {
-			reasons.push({
-				criterion: "rainfall",
-				level: RiskLevel.RED,
-				value: criteria.rainfall.value,
-				message: `Lượng mưa (${criteria.rainfall.value}mm) vượt quá ngưỡng nguy hiểm Mức Đỏ`,
-			});
-		}
-		if (criteria.wind?.level === RiskLevel.RED) {
-			reasons.push({
-				criterion: "wind",
-				level: RiskLevel.RED,
-				value: criteria.wind.value,
-				message: `Tốc độ gió (${criteria.wind.value}km/h) vượt quá ngưỡng nguy hiểm Mức Đỏ`,
-			});
-		}
-		if (criteria.temperature?.level === RiskLevel.RED) {
-			reasons.push({
-				criterion: "temperature",
-				level: RiskLevel.RED,
-				value: criteria.temperature.value,
-				message: `Nhiệt độ (${criteria.temperature.value}°C) ở ngưỡng nguy hiểm Mức Đỏ`,
-			});
-		}
-		if (criteria.visibility?.level === RiskLevel.RED) {
-			reasons.push({
-				criterion: "visibility",
-				level: RiskLevel.RED,
-				value: criteria.visibility.value,
-				message: `Tầm nhìn xa (${criteria.visibility.value}m) thấp hơn ngưỡng an toàn Mức Đỏ`,
-			});
-		}
-		if (criteria.thunderstorm?.level === RiskLevel.RED) {
-			reasons.push({
-				criterion: "thunderstorm",
-				level: RiskLevel.RED,
-				value: criteria.thunderstorm.value,
-				message: "Phát hiện hoạt động dông sét nguy hiểm",
-			});
 		}
 	}
 

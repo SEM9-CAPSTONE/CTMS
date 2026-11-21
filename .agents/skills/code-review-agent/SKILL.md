@@ -98,6 +98,10 @@ Report format:
 - [ ] No direct modification of Shadcn source
 - [ ] `size-*` used instead of `w-* h-*` when equal
 - [ ] Forms use react-hook-form + Zod
+- [ ] **Reusing Shared System Components**: BẮT BUỘC tái sử dụng các component chuẩn từ `shared/components` (`DataTable`, `Pagination`, `Card`, `StatusBadge`, `Button`, `PageSkeleton`, `Modal`, v.v.). Nghiêm cấm tự viết raw HTML `<table>`, tự bọc custom card `<div>`, tự style button chay hoặc tự làm spinner khi component hệ thống đã có sẵn. Nếu chưa có component dùng chung mà giao diện cần tái sử dụng nhiều lần, PHẢI tạo mới trong `shared/components`.
+- [ ] **Minimalist Headers & No Decorative Icon Clutter**: TUYỆT ĐỐI KHÔNG có các dòng mô tả nhỏ/phụ (subtitles/descriptions) dưới tiêu đề trang, tiêu đề bảng hoặc modal. TUYỆT ĐỐI KHÔNG gắn icon trang trí cạnh nhãn trên metric cards (như icon lịch, la bàn, %, tam giác cảnh báo trên từng thẻ số liệu làm giao diện bị rối và "nhựa"). Thẻ chỉ số phải giữ typography tinh gọn, số lớn nổi bật.
+- [ ] **Impeccable Anti-Slop & Container Discipline**: Cấm lồng Card trong Card vô nghĩa. Không sử dụng gradient rực rỡ, bóng đổ nặng `shadow-lg`, hay border dày cộm. Dùng Semantic tokens và khoảng cách thang 4px (`gap-3`, `gap-4`, `p-4`, `p-6`). Không lặp lại 2 lần thông tin tổng tiền / số lượng trong cùng một UI.
+- [ ] **Pure Vietnamese Copywriting**: 100% tiếng Việt tự nhiên, súc tích; không chèn tiếng Anh đan xen hoặc trong ngoặc đơn (`(User ID)`, `(Audit History)`).
 
 ### Phase 6 — NestJS Best Practices (Backend Only)
 
@@ -124,6 +128,7 @@ Report format:
 - [ ] Early returns used to reduce nesting
 - [ ] No code duplication
 - [ ] Import organization (Biome standard)
+- [ ] Conflict resolution: Tuyệt đối không xóa logic của đồng đội khi merge, ưu tiên giữ cả hai nếu không chồng chéo logic
 
 ## Report Format
 

@@ -4,6 +4,7 @@ import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import type { CreateWeatherRiskRuleDto } from "../dto/create-weather-risk-rule.dto";
 import type { WeatherRiskRuleResponseDto } from "../dto/weather-risk-rule-response.dto";
 import { WeatherRiskRule } from "../entities/weather-risk-rule.entity";
+import { weatherRuleLimitViolations } from "./weather-risk-rule-limits";
 
 function toRuleResponse(rule: WeatherRiskRule): WeatherRiskRuleResponseDto {
 	return {
@@ -30,6 +31,7 @@ function toRuleResponse(rule: WeatherRiskRule): WeatherRiskRuleResponseDto {
 		yellowMaxScore: rule.yellowMaxScore,
 		isActive: rule.isActive,
 		createdBy: rule.createdBy,
+		createdByName: rule.creator?.fullName ?? null,
 		createdAt: rule.createdAt,
 	};
 }
@@ -44,6 +46,7 @@ export class WeatherRiskRulesService {
 		const repository = this.dataSource.getRepository(WeatherRiskRule);
 		const rules = await repository.find({
 			order: { version: "DESC" },
+			relations: { creator: true },
 		});
 		return rules.map(toRuleResponse);
 	}
@@ -53,13 +56,14 @@ export class WeatherRiskRulesService {
 		const activeRule = await repository.findOne({
 			where: { isActive: true },
 			order: { version: "DESC" },
+			relations: { creator: true },
 		});
 		return activeRule ? toRuleResponse(activeRule) : null;
 	}
 
 	async findById(id: string): Promise<WeatherRiskRuleResponseDto> {
 		const repository = this.dataSource.getRepository(WeatherRiskRule);
-		const rule = await repository.findOne({ where: { id } });
+		const rule = await repository.findOne({ where: { id }, relations: { creator: true } });
 		if (!rule) {
 			throw new NotFoundException(`Weather risk rule version with ID "${id}" not found`);
 		}
@@ -192,6 +196,13 @@ export class WeatherRiskRulesService {
 		}
 		if (dto.greenMaxScore >= dto.yellowMaxScore) {
 			throw new BadRequestException("greenMaxScore must be strictly less than yellowMaxScore");
+		}
+
+		// Hybrid risk: thresholds outside sensible bounds would block bookings and penalise Hosts
+		// for weather that is not actually dangerous (or miss weather that is).
+		const problems = weatherRuleLimitViolations(dto);
+		if (problems.length > 0) {
+			throw new BadRequestException(problems.join("; "));
 		}
 	}
 }

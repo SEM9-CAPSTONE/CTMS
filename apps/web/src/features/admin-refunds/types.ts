@@ -20,6 +20,8 @@ export interface AdminRefundItem {
 	camper: AdminRefundCamper;
 	amount: string;
 	status: PaymentStatus;
+	reviewStatus?: "pending_review" | "approved" | "rejected" | null;
+	lateRequest?: boolean;
 	transactionStatus?: PaymentTransactionStatus;
 	providerReference?: string | null;
 	reason?: string | null;

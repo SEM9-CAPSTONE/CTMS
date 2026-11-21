@@ -142,6 +142,82 @@ void main() {
     await store.complete(api.remote);
   }
 
+  test('CTMS-306 does not activate locally until server accepts', () async {
+    await seedCompleted();
+    final accepted = Completer<void>();
+    final entered = Completer<void>();
+    final pending = PackageIntegrityService(store).finalize(
+      api.remote,
+      CancelToken(),
+      acceptActivation: (_) async {
+        entered.complete();
+        await accepted.future;
+      },
+    );
+    await entered.future;
+    expect(await store.active(testTripId), isNull);
+    accepted.complete();
+    expect((await pending).$2, isTrue);
+    expect((await store.active(testTripId))?.id, api.remote.id);
+  });
+
+  test('CTMS-306 damaged bytes never report verified or active', () async {
+    await seedCompleted();
+    await store.archive(api.remote).writeAsBytes([1, 2, 3]);
+    var reports = 0;
+    final result = await PackageIntegrityService(store).finalize(
+      api.remote,
+      CancelToken(),
+      acceptActivation: (_) async {
+        reports++;
+      },
+    );
+    expect(result.$1, PackageVerificationStatus.failed);
+    expect(reports, 0);
+    expect(await store.active(testTripId), isNull);
+  });
+
+  test(
+    'CTMS-306 bytes changed during server acceptance never become active',
+    () async {
+      await seedCompleted();
+      final result = await PackageIntegrityService(store).finalize(
+        api.remote,
+        CancelToken(),
+        acceptActivation: (_) async {
+          await store.archive(api.remote).writeAsBytes([9, 8, 7]);
+        },
+      );
+      expect(result.$1, PackageVerificationStatus.failed);
+      expect(await store.active(testTripId), isNull);
+    },
+  );
+
+  test('CTMS-306 rejected replacement keeps previous active bytes', () async {
+    await seedCompleted();
+    await PackageIntegrityService(store).finalize(api.remote, CancelToken());
+    final old = api.remote;
+    final newerBytes = packageZip(version: 2);
+    final newer = zipMetadata(newerBytes, version: 2);
+    await store.save(
+      LocalPackageDownload(newer, PackageDownloadStatus.downloading, 0),
+    );
+    await store.partial(newer).writeAsBytes(newerBytes);
+    await store.complete(newer);
+    await expectLater(
+      PackageIntegrityService(store).finalize(
+        newer,
+        CancelToken(),
+        authorizeReplacement: () async => newer,
+        acceptActivation: (_) async =>
+            throw const FormatException('PACKAGE_VERSION_LOCKED'),
+      ),
+      throwsFormatException,
+    );
+    expect((await store.active(testTripId))?.sameArtifact(old), isTrue);
+    expect(await store.verification(newer), PackageVerificationStatus.verified);
+  });
+
   test('resumes at the saved 70% offset and verifies automatically', () async {
     final observed = <PackageVerificationStatus>[];
     controller.addListener(() {
@@ -382,6 +458,25 @@ void main() {
       expect(result, (PackageVerificationStatus.failed, false));
       expect(await controller.openActive(1), goodZip);
       expect(await controller.openActive(2), isNull);
+    },
+  );
+
+  test(
+    'restoring a candidate waits for policy before reporting or activation',
+    () async {
+      await seedCompleted();
+      var reports = 0;
+      final result = await PackageIntegrityService(store).finalize(
+        api.remote,
+        CancelToken(),
+        allowActivation: false,
+        acceptActivation: (_) async {
+          reports++;
+        },
+      );
+      expect(result, (PackageVerificationStatus.verified, false));
+      expect(reports, 0);
+      expect(await store.active(testTripId), isNull);
     },
   );
 

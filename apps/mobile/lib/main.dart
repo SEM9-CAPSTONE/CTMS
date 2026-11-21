@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 import 'core/api/api_client.dart';
+import 'core/lifecycle/session_hooks.dart';
 import 'core/storage/token_storage.dart';
 import 'features/auth/application/auth_controller.dart';
+import 'features/push_notifications/application/push_notifications_controller.dart';
 
 void main() {
   runApp(
@@ -27,6 +29,10 @@ void main() {
             ref.watch(tokenStorageProvider),
             onSessionExpired: () => ref.read(authControllerProvider.notifier).clearSession(),
           ),
+        ),
+        // CTMS-090-T02: stop pushes to this device before a user-initiated sign-out.
+        sessionEndingHookProvider.overrideWith(
+          (ref) => () => ref.read(pushNotificationsControllerProvider).unregister(),
         ),
       ],
       child: const CtmsApp(),

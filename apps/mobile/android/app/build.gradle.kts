@@ -43,3 +43,9 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+// CTMS-090-T02: push needs the team's Firebase project file. Without it the app still builds and
+// shows push as unavailable (spec ctms-90 PD-1).
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}

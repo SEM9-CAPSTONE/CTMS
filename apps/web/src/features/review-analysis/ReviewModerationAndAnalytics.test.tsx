@@ -175,7 +175,7 @@ describe("Moderation & Analytics UI Components", () => {
 			expect(await screen.findByText("Trekking Bạch Mộc Lương Tử")).toBeInTheDocument();
 			expect(screen.getByText("Quấy rối hoặc đe dọa")).toBeInTheDocument();
 			expect(screen.getByText("Văn bản")).toBeInTheDocument();
-			expect(screen.getByText("Nguồn: Gemini Safety")).toBeInTheDocument();
+			expect(screen.getByText("Nguồn: Kiểm duyệt tự động")).toBeInTheDocument();
 			expect(screen.getByRole("button", { name: "Xử lý" })).toBeInTheDocument();
 		});
 
@@ -285,6 +285,29 @@ describe("Moderation & Analytics UI Components", () => {
 				await screen.findByText("Đánh giá vẫn đang bị ẩn theo trạng thái xử lý báo cáo hiện có.")
 			).toBeInTheDocument();
 		});
+
+		it("disables hiding when active flag confidence is below 50%", () => {
+			const lowConfidenceItem: ModerationQueueItem = {
+				...sampleQueueItem,
+				activeFlags: [
+					{
+						...sampleQueueItem.activeFlags[0],
+						confidence: 0.42,
+					},
+				],
+			};
+
+			render(
+				<ModerationDecisionDialog item={lowConfidenceItem} onClose={vi.fn()} onSuccess={vi.fn()} />
+			);
+
+			expect(
+				screen.getByText(
+					"Độ tin cậy vi phạm dưới 50% — theo quy định hệ thống, đánh giá này không được ẩn."
+				)
+			).toBeInTheDocument();
+			expect(screen.getByRole("button", { name: "Xác nhận giữ lại" })).toBeInTheDocument();
+		});
 	});
 
 	describe("TripFeedbackDashboard", () => {
@@ -301,19 +324,20 @@ describe("Moderation & Analytics UI Components", () => {
 			expect(screen.getByText("63%")).toBeInTheDocument();
 		});
 
-		it("displays caution notice and suppresses rankings when sample size is insufficient", async () => {
+		it("displays caution notice and suppresses rankings when trip has no reviews", async () => {
 			mockService.tripFeedbackOverview.mockResolvedValue({
 				...sampleTripFeedbackResponse,
+				sampleThreshold: 1,
 				items: [
 					{
 						...sampleTripFeedbackResponse.items[0],
-						totalReviews: 2,
+						totalReviews: 0,
 						hasSufficientSample: false,
 						aspects: {
-							safety: { positive: 1, neutral: 1, negative: 0, netScore: null },
-							guide_support: { positive: 2, neutral: 0, negative: 0, netScore: null },
-							equipment: { positive: 1, neutral: 0, negative: 0, netScore: null },
-							value: { positive: 2, neutral: 0, negative: 0, netScore: null },
+							safety: { positive: 0, neutral: 0, negative: 0, netScore: null },
+							guide_support: { positive: 0, neutral: 0, negative: 0, netScore: null },
+							equipment: { positive: 0, neutral: 0, negative: 0, netScore: null },
+							value: { positive: 0, neutral: 0, negative: 0, netScore: null },
 						},
 					},
 				],
@@ -321,7 +345,7 @@ describe("Moderation & Analytics UI Components", () => {
 
 			render(<TripFeedbackDashboard actor="host-1" />);
 
-			expect(await screen.findByText("Chưa đạt ngưỡng mẫu (5)")).toBeInTheDocument();
+			expect(await screen.findByText("Chưa có đánh giá")).toBeInTheDocument();
 			expect(screen.queryByText("Tỷ lệ tích cực")).toBeNull();
 		});
 	});
@@ -347,7 +371,7 @@ describe("Moderation & Analytics UI Components", () => {
 			expect(screen.getByText(/Chưa xác định rõ/)).toBeInTheDocument();
 
 			// Sample quotes button
-			const quotesBtn = screen.getByRole("button", { name: /1 trích dẫn mẫu/ });
+			const quotesBtn = screen.getByRole("button", { name: /1 trích dẫn/ });
 			expect(quotesBtn).toBeInTheDocument();
 
 			fireEvent.click(quotesBtn);

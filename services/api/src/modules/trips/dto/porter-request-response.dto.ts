@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { TripPorterStatus } from "../../profiles/entities/trip-porter.entity";
+import { ReviewReputationDto } from "../../review-reputation/review-reputation.dto";
 import { PorterRequestStatus } from "../entities/porter-request.entity";
 import { TripStatus } from "../entities/trip.entity";
 import { IntendedPorterRole } from "./available-porters-query.dto";
@@ -36,6 +37,15 @@ export class PorterRequestAssignmentDto {
 }
 
 export class PorterRequestResponseDto {
+	@ApiPropertyOptional({
+		nullable: true,
+		description: "Display name on the owning Host's invitation list only",
+	})
+	porterDisplayName?: string | null;
+
+	@ApiPropertyOptional({ type: ReviewReputationDto })
+	reputation?: ReviewReputationDto;
+
 	@ApiProperty({ format: "uuid" })
 	id!: string;
 

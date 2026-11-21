@@ -177,10 +177,10 @@ test("Admin pauses a Red Trip from the intervention list, then resumes it", asyn
 		});
 	});
 
-	await page.goto("/admin/weather-interventions");
+	await page.goto("/admin/weather");
 	const row = page.getByTestId("weather-intervention-row");
 	await expect(row).toContainText("Khẩn cấp");
-	await expect(row).toContainText("Host chưa phản hồi");
+	await expect(row).toContainText("Host chưa trả lời");
 	await page.screenshot({ path: testInfo.outputPath("admin-weather-interventions.png") });
 
 	await row.click();
@@ -189,7 +189,7 @@ test("Admin pauses a Red Trip from the intervention list, then resumes it", asyn
 	await dialog.getByLabel("Lý do (bắt buộc)").fill("Chờ cập nhật bão");
 	await dialog.getByRole("button", { name: "Gửi quyết định: Tạm dừng" }).click();
 	await page.getByTestId("confirm-modal").getByRole("button", { name: "Xác nhận" }).click();
-	await expect(dialog.getByText("Đã ghi nhận quyết định: Tạm dừng.")).toBeVisible();
+	await expect(dialog.getByText("Đã lưu quyết định: Tạm dừng.")).toBeVisible();
 	await page.getByRole("button", { name: "Đóng" }).first().click();
 
 	await expect(row).toContainText("Đang tạm dừng");
@@ -202,7 +202,7 @@ test("Admin pauses a Red Trip from the intervention list, then resumes it", asyn
 	await dialog.getByLabel("Lý do (bắt buộc)").fill("Bão đã tan");
 	await dialog.getByRole("button", { name: "Gửi quyết định: Mở lại" }).click();
 	await page.getByTestId("confirm-modal").getByRole("button", { name: "Xác nhận" }).click();
-	await expect(dialog.getByText("Đã ghi nhận quyết định: Mở lại.")).toBeVisible();
+	await expect(dialog.getByText("Đã lưu quyết định: Mở lại.")).toBeVisible();
 	expect(decisions).toEqual([
 		{ decision: "pause", reason: "Chờ cập nhật bão" },
 		{ decision: "resume", reason: "Bão đã tan" },

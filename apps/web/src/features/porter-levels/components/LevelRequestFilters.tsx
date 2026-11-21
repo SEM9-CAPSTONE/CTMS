@@ -1,7 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { RotateCcw } from "lucide-react";
 import { useForm } from "react-hook-form";
 import type { z } from "zod";
 import { Button } from "../../../shared/components";
+import { SelectField } from "../../../shared/components/SelectField";
 import { LEVEL_INPUT_CLASS, REQUEST_STATUS_LABELS } from "../constants";
 import type { RequestFilters, RequestStatus } from "../request-types";
 import { requestFilterSchema } from "../schema/level-request.schema";
@@ -19,32 +21,36 @@ export function LevelRequestFilters({
 		resolver: zodResolver(requestFilterSchema),
 		defaultValues: { search: filters.search ?? "" },
 	});
+	const statusOptions = admin
+		? [
+				{ value: "pending", label: REQUEST_STATUS_LABELS.pending },
+				{ value: "rejected", label: REQUEST_STATUS_LABELS.rejected },
+			]
+		: [
+				{ value: "", label: "Tất cả trạng thái" },
+				...Object.entries(REQUEST_STATUS_LABELS).map(([value, label]) => ({ value, label })),
+			];
+
 	return (
-		<div className="space-y-3">
-			<label className="block text-sm font-semibold">
-				Lọc trạng thái
-				<select
-					className={LEVEL_INPUT_CLASS}
-					value={filters.status ?? ""}
-					onChange={(event) =>
+		<div className="flex flex-wrap items-end gap-3">
+			<label className="block w-full text-sm font-semibold sm:w-48">
+				<span className="sr-only">Lọc trạng thái</span>
+				<SelectField
+					label="Lọc trạng thái"
+					value={filters.status ?? (admin ? "pending" : "")}
+					onChange={(value) =>
 						onChange({
 							...filters,
 							page: 1,
-							status: (event.target.value || undefined) as RequestStatus | undefined,
+							status: (value || undefined) as RequestStatus | undefined,
 						})
 					}
-				>
-					<option value="">Tất cả trạng thái</option>
-					{Object.entries(REQUEST_STATUS_LABELS).map(([code, label]) => (
-						<option key={code} value={code}>
-							{label}
-						</option>
-					))}
-				</select>
+					options={statusOptions}
+				/>
 			</label>
 			{admin && (
 				<form
-					className="flex flex-wrap items-end gap-3"
+					className="flex min-w-0 flex-1 flex-wrap items-end gap-3"
 					onSubmit={handleSubmit((data) =>
 						onChange({
 							...filters,
@@ -54,24 +60,23 @@ export function LevelRequestFilters({
 					)}
 				>
 					<label className="min-w-0 flex-1 text-sm font-semibold">
-						Tìm Porter hoặc tuyến
+						<span className="sr-only">Tìm người hỗ trợ</span>
 						<input
 							className={LEVEL_INPUT_CLASS}
-							placeholder="Nhập tên Porter hoặc tên tuyến"
+							placeholder="Tìm theo tên người hỗ trợ..."
 							{...register("search")}
 						/>
 						{errors.search && <span role="alert">{errors.search.message}</span>}
 					</label>
-					<Button type="submit" variant="outline">
-						Tìm kiếm
-					</Button>
+					<Button type="submit">Tìm kiếm</Button>
 					<Button
-						variant="ghost"
+						variant="outline"
 						onClick={() => {
 							reset();
-							onChange({ page: 1 });
+							onChange({ page: 1, status: admin ? "pending" : undefined });
 						}}
 					>
+						<RotateCcw aria-hidden="true" className="mr-2 size-4" />
 						Đặt lại
 					</Button>
 				</form>

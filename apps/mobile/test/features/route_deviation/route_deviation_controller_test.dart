@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/features/gps_tracking/application/gps_location_source.dart';
 import 'package:mobile/features/gps_tracking/application/gps_tracking_controller.dart';
+import 'package:mobile/features/offline_map/domain/offline_map_models.dart';
 import 'package:mobile/features/route_deviation/application/route_deviation_controller.dart';
 import 'package:mobile/features/route_deviation/domain/route_deviation_models.dart';
 
@@ -16,11 +17,14 @@ void main() {
   late bool online;
   late int alerts;
 
-  RouteDeviationController build() => RouteDeviationController(
+  RouteDeviationController build({
+    Future<OfflineMapContext?> Function()? readPackage,
+  }) => RouteDeviationController(
     tripId: tripId,
     gps: gps,
     api: api,
     store: store,
+    readActivePackage: readPackage,
     clock: () => now,
     isOnline: () async => online,
     alert: () async => alerts++,
@@ -53,6 +57,62 @@ void main() {
   });
 
   tearDown(() => gps.dispose());
+
+  const activePackage = OfflineMapContext(
+    tripId: tripId,
+    packageId: 'locked-package',
+    packageVersion: 2,
+    route: OfflineRouteGeometry(
+      routeId: 'package-route',
+      fingerprint: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      points: [
+        OfflineRoutePoint(latitude: 11.50, longitude: routeLongitude),
+        OfflineRoutePoint(latitude: 11.52, longitude: routeLongitude),
+      ],
+    ),
+    checkpoints: [],
+  );
+
+  test('uses verified package geometry and persists its context offline', () async {
+    await gps.start();
+    api.contextResult = () => RouteDeviationContext(
+      tripId: tripId,
+      eligible: true,
+      reason: null,
+      participantRole: 'camper',
+      routeId: 'mutable-server-route',
+      routeVersion: 'changed',
+      coordinates: const [[106, 9], [107, 10]],
+      configVersion: 'v3',
+      lockedPackageId: activePackage.packageId,
+    );
+    final controller = build(readPackage: () async => activePackage);
+    addTearDown(controller.dispose);
+    await controller.start();
+    online = false;
+    api.contextError = offline();
+    api.uploadError = offline();
+    await controller.refreshContext();
+    for (final meters in [55.0, 60.0, 65.0]) {
+      await walk(controller, meters);
+    }
+    expect(controller.events.single.packageVersion, '2');
+    expect(controller.events.single.routeVersion, activePackage.route.fingerprint);
+    expect(controller.events.single.distanceToRouteMeters, closeTo(65, 0.5));
+    expect(controller.events.single.detectedOffline, isTrue);
+  });
+
+  test('unavailable package never turns an independent cached Route into monitoring', () async {
+    await gps.start();
+    store.records[tripId] = RouteDeviationRecord(context: routeContext());
+    final controller = build(readPackage: () async => null);
+    addTearDown(controller.dispose);
+    await controller.start();
+    expect(controller.status, RouteDeviationStatus.unavailable);
+    expect(controller.detector, isNull);
+    expect(controller.context, isNull);
+    expect(gps.evidencePackageVersion, isNull);
+  });
 
   test('runs detection only while GPS breadcrumbs are being recorded', () async {
     location.permission = GpsPermissionState.denied;

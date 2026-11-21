@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { Transform, Type } from "class-transformer";
 import {
+	IsBoolean,
 	IsEnum,
 	IsInt,
 	IsNotEmpty,
@@ -10,7 +11,10 @@ import {
 	MaxLength,
 	Min,
 } from "class-validator";
-import { PorterVerificationStatus } from "../entities/porter-verification.entity";
+import {
+	type GuideCardCheckResult,
+	PorterVerificationStatus,
+} from "../entities/porter-verification.entity";
 import { PorterVerificationResponseDto } from "./porter-verification-response.dto";
 
 function trimmedOrUndefined(value: unknown): unknown {
@@ -44,6 +48,15 @@ export class ListPorterVerificationsQueryDto {
 	@Min(1)
 	@Max(100)
 	limit = 20;
+}
+
+export class ApprovePorterVerificationDto {
+	@ApiProperty({
+		description:
+			"The Admin confirms the card was checked on the official registry (huongdanvien.vn)",
+	})
+	@IsBoolean()
+	officialRegistryChecked!: boolean;
 }
 
 export class RejectPorterVerificationDto {
@@ -93,6 +106,23 @@ export class AdminPorterVerificationDetailDto extends PorterVerificationResponse
 
 	@ApiProperty({ type: String, nullable: true, format: "uuid" })
 	reviewedBy!: string | null;
+
+	@ApiProperty({
+		type: Object,
+		nullable: true,
+		description:
+			"Automatic check of the card photo: labels, what was read, whether it auto-rejected",
+	})
+	cardCheck!: GuideCardCheckResult | null;
+
+	@ApiProperty({ type: Date, nullable: true })
+	cardCheckedAt!: Date | null;
+
+	@ApiProperty({ type: String, nullable: true, format: "uuid" })
+	registryCheckedBy!: string | null;
+
+	@ApiProperty({ type: Date, nullable: true })
+	registryCheckedAt!: Date | null;
 
 	@ApiProperty({ type: Number, nullable: true })
 	experienceYears!: number | null;

@@ -23,6 +23,17 @@ export const medicalConditionItemSchema = z.object({
 });
 
 export const healthProfileSchema = z.object({
+	activityProfile: z
+		.object({
+			comfortableDistanceKm: z.number().min(0).max(200).nullable(),
+			comfortableWalkingMinutes: z.number().int().min(0).max(1440).nullable(),
+			activityNotes: z
+				.string()
+				.max(1200, "Lưu ý khi vận động không quá 1.200 ký tự")
+				.nullable()
+				.optional(),
+		})
+		.optional(),
 	bloodType: z.enum(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "UNKNOWN"], {
 		invalid_type_error: "Nhóm máu không hợp lệ",
 	}),

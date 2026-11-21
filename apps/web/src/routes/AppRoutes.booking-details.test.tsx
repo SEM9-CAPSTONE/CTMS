@@ -94,7 +94,7 @@ vi.mock("../features/trekking-routes/pages/CreateTrekkingRoutePage", () => ({
 vi.mock("../features/trekking-routes/pages/TrekkingRoutesPage", () => ({
 	TrekkingRoutesPage: () => <div>Trekking Routes Page</div>,
 }));
-function setUser(role: "camper" | "host") {
+function setUser(role: "camper" | "host", roles: Array<"camper" | "host"> = [role]) {
 	localStorage.setItem(
 		"authUser",
 		JSON.stringify({
@@ -102,7 +102,7 @@ function setUser(role: "camper" | "host") {
 			email: `${role}@example.com`,
 			phone: null,
 			role,
-			roles: [role],
+			roles,
 			status: "active",
 			createdAt: "2026-01-01T00:00:00.000Z",
 		})
@@ -119,6 +119,19 @@ describe("AppRoutes Booking details", () => {
 		setUser("camper");
 		await renderLazy(<AppRoutes />);
 		expect(screen.getByRole("heading", { name: "Booking detail booking-123" })).toBeVisible();
+	});
+
+	it.each([
+		"/bookings",
+		"/bookings/booking-123",
+		"/bookings/booking-123?from=trip&tripId=33333333-3333-4333-8333-333333333333",
+	])("uses the Camper sidebar at %s even when the Camper also hosts trips", async (path) => {
+		setUser("host", ["host", "camper"]);
+		window.history.replaceState({}, "", path);
+		await renderLazy(<AppRoutes />);
+
+		expect(screen.getByRole("navigation", { name: "Camper Hub" })).toBeVisible();
+		expect(screen.queryByRole("navigation", { name: "Dashboard navigation" })).toBeNull();
 	});
 
 	it("renders the owner list and navigates to details", async () => {

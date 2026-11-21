@@ -81,7 +81,8 @@ export class HostWeatherPenaltiesService {
 		input: {
 			trip: PenaltyTripContext;
 			decisionId: string;
-			adminId: string;
+			/** Admin who decided; `null` when the system auto-cancelled the Trip. */
+			adminId: string | null;
 			bookingValue: string;
 			now: Date;
 		}
@@ -340,7 +341,7 @@ export class HostWeatherPenaltiesService {
 
 	private async audit(
 		manager: EntityManager,
-		actorId: string,
+		actorId: string | null,
 		action: string,
 		penaltyId: string,
 		after: Record<string, unknown>,

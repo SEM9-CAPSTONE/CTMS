@@ -21,6 +21,8 @@ describe("CTMS-369 Host Trip map (PostgreSQL + HTTP)", () => {
 	const users = [host, other, camper, porter, excluded];
 	const route = randomUUID();
 	const checkpoint = randomUUID();
+	const pointDangerZone = randomUUID();
+	const polygonDangerZone = randomUUID();
 	const ongoing = randomUUID();
 	const published = randomUUID();
 	const foreign = randomUUID();
@@ -84,6 +86,12 @@ describe("CTMS-369 Host Trip map (PostgreSQL + HTTP)", () => {
 			`INSERT INTO checkpoints(id,route_id,name,location,radius_m,type,expected_arrival_offset,instructions,nearby_water_or_shelter,route_position)
 		 VALUES($1,$2,'Map checkpoint',ST_GeogFromText('SRID=4326;POINT(108.45 11.94)'),30,'start',0,'Follow path',false,0)`,
 			[checkpoint, route]
+		);
+		await db.query(
+			`INSERT INTO route_danger_zones(id,route_id,geom,radius_m,description,severity)
+			 VALUES($1,$3,ST_GeogFromText('SRID=4326;POINT(108.46 11.94)'),50,'Lối mòn sát mép vực','high'),
+			 ($2,$3,ST_GeogFromText('SRID=4326;POLYGON((108.45 11.94,108.46 11.95,108.47 11.94,108.45 11.94))'),NULL,'Đá dễ sạt lở','medium')`,
+			[pointDangerZone, polygonDangerZone, route]
 		);
 		for (const [id, owner, status] of [
 			[ongoing, host, "ongoing"],
@@ -164,6 +172,7 @@ describe("CTMS-369 Host Trip map (PostgreSQL + HTTP)", () => {
 			await db.query("DELETE FROM trip_porters WHERE trip_id=ANY($1)", [trips]);
 			await db.query("DELETE FROM trips WHERE id=ANY($1)", [trips]);
 			await db.query("DELETE FROM checkpoints WHERE route_id=$1", [route]);
+			await db.query("DELETE FROM route_danger_zones WHERE route_id=$1", [route]);
 			await db.query("DELETE FROM trekking_routes WHERE id=$1", [route]);
 			await db.query("DELETE FROM user_roles WHERE user_id=ANY($1)", [users]);
 			await db.query("DELETE FROM users WHERE id=ANY($1)", [users]);
@@ -191,6 +200,39 @@ describe("CTMS-369 Host Trip map (PostgreSQL + HTTP)", () => {
 			geometry: { type: "LineString" },
 			checkpoints: [{ id: checkpoint, location: { type: "Point", coordinates: [108.45, 11.94] } }],
 		});
+		expect(result.items[0].route.dangerZones).toHaveLength(2);
+		expect(result.items[0].route.dangerZones).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: pointDangerZone,
+					routeId: route,
+					geometry: { type: "Point", coordinates: [108.46, 11.94] },
+					radiusMeters: 50,
+					description: "Lối mòn sát mép vực",
+					severity: "high",
+					createdAt: expect.any(String),
+					updatedAt: expect.any(String),
+				}),
+				expect.objectContaining({
+					id: polygonDangerZone,
+					routeId: route,
+					geometry: {
+						type: "Polygon",
+						coordinates: [
+							[
+								[108.45, 11.94],
+								[108.46, 11.95],
+								[108.47, 11.94],
+								[108.45, 11.94],
+							],
+						],
+					},
+					radiusMeters: null,
+					description: "Đá dễ sạt lở",
+					severity: "medium",
+				}),
+			])
+		);
 		expect(result.items[0].participants.map((p) => p.id).sort()).toEqual(
 			[joined, guest, left, porter].sort()
 		);
@@ -228,6 +270,14 @@ describe("CTMS-369 Host Trip map (PostgreSQL + HTTP)", () => {
 			behindSchedule: null,
 		});
 	});
+	it("uses the latest event time when an older off-route event arrived after recovery", async () => {
+		const response = await request(app.getHttpServer())
+			.get(`${endpoint}/${ongoing}/alerts?alertType=OFF_ROUTE`)
+			.set("Authorization", bearer())
+			.expect(200);
+		expect(response.body.alerts).toEqual([]);
+	});
+
 	it("provides authorized details and private no-store headers", async () => {
 		const response = await request(app.getHttpServer())
 			.get(detail())

@@ -293,10 +293,20 @@ export function useDeleteFeature() {
 
 ## Bước 8: Tạo Components (`components/`)
 
+> 🌟 **BẮT BUỘC ÁP DỤNG CHUẨN IMPECCABLE (Mandatory Impeccable Design Standard)**
+> Mọi component khi sinh ra PHẢI tuân thủ 100% chuẩn Impeccable:
+> - **Anti-AI Slop**: Tuyệt đối không lồng `<Card>` trong `<Card>`, không bóng đổ nặng `shadow-lg`, không gradient màu mè.
+> - **Icon Minimalism**: TUYỆT ĐỐI KHÔNG gắn icon trang trí cạnh nhãn chữ trên các thẻ chỉ số (metric cards).
+> - **Typography 3 tầng**: Nhãn nhỏ tinh gọn (`text-xs text-muted-foreground uppercase`) + Số lớn nổi bật (`text-2xl`/`text-3xl font-bold tracking-tight text-foreground`) + Thông tin phụ (`text-xs text-muted-foreground/80`).
+> - **Khoảng cách thang 4px**: Dùng `gap-3`, `gap-4`, `p-4`, `p-6`.
+> - **Semantic tokens & Camping Green**: Dùng `bg-background`, `bg-card`, `border-border`, màu chủ đạo `#164027`.
+> - **Tái sử dụng Shared Components**: Luôn ưu tiên import từ `@/shared/components` (`DataTable`, `Pagination`, `Card`, `StatusBadge`, `Button`, `PageSkeleton`, `Modal`).
+> - **100% Tiếng Việt tự nhiên**: Không chèn tiếng Anh trong ngoặc đơn (`(User ID)`, `(Audit History)`).
+
 **Nguyên tắc SOLID:**
 - Mỗi component < 150 dòng
 - Chỉ chứa UI rendering, KHÔNG business logic
-- Dùng Shadcn UI components (Button, Dialog, Sheet, Table, ...)
+- Dùng Shadcn / Shared UI components
 - Dùng `cn()` merge Tailwind classes
 - Dùng `useTranslation()` cho tất cả text
 

@@ -81,10 +81,6 @@ export function CamperHeader({ profile, onBackHome }: CamperHeaderProps) {
 							Đã kết nối trực tiếp
 						</span>
 					</div>
-					<p className="mt-1 text-xs sm:text-sm font-medium text-[#5c7063]">
-						Quản lý thông tin cá nhân, an toàn, thông báo và tài khoản của bạn để đảm bảo trải
-						nghiệm thám hiểm tốt nhất.
-					</p>
 				</div>
 			</div>
 		</header>

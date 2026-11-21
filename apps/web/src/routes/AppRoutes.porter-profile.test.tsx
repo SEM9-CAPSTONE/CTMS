@@ -97,17 +97,14 @@ describe("Porter Profile routing", () => {
 		expect(screen.getByRole("region", { name: "Camper profile content" })).toBeInTheDocument();
 	});
 
-	it("renders a direct Porter Profile URL inside the Porter layout and marks Profile active", async () => {
+	it("renders a direct Porter Profile URL inside the Porter layout without duplicate sidebar item", async () => {
 		signIn(["porter"]);
 		window.history.replaceState({}, "", RoutePath.PORTER_PROFILE);
 		await renderLazy(<AppRoutes />);
 
 		expect(screen.getByRole("region", { name: "Porter profile content" })).toBeInTheDocument();
 		expect(screen.getByRole("navigation", { name: "Dashboard navigation" })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Hồ sơ & Năng lực" })).toHaveAttribute(
-			"aria-current",
-			"page"
-		);
+		expect(screen.queryByRole("button", { name: "Hồ sơ & Năng lực" })).not.toBeInTheDocument();
 	});
 
 	it("keeps the Porter layout for a multi-role Host and Porter account", async () => {
@@ -115,11 +112,9 @@ describe("Porter Profile routing", () => {
 		window.history.replaceState({}, "", RoutePath.PORTER_PROFILE);
 		await renderLazy(<AppRoutes />);
 
-		expect(screen.getByText("Porter Ops")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Hồ sơ & Năng lực" })).toHaveAttribute(
-			"aria-current",
-			"page"
-		);
+		expect(screen.getByText("Người hỗ trợ CTMS")).toBeInTheDocument();
+		expect(screen.getByRole("region", { name: "Porter profile content" })).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Hồ sơ & Năng lực" })).not.toBeInTheDocument();
 	});
 
 	it("canonicalizes a legacy Camper Profile URL for a Porter-only account", async () => {

@@ -1,5 +1,36 @@
 # Database Table Descriptions
 
+## CTMS-069 answer storage
+
+Online answers use `ai_answers`, unique by account and request ID. A persisted row carries question (nullable for legacy rows), answer text, ordered retrieval evidence, cited chunk IDs, provider and reported model identifier, prompt version, retrieval configuration version, and creation/expiry times. The reported model may be an alias. For `ctms-069-grounded-v2`, the answer column contains verified synthesis and the source response resolves its actual cited IDs from retained metadata. The request lease remains in `ai_answer_request_limits`. The Flutter chat keeps its transcript in memory under the current Camper session. A Local turn has no server answer ID and creates no server answer row. Verified model files live separately from Trip packages in private application support storage.
+
+## CTMS-072 feedback storage
+
+| Table | Description |
+| --- | --- |
+| `ai_answer_feedback` | One row per owner and Online `answer_id`, or per owner, installation and Local answer ID. Stores rating, Unsafe flag, optional reason, report time and review status for Unsafe. Only Local rows carry `local_evidence` with exact question/answer and optional model or used-package identifiers. Online rows follow answer expiry. Local rows expire 30 days from initial acceptance. |
+| `ai_answer_feedback_mutations` | Idempotency and revision receipts keyed by owner and mutation ID, with unique owner/client feedback/revision. Holds accepted acknowledgment and request hash. Deleting the feedback cascades to its receipts. |
+
+## Inference trace and investigation data
+
+| Logical record | Description |
+| --- | --- |
+| Inference Trace (CTMS-069) | `ai_answers.generation.trace` stores Online execution details and shares answer expiry. For Local turns, CTMS-072 stores the optional trace of the selected turn in `ai_answer_feedback.local_evidence.localTrace`. A missing trace on a legacy row represents unavailable metadata. |
+| `ai_investigation_cases` | One case per original actionable feedback identity. Holds the selected-turn snapshot, report, review and technical statuses, reviewer/time, resolution and optimistic version. Original feedback and answer UUIDs are lineage references without cascading foreign keys. Approved cleanup can remove snapshot, feedback reason and report while retaining lineage. |
+| `ai_investigation_jobs` | Durable accepted-feedback work, unique by feedback and mutation. Stores priority, accepted rating, bounded attempt state, availability and a worker lease. A case points to its latest applicable job. |
+| `ai_investigation_groups`, `ai_investigation_members` | Issue groups and membership keyed by case and issue index. The group key identifies a reproducible shared issue or a singleton. A case remains traceable to its original feedback identity. |
+| `ai_investigation_history`, `audit_logs` | History links each investigation action and version to the existing audit entry. Restricted history retains the manual engineering reference, verification scope/results and resolution note. The general audit entry records state changes and attribution. |
+| `ai_feedback_quality_signals` | UTC-day tally of effective Useful-only changes. Contains aggregate counts without selected-turn text or account identity. |
+
+See the [trace data contract](../features/CTMS-069-Implementation.md#inference-trace-extension-design) and [investigation storage design](../features/CTMS-073-Investigation-Design.md#investigation-snapshot-and-retention).
+
+## CTMS-119 package publication and Camper preparation
+
+| Table | Description |
+| --- | --- |
+| `offline_package_impacts` | Durable source-change references unique per Trip. Core changes retain entity and transaction context. Hotspot references identify the audited corrective action. The impact links to the existing generation job, which records its outcome and references the immutable READY package when successful. |
+| `offline_package_camper_acknowledgements` | One authenticated Camper confirmation per Trip, applicable required or locked package identity, and notice policy version. A null package identity represents the context without a requirement or lock. Stores server confirmation time and links to the Camper, Trip and applicable package. Confirmation is audited independently of device reports and departure state. |
+
 The following baseline table provides technical and functional descriptions for the CTMS schema. Feature-specific additions are documented below and must be read together with their migrations.
 
 | No | Table | Description |

@@ -18,9 +18,12 @@ import {
 	isBroadcastableTripStatus,
 } from "../../emergency-broadcasts";
 import { MemberLastLocationsCard } from "../../member-locations/components/MemberLastLocationsCard";
+import { DepartureBlockStatus } from "../../offline-package-policy/components/DepartureBlockStatus";
+import { ReputationRefreshNotice } from "../../review-reputation/ReputationRefreshNotice";
 import { TeamScheduleProgressCard } from "../../schedule-progress/components/TeamScheduleProgressCard";
 import { HostTripSettlementCard } from "../../settlements/components/HostTripSettlementCard";
 import { TripIncidentsPanel } from "../../trip-incidents";
+import { TripRecommendationExplanation } from "../../trip-recommendations/components/TripRecommendationExplanation";
 import type { BookingAccess } from "../components/BookingPanel";
 import type { SelectedEquipmentItem } from "../components/RentableEquipmentModal";
 import { TripDetailView } from "../components/TripDetailView";
@@ -50,6 +53,8 @@ export interface TripDetailPageProps {
 	onEditTrip?: (tripId: string) => void;
 	onManagePorters?: (tripId: string) => void;
 	initialTab?: "overview" | "roster" | "incidents";
+	/** The Camper opened this Trip from their suggestions: explain why it was suggested. */
+	showRecommendationReason?: boolean;
 }
 
 function toBookTripResponse(booking: BookingDetails | null | undefined): BookTripResponse | null {
@@ -98,6 +103,7 @@ export function TripDetailPage({
 	onEditTrip,
 	onManagePorters,
 	initialTab,
+	showRecommendationReason = false,
 }: TripDetailPageProps) {
 	const [activeTab, setActiveTab] = useState<"overview" | "roster" | "incidents">(
 		initialTab ?? "overview"
@@ -257,6 +263,14 @@ export function TripDetailPage({
 
 			{/* Main Content */}
 			<main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+				{canManageThisTrip && currentUserId && (
+					<DepartureBlockStatus
+						key={`${currentUserId}-${tripId}`}
+						actor={currentUserId}
+						trip={tripId}
+						tripStatus={trip?.status}
+					/>
+				)}
 				{(isLoading || (bookingAccess === "camper" && isRestoringBooking && !temporaryBooking)) && (
 					<div
 						data-testid="trip-detail-loading"
@@ -292,7 +306,7 @@ export function TripDetailPage({
 					</div>
 				)}
 
-				{!isLoading && !isNotFound && error && (
+				{!isLoading && !isNotFound && error && !trip && (
 					<div
 						role="alert"
 						className="rounded-3xl border border-rose-200 bg-rose-50 p-8 text-center text-rose-800 shadow-sm"
@@ -341,11 +355,17 @@ export function TripDetailPage({
 				)}
 
 				{!isLoading &&
-					!error &&
 					trip &&
 					!bookingRestoreError &&
 					(!isRestoringBooking || temporaryBooking) && (
 						<>
+							{error && (
+								<ReputationRefreshNotice
+									error={error}
+									hasData={true}
+									onRetry={() => void retry(true)}
+								/>
+							)}
 							{isRosterVisible && (
 								<div className="mb-6 flex gap-2 border-b border-[#dfe8df]">
 									<button
@@ -397,6 +417,11 @@ export function TripDetailPage({
 												window.dispatchEvent(new PopStateEvent("popstate"));
 											}}
 										/>
+									</div>
+								)}
+								{showRecommendationReason && bookingAccess === "camper" && (
+									<div className="mb-6">
+										<TripRecommendationExplanation tripId={trip.id} />
 									</div>
 								)}
 								<TripDetailView

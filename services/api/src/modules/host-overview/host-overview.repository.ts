@@ -46,9 +46,9 @@ export class HostOverviewRepository {
 		limit: number
 	): Promise<OverviewPage<OverviewBooking>> {
 		return this.page(
-			`SELECT b.id, b.trip_id AS "tripId", b.status, b.payment_status AS "paymentStatus",
+			`SELECT b.id, b.trip_id AS "tripId", t.title AS "tripTitle", u.full_name AS "camperName", b.status, b.payment_status AS "paymentStatus",
 		 b.num_people AS "numPeople", b.created_at AS "createdAt", b.created_at AS "sortKey"
-		 FROM bookings b JOIN trips t ON t.id=b.trip_id WHERE t.host_id=$1
+		 FROM bookings b JOIN trips t ON t.id=b.trip_id LEFT JOIN users u ON u.id=b.user_id WHERE t.host_id=$1
 		 AND b.created_at >= (date_trunc('day',$2::timestamptz AT TIME ZONE $3) AT TIME ZONE $3)
 		 AND b.created_at < ((date_trunc('day',$2::timestamptz AT TIME ZONE $3)+interval '1 day') AT TIME ZONE $3)`,
 			[hostId, at, timeZone],
@@ -80,11 +80,11 @@ export class HostOverviewRepository {
 
 	porters(hostId: string, page: number, limit: number): Promise<OverviewPage<OverviewPorter>> {
 		return this.page(
-			`SELECT p.porter_id AS id,p.porter_id AS "porterId",max(t.starts_at) AS "sortKey",
-		 jsonb_agg(jsonb_build_object('tripId',t.id,'status',p.status) ORDER BY t.id) AS assignments
-		 FROM trip_porters p JOIN trips t ON t.id=p.trip_id WHERE t.host_id=$1
+			`SELECT p.porter_id AS id,p.porter_id AS "porterId",u.full_name AS "porterName",max(t.starts_at) AS "sortKey",
+		 jsonb_agg(jsonb_build_object('tripId',t.id,'tripTitle',t.title,'status',p.status) ORDER BY t.id) AS assignments
+		 FROM trip_porters p JOIN trips t ON t.id=p.trip_id LEFT JOIN users u ON u.id=p.porter_id WHERE t.host_id=$1
 		 AND t.status=ANY($2::trip_status[]) AND p.status=ANY($3::trip_porter_status[])
-		 GROUP BY p.porter_id`,
+		 GROUP BY p.porter_id,u.full_name`,
 			[
 				hostId,
 				[TripStatus.PUBLISHED, TripStatus.ONGOING],

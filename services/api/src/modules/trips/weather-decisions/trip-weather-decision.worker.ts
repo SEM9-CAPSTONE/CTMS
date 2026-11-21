@@ -8,6 +8,8 @@ import {
 import { ConfigService } from "@nestjs/config";
 // biome-ignore lint/style/useImportType: NestJS constructor injection requires runtime metadata
 import { TripWeatherDecisionAlertsService } from "./trip-weather-decision-alerts.service";
+// biome-ignore lint/style/useImportType: NestJS constructor injection requires runtime metadata
+import { TripWeatherDecisionService } from "./trip-weather-decision.service";
 
 const DEFAULT_INTERVAL_MS = 15 * 60 * 1000;
 const DEFAULT_BATCH_SIZE = 100;
@@ -19,7 +21,8 @@ interface UnrefTimer {
 /**
  * Sends the policy §5 reminders (T-48h Host, T-24h / T-12h / T-6h Admin) on an interval when
  * `TRIP_WEATHER_DECISION_WORKER_ENABLED=true`. Each reminder is stored once, so a short interval
- * never sends duplicates.
+ * never sends duplicates. Each pass first cancels Red Trips still undecided at T-6h, unless
+ * `TRIP_WEATHER_AUTO_CANCEL_ENABLED=false`.
  */
 @Injectable()
 export class TripWeatherDecisionWorker implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -30,7 +33,8 @@ export class TripWeatherDecisionWorker implements OnApplicationBootstrap, OnAppl
 
 	constructor(
 		private readonly configService: ConfigService,
-		private readonly alerts: TripWeatherDecisionAlertsService
+		private readonly alerts: TripWeatherDecisionAlertsService,
+		private readonly decisionService: TripWeatherDecisionService
 	) {}
 
 	onApplicationBootstrap(): void {
@@ -57,9 +61,7 @@ export class TripWeatherDecisionWorker implements OnApplicationBootstrap, OnAppl
 	startTick(now: () => Date = () => new Date()): Promise<void> | null {
 		if (this.shuttingDown || this.activeTick !== null) return this.activeTick;
 		const batchSize = this.positiveInteger("TRIP_WEATHER_DECISION_BATCH_SIZE", DEFAULT_BATCH_SIZE);
-		this.activeTick = this.alerts
-			.sendDueAlerts(now(), batchSize)
-			.then(() => undefined)
+		this.activeTick = this.tick(now(), batchSize)
 			.catch((error: unknown) => {
 				const message = error instanceof Error ? error.message : "Unknown worker error";
 				this.logger.error(`Trip weather decision tick failed: ${message}`);
@@ -68,6 +70,26 @@ export class TripWeatherDecisionWorker implements OnApplicationBootstrap, OnAppl
 				this.activeTick = null;
 			});
 		return this.activeTick;
+	}
+
+	private async tick(now: Date, batchSize: number): Promise<void> {
+		if (this.isAutoCancelEnabled()) {
+			const result = await this.decisionService.autoCancelDueTrips(now, batchSize);
+			if (result.cancelled > 0 || result.failed > 0) {
+				this.logger.log(
+					`Weather auto-cancel: ${result.cancelled} cancelled, ${result.failed} failed of ${result.checked}`
+				);
+			}
+		}
+		await this.alerts.sendDueAlerts(now, batchSize);
+	}
+
+	/** On by default; `TRIP_WEATHER_AUTO_CANCEL_ENABLED=false` turns the T-6h auto-cancel off. */
+	private isAutoCancelEnabled(): boolean {
+		return (
+			this.configService.get<string>("TRIP_WEATHER_AUTO_CANCEL_ENABLED")?.trim().toLowerCase() !==
+			"false"
+		);
 	}
 
 	private isEnabled(): boolean {

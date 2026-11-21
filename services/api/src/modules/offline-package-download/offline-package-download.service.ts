@@ -52,7 +52,9 @@ export class OfflinePackageDownloadService {
 		version?: number
 	): Promise<DownloadPackageMetadata> {
 		const tripStatus = await this.authorize(userId, tripId);
-		const row = await this.packages.getReadyMetadata(tripId, version);
+		const applicable = await this.access.applicableVersion(tripId);
+		const selected = version ?? applicable;
+		const row = await this.packages.getReadyMetadata(tripId, selected);
 		if (!row)
 			throw new ConflictException({
 				code: "PACKAGE_NOT_READY",
@@ -64,7 +66,7 @@ export class OfflinePackageDownloadService {
 			!Number.isSafeInteger(row.packageVersion) ||
 			row.packageVersion < 1 ||
 			row.contentType !== "application/zip" ||
-			(version !== undefined && row.packageVersion !== version) ||
+			(selected !== undefined && row.packageVersion !== selected) ||
 			!Number.isSafeInteger(row.sizeBytes) ||
 			row.sizeBytes <= 0 ||
 			row.sizeBytes > MAX_PACKAGE_BYTES ||
@@ -84,7 +86,9 @@ export class OfflinePackageDownloadService {
 			generatedAt: row.generatedAt,
 			contentType: row.contentType,
 			etag: `"${row.sha256}"`,
-			activationAllowed: tripStatus === TripStatus.PUBLISHED,
+			activationAllowed:
+				tripStatus === TripStatus.PUBLISHED &&
+				(applicable === undefined || row.packageVersion === applicable),
 		};
 	}
 	async download(

@@ -16,6 +16,8 @@ const incidentCategories = {
   'weather_hazard': 'Thời tiết nguy hiểm',
   'route_obstruction': 'Đường bị cản trở',
   'wildlife': 'Động vật hoang dã',
+  'slippery_or_landslide': 'Trơn trượt, sạt lở',
+  'damaged_barrier': 'Hư rào chắn',
   'other': 'Khác',
 };
 const incidentSeverities = {

@@ -13,6 +13,13 @@ import { TrekkingRoute, TrekkingRouteStatus } from "../entities/trekking-route.e
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { RouteDangerZonesRepository } from "../repositories/route-danger-zones.repository";
 
+/** Result of a corrective change plus the audit snapshots around it. */
+export interface CorrectiveChange<T> {
+	result: T;
+	before: Record<string, unknown> | null;
+	after: Record<string, unknown>;
+}
+
 @Injectable()
 export class RouteDangerZonesService {
 	constructor(
@@ -65,6 +72,50 @@ export class RouteDangerZonesService {
 
 			return dangerZone;
 		});
+	}
+
+	/**
+	 * CTMS-118: hazard-area correction from a CONFIRMED safety hotspot. Runs in the caller's
+	 * transaction, which has already authorized the Admin and locked the Route; geometry is still
+	 * validated by the same DTO and PostGIS rules as Host creation. The DRAFT gate does not apply
+	 * because only safety data changes, never Route geometry or checkpoint order.
+	 */
+	async createCorrective(
+		manager: EntityManager,
+		routeId: string,
+		dto: CreateRouteDangerZoneDto
+	): Promise<CorrectiveChange<RouteDangerZoneResponseDto>> {
+		const dangerZone = await manager
+			.withRepository(this.routeDangerZonesRepository)
+			.createForRoute(this.toInput(routeId, dto));
+		return { result: dangerZone, before: null, after: this.buildAuditSnapshot(dangerZone) };
+	}
+
+	async updateCorrective(
+		manager: EntityManager,
+		routeId: string,
+		dangerZoneId: string,
+		dto: CreateRouteDangerZoneDto
+	): Promise<CorrectiveChange<RouteDangerZoneResponseDto> | null> {
+		const repository = manager.withRepository(this.routeDangerZonesRepository);
+		const existing = await repository.findOneForUpdate(routeId, dangerZoneId);
+		if (!existing) return null;
+		const updated = await repository.updateForRoute(dangerZoneId, this.toInput(routeId, dto));
+		return {
+			result: updated,
+			before: this.buildAuditSnapshot(existing),
+			after: this.buildAuditSnapshot(updated),
+		};
+	}
+
+	private toInput(routeId: string, dto: CreateRouteDangerZoneDto) {
+		return {
+			routeId,
+			geometry: dto.geometry,
+			radiusMeters: dto.geometry.type === "Point" ? (dto.radiusMeters ?? null) : null,
+			description: dto.description,
+			severity: dto.severity,
+		};
 	}
 
 	private async findOwnedRoute(

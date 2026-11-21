@@ -107,6 +107,7 @@ class LocalGpsLog {
     required String tripId,
     required GpsSample sample,
     required String configVersion,
+    String? packageVersion,
   }) => LocalGpsLog(
     id: id,
     tripId: tripId,
@@ -115,6 +116,7 @@ class LocalGpsLog {
     longitude: sample.longitude,
     accuracyMeters: sample.accuracyMeters,
     altitudeMeters: sample.altitudeMeters,
+    packageVersion: packageVersion,
     configVersion: configVersion,
   );
 

@@ -57,10 +57,19 @@ export interface ConfigureTripWaypointsInput {
 	waypoints: CreateTripWaypointInput[];
 }
 
+/** CTMS-110. Area snapshot stored on the Trip for reporting. */
+export interface TripArea {
+	code: string;
+	name: string;
+	provinceCode: string;
+	provinceName: string;
+}
+
 export interface CreateTripInput {
 	routeId: string;
 	title: string;
 	description?: string;
+	areaCode?: string;
 	coverImageUrl?: string;
 	tripType: TripType;
 	startsAt: string;
@@ -128,6 +137,15 @@ export interface TripWeatherWorstReading {
 	hoursCovered: number;
 }
 
+export interface TripWeatherAiReview {
+	level: RiskLevel;
+	reason: string;
+	confidence: number;
+	reviewedAt: string;
+	matchesRule: boolean;
+	acknowledgedAt: string | null;
+}
+
 /** Weather forecast over a Trip's own schedule (not today's weather). */
 export interface TripWeatherForecast {
 	id: string;
@@ -143,6 +161,8 @@ export interface TripWeatherForecast {
 	compositeScore: number | null;
 	criteriaScores: WeatherCriteriaScores | null;
 	advice: { text: string; actions: string[]; generatedAt: string } | null;
+	/** Independent AI opinion on the same readings (Host/Admin only); `riskLevel` stays official. */
+	aiReview?: TripWeatherAiReview | null;
 	horizonDays: number;
 	createdAt: string;
 	/** Last time the monitor confirmed this forecast (CTMS-93); older payloads may omit it. */
@@ -179,6 +199,7 @@ export interface Trip {
 	createdAt: string;
 	updatedAt: string;
 	waypoints: TripWaypoint[];
+	area?: TripArea | null;
 	/** Only on the Admin pending-review list. */
 	submittedWeatherForecast?: SubmittedWeatherForecastSummary | null;
 }
@@ -284,6 +305,11 @@ export type IntendedPorterRole = "lead" | "support";
 export type PorterAvailabilityStatus = "available" | "unavailable";
 export type PorterRouteProficiency = "learning" | "proficient" | "expert";
 
+export interface AvailablePorterCertificate {
+	type: string;
+	name: string;
+}
+
 export interface AvailablePorter {
 	porterId: string;
 	displayName: string | null;
@@ -293,6 +319,8 @@ export interface AvailablePorter {
 	ratingAvg: number;
 	completedTrips: number;
 	proficiency?: PorterRouteProficiency;
+	certificates?: AvailablePorterCertificate[];
+	certifications?: string[];
 }
 
 export interface AvailablePortersQuery {
@@ -316,6 +344,8 @@ export interface CreatePorterRequestInput {
 }
 
 export interface PorterRequest {
+	porterDisplayName?: string | null;
+	reputation?: import("../review-reputation/reputation").ReviewReputation;
 	id: string;
 	tripId: string;
 	porterId: string;
@@ -351,6 +381,7 @@ export interface TripHost {
 }
 
 export interface TripDetails {
+	hostReputation?: import("../review-reputation/reputation").ReviewReputation;
 	id: string;
 	hostId: string;
 	host?: TripHost | null;
@@ -450,6 +481,7 @@ export interface PorterTripOperations extends PorterAssignedTrip {
 export type TripPorterAssignmentStatus = "assigned" | "pending_reconfirmation" | "unassigned";
 
 export interface HostPorterAssignment {
+	reputation?: import("../review-reputation/reputation").ReviewReputation;
 	porterId: string;
 	displayName: string | null;
 	email: string | null;

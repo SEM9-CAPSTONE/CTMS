@@ -34,6 +34,7 @@ export function CamperProfilePage({
 	const [activeTab, setActiveTab] = useState<SettingsTabEnum>(() => {
 		const params = new URLSearchParams(window.location.search);
 		const tabParam = params.get("tab");
+		if (tabParam === SettingsTabEnum.HEALTH_FITNESS) return SettingsTabEnum.HEALTH_FITNESS;
 		if (
 			tabParam === "bank_accounts" ||
 			tabParam === "bank-accounts" ||
@@ -231,7 +232,7 @@ export function CamperProfilePage({
 									<BankAccountList
 										userFullName={profile?.fullName}
 										title="Tài khoản ngân hàng của bạn"
-										description="Quản lý tài khoản ngân hàng để nhận tiền hoàn khi có chuyến đi bị hủy hoặc phát sinh khiếu nại."
+										description=""
 									/>
 								)}
 
@@ -250,10 +251,6 @@ export function CamperProfilePage({
 											<h3 className="font-extrabold text-base text-[#164027]">
 												Mục cài đặt đang phát triển
 											</h3>
-											<p className="mt-1 text-xs font-medium text-[#627769] max-w-md">
-												Tính năng đang được chuẩn bị để mang lại trải nghiệm quản lý an toàn và tối
-												ưu nhất cho Camper.
-											</p>
 										</div>
 									)}
 							</div>

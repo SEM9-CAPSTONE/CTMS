@@ -51,12 +51,13 @@ describe("AdminAuditLogsPage", () => {
 			expect(screen.getByText("auth.login")).toBeInTheDocument();
 		});
 
-		expect(screen.getByText("actor-1")).toBeInTheDocument();
-		await user.click(screen.getByRole("button", { name: "Xem chi tiết log log-1" }));
+		expect(screen.getByText("Test User")).toBeInTheDocument();
+		expect(screen.queryByText("actor-1")).not.toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: /Xem nhật ký/ }));
 		expect(
 			await screen.findByRole("dialog", { name: /Chi tiết nhật ký hệ thống/ })
 		).toBeInTheDocument();
-		expect(screen.getByText("target-1")).toBeInTheDocument();
+		expect(screen.queryByText("target-1")).not.toBeInTheDocument();
 	});
 
 	it("renders empty state when there are no logs", async () => {

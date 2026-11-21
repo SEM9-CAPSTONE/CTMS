@@ -10,8 +10,9 @@ import {
 } from "typeorm";
 import { User } from "../../users/entities/user.entity";
 import { ContentReportStatus } from "../content-report-status.enum";
+import type { ContentReportType } from "../report-submission.types";
 
-// Normalizes ORM writes from the owning reporting workflow; no creation API in T01.
+// Preserve normalization for existing ORM consumers of the reporting workflow.
 const trimmedString = {
 	to: (value: string): string => (typeof value === "string" ? value.trim() : value),
 	from: (value: string): string => value,
@@ -26,6 +27,15 @@ const trimmedString = {
 export class ContentReport {
 	@PrimaryGeneratedColumn("uuid")
 	id!: string;
+
+	@Column({ name: "report_type", type: "varchar", length: 40, nullable: true })
+	reportType!: ContentReportType | null;
+
+	@Column({ name: "idempotency_key", type: "uuid", nullable: true, select: false })
+	idempotencyKey!: string | null;
+
+	@Column({ name: "request_hash", type: "varchar", length: 64, nullable: true, select: false })
+	requestHash!: string | null;
 
 	@Column({ name: "reporter_id", type: "uuid" })
 	reporterId!: string;

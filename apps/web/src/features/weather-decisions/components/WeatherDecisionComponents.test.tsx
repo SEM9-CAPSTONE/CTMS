@@ -196,6 +196,65 @@ describe("HostWeatherDecisionCard", () => {
 		expect(entries[1]).toHaveTextContent("Trễ hạn");
 		expect(entries[1]).toHaveTextContent("Phương án an toàn: Quay đầu trước 14h");
 	});
+
+	it("warns about the T-6h auto-cancel until someone decides, then shows the system entry", async () => {
+		const startsAt = new Date(Date.now() + 10 * HOUR).toISOString();
+		const autoCancelAt = new Date(Date.parse(startsAt) - 6 * HOUR).toLocaleString("vi-VN");
+		renderWithClient(
+			<HostWeatherDecisionCard
+				tripId={TRIP_ID}
+				service={service({ getLog: vi.fn().mockResolvedValue(log({ startsAt })) })}
+			/>
+		);
+		expect(await screen.findByTestId("weather-auto-cancel-notice")).toHaveTextContent(
+			`hệ thống sẽ tự huỷ Trip lúc ${autoCancelAt}`
+		);
+		expect(screen.getByTestId("weather-auto-cancel-notice")).toHaveTextContent(
+			"hoàn 100% cho Camper"
+		);
+		cleanup();
+
+		renderWithClient(
+			<HostWeatherDecisionCard
+				tripId={TRIP_ID}
+				service={service({
+					getLog: vi.fn().mockResolvedValue(
+						log({
+							tripStatus: "cancelled",
+							withinDecisionWindow: false,
+							decisions: [
+								decision({
+									decidedBy: null,
+									deciderName: null,
+									deciderRole: "system",
+									decision: "cancel",
+									reason: "Hệ thống tự huỷ",
+									safetyPlan: null,
+								}),
+							],
+						})
+					),
+				})}
+			/>
+		);
+		const [entry] = await screen.findAllByTestId("weather-decision-entry");
+		expect(entry).toHaveTextContent("Hệ thống");
+		expect(entry).toHaveTextContent("Huỷ vì thời tiết");
+		expect(screen.queryByTestId("weather-auto-cancel-notice")).not.toBeInTheDocument();
+	});
+
+	it("drops the auto-cancel warning once the Host kept the Trip", async () => {
+		renderWithClient(
+			<HostWeatherDecisionCard
+				tripId={TRIP_ID}
+				service={service({
+					getLog: vi.fn().mockResolvedValue(log({ decisions: [decision()] })),
+				})}
+			/>
+		);
+		await screen.findAllByTestId("weather-decision-entry");
+		expect(screen.queryByTestId("weather-auto-cancel-notice")).not.toBeInTheDocument();
+	});
 });
 
 describe("WeatherRescheduleResponseCard", () => {

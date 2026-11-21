@@ -3,6 +3,7 @@ import { Repository } from "typeorm";
 import {
 	type TripWeatherForecast,
 	TripWeatherForecastStatus,
+	type TripWeatherWorstReading,
 } from "../entities/trip-weather-forecast.entity";
 
 export interface TripForWeatherForecast {
@@ -15,6 +16,34 @@ export interface TripForWeatherForecast {
 	submittedWeatherForecastId: string | null;
 	/** [longitude, latitude] of the Route centroid; null when the Trip has no Route. */
 	centroid: [number, number] | null;
+}
+
+export interface TripWeatherAiMismatchRow {
+	forecastId: string;
+	tripId: string;
+	tripTitle: string;
+	tripStatus: string;
+	tripStartsAt: Date;
+	hostId: string;
+	hostName: string | null;
+	riskLevel: string;
+	aiRiskLevel: string;
+	aiReason: string;
+	aiConfidence: number;
+	aiReviewedAt: Date;
+	worstReading: TripWeatherWorstReading | null;
+	ruleVersion: number | null;
+}
+
+const LEVEL_RANK_SQL = (column: string) =>
+	`CASE ${column} WHEN 'green' THEN 0 WHEN 'yellow' THEN 1 ELSE 2 END`;
+
+/** UPDATE ... RETURNING through `query` yields `[rows, count]`; plain SELECTs yield rows. */
+function affectedRows(result: unknown[]): number {
+	if (result.length === 2 && Array.isArray(result[0]) && typeof result[1] === "number") {
+		return result[1];
+	}
+	return result.length;
 }
 
 @Injectable()
@@ -141,6 +170,120 @@ export class TripWeatherForecastsRepository extends Repository<TripWeatherForeca
 
 	findByIdForTrip(tripId: string, id: string): Promise<TripWeatherForecast | null> {
 		return this.findOneBy({ id, tripId });
+	}
+
+	/**
+	 * Hybrid review queue: the newest forecast of each pending, published or running Trip that still
+	 * has a risk level but no AI opinion, oldest first. Only the newest row matters because older
+	 * rows no longer describe the Trip.
+	 */
+	async findPendingAiReviews(
+		now: Date,
+		limit: number,
+		maxAttempts: number
+	): Promise<TripWeatherForecast[]> {
+		const rows = (await this.query(
+			`SELECT latest."id"
+			 FROM "trips" trip
+			 JOIN LATERAL (
+			   SELECT f."id", f."status", f."ai_reviewed_at", f."ai_review_attempts", f."created_at"
+			   FROM "trip_weather_forecasts" f
+			   WHERE f."trip_id" = trip."id"
+			   ORDER BY f."created_at" DESC, f."id" DESC LIMIT 1
+			 ) latest ON true
+			 WHERE trip."status" IN ('pending_approval', 'published', 'ongoing')
+			   AND trip."ends_at" > $1
+			   AND latest."status" = 'available'
+			   AND latest."ai_reviewed_at" IS NULL
+			   AND latest."ai_review_attempts" < $3
+			 ORDER BY latest."created_at" ASC
+			 LIMIT $2`,
+			[now, limit, maxAttempts]
+		)) as Array<{ id: string }>;
+		if (rows.length === 0) return [];
+		const forecasts = await this.find({ where: rows.map((row) => ({ id: row.id })) });
+		const order = new Map(rows.map((row, index) => [row.id, index]));
+		return forecasts.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+	}
+
+	/** Stores the AI opinion once; a concurrent writer that got there first wins. */
+	async saveAiReview(
+		id: string,
+		review: { level: string; reason: string; confidence: number; model: string },
+		reviewedAt: Date
+	): Promise<boolean> {
+		const result = (await this.query(
+			`UPDATE "trip_weather_forecasts"
+			 SET "ai_risk_level" = $2::"weather_risk_level", "ai_reason" = $3, "ai_confidence" = $4,
+			     "ai_model" = $5, "ai_reviewed_at" = $6, "ai_review_attempts" = "ai_review_attempts" + 1
+			 WHERE "id" = $1 AND "ai_reviewed_at" IS NULL AND "risk_level" IS NOT NULL
+			 RETURNING "id"`,
+			[id, review.level, review.reason, review.confidence, review.model, reviewedAt]
+		)) as unknown[];
+		return affectedRows(result) > 0;
+	}
+
+	/** Counts a failed attempt; `exhausted` stops further attempts on this forecast. */
+	async recordAiReviewFailure(id: string, maxAttempts: number, exhausted: boolean): Promise<void> {
+		await this.query(
+			`UPDATE "trip_weather_forecasts"
+			 SET "ai_review_attempts" = CASE WHEN $3 THEN $2 ELSE LEAST("ai_review_attempts" + 1, $2) END
+			 WHERE "id" = $1 AND "ai_reviewed_at" IS NULL`,
+			[id, maxAttempts, exhausted]
+		);
+	}
+
+	/**
+	 * Upcoming or running Trips whose newest forecast disagrees with the AI opinion and that no Admin
+	 * has marked as seen. Wider disagreement (Green vs Red) first, then the soonest departure.
+	 */
+	findAiMismatches(now: Date, limit: number): Promise<TripWeatherAiMismatchRow[]> {
+		return this.query(
+			`SELECT
+			   latest."id" AS "forecastId",
+			   trip."id" AS "tripId",
+			   trip."title" AS "tripTitle",
+			   trip."status" AS "tripStatus",
+			   trip."starts_at" AS "tripStartsAt",
+			   trip."host_id" AS "hostId",
+			   host."full_name" AS "hostName",
+			   latest."risk_level" AS "riskLevel",
+			   latest."ai_risk_level" AS "aiRiskLevel",
+			   latest."ai_reason" AS "aiReason",
+			   latest."ai_confidence" AS "aiConfidence",
+			   latest."ai_reviewed_at" AS "aiReviewedAt",
+			   latest."worst_reading" AS "worstReading",
+			   rule."version" AS "ruleVersion"
+			 FROM "trips" trip
+			 JOIN LATERAL (
+			   SELECT f.* FROM "trip_weather_forecasts" f
+			   WHERE f."trip_id" = trip."id"
+			   ORDER BY f."created_at" DESC, f."id" DESC LIMIT 1
+			 ) latest ON true
+			 LEFT JOIN "users" host ON host."id" = trip."host_id"
+			 LEFT JOIN "weather_risk_rules" rule ON rule."id" = latest."rule_version_id"
+			 WHERE trip."status" IN ('pending_approval', 'published', 'ongoing')
+			   AND trip."ends_at" > $1
+			   AND latest."ai_risk_level" IS NOT NULL
+			   AND latest."ai_risk_level" <> latest."risk_level"
+			   AND latest."ai_review_acknowledged_at" IS NULL
+			 ORDER BY abs(${LEVEL_RANK_SQL('latest."ai_risk_level"')} - ${LEVEL_RANK_SQL('latest."risk_level"')}) DESC,
+			   trip."starts_at" ASC
+			 LIMIT $2`,
+			[now, limit]
+		) as Promise<TripWeatherAiMismatchRow[]>;
+	}
+
+	/** Marks a disagreement as seen; returns false when there is nothing (left) to mark. */
+	async acknowledgeAiReview(id: string, adminId: string, at: Date): Promise<boolean> {
+		const result = (await this.query(
+			`UPDATE "trip_weather_forecasts"
+			 SET "ai_review_acknowledged_at" = $3, "ai_review_acknowledged_by" = $2
+			 WHERE "id" = $1 AND "ai_reviewed_at" IS NOT NULL AND "ai_review_acknowledged_at" IS NULL
+			 RETURNING "id"`,
+			[id, adminId, at]
+		)) as unknown[];
+		return affectedRows(result) > 0;
 	}
 
 	async saveAdvice(

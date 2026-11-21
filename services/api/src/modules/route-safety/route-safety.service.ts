@@ -9,6 +9,7 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { isCanonicalLineStringCoordinates } from "../trekking-routes/validators/line-string.validator";
 import type { AnalyzeRouteDto } from "./dto/analyze-route.dto";
+import type { VerifiedZonesQueryDto } from "./dto/verified-zones-query.dto";
 import { SAFETY_PROVIDERS } from "./live-safety.types";
 // biome-ignore lint/style/useImportType: Nest injection metadata
 import { NchmfSafetyService } from "./nchmf-safety.service";
@@ -26,7 +27,13 @@ import {
 } from "./route-safety.policy";
 // biome-ignore lint/style/useImportType: Nest injection metadata
 import { RouteSafetyRepository } from "./route-safety.repository";
-import type { RouteSafetyResult, SafetyFeature, SafetySeverity } from "./route-safety.types";
+import type {
+	RouteSafetyResult,
+	SafetyCandidate,
+	SafetyFeature,
+	SafetySeverity,
+	VerifiedZoneCollection,
+} from "./route-safety.types";
 // biome-ignore lint/style/useImportType: Nest injection metadata
 import { VndmsSafetyService } from "./vndms-safety.service";
 
@@ -92,34 +99,9 @@ export class RouteSafetyService {
 						candidate.hazardType
 					))
 		);
-		const features: SafetyFeature[] = candidates.slice(0, SAFETY_FEATURE_LIMIT).map((candidate) => {
-			const { id, geometry, ...properties } = candidate;
-			for (const key of [
-				"observedAt",
-				"issuedAt",
-				"fetchedAt",
-				"validFrom",
-				"validUntil",
-				"updatedAt",
-			] as const) {
-				const value = properties[key];
-				if (value) properties[key] = new Date(value).toISOString();
-			}
-			const fallback =
-				candidate.sourceType === "FIELD_OBSERVATION"
-					? SAFETY_DEFAULT_INCIDENT_AGE_MINUTES
-					: SAFETY_DEFAULT_CURRENT_AGE_MINUTES;
-			const setting =
-				candidate.sourceType === "FIELD_OBSERVATION"
-					? "ROUTE_SAFETY_INCIDENT_AGE_MINUTES"
-					: "ROUTE_SAFETY_CURRENT_AGE_MINUTES";
-			properties.lifecycleStatus = safetyLifecycle(
-				{ ...candidate, ...properties },
-				now,
-				configuredNumber(this.config.get<string>(setting), fallback, 1, 525600)
-			);
-			return { type: "Feature", id, geometry, properties };
-		});
+		const features = candidates
+			.slice(0, SAFETY_FEATURE_LIMIT)
+			.map((candidate) => this.toFeature(candidate, now));
 		const active = features.filter(
 			(feature) =>
 				feature.properties.lifecycleStatus === "ACTIVE" &&
@@ -161,5 +143,49 @@ export class RouteSafetyService {
 			coverage: "PARTIAL",
 			proximityMeters: proximity,
 		};
+	}
+
+	async verifiedZones(bounds: VerifiedZonesQueryDto): Promise<VerifiedZoneCollection> {
+		if (bounds.west >= bounds.east || bounds.south >= bounds.north) {
+			throw new UnprocessableEntityException({ code: "INVALID_MAP_BOUNDS" });
+		}
+		const candidates = await this.repository.verifiedZones(bounds);
+		const now = new Date();
+		return {
+			type: "FeatureCollection",
+			features: candidates
+				.slice(0, SAFETY_FEATURE_LIMIT)
+				.map((candidate) => this.toFeature(candidate, now)),
+			generatedAt: now.toISOString(),
+			truncated: candidates.length > SAFETY_FEATURE_LIMIT,
+		};
+	}
+
+	private toFeature(candidate: SafetyCandidate, now: Date): SafetyFeature {
+		const { id, geometry, ...properties } = candidate;
+		for (const key of [
+			"observedAt",
+			"issuedAt",
+			"fetchedAt",
+			"validFrom",
+			"validUntil",
+			"updatedAt",
+		] as const) {
+			const value = properties[key];
+			if (value) properties[key] = new Date(value).toISOString();
+		}
+		const fieldObservation = candidate.sourceType === "FIELD_OBSERVATION";
+		const fallback = fieldObservation
+			? SAFETY_DEFAULT_INCIDENT_AGE_MINUTES
+			: SAFETY_DEFAULT_CURRENT_AGE_MINUTES;
+		const setting = fieldObservation
+			? "ROUTE_SAFETY_INCIDENT_AGE_MINUTES"
+			: "ROUTE_SAFETY_CURRENT_AGE_MINUTES";
+		properties.lifecycleStatus = safetyLifecycle(
+			{ ...candidate, ...properties },
+			now,
+			configuredNumber(this.config.get<string>(setting), fallback, 1, 525600)
+		);
+		return { type: "Feature", id, geometry, properties };
 	}
 }

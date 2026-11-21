@@ -14,15 +14,21 @@ export const WEATHER_HOST_DEADLINE_MS = 24 * HOUR_MS;
 /** T-12h / T-6h: repeated, more urgent Admin reminders while nobody acted (policy §5.4). */
 export const WEATHER_ADMIN_URGENT_MS = 12 * HOUR_MS;
 export const WEATHER_ADMIN_CRITICAL_MS = 6 * HOUR_MS;
+/**
+ * T-6h: a Trip still Red with no final decision is cancelled by the system (leader decision
+ * 2026-11-12, replaces "the system never cancels" of policy §5.4).
+ */
+export const WEATHER_AUTO_CANCEL_MS = WEATHER_ADMIN_CRITICAL_MS;
 
 export type WeatherDecision = "keep" | "reschedule" | "cancel" | "pause" | "resume";
-export type WeatherDeciderRole = "host" | "admin";
+export type WeatherDeciderRole = "host" | "admin" | "system";
 export type WeatherAlertMilestone =
 	| "host_t48"
 	| "admin_t24"
 	| "admin_t12"
 	| "admin_t6"
-	| "admin_kept";
+	| "admin_kept"
+	| "auto_cancelled";
 export type WeatherAlertUrgency = "normal" | "urgent" | "critical";
 
 export const WEATHER_ALERT_URGENCY: Record<WeatherAlertMilestone, WeatherAlertUrgency> = {
@@ -31,6 +37,7 @@ export const WEATHER_ALERT_URGENCY: Record<WeatherAlertMilestone, WeatherAlertUr
 	admin_kept: "normal",
 	admin_t12: "urgent",
 	admin_t6: "critical",
+	auto_cancelled: "critical",
 };
 
 export interface WeatherDecisionState {
@@ -49,6 +56,38 @@ export function msUntilStart(startsAt: Date, now: Date): number {
 export function isWithinDecisionWindow(startsAt: Date, now: Date): boolean {
 	const remaining = msUntilStart(startsAt, now);
 	return remaining > 0 && remaining <= WEATHER_DECISION_WINDOW_MS;
+}
+
+/** Decisions that settle the Trip for its schedule; a pause alone does not. */
+const FINAL_WEATHER_DECISIONS: ReadonlySet<WeatherDecision> = new Set<WeatherDecision>([
+	"keep",
+	"reschedule",
+	"cancel",
+	"resume",
+]);
+
+export interface WeatherAutoCancelState {
+	startsAt: Date;
+	/** Rule-based level of the newest forecast; the AI opinion never counts. */
+	riskLevel: string | null;
+	/** Every Host/Admin decision recorded for the current schedule. */
+	decisions: WeatherDecision[];
+}
+
+/** When the system will cancel the Trip if nobody decides (shown to the Host and Admins). */
+export function weatherAutoCancelAt(startsAt: Date): Date {
+	return new Date(startsAt.getTime() - WEATHER_AUTO_CANCEL_MS);
+}
+
+/**
+ * True when the system must cancel now: the Trip has not started, it is within 6 hours of
+ * departure, the newest forecast is Red and nobody kept, rescheduled, cancelled or resumed it.
+ */
+export function isAutoCancelDue(state: WeatherAutoCancelState, now: Date): boolean {
+	const remaining = msUntilStart(state.startsAt, now);
+	if (remaining <= 0 || remaining > WEATHER_AUTO_CANCEL_MS) return false;
+	if (state.riskLevel !== "red") return false;
+	return !state.decisions.some((decision) => FINAL_WEATHER_DECISIONS.has(decision));
 }
 
 /** A Host decision taken after T-24h is still accepted, but flagged for the penalty task. */
@@ -111,5 +150,7 @@ export function weatherAlertMessage(milestone: WeatherAlertMilestone, tripTitle:
 			return `Khẩn: Trip "${tripTitle}" vẫn dự báo Đỏ và chưa có quyết định. Cần Admin xử lý.`;
 		case "admin_t6":
 			return `Khẩn cấp: Trip "${tripTitle}" còn dưới 6 giờ, dự báo Đỏ và chưa có quyết định.`;
+		case "auto_cancelled":
+			return `Trip "${tripTitle}" đã bị hệ thống tự huỷ vì dự báo Đỏ và chưa có quyết định trước giờ đi 6 giờ. Camper được hoàn 100%.`;
 	}
 }

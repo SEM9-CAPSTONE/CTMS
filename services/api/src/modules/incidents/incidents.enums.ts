@@ -7,6 +7,8 @@ export enum IncidentCategory {
 	WEATHER_HAZARD = "weather_hazard",
 	ROUTE_OBSTRUCTION = "route_obstruction",
 	WILDLIFE = "wildlife",
+	SLIPPERY_OR_LANDSLIDE = "slippery_or_landslide",
+	DAMAGED_BARRIER = "damaged_barrier",
 	OTHER = "other",
 }
 

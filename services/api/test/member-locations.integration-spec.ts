@@ -176,13 +176,13 @@ describe("CTMS-066 member last synced locations (PostgreSQL + HTTP)", () => {
 		await app?.close();
 	});
 
-	it("enforces Host ownership or Porter assignment on the backend (BR-172/173)", async () => {
+	it("enforces Host ownership, Porter assignment or joined Camper membership on the backend", async () => {
 		const server = app.getHttpServer();
 		await request(server).get(endpoint()).expect(401);
 		await request(server)
 			.get(endpoint())
 			.set("Authorization", bearer(synced, "camper"))
-			.expect(403);
+			.expect(200);
 		await request(server)
 			.get(endpoint())
 			.set("Authorization", bearer(otherHost, "host"))
@@ -200,6 +200,110 @@ describe("CTMS-066 member last synced locations (PostgreSQL + HTTP)", () => {
 			.set("Authorization", bearer(host, "host"))
 			.expect(409);
 		expect((await read(porter, "porter")).viewer).toBe("porter");
+	});
+
+	it("lets a joined Camper view synced peers and the same route flags as the Host", async () => {
+		const result = await read(synced, "camper");
+		expect(result.viewer).toBe("camper");
+		expect(result.route?.geometry.type).toBe("LineString");
+		expect(result.members.map((member) => member.id).sort()).toEqual(
+			[syncedMember, neverSyncedMember, porter].sort()
+		);
+		expect(result.members.find((member) => member.id === syncedMember)?.safety.route?.type).toBe(
+			"OFF_ROUTE"
+		);
+		expect(
+			result.members.find((member) => member.id === neverSyncedMember)?.safety.behindSchedule
+		).toBeNull();
+		expect(JSON.stringify(result)).not.toMatch(/@example\.test|password|phone|health/);
+		await request(app.getHttpServer())
+			.get(endpoint(completed))
+			.set("Authorization", bearer(synced, "camper"))
+			.expect(404);
+	});
+
+	it.each(["registered", "left", "removed", "no_show"])(
+		"rejects a %s Camper even when they own the booking",
+		async (status) => {
+			try {
+				await db.query("UPDATE booking_members SET member_status=$2 WHERE id=$1", [
+					syncedMember,
+					status,
+				]);
+				await request(app.getHttpServer())
+					.get(endpoint())
+					.set("Authorization", bearer(synced, "camper"))
+					.expect(404);
+			} finally {
+				await db.query("UPDATE booking_members SET member_status='joined' WHERE id=$1", [
+					syncedMember,
+				]);
+			}
+		}
+	);
+
+	it.each(["cancelled", "pending_payment", "pending_reconfirmation", "completed"])(
+		"rejects the caller's %s booking",
+		async (status) => {
+			try {
+				await db.query(
+					`UPDATE bookings SET status=$2::booking_status,
+				 payment_status=CASE WHEN $3::boolean THEN 'unpaid'::booking_payment_status ELSE 'not_required'::booking_payment_status END,
+				 hold_expires_at=CASE WHEN $3::boolean THEN now()+interval '15 minutes' ELSE NULL END
+				 WHERE id=$1`,
+					[booking, status, status === "pending_payment"]
+				);
+				await request(app.getHttpServer())
+					.get(endpoint())
+					.set("Authorization", bearer(synced, "camper"))
+					.expect(404);
+			} finally {
+				await db.query("UPDATE bookings SET status='confirmed' WHERE id=$1", [booking]);
+			}
+		}
+	);
+
+	it("revokes access on leaving and omits the departed peer from Camper results", async () => {
+		try {
+			await db.query("UPDATE booking_members SET left_at=now() WHERE id=$1", [syncedMember]);
+			await request(app.getHttpServer())
+				.get(endpoint())
+				.set("Authorization", bearer(synced, "camper"))
+				.expect(404);
+			expect(
+				(await read(neverSynced, "camper")).members.some((member) => member.id === syncedMember)
+			).toBe(false);
+		} finally {
+			await db.query("UPDATE booking_members SET left_at=NULL WHERE id=$1", [syncedMember]);
+		}
+	});
+
+	it("keeps historical left-member visibility for the Host while excluding it for Campers", async () => {
+		try {
+			await db.query("UPDATE booking_members SET member_status='left' WHERE id=$1", [
+				neverSyncedMember,
+			]);
+			expect((await read()).members.some((member) => member.id === neverSyncedMember)).toBe(true);
+			expect(
+				(await read(synced, "camper")).members.some((member) => member.id === neverSyncedMember)
+			).toBe(false);
+		} finally {
+			await db.query("UPDATE booking_members SET member_status='joined' WHERE id=$1", [
+				neverSyncedMember,
+			]);
+		}
+	});
+
+	it("stops Camper location access when the Trip ends", async () => {
+		try {
+			await db.query("UPDATE trips SET status='completed' WHERE id=$1", [ongoing]);
+			await request(app.getHttpServer())
+				.get(endpoint())
+				.set("Authorization", bearer(synced, "camper"))
+				.expect(409);
+		} finally {
+			await db.query("UPDATE trips SET status='ongoing' WHERE id=$1", [ongoing]);
+		}
 	});
 
 	it("lists only eligible members, without contact details (BR-246, AC-5)", async () => {
@@ -244,7 +348,7 @@ describe("CTMS-066 member last synced locations (PostgreSQL + HTTP)", () => {
 
 	it("shows synchronized OFF_ROUTE and the server's behind-schedule evaluation (AC-3)", async () => {
 		const member = (await read()).members.find((m) => m.id === syncedMember);
-		expect(member?.safety.route).toMatchObject({ type: "OFF_ROUTE" });
+		expect(member?.safety.route).toMatchObject({ type: "OFF_ROUTE", distanceToRouteMeters: 60 });
 		expect(member?.safety.gps).toBeNull();
 		expect(member?.safety.behindSchedule).toMatchObject({
 			status: "BEHIND",

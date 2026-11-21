@@ -95,5 +95,5 @@ export function checkpointDescription(checkpoint: RouteCheckpoint): string {
 }
 
 export function dangerZoneDescription(dangerZone: RouteDangerZone): string {
-	return `Khu vực nguy hiểm mức ${severityLabels[dangerZone.severity]}: ${dangerZone.description}`;
+	return `Điểm nguy hiểm mức ${severityLabels[dangerZone.severity]}: ${dangerZone.description}`;
 }

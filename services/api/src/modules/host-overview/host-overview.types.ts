@@ -30,6 +30,8 @@ export interface OverviewSection<T> {
 export interface OverviewBooking {
 	id: string;
 	tripId: string;
+	tripTitle?: string | null;
+	camperName?: string | null;
 	status: BookingStatus | null;
 	paymentStatus: BookingPaymentStatus | null;
 	numPeople: number | null;
@@ -54,7 +56,8 @@ export interface OverviewRoute {
 export interface OverviewPorter {
 	id: string;
 	porterId: string;
-	assignments: { tripId: string; status: TripPorterStatus }[];
+	porterName?: string | null;
+	assignments: { tripId: string; tripTitle?: string | null; status: TripPorterStatus }[];
 }
 export interface OverviewSos {
 	id: string;

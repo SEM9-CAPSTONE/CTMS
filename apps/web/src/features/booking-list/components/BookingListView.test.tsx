@@ -33,7 +33,7 @@ describe("BookingListView", () => {
 		expect(within(card).getByText("Summit Trip")).toBeVisible();
 		expect(within(card).getByText("Chờ thanh toán")).toBeVisible();
 		expect(within(card).getByText("Chưa thanh toán")).toBeVisible();
-		expect(within(card).getByText(booking.id, { exact: false })).toBeVisible();
+		expect(within(card).queryByText(booking.id, { exact: false })).not.toBeInTheDocument();
 		expect(within(card).getByText(/1\.700\.000/)).toBeVisible();
 		expect(within(card).getByText("Lịch đi")).toBeVisible();
 		expect(within(card).getByText("Số người")).toBeVisible();

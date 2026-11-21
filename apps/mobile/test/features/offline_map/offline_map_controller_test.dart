@@ -523,6 +523,10 @@ void main() {
         autoStart: false,
       );
       await controller.start();
+      // An idle tracking controller cannot supply a fix; the map makes one
+      // read-only request without starting recording or another timer.
+      expect(locationSource.sampleCallCount, equals(1));
+      expect(gpsTracking.isTracking, isFalse);
 
       // Giả lập GpsTrackingController nhận được mẫu mới từ luồng tracking chính
       gpsTracking.lastSample = GpsSample(
@@ -539,7 +543,7 @@ void main() {
       expect(controller.state.location.quality, equals(GpsSignalQuality.good));
 
       // Không gọi locationSource thêm
-      expect(locationSource.sampleCallCount, equals(0));
+      expect(locationSource.sampleCallCount, equals(1));
 
       controller.dispose();
       gpsTracking.dispose();

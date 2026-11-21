@@ -5,8 +5,10 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import { TrekkingRoutesModule } from "../trekking-routes/trekking-routes.module";
 import { UploadsModule } from "../uploads/uploads.module";
 import { UsersModule } from "../users/users.module";
+import { AdminPorterCertificatesController } from "./controllers/admin-porter-certificates.controller";
 import { AdminPorterVerificationsController } from "./controllers/admin-porter-verifications.controller";
 import { CamperHealthProfileController } from "./controllers/camper-health-profile.controller";
+import { PorterCertificatesController } from "./controllers/porter-certificates.controller";
 import { PorterProfileController } from "./controllers/porter-profile.controller";
 import { PorterRouteQualificationsController } from "./controllers/porter-route-qualifications.controller";
 import { PorterVerificationController } from "./controllers/porter-verification.controller";
@@ -19,13 +21,19 @@ import { PorterProfile } from "./entities/porter-profile.entity";
 import { PorterRouteQualification } from "./entities/porter-route-qualification.entity";
 import { PorterVerificationDocument } from "./entities/porter-verification-document.entity";
 import { PorterVerification } from "./entities/porter-verification.entity";
+import {
+	GUIDE_CARD_EXTRACTION_PROVIDER,
+	HttpGuideCardExtractionProvider,
+} from "./providers/guide-card-extraction.provider";
 import { EmergencyContactsRepository } from "./repositories/emergency-contacts.repository";
 import { HealthProfileRepository } from "./repositories/health-profile.repository";
+import { PorterCertificatesRepository } from "./repositories/porter-certificates.repository";
 import { PorterProfilesRepository } from "./repositories/porter-profiles.repository";
 import { PorterRouteQualificationsRepository } from "./repositories/porter-route-qualifications.repository";
 import { PorterVerificationDocumentsRepository } from "./repositories/porter-verification-documents.repository";
 import { PorterVerificationsRepository } from "./repositories/porter-verifications.repository";
 import { CamperHealthProfileService } from "./services/camper-health-profile.service";
+import { PorterCertificatesService } from "./services/porter-certificates.service";
 import { PorterProfilesService } from "./services/porter-profiles.service";
 import { PorterRouteQualificationsService } from "./services/porter-route-qualifications.service";
 import { PorterVerificationsService } from "./services/porter-verifications.service";
@@ -38,6 +46,8 @@ import { UserBankAccountsService } from "./services/user-bank-accounts.service";
 		ProfilesController,
 		CamperHealthProfileController,
 		PorterProfileController,
+		PorterCertificatesController,
+		AdminPorterCertificatesController,
 		PorterRouteQualificationsController,
 		RoutePorterQualificationsController,
 		UserBankAccountsController,
@@ -48,9 +58,12 @@ import { UserBankAccountsService } from "./services/user-bank-accounts.service";
 		ProfilesService,
 		CamperHealthProfileService,
 		PorterProfilesService,
+		PorterCertificatesService,
+		PorterCertificatesRepository,
 		PorterRouteQualificationsService,
 		UserBankAccountsService,
 		PorterVerificationsService,
+		{ provide: GUIDE_CARD_EXTRACTION_PROVIDER, useClass: HttpGuideCardExtractionProvider },
 		JwtAuthGuard,
 		RolesGuard,
 		{
@@ -96,6 +109,13 @@ import { UserBankAccountsService } from "./services/user-bank-accounts.service";
 			inject: [DataSource],
 		},
 	],
-	exports: [HealthProfileRepository, PorterRouteQualificationsService, UserBankAccountsService],
+	exports: [
+		HealthProfileRepository,
+		PorterRouteQualificationsService,
+		PorterVerificationsRepository,
+		PorterCertificatesRepository,
+		PorterCertificatesService,
+		UserBankAccountsService,
+	],
 })
 export class ProfilesModule {}

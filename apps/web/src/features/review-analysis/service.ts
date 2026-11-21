@@ -4,6 +4,7 @@ import type {
 	BatchResponse,
 	CreateModerationDecisionDto,
 	CreateResponse,
+	HostReviewModerationDetail,
 	InsightResponse,
 	ModerationDecisionResponse,
 	ModerationQueueResponse,
@@ -15,7 +16,7 @@ import type {
 } from "./types";
 export const analysisService = {
 	trips: (page: number, signal?: AbortSignal) =>
-		httpClient.get<TripList>(API_ENDPOINTS.REVIEW_ANALYSIS.TRIPS, { page, limit: 10 }, { signal }),
+		httpClient.get<TripList>(API_ENDPOINTS.REVIEW_ANALYSIS.TRIPS, { page, limit: 50 }, { signal }),
 	insights: (id: string, page: number, signal?: AbortSignal, sentiment: SentimentFilter = "all") =>
 		httpClient.get<InsightResponse>(
 			API_ENDPOINTS.REVIEW_ANALYSIS.INSIGHTS(id),
@@ -41,6 +42,12 @@ export const analysisService = {
 		httpClient.get<ModerationQueueResponse>(API_ENDPOINTS.HOST_REVIEW_MODERATION.QUEUE, params, {
 			signal,
 		}),
+	moderationDetail: (reviewId: string, signal?: AbortSignal) =>
+		httpClient.get<HostReviewModerationDetail>(
+			API_ENDPOINTS.HOST_REVIEW_MODERATION.DETAIL(reviewId),
+			undefined,
+			{ signal }
+		),
 	recordDecision: (reviewId: string, body: CreateModerationDecisionDto) =>
 		httpClient.post<ModerationDecisionResponse>(
 			API_ENDPOINTS.HOST_REVIEW_MODERATION.DECISION(reviewId),

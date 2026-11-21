@@ -1,8 +1,15 @@
 import { trackMapRenderReadiness } from "../utils/map-render-readiness";
+import { MONITORING_CLUSTER, groupMonitoringMarkers } from "../utils/monitoring-marker-groups";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { Maximize } from "lucide-react";
 import type { Map as MapLibreMap, Marker } from "maplibre-gl";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { VerifiedDangerZonesLayer } from "../../route-safety/components/VerifiedDangerZonesLayer";
+import {
+	mapSafetyBounds,
+	projectFallbackPosition,
+} from "../../route-safety/utils/verified-zone-map";
+import { useDangerZoneMapDetails } from "../hooks/useDangerZoneMapDetails";
 import { useMapViewport } from "../hooks/useMapViewport";
 import type {
 	GeoJsonLineString,
@@ -11,7 +18,6 @@ import type {
 	RouteCheckpoint,
 	RouteDangerZone,
 	RouteDangerZoneGeometry,
-	RouteDangerZoneSeverity,
 	RouteMapMode,
 } from "../types";
 import {
@@ -21,16 +27,34 @@ import {
 	routeBounds,
 } from "../utils/checkpoint-map";
 import {
+	DANGER_ZONE_MAP_RADIUS_METERS,
 	dangerZoneFeatureCollection,
 	dangerZonePolygon,
 	dangerZonePositions,
 	pointHazardPolygon,
 } from "../utils/danger-zone-map";
 import { DEFAULT_ROUTE_CENTER, getRouteMapStyleUrl } from "../utils/route-map";
+import { dangerZoneDescription, severityColors } from "../utils/route-preview";
+import { DangerZoneDetailsModal } from "./DangerZoneDetailsModal";
+
+interface MonitoringMarker {
+	code: string;
+	id: string;
+	point: Position;
+	label: string;
+	stale: boolean;
+	selected: boolean;
+	onSelect: () => void;
+}
+
+const EMPTY_MONITORING_MARKERS: MonitoringMarker[] = [];
 
 interface Props {
 	geometry: GeoJsonLineString;
-	checkpoints: RouteCheckpoint[];
+	checkpoints: Pick<RouteCheckpoint, "id" | "type" | "location">[];
+	monitoringMarkers?: MonitoringMarker[];
+	monitoringFocus?: { point: Position; sequence: number };
+	onMonitoringGroupsChange?: (sizes: number[]) => void;
 	dangerZones?: RouteDangerZone[];
 	mode?: RouteMapMode;
 	selectedLocation?: GeoJsonPoint;
@@ -43,14 +67,8 @@ interface Props {
 	onSelectLocation: (location: GeoJsonPoint) => void;
 }
 
-const severityColors = { low: "#ca8a04", medium: "#ea580c", high: "#dc2626" } as const;
 const EMPTY_DANGER_ZONES: RouteDangerZone[] = [];
 const EMPTY_VERTICES: Position[] = [];
-const severityLabels: Record<RouteDangerZoneSeverity, string> = {
-	low: "thấp",
-	medium: "trung bình",
-	high: "cao",
-};
 
 function fitRoute(map: MapLibreMap, coordinates: Position[]): void {
 	if (coordinates.length < 2) return;
@@ -67,12 +85,15 @@ function fitRoute(map: MapLibreMap, coordinates: Position[]): void {
 export function RouteCheckpointMap({
 	geometry,
 	checkpoints,
-	dangerZones = EMPTY_DANGER_ZONES,
+	monitoringMarkers = EMPTY_MONITORING_MARKERS,
+	monitoringFocus,
+	onMonitoringGroupsChange,
+	dangerZones: providedDangerZones = EMPTY_DANGER_ZONES,
 	mode = "checkpoint",
 	selectedLocation,
 	radiusMeters,
 	proposedHazard,
-	proposedHazardRadiusMeters = 0,
+	proposedHazardRadiusMeters,
 	polygonVertices = EMPTY_VERTICES,
 	disabled,
 	showFitRouteControl = true,
@@ -81,23 +102,58 @@ export function RouteCheckpointMap({
 	const containerRef = useRef<HTMLDivElement | null>(null);
 	const mapRef = useRef<MapLibreMap | null>(null);
 	const markersRef = useRef<Marker[]>([]);
+
 	const selectRef = useRef(onSelectLocation);
 	const disabledRef = useRef(disabled);
 	const [mapError, setMapError] = useState("");
 	const [mapReady, setMapReady] = useState(false);
+	const [selectedDangerZoneId, setSelectedDangerZoneId] = useState<string>();
+	const [verifiedIds, setVerifiedIds] = useState<string[]>([]);
+	const dangerZones = useMemo(
+		() => providedDangerZones.filter((zone) => !verifiedIds.includes(`host:${zone.id}`)),
+		[providedDangerZones, verifiedIds]
+	);
+	const selectedDangerZone = dangerZones.find((zone) => zone.id === selectedDangerZoneId);
+
 	const styleUrl = getRouteMapStyleUrl(import.meta.env.VITE_MAPTILER_API_KEY as string | undefined);
 	const useFallback = !styleUrl || Boolean(mapError);
+	const dangerZoneDetails = useDangerZoneMapDetails(
+		mapRef.current,
+		mapReady && !useFallback,
+		dangerZones,
+		"route-hazards-fill",
+		Boolean(disabled)
+	);
 	const viewport = useMapViewport(useFallback, Boolean(disabled));
 	const safetyPositions = useMemo(
 		() => [
 			...geometry.coordinates,
 			...checkpoints.map((checkpoint) => checkpoint.location.coordinates),
-			...dangerZonePositions(dangerZones),
+			...dangerZonePositions(providedDangerZones),
 			...polygonVertices,
 		],
-		[checkpoints, dangerZones, geometry.coordinates, polygonVertices]
+		[checkpoints, providedDangerZones, geometry.coordinates, polygonVertices]
 	);
 	const bounds = useMemo(() => routeBounds(safetyPositions), [safetyPositions]);
+	const visibleBounds = useMemo(() => {
+		const [x, y, width, height] = viewport.viewBox.split(" ").map(Number);
+		return mapSafetyBounds(
+			routeBounds(
+				[percentToCoordinate([x, y + height], bounds), percentToCoordinate([x + width, y], bounds)],
+				0
+			)
+		);
+	}, [bounds, viewport.viewBox]);
+	const focusAt = viewport.focusAt;
+	useEffect(() => {
+		if (!monitoringFocus) return;
+		if (useFallback) {
+			const [x, y] = coordinateToPercent(monitoringFocus.point, bounds);
+			focusAt(x, y);
+		} else if (mapReady) {
+			mapRef.current?.flyTo({ center: monitoringFocus.point, zoom: 14, duration: 500 });
+		}
+	}, [monitoringFocus, useFallback, mapReady, bounds, focusAt]);
 	const routePoints = useMemo(
 		() =>
 			geometry.coordinates.map((point) => coordinateToPercent(point, bounds).join(",")).join(" "),
@@ -127,7 +183,10 @@ export function RouteCheckpointMap({
 		() =>
 			proposedHazard
 				? proposedHazard.type === "Point"
-					? pointHazardPolygon(proposedHazard, proposedHazardRadiusMeters)
+					? pointHazardPolygon(
+							proposedHazard,
+							proposedHazardRadiusMeters ?? DANGER_ZONE_MAP_RADIUS_METERS
+						)
 					: proposedHazard
 				: undefined,
 		[proposedHazard, proposedHazardRadiusMeters]
@@ -170,6 +229,7 @@ export function RouteCheckpointMap({
 
 	useEffect(() => {
 		if (!styleUrl || !containerRef.current) return;
+
 		setMapReady(false);
 		setMapError("");
 		let disposed = false;
@@ -186,6 +246,12 @@ export function RouteCheckpointMap({
 				trackMapRenderReadiness(map, containerRef.current);
 				map.addControl(new maplibre.NavigationControl({ showCompass: false }), "top-right");
 				map.on("click", (event) => {
+					const target = event.originalEvent?.target;
+					if (
+						target instanceof Element &&
+						target.closest("[data-safety-ui], .maplibregl-popup, .maplibregl-ctrl")
+					)
+						return;
 					if (!disabledRef.current) {
 						selectRef.current({ type: "Point", coordinates: [event.lngLat.lng, event.lngLat.lat] });
 					}
@@ -319,8 +385,6 @@ export function RouteCheckpointMap({
 				label: string;
 				shelter: boolean;
 				vertex: boolean;
-				hazardSeverity?: RouteDangerZoneSeverity;
-				hazardDescription?: string;
 			}> = checkpoints.map((item, index) => ({
 				point: item.location.coordinates,
 				proposed: false,
@@ -328,25 +392,13 @@ export function RouteCheckpointMap({
 				shelter: item.type === "emergency_shelter",
 				vertex: false,
 			}));
-			if (mode === "checkpoint" && selectedLocation) {
+			if (mode !== "hazard-polygon" && selectedLocation) {
 				locations.push({
 					point: selectedLocation.coordinates,
 					proposed: true,
 					label: "",
 					shelter: false,
 					vertex: false,
-				});
-			}
-			for (const zone of dangerZones) {
-				if (zone.geometry.type !== "Point") continue;
-				locations.push({
-					point: zone.geometry.coordinates,
-					proposed: false,
-					label: "!",
-					shelter: false,
-					vertex: false,
-					hazardSeverity: zone.severity,
-					hazardDescription: zone.description,
 				});
 			}
 			for (const [index, point] of polygonVertices.entries()) {
@@ -358,42 +410,33 @@ export function RouteCheckpointMap({
 					vertex: true,
 				});
 			}
-			markersRef.current = locations.map(
-				({ point, proposed, label, shelter, vertex, hazardSeverity, hazardDescription }) => {
-					const element = document.createElement("div");
-					if (hazardSeverity) {
-						element.className =
-							"flex size-8 items-center justify-center rounded-full border-[3px] border-white text-base font-black text-white shadow-[0_0_0_2px_#172554]";
-						element.style.backgroundColor = severityColors[hazardSeverity];
-						element.dataset.hazardPointMarker = "persisted";
-						element.dataset.severity = hazardSeverity;
-					} else if (vertex) {
-						element.className =
-							"flex size-5 items-center justify-center rounded-full border-2 border-white bg-violet-700 text-[10px] font-extrabold text-white shadow";
-					} else if (proposed) {
-						element.className = "size-4 rounded-full border-2 border-white bg-teal-700 shadow";
-					} else if (shelter) {
-						element.className =
-							"flex size-7 items-center justify-center rounded-md border-2 border-white bg-sky-700 text-xs font-extrabold text-white shadow";
-					} else {
-						element.className =
-							"flex size-6 items-center justify-center rounded-full border-2 border-white bg-orange-600 text-xs font-extrabold text-white shadow";
-					}
-					element.textContent = hazardSeverity ? "!" : shelter ? "S" : label;
-					if (shelter) element.setAttribute("aria-label", `Nơi trú ẩn ${label}`);
-					if (vertex) element.setAttribute("aria-label", `Đỉnh khu vực ${label}`);
-					if (hazardSeverity) {
-						const accessibleLabel = `Điểm nguy hiểm mức ${severityLabels[hazardSeverity]}: ${hazardDescription}`;
-						element.setAttribute("aria-label", accessibleLabel);
-						element.setAttribute("title", accessibleLabel);
-					}
-					return new MapMarker({ element }).setLngLat(point).addTo(map);
+			markersRef.current = locations.map(({ point, proposed, label, shelter, vertex }) => {
+				const element = document.createElement("div");
+				if (vertex) {
+					element.className =
+						"flex size-5 items-center justify-center rounded-full border-2 border-white bg-violet-700 text-[10px] font-extrabold text-white shadow";
+				} else if (proposed) {
+					element.className = `size-5 rounded-full border-2 border-white shadow ${mode === "hazard-point" ? "bg-violet-700" : "bg-teal-700"}`;
+					element.setAttribute(
+						"aria-label",
+						mode === "hazard-point" ? "Vị trí nguy hiểm đang chọn" : "Vị trí điểm dừng đang chọn"
+					);
+					element.dataset.selectedLocationMarker = "true";
+				} else if (shelter) {
+					element.className =
+						"flex size-7 items-center justify-center rounded-md border-2 border-white bg-sky-700 text-xs font-extrabold text-white shadow";
+				} else {
+					element.className =
+						"flex size-6 items-center justify-center rounded-full border-2 border-white bg-orange-600 text-xs font-extrabold text-white shadow";
 				}
-			);
+				element.textContent = shelter ? "S" : label;
+				if (shelter) element.setAttribute("aria-label", `Nơi trú ẩn ${label}`);
+				if (vertex) element.setAttribute("aria-label", `Đỉnh khu vực ${label}`);
+				return new MapMarker({ element }).setLngLat(point).addTo(map);
+			});
 		});
 	}, [
 		checkpoints,
-		dangerZones,
 		draftPolygonFeature,
 		mapReady,
 		mode,
@@ -403,6 +446,130 @@ export function RouteCheckpointMap({
 		selectedCircle,
 		selectedLocation,
 	]);
+
+	useEffect(() => {
+		const map = mapRef.current;
+		if (!map || !mapReady) return;
+		if (monitoringMarkers.length === 0) {
+			onMonitoringGroupsChange?.([]);
+			return;
+		}
+		let disposed = false;
+		const markers: Marker[] = [];
+
+		let redraw = () => {};
+		void import("maplibre-gl").then(({ Marker: MapMarker }) => {
+			if (disposed || mapRef.current !== map) return;
+			redraw = () => {
+				for (const marker of markers) marker.remove();
+				markers.length = 0;
+
+				const selected = monitoringMarkers.find((marker) => marker.selected);
+				const groups = groupMonitoringMarkers(
+					monitoringMarkers.filter((marker) => !marker.selected),
+					(marker) => map.project(marker.point)
+				);
+				onMonitoringGroupsChange?.(
+					groups.filter((group) => group.length > 1).map((group) => group.length)
+				);
+				const addMarker = (group: MonitoringMarker[], selected: boolean) => {
+					const marker = group[0];
+					const element = document.createElement("button");
+					element.type = "button";
+					element.style.zIndex = selected ? "30" : "20";
+					element.className =
+						"relative size-8 rounded-full bg-transparent focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900";
+					const point =
+						group.length > 1
+							? ([
+									group.reduce((sum, item) => sum + item.point[0], 0) / group.length,
+									group.reduce((sum, item) => sum + item.point[1], 0) / group.length,
+								] as [number, number])
+							: marker.point;
+					const pin = document.createElement("span");
+					pin.className = `absolute rounded-full border-2 border-white shadow ${selected ? "left-2 top-2 size-4 ring-4 ring-emerald-600/50" : "left-2.5 top-2.5 size-3"} ${marker.stale ? "bg-amber-800" : "bg-emerald-800"}`;
+					element.append(pin);
+					if (group.length > 1 || selected || map.getZoom() >= 12) {
+						const badge = document.createElement("span");
+						badge.className =
+							group.length > 1
+								? "absolute -left-2 -top-2 flex size-7 items-center justify-center rounded-full border-2 border-white bg-slate-800 text-xs font-bold text-white shadow"
+								: `absolute left-6 top-0 whitespace-nowrap rounded-md border-2 px-2 py-1 font-bold shadow ${selected ? "border-white bg-emerald-900 text-sm text-white" : marker.stale ? "border-dashed border-slate-700 bg-slate-100 text-xs text-slate-900" : "border-white bg-emerald-900 text-xs text-white"}`;
+						badge.textContent =
+							group.length > 1
+								? String(group.length)
+								: `${marker.code}${selected ? " · Đang chọn" : ""}`;
+						element.append(badge);
+					}
+					element.title = group.length > 1 ? `Phóng to cụm ${group.length} người` : marker.label;
+					element.setAttribute("aria-label", element.title);
+					element.setAttribute("aria-pressed", String(selected));
+					element.onclick = (event) => {
+						event.stopPropagation();
+						if (group.length === 1) {
+							marker.onSelect();
+							return;
+						}
+						map.flyTo({
+							center: point,
+							zoom: Math.min(map.getZoom() + 2, MONITORING_CLUSTER.maxZoom),
+							duration: 400,
+						});
+					};
+					markers.push(
+						new MapMarker({
+							element,
+							anchor: "center",
+							offset: [0, 0],
+						})
+							.setLngLat(point)
+							.addTo(map)
+					);
+				};
+				if (selected) addMarker([selected], true);
+				for (const group of groups) addMarker(group, false);
+			};
+			redraw();
+			map.on("moveend", redraw);
+		});
+		return () => {
+			disposed = true;
+			map.off("moveend", redraw);
+
+			for (const marker of markers) marker.remove();
+		};
+	}, [mapReady, monitoringMarkers, onMonitoringGroupsChange]);
+
+	const selectedMonitoringMarker = monitoringMarkers.find((marker) => marker.selected);
+	const fallbackGroups = groupMonitoringMarkers(
+		monitoringMarkers.filter((marker) => !marker.selected),
+		(marker) => {
+			const [x, y] = coordinateToPercent(marker.point, bounds);
+			return { x, y };
+		},
+		MONITORING_CLUSTER.fallbackCellSize
+	);
+	if (selectedMonitoringMarker) fallbackGroups.unshift([selectedMonitoringMarker]);
+	const fallbackSizes = fallbackGroups
+		.filter((group) => group.length > 1)
+		.map((group) => group.length)
+		.join(",");
+	useEffect(() => {
+		if (useFallback)
+			onMonitoringGroupsChange?.(fallbackSizes ? fallbackSizes.split(",").map(Number) : []);
+	}, [useFallback, fallbackSizes, onMonitoringGroupsChange]);
+
+	const fallbackBadges = fallbackGroups.map((group) => {
+		const point: Position =
+			group.length > 1
+				? [
+						group.reduce((sum, item) => sum + item.point[0], 0) / group.length,
+						group.reduce((sum, item) => sum + item.point[1], 0) / group.length,
+					]
+				: group[0].point;
+		const [x, y] = coordinateToPercent(point, bounds);
+		return { group, x, y };
+	});
 
 	return (
 		<div
@@ -434,6 +601,11 @@ export function RouteCheckpointMap({
 							<polygon
 								key={zone.id}
 								data-testid={`persisted-hazard-${zone.geometry.type.toLowerCase()}`}
+								onClick={(event) => {
+									if (!disabled) return;
+									event.stopPropagation();
+									setSelectedDangerZoneId(zone.id);
+								}}
 								data-severity={zone.severity}
 								points={dangerZonePolygon(zone)
 									.coordinates[0].map((point) => coordinateToPercent(point, bounds).join(","))
@@ -530,12 +702,27 @@ export function RouteCheckpointMap({
 					{dangerZones.map((zone) => {
 						if (zone.geometry.type !== "Point") return null;
 						const [x, y] = coordinateToPercent(zone.geometry.coordinates, bounds);
-						const accessibleLabel = `Điểm nguy hiểm mức ${severityLabels[zone.severity]}: ${zone.description}`;
+						const accessibleLabel = dangerZoneDescription(zone);
 						return (
 							<g
 								key={`point-marker-${zone.id}`}
 								data-testid={`persisted-hazard-point-marker-${zone.id}`}
 								data-severity={zone.severity}
+								// biome-ignore lint/a11y/useSemanticElements: A focusable SVG group preserves marker coordinates.
+								role="button"
+								tabIndex={0}
+								className="cursor-pointer hover:opacity-80 focus-visible:outline"
+								onPointerDown={(event) => event.stopPropagation()}
+								onClick={(event) => {
+									event.stopPropagation();
+									setSelectedDangerZoneId(zone.id);
+								}}
+								onKeyDown={(event) => {
+									if (event.key !== "Enter" && event.key !== " ") return;
+									event.preventDefault();
+									event.stopPropagation();
+									setSelectedDangerZoneId(zone.id);
+								}}
 								aria-label={accessibleLabel}
 							>
 								<title>{accessibleLabel}</title>
@@ -560,20 +747,62 @@ export function RouteCheckpointMap({
 							</g>
 						);
 					})}
-					{mode === "checkpoint" &&
+					{mode !== "hazard-polygon" &&
 						selectedLocation &&
 						(() => {
 							const [x, y] = coordinateToPercent(selectedLocation.coordinates, bounds);
 							return (
 								<circle
-									data-testid="selected-checkpoint-marker"
+									data-testid={
+										mode === "hazard-point"
+											? "selected-hazard-marker"
+											: "selected-checkpoint-marker"
+									}
+									aria-label={
+										mode === "hazard-point"
+											? "Vị trí nguy hiểm đang chọn"
+											: "Vị trí điểm dừng đang chọn"
+									}
 									cx={x}
 									cy={y}
 									r="1.6"
-									fill="#0f766e"
+									fill={mode === "hazard-point" ? "#6d28d9" : "#0f766e"}
+									stroke="white"
+									strokeWidth="0.5"
 								/>
 							);
 						})()}
+					{fallbackBadges.map(({ group, x, y }) => {
+						const marker = group[0];
+						return (
+							<g key={marker.id}>
+								<circle
+									cx={x}
+									cy={y}
+									r={marker.selected ? 1.2 : 0.8}
+									fill={marker.stale ? "#92400e" : "#065f46"}
+									stroke="white"
+									strokeWidth="0.4"
+								/>
+								<foreignObject x={x + 1} y={y - 3} width={10} height={8}>
+									<button
+										type="button"
+										title={marker.label}
+										aria-label={
+											group.length > 1 ? `Phóng to cụm ${group.length} người` : marker.label
+										}
+										aria-pressed={marker.selected}
+										onPointerDown={(event) => event.stopPropagation()}
+										onClick={() => (group.length > 1 ? viewport.focusAt(x, y) : marker.onSelect())}
+										className={`block size-full ${group.length > 1 ? "rounded-full" : "rounded-md"} border text-[3px] font-bold ${marker.stale ? "border-dashed border-slate-700 bg-slate-100 text-slate-900" : "border-white bg-[#164027] text-white"} ${marker.selected ? "outline outline-1 outline-slate-900" : ""}`}
+									>
+										{group.length > 1 ? String(group.length) : marker.code}
+									</button>
+								</foreignObject>
+							</g>
+						);
+					})}
+
 					{polygonVertices.map((point, index) => {
 						const [x, y] = coordinateToPercent(point, bounds);
 						return (
@@ -590,6 +819,30 @@ export function RouteCheckpointMap({
 						);
 					})}
 				</svg>
+			)}
+			<VerifiedDangerZonesLayer
+				map={mapRef.current}
+				ready={mapReady}
+				fallback={useFallback}
+				bounds={visibleBounds}
+				project={(position) =>
+					projectFallbackPosition(
+						coordinateToPercent(position, bounds),
+						viewport.viewBox,
+						containerRef.current
+					)
+				}
+				areaClicksEnabled={Boolean(disabled)}
+				onZoneIdsChange={setVerifiedIds}
+			/>
+			{dangerZoneDetails.zone && (
+				<DangerZoneDetailsModal {...dangerZoneDetails} zone={dangerZoneDetails.zone} />
+			)}
+			{useFallback && selectedDangerZone && (
+				<DangerZoneDetailsModal
+					zone={selectedDangerZone}
+					onClose={() => setSelectedDangerZoneId(undefined)}
+				/>
 			)}
 			<div
 				className={`absolute right-3 z-10 flex flex-col gap-1 ${useFallback ? "top-3" : "top-24"}`}
@@ -629,8 +882,42 @@ export function RouteCheckpointMap({
 					</button>
 				)}
 			</div>
+			{monitoringMarkers.length > 0 && (
+				<button
+					type="button"
+					className="absolute top-3 left-3 z-40 rounded-lg bg-white px-3 py-2 text-sm font-semibold shadow"
+					onClick={() => {
+						if (useFallback) viewport.reset();
+						else if (mapRef.current) fitRoute(mapRef.current, safetyPositions);
+					}}
+				>
+					Quay lại tuyến
+				</button>
+			)}
+			{selectedMonitoringMarker && (
+				<button
+					type="button"
+					className="absolute bottom-3 left-3 z-40 rounded-lg bg-white px-3 py-2 text-xs font-bold shadow"
+					onClick={() => {
+						if (useFallback) {
+							const [x, y] = coordinateToPercent(selectedMonitoringMarker.point, bounds);
+							viewport.focusAt(x, y);
+						} else {
+							mapRef.current?.flyTo({
+								center: selectedMonitoringMarker.point,
+								zoom: 14,
+								duration: 500,
+							});
+						}
+					}}
+				>
+					Đến vị trí thành viên đã chọn
+				</button>
+			)}
 			{!styleUrl && (
-				<span className="absolute top-3 left-3 rounded-lg bg-white/90 px-3 py-2 text-xs font-bold">
+				<span
+					className={`absolute ${monitoringMarkers.length ? "top-14" : "top-3"} left-3 rounded-lg bg-white/90 px-3 py-2 text-xs font-bold`}
+				>
 					{disabled
 						? "Sơ đồ tuyến trekking · Bản đồ nền chưa khả dụng"
 						: mode === "checkpoint"
@@ -646,7 +933,7 @@ export function RouteCheckpointMap({
 				</span>
 			)}
 			<div
-				className="absolute right-3 bottom-3 flex flex-wrap gap-2 rounded-lg bg-white/90 px-3 py-2 text-[11px] font-bold"
+				className="absolute right-3 bottom-3 z-10 flex flex-wrap gap-2 rounded-lg bg-white/90 px-3 py-2 text-[11px] font-bold"
 				aria-label="Chú giải an toàn"
 			>
 				<span className="text-sky-800">S: Nơi trú ẩn</span>

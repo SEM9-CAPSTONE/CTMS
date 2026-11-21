@@ -1,5 +1,7 @@
 import '../../../core/api/api_client.dart';
 import '../../../core/api/api_endpoints.dart';
+import '../../../core/api/api_exception.dart';
+import '../../offline_map/domain/offline_map_models.dart';
 
 /// CTMS-066 `GET /trips/:tripId/member-locations` (CTMS-329, spec §13).
 enum LocationFreshness { fresh, stale, unavailable }
@@ -40,6 +42,9 @@ class MemberLocation {
     this.lastCheckpointAt,
     this.behindStatus,
     this.lagMinutes,
+    this.routeEventType,
+    this.routeEventAt,
+    this.routeDistanceMeters,
   });
 
   factory MemberLocation.fromJson(Map<String, Object?> json) {
@@ -67,6 +72,10 @@ class MemberLocation {
       lastCheckpointAt: date(checkpoint?['arrivedAt']),
       behindStatus: behind?['status'] as String?,
       lagMinutes: (behind?['lagMinutes'] as num?)?.toInt(),
+      routeEventType: route?['type'] as String?,
+      routeEventAt: date(route?['eventTime']),
+      routeDistanceMeters: (route?['distanceToRouteMeters'] as num?)
+          ?.toDouble(),
     );
   }
 
@@ -85,6 +94,26 @@ class MemberLocation {
   /// Server CTMS-063 status (`BEHIND`, `SEVERELY_BEHIND`, …); null when not evaluated.
   final String? behindStatus;
   final int? lagMinutes;
+  final String? routeEventType;
+  final DateTime? routeEventAt;
+  final double? routeDistanceMeters;
+
+  String get displayName => name?.trim().isNotEmpty == true
+      ? name!
+      : (isPorter ? 'Người dẫn đoàn chưa có tên' : 'Thành viên chưa có tên');
+
+  String get routeLabel {
+    if (!offRoute) {
+      return routeEventType == 'ON_ROUTE_RECOVERED'
+          ? 'Đã trở lại tuyến'
+          : 'Chưa có trạng thái tuyến';
+    }
+    final distance = routeDistanceMeters;
+    if (distance == null || !distance.isFinite || distance < 0) {
+      return 'Lệch tuyến';
+    }
+    return 'Lệch tuyến · ${distance.round()} m';
+  }
 
   bool get isBehind =>
       behindStatus == 'BEHIND' || behindStatus == 'SEVERELY_BEHIND';
@@ -107,6 +136,7 @@ class TripMemberLocations {
     required this.generatedAt,
     required this.freshnessMaxAgeSeconds,
     required this.members,
+    this.route,
   });
 
   factory TripMemberLocations.fromJson(Map<String, Object?> json) =>
@@ -117,11 +147,28 @@ class TripMemberLocations {
           for (final item in (json['members'] as List? ?? const []))
             MemberLocation.fromJson((item as Map).cast<String, Object?>()),
         ],
+        route: _readRoute(json['route']),
       );
 
   final DateTime generatedAt;
   final int freshnessMaxAgeSeconds;
   final List<MemberLocation> members;
+  final OfflineRouteGeometry? route;
+
+  static OfflineRouteGeometry? _readRoute(Object? value) {
+    if (value is! Map || value['id'] is! String || value['geometry'] is! Map) {
+      return null;
+    }
+    try {
+      return OfflineRouteGeometry.fromGeoJson({
+        'type': 'Feature',
+        'properties': <String, Object?>{'routeId': value['id']},
+        'geometry': Map<String, Object?>.from(value['geometry'] as Map),
+      });
+    } on FormatException {
+      return null;
+    }
+  }
 }
 
 abstract interface class MemberLocationsApi {
@@ -129,13 +176,18 @@ abstract interface class MemberLocationsApi {
 }
 
 class HttpMemberLocationsApi implements MemberLocationsApi {
-  HttpMemberLocationsApi(this.client);
+  HttpMemberLocationsApi(this.client, {this.accountId});
   final ApiClient client;
+  final String? accountId;
 
   @override
   Future<TripMemberLocations> fetch(String tripId) async {
+    if (accountId == null) {
+      throw ApiException('Phiên đăng nhập đã hết hạn.', statusCode: 401);
+    }
     final response = await client.get<Map<String, Object?>>(
       ApiEndpoints.trips.memberLocations(tripId),
+      expectedUserId: accountId,
     );
     return TripMemberLocations.fromJson(response.data!);
   }

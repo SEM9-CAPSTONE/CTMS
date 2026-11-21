@@ -7,7 +7,7 @@ import type {
 	RejectRefundPayload,
 } from "../types";
 
-export function useAdminRefunds(filter: AdminRefundFilter = {}) {
+export function useAdminRefunds(filter: AdminRefundFilter = {}, enabled = true) {
 	const { page = 1, limit = 20, status, search } = filter;
 	const [refundsData, setRefundsData] = useState<AdminRefundListResponse | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
@@ -47,11 +47,15 @@ export function useAdminRefunds(filter: AdminRefundFilter = {}) {
 	}, [page, limit, status, search]);
 
 	useEffect(() => {
+		if (!enabled) {
+			setIsLoading(false);
+			return;
+		}
 		void fetchRefunds();
 		return () => {
 			requestSequence.current += 1;
 		};
-	}, [fetchRefunds]);
+	}, [fetchRefunds, enabled]);
 
 	const confirmTransfer = useCallback(
 		async ({

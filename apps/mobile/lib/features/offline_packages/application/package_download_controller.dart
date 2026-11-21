@@ -5,6 +5,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -20,6 +21,8 @@ import '../data/package_integrity_service.dart';
 import '../data/package_storage_capacity.dart';
 import '../data/offline_basemap_store.dart';
 import '../domain/offline_package.dart';
+import '../domain/package_policy.dart';
+import '../data/package_policy_client.dart';
 
 final offlinePackageAccountProvider = Provider<String?>((ref) {
   return ref.watch(
@@ -53,10 +56,24 @@ final packageDownloadControllerProvider = ChangeNotifierProvider.autoDispose
       ref.watch(offlinePackageAccountProvider);
       final downloader = ref.watch(packageDownloaderProvider.future);
       final basemaps = ref.watch(offlineBasemapStoreProvider.future);
+      final api = ref.watch(apiClientProvider);
+      var accountCurrent = true;
+      ref.onDispose(() => accountCurrent = false);
+      Future<PackagePolicyClient>? policy;
+      Future<PackagePolicyClient> policyClient() => policy ??= () async {
+        final store = await ref.read(packageDownloadStoreProvider.future);
+        if (store == null) throw StateError('Vui lòng đăng nhập lại.');
+        return PackagePolicyClient(
+          api,
+          store.root,
+          isCurrent: () => accountCurrent,
+        );
+      }();
       final controller = PackageDownloadController(
         tripId,
         () => downloader,
         basemaps: () => basemaps,
+        policy: policyClient,
       );
       final connectivity = Connectivity().onConnectivityChanged.listen((
         results,
@@ -66,6 +83,18 @@ final packageDownloadControllerProvider = ChangeNotifierProvider.autoDispose
         }
       });
       ref.onDispose(() => unawaited(connectivity.cancel()));
+      final lifecycle = _PackagePolicyLifecycle(
+        () => unawaited(controller.load()),
+      );
+      WidgetsBinding.instance.addObserver(lifecycle);
+      final timer = Timer.periodic(
+        const Duration(seconds: 60),
+        (_) => unawaited(controller.load()),
+      );
+      ref.onDispose(() {
+        timer.cancel();
+        WidgetsBinding.instance.removeObserver(lifecycle);
+      });
       unawaited(controller.load());
       return controller;
     });
@@ -75,7 +104,78 @@ class PackageDownloadController extends ChangeNotifier {
     this.tripId,
     this._downloader, {
     Future<OfflineBasemapStore> Function()? basemaps,
-  }) : _basemaps = basemaps;
+    Future<PackagePolicyClient> Function()? policy,
+  }) : _basemaps = basemaps,
+       _policy = policy;
+  final Future<PackagePolicyClient> Function()? _policy;
+  PackagePolicy? policy;
+  bool policyOffline = false;
+  bool awaitingActivation = false;
+  String? policyError;
+  bool confirmingDeparture = false;
+  String? departureMessage;
+  bool get replacementLocked => policy != null && !policy!.replaceAllowed;
+  bool get activeMatchesTripLock =>
+      active != null &&
+      policy?.lockedId != null &&
+      active!.id == policy!.lockedId;
+
+  Future<void> _refreshPolicy(OfflinePackage selected) async {
+    if (_policy == null || _disposed) return;
+    final client = await _policy();
+    try {
+      final current = await client.context(selected);
+      if (_disposed) return;
+      policy = current;
+      policyOffline = false;
+      policyError = null;
+    } catch (failure) {
+      if (_disposed) return;
+      policyOffline = isPackageDownloadNetworkFailure(failure);
+      policy = policyOffline ? await client.cached(selected) : null;
+      policyError = policyOffline
+          ? 'Chưa xác thực lại với máy chủ.'
+          : 'Không thể kiểm tra chính sách gói. Vui lòng kiểm tra quyền truy cập.';
+      if (!policyOffline) {
+        rethrow;
+      }
+    }
+  }
+
+  Future<void> confirmDeparture() async {
+    final selected = active;
+    if (_disposed ||
+        confirmingDeparture ||
+        selected == null ||
+        policy?.hasRequirement != true ||
+        replacementLocked ||
+        policyOffline) {
+      return;
+    }
+    confirmingDeparture = true;
+    departureMessage = null;
+    _emit();
+    try {
+      final client = await _policy!();
+      final downloader = await _downloader();
+      final valid = await PackageIntegrityService(
+        downloader.store,
+      ).activePackage(tripId, CancelToken());
+      if (valid?.sameArtifact(selected) != true || _disposed) return;
+      await client.acceptActivation(selected);
+      await client.confirm(selected);
+      await client.activationCommitted(selected);
+      if (!_disposed) departureMessage = 'Đã xác nhận thiết bị sẵn sàng.';
+    } catch (_) {
+      if (!_disposed) {
+        departureMessage = 'Chưa xác nhận được thiết bị. Vui lòng thử lại.';
+      }
+    } finally {
+      confirmingDeparture = false;
+      _emit();
+    }
+  }
+
   final Future<OfflineBasemapStore> Function()? _basemaps;
   bool basemapReady = false;
   bool downloadingBasemap = false;
@@ -83,9 +183,7 @@ class PackageDownloadController extends ChangeNotifier {
   String? basemapError;
   String? basemapPackageId;
   bool get readyForOffline =>
-      active != null &&
-      basemapReady &&
-      basemapPackageId == active!.id;
+      active != null && basemapReady && basemapPackageId == active!.id;
   final String tripId;
   final Future<PackageDownloader> Function() _downloader;
   bool loading = true;
@@ -127,12 +225,30 @@ class PackageDownloadController extends ChangeNotifier {
         active = pinned != null && candidate?.sameArtifact(pinned) != true
             ? await integrity.activePackage(tripId, cancel)
             : null;
+        if (_policy != null && (pinned ?? candidate) != null) {
+          policy = await (await _policy()).cached((pinned ?? candidate)!);
+          policyOffline = true;
+        }
         await _restoreCandidate(downloader, candidate, cancel);
         _emit();
       }
       if (cancel.isCancelled) return;
       try {
-        final remote = await downloader.api.metadata(tripId);
+        var remote = await downloader.api.metadata(tripId);
+        await _refreshPolicy(active ?? remote);
+        final requiredVersion = policy?.requiredVersion;
+        if (policy?.updateRequired == true &&
+            requiredVersion != null &&
+            !replacementLocked) {
+          remote = await downloader.api.metadata(
+            tripId,
+            version: requiredVersion,
+          );
+          if (remote.id != policy!.requiredId) {
+            throw const FormatException('Gói bắt buộc không khớp.');
+          }
+        }
+        if (replacementLocked && active != null) remote = active!;
         if (cancel.isCancelled) return;
         if (_accessDenied) {
           await store.setAccessDenied(tripId, false);
@@ -203,6 +319,7 @@ class PackageDownloadController extends ChangeNotifier {
         _cancel != null ||
         loading ||
         _accessDenied ||
+        replacementLocked ||
         target == null) {
       return;
     }
@@ -334,19 +451,60 @@ class PackageDownloadController extends ChangeNotifier {
         candidate,
         cancel,
         tripTitle: _tripTitle,
+        acceptActivation: _policy == null
+            ? null
+            : (selected) async {
+                awaitingActivation = true;
+                _emit();
+                await (await _policy()).acceptActivation(selected);
+                if (_disposed) cancel.cancel('account changed');
+              },
+        allowActivation: _policy == null || online,
         authorizeReplacement: online && candidate.activationAllowed == true
             ? () => _authorizeReplacement(downloader, candidate, cancel)
             : null,
       );
       if (cancel.isCancelled || _accessDenied) return;
       verification = result;
-      if (activated) active = candidate;
+      if (_policy != null &&
+          result == PackageVerificationStatus.verified &&
+          !activated) {
+        awaitingActivation = true;
+      }
+      if (activated) {
+        active = candidate;
+        awaitingActivation = false;
+        if (_policy != null) {
+          final client = await _policy();
+          await client.activationCommitted(candidate);
+          // acceptActivation cached evidence for this exact candidate before
+          // reporting. Do not keep the old active package's publication flags.
+          final acceptedPolicy = await client.cached(candidate);
+          if (!_disposed && acceptedPolicy != null) {
+            policy = acceptedPolicy;
+            policyOffline = false;
+            policyError = null;
+          }
+        }
+      }
       if (result == PackageVerificationStatus.failed &&
           active?.sameArtifact(candidate) == true) {
         active = null;
       }
-    } catch (_) {
-      if (!cancel.isCancelled) verification = PackageVerificationStatus.failed;
+    } catch (failure) {
+      if (!cancel.isCancelled) {
+        verification = await downloader.store.verification(candidate);
+        final network = isPackageDownloadNetworkFailure(failure);
+        awaitingActivation =
+            network && verification == PackageVerificationStatus.verified;
+        _reloadWhenOnline = network;
+        if (network && _policy != null) {
+          policyOffline = true;
+          policy = await (await _policy()).cached(candidate);
+          policyError = 'Chưa xác thực lại với máy chủ.';
+          return;
+        }
+      }
       rethrow;
     }
   }
@@ -377,7 +535,20 @@ class PackageDownloadController extends ChangeNotifier {
     Object failure,
   ) async {
     error = downloadErrorMessage(failure);
+    if (isPackageDownloadNetworkFailure(failure) && _policy != null) {
+      final selected = package ?? active;
+      policyOffline = true;
+      policyError = 'Chưa xác thực lại với máy chủ.';
+      policy = selected == null
+          ? null
+          : await (await _policy()).cached(selected);
+    }
     if (_deniesAccess(failure)) {
+      policy = null;
+      policyOffline = false;
+      policyError = null;
+      awaitingActivation = false;
+      departureMessage = null;
       basemapReady = false;
       basemapPackageId = null;
       if (_basemaps != null) {
@@ -444,6 +615,15 @@ class PackageDownloadController extends ChangeNotifier {
   }
 }
 
+class _PackagePolicyLifecycle extends WidgetsBindingObserver {
+  _PackagePolicyLifecycle(this.reload);
+  final VoidCallback reload;
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) reload();
+  }
+}
+
 int? _downloadStatus(Object error) => switch (error) {
   ApiException() => error.statusCode,
   DioException() => error.response?.statusCode,
@@ -466,7 +646,7 @@ String downloadErrorMessage(Object error) {
   if (error is FormatException) return error.message;
   return switch (_downloadStatus(error)) {
     401 => 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
-    403 || 404 => 'Bạn không còn quyền tải gói dữ liệu của chuyến đi này.',
+    403 || 404 => 'Bạn không còn quyền với chuyến này',
     409 => 'Gói dữ liệu chưa sẵn sàng. Hãy thử lại sau.',
     503 => 'Chưa thể tải gói dữ liệu. Hãy thử lại sau.',
     _ => 'Tải bị gián đoạn. Kiểm tra kết nối rồi tiếp tục tải.',

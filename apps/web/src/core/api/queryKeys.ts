@@ -1,9 +1,58 @@
 export const queryKeys = {
+	reputation: {
+		authorized: (scope: readonly unknown[], actor: string) => [...scope, "viewer", actor] as const,
+	},
+	inAppNotifications: {
+		actor: (actor: string) => ["in-app-notifications", actor] as const,
+		list: (actor: string, unread: boolean) =>
+			["in-app-notifications", actor, "list", unread] as const,
+		count: (actor: string) => ["in-app-notifications", actor, "count"] as const,
+		reviewTarget: (actor: string, tripId: string) =>
+			["notification-review-target", actor, tripId] as const,
+	},
+	myContentReports: {
+		all: (actor: string) => ["my-content-reports", actor] as const,
+		list: (actor: string, page: number) => ["my-content-reports", actor, "list", page] as const,
+		detail: (actor: string, id: string) => ["my-content-reports", actor, "detail", id] as const,
+	},
+	tripRecommendations: {
+		all: ["trip-recommendations"] as const,
+		list: (user: string) => ["trip-recommendations", user, "list"] as const,
+		preferences: (user: string) => ["trip-recommendations", user, "preferences"] as const,
+		explanations: (user: string) => ["trip-recommendations", user, "explanation"] as const,
+		explanation: (user: string, trip: string) =>
+			["trip-recommendations", user, "explanation", trip] as const,
+	},
+	packageDeparture: {
+		status: (actor: string, trip: string) => ["package-departure", actor, trip, "status"] as const,
+		inbox: (actor: string) => ["package-departure", actor, "inbox"] as const,
+	},
+	adminModeration: {
+		all: ["admin-moderation"] as const,
+		counts: (adminId: string) => ["admin-moderation", adminId, "counts"] as const,
+	},
+	aiInvestigations: {
+		lists: (actor: string) => ["ai-investigations", actor, "list"] as const,
+		list: (actor: string, filters: Record<string, string | number | undefined>) =>
+			["ai-investigations", actor, "list", filters] as const,
+		detail: (actor: string, id: string) => ["ai-investigations", actor, "detail", id] as const,
+	},
 	demandInsights: {
 		periods: (actor: string) => ["demand-insights", actor, "periods"] as const,
 		report: (actor: string, month: string) => ["demand-insights", actor, month] as const,
 		planning: (actor: string, month: string) =>
 			["demand-insights", actor, month, "planning"] as const,
+	},
+	hostAnalytics: {
+		all: ["host-analytics"] as const,
+		summary: (actor: string, from: string, to: string, areaCode: string) =>
+			["host-analytics", actor, "summary", from, to, areaCode] as const,
+		latestSuggestion: (actor: string) =>
+			["host-analytics", actor, "suggestions", "latest"] as const,
+		suggestionHistory: (actor: string) =>
+			["host-analytics", actor, "suggestions", "history"] as const,
+		suggestionJob: (actor: string, jobId: string) =>
+			["host-analytics", actor, "suggestions", "job", jobId] as const,
 	},
 	reviewAnalysis: {
 		all: ["review-analysis"] as const,
@@ -19,6 +68,8 @@ export const queryKeys = {
 		all: ["review-moderation"] as const,
 		queue: (actor: string, status: string, tripId?: string, page = 1) =>
 			["review-moderation", actor, "queue", status, tripId ?? "all", page] as const,
+		detail: (actor: string, reviewId: string) =>
+			["review-moderation", actor, "detail", reviewId] as const,
 		pendingBadge: (actor: string) => ["review-moderation", actor, "pending-badge"] as const,
 	},
 	reviewAnalytics: {
@@ -35,8 +86,12 @@ export const queryKeys = {
 		list: (filters: unknown) => ["survival-documents", "list", filters] as const,
 		detail: (id: string | null) => ["survival-documents", "detail", id] as const,
 		file: (id: string, versionId: string) => ["survival-documents", "file", id, versionId] as const,
+		chunkSets: (id: string, versionId: string) =>
+			["survival-documents", "chunk-sets", id, versionId] as const,
 	},
 	routeSafety: {
+		verifiedZones: (userId: string, west: number, south: number, east: number, north: number) =>
+			["verified-danger-zones", userId, west, south, east, north] as const,
 		terrain: (hostId: string, geometry: string, version: string) =>
 			["route-terrain", version, hostId, geometry] as const,
 		analyze: (hostId: string, routeId: string | undefined, geometry: string, source?: string) =>
@@ -59,13 +114,19 @@ export const queryKeys = {
 		notifications: (userId: string) => ["porter-levels", "notifications", userId] as const,
 		all: ["porter-levels"] as const,
 		policies: ["porter-levels", "policies"] as const,
-		qualifications: (page: number) => ["porter-levels", "qualifications", page] as const,
+		qualifications: (page: number, search = "") =>
+			["porter-levels", "qualifications", page, search] as const,
 		comparison: (id: string | null, level: string) =>
 			["porter-levels", "comparison", id, level] as const,
 		history: (id: string | null) => ["porter-levels", "history", id] as const,
 		myPolicies: ["porter-levels", "mine", "policies"] as const,
+		myOverview: (userId: string) => ["porter-levels", "mine", userId, "overview"] as const,
 		myEvidence: (userId: string) => ["porter-levels", "mine", userId, "evidence"] as const,
 		myHistory: (userId: string) => ["porter-levels", "mine", userId, "history"] as const,
+		globalPorters: (page: number, search = "") =>
+			["porter-levels", "global-porters", page, search] as const,
+		globalPorterOverview: (porterId: string | null) =>
+			["porter-levels", "global-porter-overview", porterId] as const,
 	},
 	auth: {
 		me: ["auth", "me"] as const,
@@ -81,6 +142,11 @@ export const queryKeys = {
 	trekking: {
 		hostList: (hostId: string, filters: Record<string, string | number>) =>
 			["trekking-routes", "host-list", hostId, filters] as const,
+		activeTripMaps: (hostId: string) => ["host-monitoring", hostId, "active-trips"] as const,
+		tripMonitoring: (hostId: string, tripId: string) =>
+			["host-monitoring", hostId, "active-trips", tripId] as const,
+		mapParticipant: (hostId: string, tripId?: string, role?: string, id?: string) =>
+			["host-monitoring", hostId, "participant", tripId, role, id] as const,
 		hostTripMap: (hostId: string, routeId: string) =>
 			["trekking-routes", "host-trip-map", hostId, routeId] as const,
 		all: ["trekking-routes"] as const,
@@ -137,6 +203,7 @@ export const queryKeys = {
 		changeNotices: (userId: string) => ["weather", "change-notices", userId] as const,
 		decisionAlerts: (userId: string) => ["weather", "decision-alerts", userId] as const,
 		interventions: ["weather", "interventions"] as const,
+		aiMismatches: ["weather", "ai-mismatches"] as const,
 		decisionLog: (tripId: string) => ["weather", "decision-log", tripId] as const,
 		myPenalties: (userId: string) => ["weather", "penalties", "mine", userId] as const,
 		adminPenalties: (filter: string) => ["weather", "penalties", "admin", filter] as const,
@@ -154,11 +221,21 @@ export const queryKeys = {
 	profile: {
 		me: ["profile", "me"] as const,
 	},
+	healthProfile: {
+		me: (userId: string) => ["health-profile", userId] as const,
+	},
 	porter: {
 		profile: ["porter", "profile"] as const,
 		routeQualifications: ["porter", "route-qualifications"] as const,
 		routePorterQualifications: (routeId: string) =>
 			["trekking-routes", routeId, "porter-qualifications"] as const,
+	},
+	porterCertificates: {
+		all: ["porter-certificates"] as const,
+		my: ["porter-certificates", "mine"] as const,
+		detail: (id: string) => ["porter-certificates", "detail", id] as const,
+		adminList: (query?: Record<string, unknown>) =>
+			["admin-porter-certificates", "list", query] as const,
 	},
 	adminRefunds: {
 		all: ["admin-refunds"] as const,
@@ -166,17 +243,34 @@ export const queryKeys = {
 	},
 	settlements: {
 		all: ["settlements"] as const,
+		reconciliationBookings: (search: string) =>
+			["settlements", "reconciliationBookings", search] as const,
 		evaluation: (tripId: string) => ["settlements", "evaluation", tripId] as const,
 		adminList: (filters?: Record<string, unknown>) =>
 			["settlements", "adminList", filters] as const,
 		hostWallet: ["settlements", "hostWallet"] as const,
 		adminPayouts: (filters?: Record<string, unknown>) =>
 			["settlements", "adminPayouts", filters] as const,
+		adminAdjustments: (filters?: Record<string, unknown>) =>
+			["settlements", "adminAdjustments", filters] as const,
 	},
 	bankAccounts: {
 		all: ["bank-accounts"] as const,
 	},
 	deviceSync: {
 		status: (tripId: string) => ["device-sync", "status", tripId] as const,
+	},
+	performanceReports: {
+		all: ["performance-reports"] as const,
+		report: (filters?: Record<string, unknown>) =>
+			["performance-reports", "report", filters] as const,
+	},
+	revenueAnalytics: {
+		all: ["revenue-analytics"] as const,
+		report: (filters?: Record<string, unknown>) =>
+			["revenue-analytics", "report", filters] as const,
+	},
+	geoAreas: {
+		all: ["geo-areas"] as const,
 	},
 };

@@ -8,6 +8,10 @@ export function useMapViewport(enabled: boolean, canDrag: boolean) {
 	const [view, setView] = useState(INITIAL_VIEW);
 	const drag = useRef<{ x: number; y: number; view: typeof INITIAL_VIEW; scale: number }>();
 	const reset = () => setView(INITIAL_VIEW);
+	const focusAt = useCallback(
+		(x: number, y: number) => setView({ x: x - 25, y: y - 25, size: 50 }),
+		[]
+	);
 	const zoom = useCallback((factor: number) => {
 		setView((current) => {
 			const size = Math.max(5, Math.min(400, current.size * factor));
@@ -69,6 +73,7 @@ export function useMapViewport(enabled: boolean, canDrag: boolean) {
 		zoomIn: () => zoom(0.8),
 		zoomOut: () => zoom(1.25),
 		reset,
+		focusAt,
 		toMapPoint,
 		onPointerDown,
 		onPointerMove,

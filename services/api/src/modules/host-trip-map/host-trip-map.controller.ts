@@ -19,7 +19,7 @@ import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { GpsParticipantRole } from "../gps-tracking/gps-tracking.enums";
 import { UserRole } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: DTO validation metadata
-import { HostTripMapQueryDto } from "./host-trip-map.dto";
+import { HostTripAlertsQueryDto, HostTripMapQueryDto } from "./host-trip-map.dto";
 import { HOST_TRIP_MAP_SCHEMA, MAP_PARTICIPANT_DETAIL_SCHEMA } from "./host-trip-map.schema";
 // biome-ignore lint/style/useImportType: Nest injection metadata
 import { HostTripMapService } from "./host-trip-map.service";
@@ -47,6 +47,23 @@ export class HostTripMapController {
 	@ApiOperation({ summary: "CTMS-369: authorized active Trip map with server-confirmed locations" })
 	getMap(@CurrentMapHost() actor: AuthenticatedUser, @Query() query: HostTripMapQueryDto) {
 		return this.map.getMap(actor, query);
+	}
+
+	@Get(":tripId/alerts")
+	@Header("Cache-Control", "private, no-store")
+	@ApiOperation({ summary: "CTMS-373: read safety alerts for one active Trip" })
+	@ApiOkResponse({ description: "Current off-route and behind-schedule alerts" })
+	@ApiResponse({ status: 404, description: "Trip absent or outside Host scope" })
+	@ApiResponse({
+		status: 409,
+		description: "Trip is not ongoing or monitoring data is unavailable",
+	})
+	getAlerts(
+		@CurrentMapHost() actor: AuthenticatedUser,
+		@Param("tripId", uuid) tripId: string,
+		@Query() query: HostTripAlertsQueryDto
+	) {
+		return this.map.getAlerts(actor, tripId, query);
 	}
 
 	@Get(":tripId/participants/:role/:participantId")

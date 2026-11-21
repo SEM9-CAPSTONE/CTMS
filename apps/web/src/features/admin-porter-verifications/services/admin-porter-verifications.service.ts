@@ -20,8 +20,10 @@ export const adminPorterVerificationsService = {
 		),
 
 	approve: (porterId: string): Promise<AdminPorterVerificationDetail> =>
+		// The Admin only reaches this after ticking the official registry check in the dialog.
 		httpClient.patch<AdminPorterVerificationDetail>(
-			API_ENDPOINTS.ADMIN_PORTER_VERIFICATIONS.APPROVE(porterId)
+			API_ENDPOINTS.ADMIN_PORTER_VERIFICATIONS.APPROVE(porterId),
+			{ officialRegistryChecked: true }
 		),
 
 	reject: (porterId: string, reason: string): Promise<AdminPorterVerificationDetail> =>

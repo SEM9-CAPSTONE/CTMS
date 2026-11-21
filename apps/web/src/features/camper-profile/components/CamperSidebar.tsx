@@ -53,7 +53,6 @@ export function CamperSidebar({
 									Camper
 								</span>
 							</div>
-							<p className="text-[11px] font-semibold text-[#667a6d]">Hệ thống thám hiểm</p>
 						</div>
 					</HomeLink>
 					<WeatherChangeNotices />

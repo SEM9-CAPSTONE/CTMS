@@ -1,4 +1,4 @@
-import { Calendar, ChevronRight, Compass, MapPin, Search, Users } from "lucide-react";
+import { Calendar, Compass, MapPin, Search, Users } from "lucide-react";
 import type React from "react";
 
 export const SearchPanelSection: React.FC = () => {
@@ -7,23 +7,15 @@ export const SearchPanelSection: React.FC = () => {
 			<div className="mb-6 flex flex-wrap items-end justify-between gap-4">
 				<div>
 					<p className="mb-2 text-xs font-extrabold uppercase tracking-wider text-[#276143]">
-						Điểm đến nổi bật
+						Tìm kiếm hành trình
 					</p>
 					<h2 className="text-2xl font-extrabold tracking-tight text-[#10221b]">
-						Những cung đường trekking được yêu thích nhất tháng này
+						Tìm kiếm và lên lịch trình khám phá Đà Nẵng
 					</h2>
 				</div>
-				<a
-					href="/trekking"
-					onClick={(e) => {
-						e.preventDefault();
-						window.history.pushState({}, "", "/trekking");
-						window.dispatchEvent(new PopStateEvent("popstate"));
-					}}
-					className="inline-flex items-center gap-1 text-sm font-bold text-[#276143] hover:underline"
-				>
-					Xem tất cả <ChevronRight size={16} className="inline ml-1" />
-				</a>
+				<span className="text-xs font-semibold text-[#54655a]">
+					Hỗ trợ tìm kiếm theo thời tiết thực & GPS offline
+				</span>
 			</div>
 
 			<div className="grid grid-cols-1 items-end gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(4,1fr)_auto]">

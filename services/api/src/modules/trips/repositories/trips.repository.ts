@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { Repository } from "typeorm";
+import { type EntityManager, Repository } from "typeorm";
 import {
 	type TrekkingRouteDifficulty,
 	TrekkingRouteStatus,
@@ -18,6 +18,7 @@ import type {
 import type {
 	AdminTripReviewResponseDto,
 	SubmittedWeatherForecastSummaryDto,
+	TripAreaDto,
 	TripRegistrationRiskResponseDto,
 	TripResponseDto,
 	TripSummaryResponseDto,
@@ -71,6 +72,11 @@ export interface CreateTripInput {
 	capacityMax: number | null;
 	pricePerPerson: number;
 	cancellationPolicy: Record<string, unknown> | null;
+	/**
+	 * CTMS-110 / BR-319. Area code chosen by the Host; names are copied from `geo_areas` into the
+	 * Trip snapshot. `undefined` on update keeps the stored snapshot.
+	 */
+	areaCode?: string;
 	waypoints: CreateTripWaypointInput[];
 }
 
@@ -256,6 +262,7 @@ interface TripRow extends TripSummaryRow {
 	cancellationPolicy: Record<string, unknown> | null;
 	cancellationReason: string | null;
 	cancelledAt: Date | null;
+	area: TripAreaDto | null;
 	waypoints: TripWaypointRow[];
 }
 
@@ -272,6 +279,37 @@ interface TripWaypointRow {
 	durationMinutes: number | string | null;
 	metadata: Record<string, unknown> | null;
 }
+
+const TRIP_SUMMARY_SELECT = `
+			SELECT
+				trip."id",
+				trip."title",
+				trip."description",
+				trip."cover_image_url" AS "coverImageUrl",
+				trip."trip_type" AS "tripType",
+				trip."duration_nights" AS "durationNights",
+				trip."starts_at" AS "startsAt",
+				trip."ends_at" AS "endsAt",
+				ST_AsGeoJSON(trip."meeting_point"::geometry)::json AS "meetingPoint",
+				trip."meeting_at" AS "meetingAt",
+				trip."booking_deadline" AS "bookingDeadline",
+				trip."capacity_min" AS "capacityMin",
+				trip."capacity_max" AS "capacityMax",
+				trip."seats_taken" AS "seatsTaken",
+				trip."price_per_person" AS "pricePerPerson",
+				trip."status",
+				trip."created_at" AS "createdAt",
+				trip."updated_at" AS "updatedAt",
+				route."difficulty" AS "difficulty",
+				route."status" AS "routeStatus",
+				(
+					SELECT wra."risk_level"
+					FROM "weather_risk_assessments" wra
+					WHERE wra."route_id" = trip."route_id"
+					ORDER BY wra."created_at" DESC
+					LIMIT 1
+				) AS "weatherRiskLevel"
+`;
 
 function computeIsBookable(
 	status: TripStatus,
@@ -381,6 +419,7 @@ function toTripResponse(row: TripRow): TripResponseDto {
 		status: row.status,
 		cancellationReason: row.cancellationReason,
 		cancelledAt: row.cancelledAt,
+		area: row.area ?? null,
 		difficulty: row.difficulty ?? null,
 		weatherRiskLevel: row.weatherRiskLevel ?? null,
 		registrationRisk,
@@ -475,6 +514,15 @@ function buildTripSelect(reviewColumns = "", reviewJoin = ""): string {
 		trip."status",
 		${reviewColumns}
 		trip."cancellation_reason" AS "cancellationReason",
+		CASE
+			WHEN trip."area_code" IS NOT NULL THEN jsonb_build_object(
+				'code', trip."area_code",
+				'name', trip."area_name",
+				'provinceCode', trip."province_code",
+				'provinceName', trip."province_name"
+			)
+			ELSE NULL
+		END AS "area",
 		trip."cancelled_at" AS "cancelledAt",
 		trip."created_at" AS "createdAt",
 		trip."updated_at" AS "updatedAt",
@@ -650,6 +698,16 @@ export class TripsRepository extends Repository<Trip> {
 		return rows.map((row) => row.checkpointId);
 	}
 
+	/** CTMS-110. Active reporting area, or null when the code is unknown or retired. */
+	async findActiveArea(code: string): Promise<TripAreaDto | null> {
+		const rows = (await this.query(
+			`SELECT "code", "name", "province_code" AS "provinceCode", "province_name" AS "provinceName"
+			 FROM "geo_areas" WHERE "code" = $1 AND "active" = true`,
+			[code]
+		)) as TripAreaDto[];
+		return rows[0] ?? null;
+	}
+
 	async createDraft(input: CreateTripInput): Promise<TripResponseDto> {
 		const tripRows = (await this.query(
 			`
@@ -674,12 +732,20 @@ export class TripsRepository extends Repository<Trip> {
 				"seats_taken",
 				"price_per_person",
 				"cancellation_policy",
-				"status"
+				"status",
+				"area_code",
+				"area_name",
+				"province_code",
+				"province_name"
 			)
 			VALUES (
 				$1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9, $10,
 				$11, $12, ST_SetSRID(ST_GeomFromGeoJSON($13), 4326)::geography, $14,
-				$15, $16, $17, 0, $18, $19::jsonb, $20
+				$15, $16, $17, 0, $18, $19::jsonb, $20,
+				(SELECT ga."code" FROM "geo_areas" ga WHERE ga."code" = $21),
+				(SELECT ga."name" FROM "geo_areas" ga WHERE ga."code" = $21),
+				(SELECT ga."province_code" FROM "geo_areas" ga WHERE ga."code" = $21),
+				(SELECT ga."province_name" FROM "geo_areas" ga WHERE ga."code" = $21)
 			)
 			RETURNING "id"
 			`,
@@ -704,6 +770,7 @@ export class TripsRepository extends Repository<Trip> {
 				input.pricePerPerson,
 				JSON.stringify(input.cancellationPolicy),
 				TripStatus.DRAFT,
+				input.areaCode ?? null,
 			]
 		)) as Array<{ id: string }>;
 
@@ -773,6 +840,10 @@ export class TripsRepository extends Repository<Trip> {
 				"capacity_max" = $17,
 				"price_per_person" = $18,
 				"cancellation_policy" = $19::jsonb,
+				"area_code" = COALESCE((SELECT ga."code" FROM "geo_areas" ga WHERE ga."code" = $20), "area_code"),
+				"area_name" = COALESCE((SELECT ga."name" FROM "geo_areas" ga WHERE ga."code" = $20), "area_name"),
+				"province_code" = COALESCE((SELECT ga."province_code" FROM "geo_areas" ga WHERE ga."code" = $20), "province_code"),
+				"province_name" = COALESCE((SELECT ga."province_name" FROM "geo_areas" ga WHERE ga."code" = $20), "province_name"),
 				"updated_at" = GREATEST(date_trunc('milliseconds', clock_timestamp()), "updated_at" + interval '1 millisecond')
 			WHERE "id" = $1
 			`,
@@ -796,6 +867,7 @@ export class TripsRepository extends Repository<Trip> {
 				input.capacityMax,
 				input.pricePerPerson,
 				JSON.stringify(input.cancellationPolicy),
+				input.areaCode ?? null,
 			]
 		);
 
@@ -1079,6 +1151,13 @@ export class TripsRepository extends Repository<Trip> {
 					WHERE audit."target_type" = 'trip'
 						AND audit."target_id" = trip."id"
 						AND audit."action" = 'trip.review.reminder_sent'
+						AND audit."created_at" >= COALESCE((
+							SELECT submitted.created_at FROM audit_logs submitted
+							WHERE submitted.target_type = 'trip' AND submitted.target_id = trip.id
+							 AND (submitted.action = 'trip.submitted_for_approval' OR
+								(submitted.action = 'trip_waypoints.configured' AND submitted."before"->>'status' = 'draft'))
+							ORDER BY submitted.created_at DESC, submitted.id DESC LIMIT 1
+						), trip."updated_at")
 				)
 			ORDER BY trip."updated_at" ASC, trip."id" ASC
 			`,
@@ -1499,7 +1578,8 @@ export class TripsRepository extends Repository<Trip> {
 	}
 
 	/**
-	 * Moves Trips along their time-based lifecycle in one atomic statement per phase:
+	 * Moves Trips along their time-based lifecycle in one atomic statement per phase
+	 * on the legacy path, or one transaction with a departure gate when opted in:
 	 * `published` -> `ongoing` once `starts_at` is reached, and `published`/`ongoing` ->
 	 * `completed` once `ends_at` is reached. Each transition writes a system audit log.
 	 * When `awaitParticipationEvaluation` is true, `published` Trips the auto-cancel worker
@@ -1508,8 +1588,46 @@ export class TripsRepository extends Repository<Trip> {
 	async advanceTripStatusesByTime(
 		target: TripStatus.ONGOING | TripStatus.COMPLETED,
 		limit: number,
-		awaitParticipationEvaluation: boolean
+		awaitParticipationEvaluation: boolean,
+		departureGate?: (
+			manager: EntityManager,
+			tripId: string
+		) => Promise<{ ready: boolean; reasonCode: string }>
 	): Promise<Array<{ id: string; previousStatus: TripStatus }>> {
+		if (target === TripStatus.ONGOING && departureGate) {
+			return this.manager.transaction(async (manager) => {
+				const moved: Array<{ id: string; previousStatus: TripStatus }> = [];
+				const inspected: string[] = [];
+				// A blocked prefix must not starve later due Trips; limit counts transitions.
+				while (moved.length < limit) {
+					const due: Array<{ id: string; previousStatus: TripStatus }> = await manager.query(
+						`SELECT id,status AS "previousStatus" FROM trips
+      WHERE status='published' AND starts_at<=CURRENT_TIMESTAMP AND ends_at>CURRENT_TIMESTAMP AND weather_paused_at IS NULL
+      AND actual_started_at IS NULL
+      AND NOT EXISTS(SELECT 1 FROM trip_porters p WHERE p.trip_id=trips.id AND p.status IN ('assigned','pending_reconfirmation'))
+      AND (NOT $2::boolean OR participation_evaluated_at IS NOT NULL) AND NOT(id=ANY($3::uuid[]))
+      ORDER BY starts_at,id LIMIT $1 FOR UPDATE SKIP LOCKED`,
+						[limit - moved.length, awaitParticipationEvaluation, inspected]
+					);
+					if (!due.length) break;
+					for (const trip of due) {
+						inspected.push(trip.id);
+						if (!(await departureGate(manager, trip.id)).ready) continue;
+						await manager.query(
+							"UPDATE trips SET status='ongoing',updated_at=CURRENT_TIMESTAMP WHERE id=$1",
+							[trip.id]
+						);
+						await manager.query(
+							`INSERT INTO audit_logs(actor_id,action,target_type,target_id,"before","after",reason)
+      VALUES(NULL,'trip.status_advanced','trip',$1,jsonb_build_object('status','published'),jsonb_build_object('status','ongoing'),'schedule_reached')`,
+							[trip.id]
+						);
+						moved.push(trip);
+					}
+				}
+				return moved;
+			});
+		}
 		const dueCondition =
 			target === TripStatus.COMPLETED
 				? `"status" IN ('published', 'ongoing') AND "ends_at" <= CURRENT_TIMESTAMP`
@@ -1520,6 +1638,8 @@ export class TripsRepository extends Repository<Trip> {
 				SELECT "id", "status"
 				FROM "trips"
 				WHERE ${dueCondition}
+				  AND "actual_started_at" IS NULL
+				  AND NOT EXISTS(SELECT 1 FROM trip_porters p WHERE p.trip_id=trips.id AND p.status IN ('assigned','pending_reconfirmation'))
 				  AND ("status" <> 'published' OR NOT $3::boolean OR "participation_evaluated_at" IS NOT NULL)
 				ORDER BY "starts_at" ASC, "id" ASC
 				LIMIT $2
@@ -1780,34 +1900,7 @@ export class TripsRepository extends Repository<Trip> {
 
 		const rows = (await this.query(
 			`
-			SELECT
-				trip."id",
-				trip."title",
-				trip."description",
-				trip."cover_image_url" AS "coverImageUrl",
-				trip."trip_type" AS "tripType",
-				trip."duration_nights" AS "durationNights",
-				trip."starts_at" AS "startsAt",
-				trip."ends_at" AS "endsAt",
-				ST_AsGeoJSON(trip."meeting_point"::geometry)::json AS "meetingPoint",
-				trip."meeting_at" AS "meetingAt",
-				trip."booking_deadline" AS "bookingDeadline",
-				trip."capacity_min" AS "capacityMin",
-				trip."capacity_max" AS "capacityMax",
-				trip."seats_taken" AS "seatsTaken",
-				trip."price_per_person" AS "pricePerPerson",
-				trip."status",
-				trip."created_at" AS "createdAt",
-				trip."updated_at" AS "updatedAt",
-				route."difficulty" AS "difficulty",
-				route."status" AS "routeStatus",
-				(
-					SELECT wra."risk_level"
-					FROM "weather_risk_assessments" wra
-					WHERE wra."route_id" = trip."route_id"
-					ORDER BY wra."created_at" DESC
-					LIMIT 1
-				) AS "weatherRiskLevel"
+			${TRIP_SUMMARY_SELECT}
 			FROM "trips" trip
 			LEFT JOIN "trekking_routes" route ON route."id" = trip."route_id"
 			${whereClause}
@@ -1821,6 +1914,28 @@ export class TripsRepository extends Repository<Trip> {
 			items: rows.map(toTripSummaryResponse),
 			total,
 		};
+	}
+
+	/**
+	 * Card data for published Trips, in the order of `tripIds` (missing or unpublished ids are
+	 * skipped). Same projection as the search list so recommendation cards match search cards.
+	 */
+	async findPublishedSummariesByIds(tripIds: string[]): Promise<TripSummaryResponseDto[]> {
+		if (tripIds.length === 0) return [];
+		const rows = (await this.query(
+			`
+			${TRIP_SUMMARY_SELECT}
+			FROM "trips" trip
+			LEFT JOIN "trekking_routes" route ON route."id" = trip."route_id"
+			WHERE trip."id" = ANY($1::uuid[]) AND trip."status" = 'published'
+			`,
+			[tripIds]
+		)) as TripSummaryRow[];
+		const byId = new Map(rows.map((row) => [row.id, toTripSummaryResponse(row)]));
+		return tripIds.flatMap((id) => {
+			const summary = byId.get(id);
+			return summary ? [summary] : [];
+		});
 	}
 
 	/**

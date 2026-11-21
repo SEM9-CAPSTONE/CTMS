@@ -7,7 +7,7 @@ import { HttpError } from "../../../core/api/httpClient";
 import { toast } from "../../../shared/components/Toast";
 import { sourceSchema } from "../schema/source.schema";
 import { survivalDocumentsService as service } from "../services/survival-documents.service";
-import type { DocumentDetail, SourceMetadata } from "../types";
+import type { DocumentDetail, EditDraft, EditorSection, SourceMetadata } from "../types";
 import { SurvivalDocumentsPage } from "./SurvivalDocumentsPage";
 
 vi.mock("../../admin-layout/components/AdminLayout", () => ({
@@ -42,7 +42,12 @@ const doc: DocumentDetail = {
 			versionNumber: 1,
 			revision: 1,
 			status: "DRAFT",
-			metadata,
+			metadata: {
+				...metadata,
+				licenseType: undefined,
+				permissionEvidence: undefined,
+				attribution: undefined,
+			},
 			rights: {
 				rightsReviewStatus: "NOT_REVIEWED",
 				sourceReviewConfirmed: false,
@@ -72,7 +77,7 @@ const queue = {
 	total: 1,
 	page: 1,
 	limit: 20,
-	maxBytes: 10485760,
+	maxBytes: 52_428_800,
 };
 function view() {
 	const client = new QueryClient({
@@ -97,9 +102,178 @@ beforeEach(() => {
 	vi.spyOn(service, "edit").mockResolvedValue(doc);
 	vi.spyOn(service, "action").mockResolvedValue(doc);
 	vi.spyOn(service, "file").mockReturnValue(new Promise(() => {}));
+	vi.spyOn(service, "verification").mockResolvedValue({
+		extractionId: "set",
+		revision: 0,
+		preparing: false,
+		available: true,
+		complete: true,
+		positions: [],
+	});
 });
 afterEach(() => vi.restoreAllMocks());
 describe("CTMS-050 Admin source management", () => {
+	const published: DocumentDetail = {
+		...doc,
+		currentPublishedVersionId: doc.versions[0].id,
+		processingSyncStatus: "REGENERATION_NEEDED",
+		versions: [{ ...doc.versions[0], status: "PUBLISHED" }],
+	};
+
+	it("opens the version editor and requires explicit confirmation before creating a PDF", async () => {
+		vi.mocked(service.detail).mockResolvedValue(published);
+		vi.spyOn(service, "chunkSets").mockResolvedValue([]);
+		const section: EditorSection = {
+			id: "section-a",
+			heading: "Chuẩn bị",
+			items: [{ kind: "paragraph", text: "Kiểm tra điều kiện trước khi xuất phát.", rows: [] }],
+			pages: [1],
+			source: { versionNumber: 1 },
+		};
+		const snapshot = {
+			title: metadata.sourceTitle,
+			baseSections: [section],
+			sections: [section],
+			changes: [],
+		};
+		const draft: EditDraft = { id: "edit-draft", revision: 1, confirmedRevision: null, snapshot };
+		const start = vi.spyOn(service, "startEdit").mockResolvedValue(draft);
+		const basis = "Đã kiểm tra nội dung và điều kiện áp dụng.";
+		const verify = vi.spyOn(service, "confirmEdit").mockResolvedValue({
+			...draft,
+			revision: 2,
+			confirmedRevision: 2,
+			snapshot: { ...snapshot, reviewBasis: basis },
+		});
+		const save = vi
+			.spyOn(service, "commitEdit")
+			.mockResolvedValue({ document: doc, versionId: doc.versions[0].id });
+		const panel = await detail();
+		await userEvent.click(panel.getByRole("button", { name: "Tạo phiên bản mới" }));
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Chỉnh sửa từ phiên bản hiện tại" })
+		);
+		const dialog = within(
+			await screen.findByRole("dialog", { name: "Chỉnh sửa từ phiên bản hiện tại" })
+		);
+		await userEvent.click(dialog.getByRole("button", { name: "Chuẩn bị bản nháp" }));
+		expect(start).toHaveBeenCalledWith(doc.id, doc.revision);
+		const commit = await dialog.findByRole("button", { name: "Tạo bản nháp PDF" });
+		expect(commit).toBeDisabled();
+		await userEvent.type(dialog.getByRole("textbox", { name: "Căn cứ xác nhận nội dung" }), basis);
+		await userEvent.click(dialog.getByRole("button", { name: "Xác nhận nội dung" }));
+		expect(verify).toHaveBeenCalledWith(
+			doc.id,
+			draft.id,
+			expect.objectContaining({ expectedRevision: 1, reviewBasis: basis })
+		);
+		await waitFor(() => expect(commit).toBeEnabled());
+		await userEvent.click(commit);
+		expect(save).toHaveBeenCalledWith(
+			doc.id,
+			draft.id,
+			expect.objectContaining({ expectedRevision: 2 })
+		);
+		expect(service.action).not.toHaveBeenCalled();
+	});
+
+	it("polls preparation after publication without exposing processing controls or counts", async () => {
+		vi.mocked(service.detail).mockResolvedValue(published);
+		const ready = {
+			extractionId: "set",
+			revision: 0,
+			preparing: false,
+			available: true,
+			complete: true,
+			positions: [],
+		};
+		vi.mocked(service.verification)
+			.mockResolvedValueOnce({ ...ready, preparing: true, available: false, complete: false })
+			.mockResolvedValue(ready);
+		const panel = await detail();
+		expect(await panel.findByText("Đang chuẩn bị nội dung, vui lòng chờ…")).toBeInTheDocument();
+		expect(panel.queryByRole("button", { name: "Bắt đầu xử lý" })).toBeNull();
+		await waitFor(
+			() => expect(panel.queryByText("Đang chuẩn bị nội dung, vui lòng chờ…")).toBeNull(),
+			{ timeout: 6500 }
+		);
+		expect(service.verification).toHaveBeenCalledTimes(2);
+		expect(panel.queryByText(/đoạn trích|READY|embedding/)).toBeNull();
+	});
+
+	it.each([true, false])(
+		"uses ordinary preparation feedback without revealing technical failure state (%s)",
+		async (preparing) => {
+			vi.mocked(service.detail).mockResolvedValue(published);
+			vi.mocked(service.verification).mockResolvedValue({
+				extractionId: "set",
+				revision: 0,
+				preparing,
+				available: false,
+				complete: false,
+				positions: [],
+			});
+			const panel = await detail();
+			expect(
+				await panel.findByText(
+					preparing
+						? "Đang chuẩn bị nội dung, vui lòng chờ…"
+						: "Chưa thể chuẩn bị nội dung. Vui lòng kiểm tra lại sau."
+				)
+			).toBeInTheDocument();
+			expect(panel.queryByText(/FAILED|ingestion_transport|chunk|OCR/)).toBeNull();
+			expect(panel.queryByRole("button", { name: "Thử lại xử lý" })).toBeNull();
+		}
+	);
+
+	it("provides content verification for an omission without blaming the PDF", async () => {
+		vi.mocked(service.detail).mockResolvedValue(published);
+		vi.mocked(service.verification).mockResolvedValue({
+			extractionId: "set",
+			revision: 0,
+			preparing: false,
+			available: true,
+			complete: false,
+			positions: [
+				{
+					id: "a".repeat(64),
+					page: 17,
+					label: "Đoạn văn",
+					kind: "text",
+					originalText: "Cảnh báo cần đối chiếu",
+					text: "Cảnh báo cần đối chiếu",
+					bbox: { l: 10, t: 20, r: 100, b: 40, coord_origin: "TOPLEFT" },
+					resolved: false,
+					canExclude: false,
+					needsVisualCheck: false,
+					needsAnchor: false,
+					anchors: [],
+				},
+			],
+		});
+		const panel = await detail();
+		expect(
+			await panel.findByText("Có một số nội dung cần kiểm tra trước khi xuất bản.")
+		).toBeInTheDocument();
+		expect(panel.getByRole("button", { name: "Kiểm tra nội dung" })).toBeInTheDocument();
+		expect(panel.queryByText(/tải lên bản PDF|missing_critical_pdf_text/)).toBeNull();
+		expect(panel.queryByRole("button", { name: "Thử lại xử lý" })).toBeNull();
+	});
+
+	it("shows why a published source is ineligible without an approval control", async () => {
+		const reason = "Nguồn PDF chưa được xác nhận để xử lý cho Trợ lý AI.";
+		vi.mocked(service.detail).mockResolvedValue({
+			...published,
+			processingSyncStatus: "NOT_PROCESSED",
+			processingBlockedReason: reason,
+		});
+		vi.mocked(service.action).mockResolvedValue(published);
+		vi.spyOn(service, "chunkSets").mockResolvedValue([]);
+		const panel = await detail();
+		expect(await panel.findByText(reason)).toBeInTheDocument();
+		expect(panel.queryByRole("button", { name: "Cho phép xử lý" })).toBeNull();
+		expect(service.action).not.toHaveBeenCalled();
+	});
 	it("shows loading until authoritative list arrives", async () => {
 		vi.mocked(service.list).mockReturnValue(new Promise(() => {}));
 		view();
@@ -161,9 +335,23 @@ describe("CTMS-050 Admin source management", () => {
 	it("requires metadata and an actual supplied file", async () => {
 		view();
 		await userEvent.click(screen.getByRole("button", { name: /^Thêm tài liệu$/ }));
+		expect(await screen.findByText(/Dung lượng tối đa 50\.0 MB/)).toBeInTheDocument();
 		await userEvent.click(screen.getByRole("button", { name: "Lưu bản nháp" }));
 		expect(await screen.findByText("Nhập tên tài liệu")).toBeInTheDocument();
 		expect(service.upload).not.toHaveBeenCalled();
+	});
+	it("displays the server upload size error in Vietnamese", async () => {
+		vi.mocked(service.upload).mockRejectedValue(new HttpError("File too large", 413, {}));
+		const user = userEvent.setup();
+		view();
+		await user.click(screen.getByRole("button", { name: /^Thêm tài liệu$/ }));
+		await user.type(screen.getByLabelText(/^Tên tài liệu/), metadata.sourceTitle);
+		const file = new File(["test bytes"], "fictional.pdf", { type: "application/pdf" });
+		await user.upload(screen.getByLabelText("Tệp PDF"), file);
+		await user.click(screen.getByRole("button", { name: "Lưu bản nháp" }));
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			"Tệp PDF vượt quá dung lượng cho phép."
+		);
 	});
 	it("saves the selected PDF and publishes that version without rights input", async () => {
 		const notify = vi.spyOn(toast, "success");
@@ -171,6 +359,8 @@ describe("CTMS-050 Admin source management", () => {
 		view();
 		await user.click(screen.getByRole("button", { name: /^Thêm tài liệu$/ }));
 		const editor = within(await screen.findByRole("dialog", { name: "Thêm tài liệu sinh tồn" }));
+		expect(editor.getByLabelText("URL nguồn tham khảo")).toBeInTheDocument();
+		expect(editor.queryByText("Nguồn và quyền sử dụng")).not.toBeInTheDocument();
 		await user.type(editor.getByLabelText(/Tên tài liệu/), metadata.sourceTitle);
 		const file = new File(["test bytes"], "fictional.pdf", { type: "application/pdf" });
 		fireEvent.drop(editor.getByText("Kéo thả tệp PDF vào đây hoặc"), {
@@ -183,6 +373,7 @@ describe("CTMS-050 Admin source management", () => {
 		await waitFor(() =>
 			expect(service.action).toHaveBeenCalledWith(doc.id, doc.versions[0].id, "publish", {
 				expectedRevision: doc.versions[0].revision,
+				confirmSource: true,
 			})
 		);
 		await waitFor(() => expect(notify).toHaveBeenCalledWith("Đã xuất bản tài liệu."));
@@ -261,6 +452,39 @@ describe("CTMS-050 Admin source management", () => {
 		expect(panel.getByRole("button", { name: "Xuất bản" })).toBeInTheDocument();
 		expect(panel.queryByRole("button", { name: "Gửi duyệt" })).not.toBeInTheDocument();
 	});
+	it("edits draft information while retaining the stored source and provenance", async () => {
+		const storedMetadata = {
+			...metadata,
+			sourceUrl: "https://example.org/manual.pdf",
+			sourcePublishedAt: "2025-12-10T21:00:00Z",
+			retrievedAt: "2026-01-01T21:00:00Z",
+			licenseUrl: "https://example.org/license",
+		};
+		vi.mocked(service.detail).mockResolvedValue({
+			...doc,
+			versions: [{ ...doc.versions[0], metadata: storedMetadata }],
+		});
+		const user = userEvent.setup();
+		const panel = await detail();
+		await user.click(panel.getByRole("button", { name: "Sửa thông tin" }));
+		const editor = within(await screen.findByRole("dialog", { name: "Sửa thông tin bản nháp" }));
+		expect(editor.queryByLabelText("URL nguồn tham khảo")).not.toBeInTheDocument();
+		expect(editor.queryByText("Nguồn và quyền sử dụng")).not.toBeInTheDocument();
+		expect(editor.queryByText("Thông tin xuất xứ")).not.toBeInTheDocument();
+		expect(editor.getByLabelText("Tổ chức / Tác giả")).toHaveValue(storedMetadata.publisher);
+		const title = editor.getByLabelText("Tên tài liệu");
+		await user.clear(title);
+		await user.type(title, "Cẩm nang đã cập nhật");
+		await user.click(editor.getByRole("button", { name: "Lưu bản nháp" }));
+		await waitFor(() =>
+			expect(service.edit).toHaveBeenCalledWith(
+				doc.id,
+				doc.versions[0].id,
+				doc.versions[0].revision,
+				{ ...storedMetadata, sourceTitle: "Cẩm nang đã cập nhật" }
+			)
+		);
+	});
 	it("blocks duplicate submissions and waits for server confirmation", async () => {
 		let finish!: (value: DocumentDetail) => void;
 		vi.mocked(service.action).mockReturnValue(
@@ -294,6 +518,30 @@ describe("CTMS-050 Admin source management", () => {
 		await waitFor(() =>
 			expect(service.action).toHaveBeenCalledWith(doc.id, doc.versions[0].id, "publish", {
 				expectedRevision: doc.versions[0].revision,
+				confirmSource: true,
+			})
+		);
+	});
+	it("records documented source and usage rights in the existing publication action", async () => {
+		vi.mocked(service.detail).mockResolvedValue({
+			...doc,
+			versions: [{ ...doc.versions[0], metadata }],
+		});
+		const panel = await detail();
+		await userEvent.click(panel.getByRole("button", { name: "Xuất bản" }));
+		await waitFor(() =>
+			expect(service.action).toHaveBeenCalledWith(doc.id, doc.versions[0].id, "publish", {
+				expectedRevision: doc.versions[0].revision,
+				confirmSource: true,
+				rights: {
+					rightsReviewStatus: "PERMITTED",
+					sourceReviewConfirmed: true,
+					internalRagUseAllowed: true,
+					offlineRedistributionAllowed: false,
+					translationAllowed: false,
+					medicalContentReviewStatus: "NOT_REVIEWED",
+					evidence: metadata.permissionEvidence,
+				},
 			})
 		);
 	});

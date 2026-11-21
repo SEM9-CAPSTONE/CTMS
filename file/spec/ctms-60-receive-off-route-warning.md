@@ -156,6 +156,13 @@ These thresholds must not be silently replaced by configurable values unless PB/
 
 ## 9. API / Integration Contract
 
+Current package-backed detection uses the account's verified active archive. The existing context
+endpoint provides participation, configuration and the departure lock, where recorded. Cached
+eligibility can be reused offline only for the same locally reopened and verified package and
+geometry. Events carry the package version and its geometry fingerprint. Ingestion matches that
+pair to the Trip's immutable package. Legacy clients continue to use the live Route fingerprint
+under the pre-existing contract. A missing or mismatched active package disables package-backed detection.
+
 Detection must work locally/offline.
 
 Safety-event synchronization belongs to synchronization stories.
@@ -177,6 +184,11 @@ Safety-event synchronization belongs to synchronization stories.
 
 ## 11. Acceptance & Test Matrix
 
+| Source | Valid path | Violation path | Test type |
+| --- | --- | --- | --- |
+| BR-238 | Verified locked geometry drives detection after going offline. | Independent cached geometry, absent/invalid active archive or lock mismatch cannot start package-backed monitoring. | Flutter |
+| BR-360 | Buffered event retains its actual package version and geometry fingerprint after reconnection. | Mismatched package/route pairing is rejected. | Flutter, unit, PostgreSQL |
+
 | Scenario                           | Expected                      |
 | ---------------------------------- | ----------------------------- |
 | 3 VALID >50m                       | OFF_ROUTE                     |
@@ -195,7 +207,6 @@ None for V3 detection thresholds: the PB already fixes the applicable values. Do
 
 Pending Decisions (raised during CTMS-060-T01, not resolved by any PB/BR value):
 
-- **Authoritative Route/package version.** CTMS-052 Offline Safety Package versioning does not exist yet, so there is no package version to bind events to. Until it does, `routeVersion` is the md5 fingerprint of the Trip's Route geometry. This is safe because a Route referenced by a Trip cannot be edited in place. `package_version` is stored as reported by the client and may be null. Replace or complement `routeVersion` with the package/version identity once CTMS-052 provides it (BR-360, BR-428).
 - **Participants who may report.** The spec names only the Camper. The implementation also accepts events from an assigned Porter, reusing the CTMS-059 participation rules (BR-363 "participant identity"). Confirm or narrow this when the Host dashboard (CTMS-085) consumes the events.
 - **Retention period for `safety_events`.** No retention period has been approved. Rows are append-only and kept indefinitely, same as `gps_logs`.
 
@@ -204,7 +215,6 @@ Pending Decisions (raised during CTMS-060-T02, not resolved by any PB/BR value):
 - **Wording of the OFF_ROUTE safe action (BR-384).** No approved UX/safety text exists. The app shows: "Bạn có thể đã đi lệch tuyến (cách tuyến khoảng X m). Dừng lại, kiểm tra xung quanh và quay về đoạn tuyến gần nhất. Nếu không chắc chắn, liên hệ Host/Porter hoặc dùng SOS." Replace it when the approved text exists. Directions back to the Route stay in CTMS-062.
 - **Restart behaviour.** After the app is reopened, the confirmed OFF_ROUTE / GPS_DEGRADED states are restored from the local record, but the consecutive counters start from 0. The spec does not say whether partial counts survive a restart; restarting them avoids confirming a transition from stale samples.
 - **Detection lifecycle.** Detection runs exactly while GPS breadcrumbs are recorded (CTMS-059: Trip ongoing, participant eligible, location permission granted, app open). Without permission the GPS panel already explains the problem, so detection shows "Tạm dừng" instead of raising GPS_DEGRADED. Background execution belongs to Technical Design.
-- **Offline Safety Package.** CTMS-052 package download does not exist yet. The Route context from `GET /route-deviation/context` is cached locally per account and Trip, and is used when the server cannot be reached. `packageVersion` is not sent until a package exists.
 
 ## 13. Implementation Record
 
@@ -220,11 +230,11 @@ CTMS-060-T01 (Jira CTMS-311): system-side Preparation and Logic. Detection itsel
   Rows are append-only. CHECK constraints repeat the fixed V3 thresholds per type, so no row can claim a transition that its own context does not support, even when written outside the API.
 - **`GET /api/trips/:tripId/route-deviation/context` (Preparation).** Returns:
   - eligibility, using the same BR-237 live rule as GPS tracking;
-  - the Trip's Route id, `routeVersion` and GeoJSON geometry;
+  - the Trip's Route id, legacy `routeVersion` and GeoJSON geometry, plus `lockedPackageId` when recorded;
   - the fixed V3 thresholds as constants, not configuration (Section 8): accuracy ≤ 20 m, OFF_ROUTE > 50 m, recovery < 20 m, 3 consecutive samples, GPS_DEGRADED after 120 s, config version `v3`.
 - **`POST /api/trips/:tripId/safety-events` (Logic).** Accepts at most 100 events and returns a per-event outcome: `accepted`, `duplicate` or `rejected` with a reason. Repeated or concurrent uploads of one UUID store one row and keep the first stored context (BR-244). A UUID owned by another user or Trip is rejected with `ID_CONFLICT`.
 - **Event integrity without re-detection.** The server does not recompute distance or detection state from GPS data; the device result is kept as reported. It checks only that the reported context supports the transition:
-  - the event was detected against the Trip's current Route (`ROUTE_VERSION_MISMATCH` otherwise);
+  - the event matches the Trip's immutable package geometry for package-backed evidence, or the Trip's legacy Route fingerprint for legacy evidence (`ROUTE_VERSION_MISMATCH` otherwise);
   - OFF_ROUTE has accuracy ≤ 20, distance > 50 and ≥ 3 samples;
   - ON_ROUTE_RECOVERED has accuracy ≤ 20, distance < 20 and ≥ 3 samples;
   - GPS_DEGRADED has `event_time − no_valid_sample_since ≥ 120 s`;

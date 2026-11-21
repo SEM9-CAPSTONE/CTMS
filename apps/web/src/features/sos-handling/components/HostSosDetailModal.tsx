@@ -59,7 +59,6 @@ export function HostSosDetailModal({
 			isOpen={isOpen}
 			onClose={onClose}
 			title="Chi tiết yêu cầu cứu trợ"
-			description={`Mã yêu cầu: ${sos.id.slice(0, 8)}`}
 			icon={<ShieldAlert className="size-5 text-red-600" />}
 			size="lg"
 		>
@@ -94,9 +93,8 @@ export function HostSosDetailModal({
 							<span>Chuyến đi</span>
 						</div>
 						<p className="mt-1 font-bold line-clamp-1">
-							{sos.tripTitle || `Chuyến đi (${sos.tripId.slice(0, 8)})`}
+							{sos.tripTitle || "Chưa cập nhật tên chuyến đi"}
 						</p>
-						<p className="text-xs text-[#627769] font-mono">ID: {sos.tripId.slice(0, 8)}</p>
 					</div>
 
 					<div className="rounded-2xl border border-[#dfe8df] p-3">

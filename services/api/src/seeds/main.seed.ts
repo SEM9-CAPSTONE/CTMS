@@ -16,11 +16,15 @@ import { createHash, randomBytes } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { hash } from "bcrypt";
-import type { DataSource } from "typeorm";
+import type { DataSource, EntityManager } from "typeorm";
 import {
 	DEFAULT_CANCELLATION_POLICY,
+	minorToMoney,
+	moneyToMinor,
 	parseCancellationPolicy,
 } from "../modules/bookings/cancellation-policy";
+import { InAppNotificationType } from "../modules/in-app-notifications/in-app-notification.entity";
+import { InAppNotificationsService } from "../modules/in-app-notifications/in-app-notifications.service";
 import dataSource from "../shared/database/data-source";
 
 import { randomUUID } from "node:crypto";
@@ -32,6 +36,7 @@ import type {
 } from "../modules/offline-packages/offline-packages.types";
 import { PackageArtifactBuilder } from "../modules/offline-packages/package-artifact.builder";
 import { LocalPackageArtifactStorage } from "../modules/offline-packages/package-artifact.storage";
+import { PackageCoreReader } from "../modules/offline-packages/package-core.reader";
 import {
 	TripSafetyContextResolver,
 	canonical,
@@ -42,6 +47,1624 @@ import { readVerifiedPackageRoute } from "../modules/offline-packages/package-ro
 import { CheckpointType } from "../modules/trekking-routes/entities/checkpoint.entity";
 import { WaypointType } from "../modules/trips/entities/trip-waypoint.entity";
 import { TripStatus, TripType } from "../modules/trips/entities/trip.entity";
+import { AUTO_CANCEL_WEATHER_REASON } from "../modules/trips/weather-decisions/trip-weather-decision.service";
+
+import { BookingsRepository } from "../modules/bookings/bookings.repository";
+import { FinancialAdjustment } from "../modules/bookings/entities/financial-adjustment.entity";
+import { Payment } from "../modules/bookings/entities/payment.entity";
+import { WalletTransactionType } from "../modules/bookings/entities/wallet-transaction.entity";
+import { PaymentsRepository } from "../modules/bookings/payments.repository";
+import { RefundOrigin } from "../modules/bookings/refund-policy";
+import { RefundsService } from "../modules/bookings/refunds.service";
+import { Booking } from "../modules/profiles/entities/booking.entity";
+import { ROUTE_DEVIATION_ANALYSIS_VERSION } from "../modules/route-deviation-analysis/route-deviation-analysis.constants";
+import { HotspotReviewService } from "../modules/safety-hotspots/hotspot-review.service";
+import { SafetyHotspotStatus } from "../modules/safety-hotspots/safety-hotspots.enums";
+import { SafetyHotspotsRepository } from "../modules/safety-hotspots/safety-hotspots.repository";
+import { SafetyHotspotsService } from "../modules/safety-hotspots/safety-hotspots.service";
+import { UserRole } from "../modules/users/entities/user.entity";
+
+// ==========================================================================
+// consolidate-financial-hosts.ts (consolidated into the master seed)
+// ==========================================================================
+
+interface WalletRow {
+	id: string;
+	balance: string;
+}
+interface LegacyHost {
+	id: string;
+	fullName: string;
+}
+
+/** Retire only the four accounts created by the former financial fixture seed. */
+export async function consolidateFinancialHosts(
+	manager: EntityManager,
+	hostId: string,
+	adminId: string,
+	fixtureId: (group: number, index: number) => string
+): Promise<string> {
+	await manager.query(
+		"INSERT INTO host_wallets (host_id, balance) VALUES ($1, '0.00') ON CONFLICT (host_id) DO NOTHING",
+		[hostId]
+	);
+	const wallets: WalletRow[] = await manager.query(
+		"SELECT id, balance FROM host_wallets WHERE host_id = $1 FOR UPDATE",
+		[hostId]
+	);
+	const wallet = wallets[0];
+	let balanceMinor = moneyToMinor(wallet.balance);
+	for (let index = 1; index <= 4; index++) {
+		const hosts: LegacyHost[] = await manager.query(
+			`SELECT id, full_name AS "fullName" FROM users
+			 WHERE id = $1 AND email = $2 AND status <> 'deleted' FOR UPDATE`,
+			[fixtureId(1, index), `host.adjustment.${index}@ctms.local`]
+		);
+		const legacy = hosts[0];
+		if (!legacy) continue;
+		const oldWallets: WalletRow[] = await manager.query(
+			"SELECT id, balance FROM host_wallets WHERE host_id = $1 FOR UPDATE",
+			[legacy.id]
+		);
+		const oldWallet = oldWallets[0];
+		const transferredMinor = oldWallet ? moneyToMinor(oldWallet.balance) : 0n;
+		const previousBalance = minorToMoney(balanceMinor);
+		if (oldWallet && transferredMinor > 0n) {
+			balanceMinor += transferredMinor;
+			await manager.query(
+				"UPDATE host_wallets SET balance = '0.00', updated_at = now() WHERE id = $1",
+				[oldWallet.id]
+			);
+			await manager.query(
+				`INSERT INTO wallet_transactions (id, wallet_id, type, net_amount, balance_after, description, created_at)
+				 VALUES ($1, $2, $3, $4, '0.00', 'Chuyển số dư về ví chính', clock_timestamp()),
+				 ($5, $6, $7, $8, $9, 'Tiếp nhận số dư vào ví chính', clock_timestamp())`,
+				[
+					fixtureId(8, 1000 + index),
+					oldWallet.id,
+					WalletTransactionType.WALLET_TRANSFER_DEBIT,
+					minorToMoney(-transferredMinor),
+					fixtureId(8, 2000 + index),
+					wallet.id,
+					WalletTransactionType.WALLET_TRANSFER_CREDIT,
+					minorToMoney(transferredMinor),
+					minorToMoney(balanceMinor),
+				]
+			);
+		}
+		// Keep original ledger entries, bank references and audit snapshots in place.
+		for (const table of [
+			"trekking_routes",
+			"trips",
+			"settlements",
+			"financial_adjustments",
+			"payouts",
+		]) {
+			await manager.query(`UPDATE "${table}" SET host_id = $1 WHERE host_id = $2`, [
+				hostId,
+				legacy.id,
+			]);
+		}
+		await manager.query(
+			"UPDATE refresh_tokens SET revoked_at = COALESCE(revoked_at, now()) WHERE user_id = $1",
+			[legacy.id]
+		);
+		await manager.query("UPDATE users SET status = 'deleted', updated_at = now() WHERE id = $1", [
+			legacy.id,
+		]);
+		await manager.query(
+			`INSERT INTO audit_logs (actor_id, action, target_type, target_id, before, after, reason)
+			 VALUES ($1, 'financial.host_account_consolidated', 'host_wallet', $2, $3::jsonb, $4::jsonb,
+			 'Chuyển số dư và dữ liệu người tổ chức về tài khoản chính.')`,
+			[
+				adminId,
+				wallet.id,
+				JSON.stringify({
+					sourceHostId: legacy.id,
+					sourceHostName: legacy.fullName,
+					walletBalance: previousBalance,
+				}),
+				JSON.stringify({
+					hostId,
+					transferredAmount: minorToMoney(transferredMinor),
+					walletBalance: minorToMoney(balanceMinor),
+				}),
+			]
+		);
+	}
+	if (minorToMoney(balanceMinor) !== wallet.balance) {
+		await manager.query("UPDATE host_wallets SET balance = $1, updated_at = now() WHERE id = $2", [
+			minorToMoney(balanceMinor),
+			wallet.id,
+		]);
+	}
+	return wallet.id;
+}
+
+// ==========================================================================
+// financial-adjustments.seed.ts (consolidated into the master seed)
+// ==========================================================================
+
+const FINANCIAL_ADJUSTMENT_SCENARIOS = [
+	{
+		index: 1,
+		title: "Cắm trại suối Lương – Chân đèo Hải Vân",
+		previousTitle: "Trekking vườn quốc gia Bạch Mã",
+		description:
+			"Cắm trại bên dòng suối Lương dưới chân đèo Hải Vân, tắm suối và nướng cá buổi tối.",
+		previousDescription:
+			"Khám phá các cung đường rừng và điểm ngắm cảnh tại vườn quốc gia Bạch Mã.",
+		path: "108.1290 16.1405,108.1262 16.1428,108.1243 16.1449",
+		notes: "Khoản thu thừa đã được xác minh và chuyển xử lý hoàn tiền sau quyết toán.",
+		amount: 600000,
+		bookings: 1,
+		paidOut: false,
+		reason: "Khách đã thanh toán thừa, cần hoàn lại sau khi chuyến đi đã quyết toán.",
+	},
+	{
+		index: 2,
+		previousTitle: null,
+		title: "Khám phá bán đảo Sơn Trà",
+		description:
+			"Đi bộ khám phá bán đảo Sơn Trà, ngắm biển và tìm hiểu hệ sinh thái rừng ven biển.",
+		previousDescription: null,
+		path: "108.2700 16.1000,108.2780 16.1110,108.2870 16.1180",
+		notes: "Đã xác định khoản cần thu hồi từ người tổ chức để xử lý yêu cầu hoàn tiền cho khách.",
+		amount: 900000,
+		bookings: 1,
+		paidOut: true,
+		reason: "Cần hoàn tiền cho khách nhưng chủ chuyến đã rút tiền, đang chờ thu hồi thủ công.",
+	},
+	{
+		index: 3,
+		previousTitle: null,
+		title: "Chinh phục đèo Hải Vân",
+		description:
+			"Chuyến đi trong ngày qua sườn Nam Hải Vân, dừng ngắm vịnh Đà Nẵng và Làng Vân dưới chân đèo.",
+		previousDescription: null,
+		path: "108.1280 16.1580,108.1270 16.1800,108.1325 16.1945",
+		notes: "Khoản thu thừa đã được đối chiếu và khấu trừ từ số dư ví người tổ chức.",
+		amount: 250000,
+		bookings: 2,
+		paidOut: false,
+		reason: "Hoàn lại khoản thu thừa cho khách sau quyết toán, ví chủ chuyến còn đủ số dư.",
+	},
+	{
+		index: 4,
+		title: "Săn mây đỉnh Bàn Cờ – Sơn Trà",
+		previousTitle: "Săn mây trên đỉnh Langbiang",
+		description:
+			"Leo đỉnh Bàn Cờ trước bình minh, ngắm mây phủ bán đảo Sơn Trà và toàn cảnh vịnh Đà Nẵng.",
+		previousDescription: "Hành trình lên đỉnh Langbiang, ngắm biển mây và toàn cảnh cao nguyên.",
+		path: "108.2560 16.1110,108.2610 16.1145,108.2650 16.1170",
+		notes: null,
+		amount: 450000,
+		bookings: 2,
+		paidOut: false,
+		reason: null,
+	},
+] as const;
+
+// Identify old fixture annotations without touching administrator-authored notes.
+const LEGACY_ADJUSTMENT_NOTE = "Dữ liệu mẫu CTMS-114 để thử trên giao diện.";
+const LEGACY_TRIP_DESCRIPTION = "Dữ liệu mẫu CTMS-114 để thử quản lý khoản hoàn và thu hồi.";
+const LEGACY_ROUTE_DESCRIPTION = "Tuyến mẫu để xem và thử xử lý điều chỉnh tài chính.";
+
+function fixtureId(group: number, index: number): string {
+	return `d1140000-${String(group).padStart(4, "0")}-4114-8114-${String(index).padStart(12, "0")}`;
+}
+
+/** Adds isolated demo financial chains; reruns preserve all existing records and UI actions. */
+export async function seedFinancialAdjustments(): Promise<void> {
+	if (!dataSource.isInitialized) await dataSource.initialize();
+	const users: Array<{ id: string; email: string; fullName: string }> = await dataSource.query(
+		'SELECT id, email, full_name AS "fullName" FROM users WHERE email = ANY($1)',
+		[["admin@ctms.local", "host@ctms.local", "camper@ctms.local"]]
+	);
+	const admin = users.find((user) => user.email === "admin@ctms.local");
+	const host = users.find((user) => user.email === "host@ctms.local");
+	const camper = users.find((user) => user.email === "camper@ctms.local");
+	if (!admin || !host || !camper) {
+		throw new Error(
+			"Cần có các tài khoản mẫu admin, host và camper trước khi thêm dữ liệu điều chỉnh."
+		);
+	}
+
+	await dataSource.transaction(async (manager) => {
+		const walletId = await consolidateFinancialHosts(manager, host.id, admin.id, fixtureId);
+		await manager.query("UPDATE users SET full_name = $1 WHERE id = $2 AND full_name = $3", [
+			"Nguyễn Văn An",
+			camper.id,
+			"Nguyễn Văn An",
+		]);
+		await manager.query(
+			"UPDATE user_bank_accounts SET account_holder_name = $1 WHERE user_id = $2 AND account_holder_name = $3",
+			["NGUYEN VAN AN", camper.id, "CAMPER NGUYEN VAN AN"]
+		);
+		for (const scenario of FINANCIAL_ADJUSTMENT_SCENARIOS) {
+			const { index, amount, bookings, paidOut } = scenario;
+			const hostId = host.id;
+			const routeId = fixtureId(2, index);
+			const tripId = fixtureId(3, index);
+			const settlementId = fixtureId(6, index);
+			const gross = amount * bookings;
+			const fee = gross * 0.05;
+			const net = gross - fee;
+			await manager.query(
+				`INSERT INTO trekking_routes
+				 (id, host_id, name, description, route_geom, length_meters, difficulty, expected_duration_minutes, status)
+				 VALUES ($1, $2, $3, $4,
+				 ST_GeogFromText($5), 3000, 'moderate', 240, 'active')
+				 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, route_geom = EXCLUDED.route_geom`,
+				[
+					routeId,
+					hostId,
+					scenario.title,
+					scenario.description,
+					`SRID=4326;LINESTRING(${scenario.path})`,
+				]
+			);
+			await manager.query(
+				`INSERT INTO trips (id, host_id, route_id, title, description, trip_type, duration_nights,
+				 starts_at, ends_at, meeting_point, booking_deadline, capacity_min, capacity_max, seats_taken,
+				 price_per_person, status)
+				 VALUES ($1, $2, $3, $4, $7, 'day_trip', 0,
+				 now() - interval '8 days', now() - interval '7 days',
+				 ST_GeogFromText($8), now() - interval '9 days', 1, 10, $5, $6, 'completed')
+				 ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, meeting_point = EXCLUDED.meeting_point`,
+				[
+					tripId,
+					hostId,
+					routeId,
+					scenario.title,
+					bookings,
+					amount.toFixed(2),
+					scenario.description,
+					`SRID=4326;POINT(${scenario.path.split(",")[0]})`,
+				]
+			);
+			// Replace only text this seed wrote earlier; descriptions a Host edited stay as they are.
+			const replaceableDescriptions = [
+				LEGACY_TRIP_DESCRIPTION,
+				LEGACY_ROUTE_DESCRIPTION,
+				scenario.previousDescription,
+			].filter((text): text is string => Boolean(text));
+			await manager.query(
+				"UPDATE trips SET description = $1 WHERE id = $2 AND description = ANY($3)",
+				[scenario.description, tripId, replaceableDescriptions]
+			);
+			await manager.query(
+				"UPDATE trekking_routes SET description = $1 WHERE id = $2 AND description = ANY($3)",
+				[scenario.description, routeId, replaceableDescriptions]
+			);
+			if (scenario.notes) {
+				await manager.query(
+					`UPDATE financial_adjustments SET notes = replace(notes, $1, $2)
+					 WHERE booking_id = $3 AND strpos(notes, $1) > 0`,
+					[LEGACY_ADJUSTMENT_NOTE, scenario.notes, fixtureId(4, index)]
+				);
+			}
+			for (let bookingIndex = 0; bookingIndex < bookings; bookingIndex++) {
+				const bookingId = fixtureId(4, index + bookingIndex * 100);
+				const paymentId = fixtureId(5, index + bookingIndex * 100);
+				await manager.query(
+					`INSERT INTO bookings (id, trip_id, user_id, num_people, status, payment_status,
+					 trip_starts_at_snapshot, trip_ends_at_snapshot, base_price, total_amount, completed_at)
+					 SELECT $1, id, $2, 1, 'completed', 'paid', starts_at, ends_at, $3, $3, ends_at
+					 FROM trips WHERE id = $4 ON CONFLICT (id) DO NOTHING`,
+					[bookingId, camper.id, amount.toFixed(2), tripId]
+				);
+				await manager.query(
+					`INSERT INTO payments (id, booking_id, amount, type, status, idempotency_key, request_fingerprint, provider_reference)
+					 VALUES ($1, $2, $3, 'charge', 'succeeded', $4, $4, $4) ON CONFLICT (id) DO NOTHING`,
+					[paymentId, bookingId, amount.toFixed(2), `seed-ctms114-charge-${index}-${bookingIndex}`]
+				);
+			}
+			await manager.query(
+				`INSERT INTO settlements (id, trip_id, host_id, settlement_base, commission_rate, platform_fee, net_amount, settled_at)
+				 VALUES ($1, $2, $3, $4, '0.0500', $5, $6, now() - ($7 * interval '1 day')) ON CONFLICT (id) DO NOTHING`,
+				[
+					settlementId,
+					tripId,
+					hostId,
+					gross.toFixed(2),
+					fee.toFixed(2),
+					net.toFixed(2),
+					paidOut ? 5 : 3,
+				]
+			);
+			const priorCredits: Array<{ id: string }> = await manager.query(
+				"SELECT id FROM wallet_transactions WHERE id = $1",
+				[fixtureId(8, index)]
+			);
+			if (priorCredits.length === 0) {
+				const credited: Array<{ balance: string }> = await manager.query(
+					"UPDATE host_wallets SET balance = balance + $1, updated_at = now() WHERE id = $2 RETURNING balance",
+					[net.toFixed(2), walletId]
+				);
+				let balanceAfter = credited.length > 0 ? credited[0].balance : null;
+				if (!balanceAfter) {
+					const w: Array<{ balance: string }> = await manager.query(
+						"SELECT balance FROM host_wallets WHERE id = $1",
+						[walletId]
+					);
+					balanceAfter = w.length > 0 ? w[0].balance : net.toFixed(2);
+				}
+				await manager.query(
+					`INSERT INTO wallet_transactions (id, wallet_id, settlement_id, trip_id, type,
+				 base_amount, fee_amount, net_amount, balance_after, description, created_at)
+				 VALUES ($1, $2, $3, $4, 'settlement_credit', $5, $6, $7, $9, $8, now() - ($10 * interval '1 day'))
+				 ON CONFLICT (id) DO NOTHING`,
+					[
+						fixtureId(8, index),
+						walletId,
+						settlementId,
+						tripId,
+						gross.toFixed(2),
+						fee.toFixed(2),
+						net.toFixed(2),
+						scenario.title,
+						balanceAfter,
+						paidOut ? 5 : 3,
+					]
+				);
+			}
+			// Wallet entries written by older versions of this seed carried the former Trip name or a
+			// "[Mẫu] …" fixture label. Rename only that seed-written text; amounts stay untouched.
+			await manager.query(
+				`UPDATE wallet_transactions SET description = $1
+				 WHERE id = $2 AND (description = $3 OR description LIKE '[Mẫu]%')`,
+				[scenario.title, fixtureId(8, index), scenario.previousTitle ?? scenario.title]
+			);
+			await manager.query(
+				`UPDATE wallet_transactions SET description = 'Rút tiền về tài khoản ngân hàng'
+				 WHERE id = $1 AND description = 'Rút toàn bộ số dư ví mẫu'`,
+				[fixtureId(8, index + 100)]
+			);
+			if (paidOut) {
+				const payoutId = fixtureId(9, index);
+				const priorPayouts: Array<{ id: string }> = await manager.query(
+					"SELECT id FROM payouts WHERE id = $1",
+					[payoutId]
+				);
+				if (priorPayouts.length === 0) {
+					await manager.query(
+						`INSERT INTO payouts (id, host_id, wallet_id, amount, status, bank_name, account_number,
+					 account_holder_name, transaction_ref, created_at)
+					 VALUES ($1, $2, $3, $4, 'succeeded', 'MB Bank', '0987612345', $5, 'FT261111428731',
+					 now() - interval '4 days') ON CONFLICT (id) DO NOTHING`,
+						[payoutId, hostId, walletId, net.toFixed(2), host.fullName]
+					);
+					const debited: Array<{ balance: string }> = await manager.query(
+						"UPDATE host_wallets SET balance = balance - $1, updated_at = now() WHERE id = $2 RETURNING balance",
+						[net.toFixed(2), walletId]
+					);
+					let debitedBalanceAfter = debited.length > 0 ? debited[0].balance : null;
+					if (!debitedBalanceAfter) {
+						const w: Array<{ balance: string }> = await manager.query(
+							"SELECT balance FROM host_wallets WHERE id = $1",
+							[walletId]
+						);
+						debitedBalanceAfter = w.length > 0 ? w[0].balance : "0.00";
+					}
+					await manager.query(
+						`INSERT INTO wallet_transactions (id, wallet_id, payout_id, trip_id, type,
+					 net_amount, balance_after, description, created_at)
+					 VALUES ($1, $2, $3, $4, 'payout_debit', $5, $6, 'Rút tiền về tài khoản ngân hàng',
+					 now() - interval '4 days') ON CONFLICT (id) DO NOTHING`,
+						[
+							fixtureId(8, index + 100),
+							walletId,
+							payoutId,
+							tripId,
+							(-net).toFixed(2),
+							debitedBalanceAfter,
+						]
+					);
+				}
+			}
+		}
+	});
+
+	const paymentsRepository = new PaymentsRepository(Payment, dataSource.manager);
+	const service = new RefundsService(
+		dataSource,
+		paymentsRepository,
+		new BookingsRepository(Booking, dataSource.manager)
+	);
+	for (const scenario of FINANCIAL_ADJUSTMENT_SCENARIOS) {
+		const bookingId = fixtureId(4, scenario.index);
+		if (
+			scenario.reason &&
+			!(await dataSource.getRepository(FinancialAdjustment).existsBy({ bookingId }))
+		) {
+			const request = await service.processRefund(
+				camper.id,
+				bookingId,
+				`financial-refund-${scenario.index}`,
+				{
+					origin: RefundOrigin.CAMPER_COMPLAINT,
+					reason: scenario.reason,
+					bankName: "Vietcombank",
+					accountNumber: "1012345678",
+					accountHolderName: "NGUYEN VAN AN",
+				},
+				{ userRoles: [UserRole.CAMPER] }
+			);
+			await service.approveRefund(admin.id, request.refundId, { note: scenario.reason });
+		}
+		console.log(`${scenario.title} — ${host.fullName} (${host.email})`);
+	}
+	console.log(
+		"Mở Quản lý tài chính → Hoàn tiền sau quyết toán, tìm theo tên chuyến đi hoặc người tổ chức."
+	);
+}
+
+// ==========================================================================
+// revenue-analytics.seed.ts (consolidated into the master seed)
+// ==========================================================================
+
+/**
+ * CTMS-110 seed: area snapshots for existing Trips plus settled revenue history for
+ * host@ctms.local in every inhabited Đà Nẵng district (Hoàng Sa is an offshore island district
+ * with no trekking, so it has no Trip).
+ *
+ * Rules (AGENTS.md):
+ * - Reuses host@ctms.local and camper@ctms.local; never creates accounts.
+ * - Places, routes and coordinates are real locations in Đà Nẵng. No cover images are seeded:
+ *   stock photos would not show the actual place, so the Host uploads real ones.
+ * - Area backfill only fills Trips whose `area_code` is still empty; areas a Host already chose
+ *   are left alone. No keys, statuses or money values of existing rows are changed.
+ * - Ledger rows use fixed ids and `ON CONFLICT DO NOTHING`, so a re-run never rewrites a
+ *   payment, refund or settlement. Only the descriptive fields of these seed Trips are refreshed.
+ */
+
+/** Title/route keywords → area. The first match wins; title is checked before route name. */
+const AREA_KEYWORDS: Array<{ code: string; keywords: string[] }> = [
+	{
+		code: "DNG-HOA-VANG",
+		keywords: [
+			"bà nà",
+			"núi chúa",
+			"hòa bắc",
+			"khe ram",
+			"suối mơ",
+			"hòa trung",
+			"hòa vang",
+			"hòa phú",
+			"tà lang",
+			"giàn bí",
+			"cu đê",
+		],
+	},
+	{ code: "DNG-LIEN-CHIEU", keywords: ["hải vân", "làng vân", "nam ô", "suối lương"] },
+	{ code: "DNG-NGU-HANH-SON", keywords: ["ngũ hành sơn", "non nước", "huyền không", "thủy sơn"] },
+	{ code: "DNG-HAI-CHAU", keywords: ["sông hàn", "cầu rồng"] },
+	{ code: "DNG-THANH-KHE", keywords: ["thanh bình", "thanh khê"] },
+	{ code: "DNG-CAM-LE", keywords: ["cẩm lệ", "la hường"] },
+	{
+		code: "DNG-SON-TRA",
+		keywords: ["sơn trà", "voọc", "bàn cờ", "tiên sa", "mũi nghê", "bãi bụt", "chùa linh ứng"],
+	},
+];
+
+/**
+ * Older performance-report seed Trips that were set outside Đà Nẵng, moved to real Đà Nẵng places.
+ * `from` is the former title so existing databases are renamed in place.
+ */
+export const DA_NANG_TRIP_MOVES = [
+	{
+		from: "Trekking Tà Năng - Phan Dũng (Lâm Đồng)",
+		title: "Trekking Tà Lang – Giàn Bí, bản làng Cơ Tu Hòa Bắc",
+		description:
+			"Băng rừng Hòa Bắc vào thôn Tà Lang, Giàn Bí, ngủ nhà sàn và nghe già làng Cơ Tu kể chuyện bản.",
+		routeName: "Khe Ram - Suối Mơ - Rừng Hòa Bắc",
+	},
+	{
+		from: "Khám phá Rừng Tràm Trà Sư (An Giang)",
+		title: "Chèo kayak sông Cu Đê – Hòa Bắc",
+		description:
+			"Chèo kayak xuôi dòng Cu Đê giữa hai bờ núi Hòa Bắc, dừng tắm suối và ăn trưa bên bãi sỏi.",
+		routeName: "Khe Ram - Suối Mơ - Rừng Hòa Bắc",
+	},
+	{
+		from: "Chinh phục đỉnh Bidoup Núi Bà (Lâm Đồng)",
+		title: "Xuyên rừng Bà Nà – Chinh phục đỉnh Núi Chúa",
+		description:
+			"Leo xuyên rừng nguyên sinh Bà Nà, cắm trại trên sườn núi và đón bình minh trên đỉnh Núi Chúa.",
+		routeName: "Rừng Nguyên Sinh Bà Nà - Núi Chúa",
+	},
+	{
+		from: "Khám phá VQG Cát Tiên (Đồng Nai)",
+		title: "Ngắm voọc chà vá chân nâu – Rừng Sơn Trà",
+		description:
+			"Đi bộ nhẹ trong rừng Sơn Trà buổi sáng sớm, quan sát đàn voọc chà vá chân nâu kiếm ăn trên tán cây.",
+		routeName: "Bán Đảo Sơn Trà Discovery",
+	},
+	{
+		from: "Chinh phục đỉnh Fansipan 3N2Đ Chạm Đỉnh Mây (Lào Cai)",
+		title: "Chinh phục đỉnh Núi Chúa – Rừng Bà Nà",
+		description:
+			"Trekking xuyên rừng Bà Nà lên đỉnh Núi Chúa, nghỉ qua đêm và đón bình minh giữa núi rừng Hòa Vang.",
+		routeName: "Cung đường đỉnh Núi Chúa – Bà Nà",
+	},
+	{
+		from: "Cung đường săn mây Tà Xùa (Sơn La)",
+		title: "Săn mây Bà Nà – Bình minh trên đỉnh núi",
+		description:
+			"Men theo đường mòn rừng Bà Nà, dừng nghỉ trên sườn núi và ngắm mây sớm trên thung lũng Hòa Vang.",
+		routeName: "Cung đường đỉnh Núi Chúa – Bà Nà",
+	},
+	{
+		from: "Thám hiểm Thác Bản Giốc & Pác Bó (Cao Bằng)",
+		title: "Khám phá thác Tóc Tiên – Rừng Bà Nà",
+		description:
+			"Khám phá cảnh quan thác Tóc Tiên và những đoạn đường rừng dưới chân núi Bà Nà, nghỉ đêm giữa thiên nhiên Hòa Vang.",
+		routeName: "Cung đường đỉnh Núi Chúa – Bà Nà",
+	},
+	{
+		from: "Bạch Mộc Lương Tử Expedition (Lai Châu)",
+		title: "Xuyên rừng Bà Nà – Hành trình qua suối",
+		description:
+			"Theo đường mòn dưới tán rừng Bà Nà, vượt những đoạn suối cạn và cắm trại trên sườn núi Hòa Vang.",
+		routeName: "Cung đường đỉnh Núi Chúa – Bà Nà",
+	},
+	{
+		from: "Săn mây Y Tý - Bát Xát (Lào Cai)",
+		title: "Săn mây đỉnh Núi Chúa – Hòa Vang",
+		description:
+			"Đi bộ xuyên rừng Bà Nà, nghỉ qua đêm trên sườn Núi Chúa và đón biển mây trong ánh bình minh.",
+		routeName: "Cung đường đỉnh Núi Chúa – Bà Nà",
+	},
+	{
+		from: "Trekking Mù Cang Chải mùa vàng (Yên Bái)",
+		title: "Trekking rừng Bà Nà – Khám phá thác và suối",
+		description:
+			"Khám phá những lối mòn rừng Bà Nà, dừng chân bên suối và trải nghiệm cắm trại ở vùng núi Hòa Vang.",
+		routeName: "Cung đường đỉnh Núi Chúa – Bà Nà",
+	},
+] as const;
+
+// Legacy text is lookup metadata only; none of these old labels are inserted.
+export const DA_NANG_SEED_TITLE_UPDATES: ReadonlyArray<readonly [string, string]> = [
+	...DA_NANG_TRIP_MOVES.map((move) => [move.from, move.title] as const),
+	["Trekking Fansipan 3N2Đ Chạm Đỉnh Mây (Lào Cai)", "Chinh phục đỉnh Núi Chúa – Rừng Bà Nà"],
+	["[CTMS-024] Khám Phá Bán Đảo Sơn Trà (Bình thường - Còn 12 chỗ)", "Khám Phá Bán Đảo Sơn Trà"],
+	[
+		"[CTMS-024] Hải Vân Quan - Vịnh Làng Vân (Khẩn cấp: Chỉ còn 2 chỗ)",
+		"Hải Vân Quan - Vịnh Làng Vân",
+	],
+	[
+		"[CTMS-024] Thám Hiểm Rừng Bà Nà - Núi Chúa (Đã Hết Chỗ - 0 chỗ)",
+		"Thám Hiểm Rừng Bà Nà - Núi Chúa",
+	],
+	[
+		"[CTMS-024] Trekking Khe Ram - Rừng Hòa Bắc (Sắp hết hạn - Còn 8h)",
+		"Trekking Khe Ram - Rừng Hòa Bắc",
+	],
+	[
+		"[CTMS-024] Sơn Trà Sunset Trekking Mũi Nghê (Đã Hết Hạn Đặt Vé)",
+		"Sơn Trà – Hoàng hôn Mũi Nghê",
+	],
+	[
+		"[Tháng 12] Cắm Trại Đêm Vịnh Làng Vân & Trekking Đèo Hải Vân",
+		"Cắm Trại Đêm Vịnh Làng Vân & Trekking Đèo Hải Vân",
+	],
+	[
+		"[Tháng 12] Khám Phá Rừng Nguyên Sinh Sơn Trà - Đỉnh Bàn Cờ",
+		"Khám Phá Rừng Nguyên Sinh Sơn Trà - Đỉnh Bàn Cờ",
+	],
+	["[CTMS-024] Thám Hiểm Rừng Hòa Bắc (Chờ Admin phê duyệt)", "Thám Hiểm Rừng Hòa Bắc"],
+	["[CTMS-024] Trekking Suối Mơ Hòa Vang (Bản nháp của Host)", "Trekking Suối Mơ Hòa Vang"],
+	["[CTMS-024] Chinh Phục Đỉnh Núi Chúa (Đã hủy do thiếu người)", "Chinh Phục Đỉnh Núi Chúa"],
+	["[H-09] Chuyến phân công Porter trùng lịch Khe Ram", "Trekking Khe Ram – Dòng suối giữa rừng"],
+	["Trekking Bạch Mã 2N1Đ - Đủ điều kiện Quyết toán", "Trekking bán đảo Sơn Trà qua đêm"],
+	["Chèo SUP Hồ Hòa Trung - Đang giữ 72h", "Chèo SUP hồ Hòa Trung"],
+	["Khám phá Đỉnh Bàn Cờ - Bị giữ do Khiếu nại", "Khám phá Đỉnh Bàn Cờ"],
+	["Cắm trại Đảo Điệp Sơn - Đã quyết toán thành công", "Cắm trại bãi Tiên Sa – Sơn Trà"],
+	[
+		"Trekking Sơn Trà - Đang Diễn Ra (CTMS-064 Offline Buffer Demo)",
+		"Trekking Sơn Trà – Hành trình ven biển",
+	],
+	["Trekking Sơn Trà Hoàn Thành - Demo Khiếu Nại", "Trekking Nam Hải Vân – Khám phá rừng ven biển"],
+	["Bạch Mã — Hết hạn chỉnh sửa", "Bà Nà – Đường rừng buổi sớm"],
+	["[Demo thời tiết] Sơn Trà ngày nắng (còn 10 ngày)", "Sơn Trà – Đường mòn dưới tán rừng"],
+	["[Demo thời tiết] Bà Nà mưa lớn (Host cần quyết định)", "Bà Nà – Khám phá rừng nguyên sinh"],
+	["[Demo thời tiết] Hải Vân dông sét (Host chưa trả lời)", "Hải Vân – Dọc sườn núi ven biển"],
+	[
+		"[Demo thời tiết] Ngũ Hành Sơn gió mạnh (Host muốn giữ)",
+		"Ngũ Hành Sơn – Hành trình qua các hang động",
+	],
+	["[Demo thời tiết] Cù Lao Chàm (Admin tạm dừng)", "Bãi Bắc – Dã ngoại bán đảo Sơn Trà"],
+	["[Demo thời tiết] Bidoup (đã dời lịch vì mưa bão)", "Bà Nà – Hành trình qua suối và rừng"],
+	["[Demo thời tiết] Lang Biang gió giật (ngưỡng và AI lệch)", "Đỉnh Bàn Cờ – Đón gió biển"],
+	[
+		"[Demo thời tiết] Mỹ Sơn mưa rào ngắn (ngưỡng và AI lệch)",
+		"Suối Lương – Dạo bước dưới tán cây",
+	],
+	["[Demo thời tiết] Sơn Trà Tây (còn 10 giờ, Khẩn)", "Sơn Trà – Ngắm biển từ sườn phía tây"],
+	[
+		"[Demo thời tiết] Bà Nà Núi Chúa (còn 6,5 giờ, sắp tự huỷ)",
+		"Núi Chúa – Khám phá đường rừng Hòa Vang",
+	],
+	[
+		"[Demo thời tiết] Tiên Sa (hệ thống đã tự huỷ T-6h)",
+		"Tiên Sa – Nghỉ dưỡng và dã ngoại ven biển",
+	],
+	["[Demo phạt] Hòa Bắc (đã miễn phạt)", "Hòa Bắc – Khám phá bản làng Cơ Tu"],
+	["[Demo phạt] Lăng Cô (lần 1, bị từ chối miễn)", "Nam Ô – Đi bộ ven rạn đá"],
+	["[Demo phạt] Bạch Mã (lần 2, chờ duyệt miễn)", "Bà Nà – Cắm trại giữa rừng xanh"],
+	["[Demo phạt] Phú Ninh (lần 1)", "Hồ Hòa Trung – Dã ngoại bên hồ"],
+	["[Demo phạt] Đèo Le (lần 2)", "Sông Cu Đê – Hành trình qua thung lũng"],
+	["[Demo phạt] Núi Thần Tài (lần 3, quá hạn xem)", "Núi Thần Tài – Nghỉ chân bên suối"],
+];
+
+export const DA_NANG_SEED_ROUTE_UPDATES = [
+	{
+		from: "Cung đường Tà Năng - Phan Dũng",
+		name: "Cung đường Tà Lang – Giàn Bí",
+		path: "108.020 16.090,108.035 16.105,108.050 16.120,108.065 16.135",
+	},
+	{
+		from: "Cung đường Fansipan Trạm Tôn",
+		name: "Cung đường đỉnh Núi Chúa – Bà Nà",
+		path: "108.010 15.990,108.018 16.002,108.025 16.015,108.030 16.025",
+	},
+	{
+		from: "Đỉnh Núi Bidoup Trail",
+		name: "Hải Vân Pass - Nam Hải Vân Trail",
+		path: "108.130 16.185,108.138 16.195,108.145 16.205,108.150 16.210",
+	},
+	{
+		from: "Cung Đường An Toàn (Mức Xanh)",
+		name: "Đường mòn ven suối Lương",
+		path: "108.1290 16.1405,108.1262 16.1428,108.1243 16.1449",
+	},
+	{
+		from: "Cung Đường Bão Nguy Hiểm (Mức Đỏ)",
+		name: "Đường rừng Nam Hải Vân",
+		path: "108.130 16.185,108.138 16.195,108.145 16.205",
+	},
+	{
+		from: "Cung đường Trekking Demo",
+		name: "Đường dạo rừng Hòa Bắc",
+		path: "108.020 16.090,108.035 16.105,108.050 16.120",
+	},
+	{
+		from: "Đồi Dương - Suối Lương Trail (Chờ Duyệt)",
+		name: "Đồi Dương – Suối Lương",
+		path: "108.120 16.170,108.125 16.175,108.130 16.180",
+	},
+	{
+		from: "Đỉnh Mẹ Suốt Cung Sạt Lở (Tạm Đóng)",
+		name: "Đường mòn sườn núi Nam Hải Vân",
+		path: "108.110 16.160,108.115 16.165",
+	},
+] as const;
+
+export const DA_NANG_SEED_COPY_UPDATES: ReadonlyArray<readonly [string, string]> = [
+	[
+		"Chinh phục đỉnh Fansipan 3.143m ngắm biển mây Tây Bắc.",
+		"Trekking xuyên rừng Bà Nà lên đỉnh Núi Chúa, nghỉ qua đêm và đón bình minh giữa núi rừng Hòa Vang.",
+	],
+	[
+		"Chinh phục Nóc nhà Đông Dương 3.143m ngắm trọn biển mây Tây Bắc.",
+		"Trekking xuyên rừng Bà Nà lên đỉnh Núi Chúa, nghỉ qua đêm và đón bình minh giữa núi rừng Hòa Vang.",
+	],
+	[
+		"Check-in Sống lưng khủng long Háng Đồng và biển mây bồng bềnh nguyên sơ.",
+		"Men theo đường mòn rừng Bà Nà, dừng nghỉ trên sườn núi và ngắm mây sớm trên thung lũng Hòa Vang.",
+	],
+	[
+		"Chiêm ngưỡng thác nước tự nhiên đẹp nhất Việt Nam và dòng suối Lê-nin xanh ngọc.",
+		"Khám phá cảnh quan thác Tóc Tiên và những đoạn đường rừng dưới chân núi Bà Nà, nghỉ đêm giữa thiên nhiên Hòa Vang.",
+	],
+	[
+		"Kỳ vĩ đồi Muối và biển mây ngút ngàn trên độ cao 3.046m.",
+		"Theo đường mòn dưới tán rừng Bà Nà, vượt những đoạn suối cạn và cắm trại trên sườn núi Hòa Vang.",
+	],
+	[
+		"Cung đường ruộng bậc thang và biển mây ngút ngàn Lào Cai.",
+		"Đi bộ xuyên rừng Bà Nà, nghỉ qua đêm trên sườn Núi Chúa và đón biển mây trong ánh bình minh.",
+	],
+	[
+		"Ngắm những triền ruộng bậc thang La Pán Tẩn rực rỡ sắc vàng Tây Bắc.",
+		"Khám phá những lối mòn rừng Bà Nà, dừng chân bên suối và trải nghiệm cắm trại ở vùng núi Hòa Vang.",
+	],
+	[
+		"Cung trekking đẹp nhất miền Nam tại Lâm Đồng",
+		"Cung đường xuyên rừng Hòa Bắc qua Tà Lang và Giàn Bí, men theo thung lũng sông Cu Đê.",
+	],
+	[
+		"Chinh phục Nóc nhà Đông Dương tại Sa Pa, Lào Cai",
+		"Đường mòn xuyên rừng Bà Nà lên đỉnh Núi Chúa, qua các đoạn dốc và điểm nghỉ dưới tán rừng.",
+	],
+	[
+		"Cung đường trekking chinh phục đỉnh núi Bidoup",
+		"Trekking sườn Nam Hải Vân, ngắm vịnh Làng Vân và rừng ven biển Đà Nẵng.",
+	],
+	[
+		"Tuyến trekking thời tiết đẹp, đủ điều kiện an toàn đăng ký",
+		"Đường đi ven suối Lương dưới chân đèo Hải Vân, qua các bãi đá và rừng cây râm mát.",
+	],
+	[
+		"Tuyến đường rủi ro thời tiết MỨC ĐỎ - Tạm dừng nhận đăng ký mới",
+		"Đường mòn rừng Nam Hải Vân qua các sườn dốc hướng ra biển, cần theo dõi thời tiết trước khi khởi hành.",
+	],
+	[
+		"Tuyến đường mẫu cho kịch bản quyết toán",
+		"Cung đường đi bộ dưới tán rừng Hòa Bắc, thích hợp dã ngoại và ngắm cảnh.",
+	],
+	[
+		"Chuyến đi trong ngày qua cung đường đèo Hải Vân, dừng ngắm cảnh vịnh Đà Nẵng và Lăng Cô.",
+		"Chuyến đi trong ngày qua sườn Nam Hải Vân, dừng ngắm vịnh Đà Nẵng và Làng Vân dưới chân đèo.",
+	],
+	[
+		"Chuyến đi đã kết thúc cách đây 80 giờ, vượt qua mốc bảo lưu 72h và sẵn sàng quyết toán.",
+		"Trekking đường rừng bán đảo Sơn Trà, nghỉ qua đêm bên biển và ngắm bình minh trên vịnh Đà Nẵng.",
+	],
+	[
+		"Chuyến đi đã hoàn thành 90 giờ trước nhưng đang có yêu cầu khiếu nại hoàn tiền chưa xử lý.",
+		"Khám phá các đường mòn lên Đỉnh Bàn Cờ, ngắm toàn cảnh rừng Sơn Trà và vịnh Đà Nẵng.",
+	],
+	[
+		"Dữ liệu mẫu để test luồng thời tiết và phạt Host.",
+		"Hành trình khám phá rừng và biển Đà Nẵng, theo dõi dự báo thời tiết trước giờ khởi hành.",
+	],
+	[" Trạng thái bình thường, còn nhiều chỗ trống.", ""],
+	[" Số lượng chỗ sắp hết, chỉ còn 2 vé cuối cùng!", ""],
+	[" Đã đủ 10/10 khách tham gia, toàn bộ chỗ đã được đặt kín.", ""],
+	[" Hạn chốt danh sách người tham gia sẽ đóng trong 8 giờ tới.", ""],
+	[
+		"Thích hợp thuê lều, túi ngủ, đèn pin dã ngoại và test thanh toán trực tuyến.",
+		"Lịch trình có cắm trại bãi biển, sử dụng lều, túi ngủ và đèn pin dã ngoại.",
+	],
+	[
+		"Chuyến đi bộ ngắm hoàng hôn rực rỡ tại Mũi Nghê Sơn Trà đã qua hạn chốt danh sách người tham gia (đóng từ 2 giờ trước). Không thể đăng ký thêm.",
+		"Đi bộ men theo sườn núi Sơn Trà ra Mũi Nghê, dừng ngắm biển và hoàng hôn cuối ngày.",
+	],
+	[
+		"Bản phác thảo kế hoạch chuyến đi chưa gửi duyệt của Host.",
+		"Hành trình đi bộ ven suối Mơ, nghỉ dưới tán cây và khám phá thiên nhiên Hòa Vang.",
+	],
+	[
+		"Chuyến đi tự động bị hủy do đến hạn chót đặt vé mà số lượng người đăng ký không đạt mức tối thiểu (capacity_min).",
+		"Đi bộ xuyên rừng lên đỉnh Núi Chúa, dừng nghỉ bên suối và ngắm cảnh núi rừng Hòa Vang.",
+	],
+	[
+		"Chuyến đi đã bị hủy theo quy chế capacity_min.",
+		"Tập trung tại chân núi Bà Nà, trekking đường rừng, nghỉ trưa bên suối và trở về trong ngày.",
+	],
+	["Quyết toán doanh thu chuyến: Bạch Mã", "Quyết toán doanh thu chuyến: Bà Nà"],
+	["Trừ phạt thời tiết: Bạch Mã", "Trừ phạt thời tiết: Bà Nà"],
+	[
+		"Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh",
+		"Số 123 Nguyễn Văn Linh, Phường Hải Châu, TP. Đà Nẵng",
+	],
+	["Host Tây Bắc Trek", "Trần Minh Hoàng"],
+	["Host Ban Mai", "Nguyễn Thị Ban Mai"],
+	["Camper Nguyễn Văn An", "Nguyễn Văn An"],
+	["Quản trị viên hệ thống", "Lê Minh Tuấn"],
+	["Administrator", "Lê Minh Tuấn"],
+	["Porter Chuyên Nghiệp", "Nguyễn Minh Sơn"],
+	["Porter 2", "Trần Quốc Huy"],
+];
+
+/** Replace only recognized fixture text, preserving any appended operational notes. */
+export function rewriteDaNangSeedCopy(value: string): string {
+	let result = value;
+	for (const [from, to] of [
+		...DA_NANG_SEED_TITLE_UPDATES,
+		...DA_NANG_SEED_COPY_UPDATES,
+		...DA_NANG_SEED_ROUTE_UPDATES.map((route) => [route.from, route.name] as const),
+	])
+		result = result.replaceAll(from, to);
+	return result;
+}
+
+function rewriteDaNangSeedJson(value: unknown): unknown {
+	if (typeof value === "string") return rewriteDaNangSeedCopy(value);
+	if (Array.isArray(value)) return value.map(rewriteDaNangSeedJson);
+	if (value !== null && typeof value === "object")
+		return Object.fromEntries(
+			Object.entries(value).map(([key, item]) => [key, rewriteDaNangSeedJson(item)])
+		);
+	return value;
+}
+
+/** Copy/location-only repair: no accounts or records are created; links and money stay intact. */
+export async function refreshDaNangSeedData(ds: DataSource = dataSource) {
+	if (process.env.NODE_ENV === "production")
+		throw new Error("Da Nang seed maintenance refuses production.");
+	if (!ds.isInitialized) {
+		ds.setOptions({ migrationsRun: false });
+		await ds.initialize();
+	}
+	return ds.transaction(async (manager) => {
+		const emails = [
+			"host@ctms.local",
+			"host2@ctms.local",
+			"host.blocked@ctms.local",
+			"host.suspended@ctms.local",
+		];
+		let tripsUpdated = 0;
+		let routesUpdated = 0;
+		const trips: Array<{
+			id: string;
+			title: string;
+			description: string | null;
+			itinerary: unknown;
+		}> = await manager.query(
+			`SELECT t.id,t.title,t.description,t.itinerary FROM trips t JOIN users u ON u.id=t.host_id
+			 WHERE u.email=ANY($1) FOR UPDATE OF t`,
+			[emails]
+		);
+		for (const trip of trips) {
+			const title = rewriteDaNangSeedCopy(trip.title);
+			const description =
+				trip.description === null ? null : rewriteDaNangSeedCopy(trip.description);
+			let itinerary = rewriteDaNangSeedJson(trip.itinerary);
+			if (trip.title.startsWith("[Demo thời tiết]") || trip.title.startsWith("[Demo phạt]"))
+				itinerary = {
+					...(itinerary as Record<string, unknown> | null),
+					seedFixture: "weather-operations",
+				};
+			if (
+				title !== trip.title ||
+				description !== trip.description ||
+				JSON.stringify(itinerary) !== JSON.stringify(trip.itinerary)
+			) {
+				await manager.query(
+					"UPDATE trips SET title=$2,description=$3,itinerary=$4::jsonb WHERE id=$1",
+					[trip.id, title, description, JSON.stringify(itinerary)]
+				);
+				tripsUpdated++;
+			}
+			if (title !== trip.title) {
+				for (const table of [
+					"booking_cancellation_notices",
+					"host_weather_penalties",
+					"trip_weather_change_notices",
+					"trip_weather_decision_alerts",
+				])
+					await manager.query(
+						`UPDATE "${table}" SET trip_title=$2 WHERE trip_id=$1 AND trip_title=$3`,
+						[trip.id, title, trip.title]
+					);
+			}
+		}
+		const routes: Array<{ id: string; name: string; description: string | null }> =
+			await manager.query(
+				`SELECT r.id,r.name,r.description FROM trekking_routes r JOIN users u ON u.id=r.host_id
+			 WHERE u.email=ANY($1) FOR UPDATE OF r`,
+				[emails]
+			);
+		for (const route of routes) {
+			const move = DA_NANG_SEED_ROUTE_UPDATES.find((item) => item.from === route.name);
+			const description =
+				route.description === null ? null : rewriteDaNangSeedCopy(route.description);
+			if (move) {
+				await manager.query(
+					"UPDATE trekking_routes SET name=$2,description=$3,route_geom=ST_GeogFromText($4) WHERE id=$1",
+					[route.id, move.name, description, `SRID=4326;LINESTRING(${move.path})`]
+				);
+				routesUpdated++;
+			} else if (description !== route.description) {
+				await manager.query("UPDATE trekking_routes SET description=$2 WHERE id=$1", [
+					route.id,
+					description,
+				]);
+				routesUpdated++;
+			}
+		}
+		const ledger: Array<{ id: string; description: string }> = await manager.query(
+			`SELECT wt.id,wt.description FROM wallet_transactions wt JOIN host_wallets w ON w.id=wt.wallet_id
+			 JOIN users u ON u.id=w.host_id WHERE u.email=ANY($1) FOR UPDATE OF wt`,
+			[emails]
+		);
+		for (const entry of ledger) {
+			const description = rewriteDaNangSeedCopy(entry.description);
+			if (description !== entry.description)
+				await manager.query("UPDATE wallet_transactions SET description=$2 WHERE id=$1", [
+					entry.id,
+					description,
+				]);
+		}
+		const users: Array<{ id: string; full_name: string; address: string | null }> =
+			await manager.query("SELECT id,full_name,address FROM users WHERE email=ANY($1) FOR UPDATE", [
+				[
+					...emails,
+					"camper@ctms.local",
+					"admin@ctms.local",
+					"porter@ctms.local",
+					"porter2@ctms.local",
+				],
+			]);
+		for (const user of users) {
+			const name = rewriteDaNangSeedCopy(user.full_name);
+			const address = user.address === null ? null : rewriteDaNangSeedCopy(user.address);
+			if (name !== user.full_name || address !== user.address)
+				await manager.query("UPDATE users SET full_name=$2,address=$3 WHERE id=$1", [
+					user.id,
+					name,
+					address,
+				]);
+		}
+		const areasUpdated = await backfillTripAreaSnapshots(manager);
+		return { tripsUpdated, routesUpdated, areasUpdated };
+	});
+}
+
+interface SeedRoute {
+	id: string;
+	name: string;
+	description: string;
+	/** Real path as [longitude, latitude] pairs. */
+	path: Array<[number, number]>;
+	lengthMeters: number;
+	difficulty: "easy" | "moderate";
+	durationMinutes: number;
+}
+
+const ROUTES: SeedRoute[] = [
+	{
+		id: "e1100000-0000-4000-8110-000000000401",
+		name: "Thủy Sơn – Ngũ Hành Sơn",
+		description:
+			"Leo bậc đá Thủy Sơn qua chùa Linh Ứng, động Huyền Không, động Tàng Chơn lên đài Vọng Giang.",
+		path: [
+			[108.2629, 16.0041],
+			[108.2637, 16.0034],
+			[108.2644, 16.0027],
+			[108.2649, 16.0021],
+		],
+		lengthMeters: 1600,
+		difficulty: "easy",
+		durationMinutes: 180,
+	},
+	{
+		id: "e1100000-0000-4000-8110-000000000402",
+		name: "Ven sông Hàn – Cầu Sông Hàn đến cầu Trần Thị Lý",
+		description: "Đi bộ dọc đường Bạch Đằng bên bờ tây sông Hàn, qua chân cầu Rồng.",
+		path: [
+			[108.2236, 16.0716],
+			[108.2253, 16.0661],
+			[108.2264, 16.0612],
+			[108.2279, 16.0532],
+			[108.2286, 16.0489],
+		],
+		lengthMeters: 2700,
+		difficulty: "easy",
+		durationMinutes: 150,
+	},
+	{
+		id: "e1100000-0000-4000-8110-000000000403",
+		name: "Biển Thanh Bình – Làng chài Thanh Khê",
+		description: "Đi bộ trên bãi biển Thanh Bình về phía xóm chài, xem thuyền thúng vào bờ.",
+		path: [
+			[108.2143, 16.0812],
+			[108.2156, 16.0827],
+			[108.2171, 16.0839],
+			[108.219, 16.0848],
+		],
+		lengthMeters: 1300,
+		difficulty: "easy",
+		durationMinutes: 120,
+	},
+	{
+		id: "e1100000-0000-4000-8110-000000000404",
+		name: "Ven sông Cẩm Lệ – Làng rau La Hường",
+		description: "Đi bộ từ cầu Cẩm Lệ dọc bờ sông về làng rau La Hường, phường Hòa Xuân.",
+		path: [
+			[108.2083, 16.0086],
+			[108.2121, 16.0047],
+			[108.2158, 16.0011],
+			[108.2189, 15.9974],
+		],
+		lengthMeters: 2900,
+		difficulty: "easy",
+		durationMinutes: 180,
+	},
+];
+
+interface HistoryTrip {
+	id: string;
+	bookingId: string;
+	chargeId: string;
+	/** Seeded route id, or the name of an existing host@ route. */
+	route: { id: string } | { name: string };
+	title: string;
+	description: string;
+	areaCode: string;
+	tripType: "day_trip" | "overnight";
+	startsAt: string;
+	endsAt: string;
+	numPeople: number;
+	pricePerPerson: number;
+	paidAt: string;
+	refund?: { id: string; amount: number; succeededAt: string; reason: string };
+	settledAt: string;
+}
+
+const HISTORY_TRIPS: HistoryTrip[] = [
+	{
+		id: "e1100000-0000-4000-8110-000000000001",
+		bookingId: "e1100000-0000-4000-8110-000000000101",
+		chargeId: "e1100000-0000-4000-8110-000000000201",
+		route: { id: ROUTES[0].id },
+		title: "Leo núi Ngũ Hành Sơn – Động Huyền Không",
+		description:
+			"Leo Thủy Sơn qua các hang động, chùa cổ và ngắm toàn cảnh biển Non Nước lúc bình minh.",
+		areaCode: "DNG-NGU-HANH-SON",
+		tripType: "day_trip",
+		startsAt: "2026-08-15T22:30:00Z",
+		endsAt: "2026-08-16T05:00:00Z",
+		numPeople: 6,
+		pricePerPerson: 650000,
+		paidAt: "2026-08-08T09:12:00Z",
+		settledAt: "2026-08-20T02:00:00Z",
+	},
+	{
+		id: "e1100000-0000-4000-8110-000000000002",
+		bookingId: "e1100000-0000-4000-8110-000000000102",
+		chargeId: "e1100000-0000-4000-8110-000000000202",
+		route: { name: "Rừng Nguyên Sinh Bà Nà - Núi Chúa" },
+		title: "Trekking suối Hoa – Hòa Phú Thành",
+		description: "Băng rừng dọc suối Hoa, tắm thác và cắm trại một đêm bên bờ suối ở Hòa Vang.",
+		areaCode: "DNG-HOA-VANG",
+		tripType: "overnight",
+		startsAt: "2026-09-12T23:00:00Z",
+		endsAt: "2026-09-13T09:00:00Z",
+		numPeople: 8,
+		pricePerPerson: 750000,
+		paidAt: "2026-09-03T14:40:00Z",
+		refund: {
+			id: "e1100000-0000-4000-8110-000000000302",
+			amount: 750000,
+			succeededAt: "2026-09-09T03:15:00Z",
+			reason: "Một thành viên trong nhóm báo bận việc gia đình trước ngày khởi hành.",
+		},
+		settledAt: "2026-09-17T02:00:00Z",
+	},
+	{
+		id: "e1100000-0000-4000-8110-000000000003",
+		bookingId: "e1100000-0000-4000-8110-000000000103",
+		chargeId: "e1100000-0000-4000-8110-000000000203",
+		route: { name: "Hải Vân Pass - Nam Hải Vân Trail" },
+		title: "Cắm trại rạn Nam Ô – Ngắm hoàng hôn",
+		description: "Đi bộ dọc ghềnh đá Nam Ô, dựng lều bên bờ biển và thưởng thức gỏi cá làng chài.",
+		areaCode: "DNG-LIEN-CHIEU",
+		tripType: "overnight",
+		startsAt: "2026-10-17T08:00:00Z",
+		endsAt: "2026-10-18T02:00:00Z",
+		numPeople: 10,
+		pricePerPerson: 550000,
+		paidAt: "2026-10-06T11:05:00Z",
+		settledAt: "2026-10-22T02:00:00Z",
+	},
+	{
+		id: "e1100000-0000-4000-8110-000000000004",
+		bookingId: "e1100000-0000-4000-8110-000000000104",
+		chargeId: "e1100000-0000-4000-8110-000000000204",
+		route: { id: ROUTES[1].id },
+		title: "Đi bộ đêm ven sông Hàn – Xem cầu Rồng phun lửa",
+		description:
+			"Dạo bộ đường Bạch Đằng lúc lên đèn, dừng ở chân cầu Rồng xem phun lửa, phun nước lúc 21 giờ tối thứ Bảy.",
+		areaCode: "DNG-HAI-CHAU",
+		tripType: "day_trip",
+		startsAt: "2026-10-24T12:30:00Z",
+		endsAt: "2026-10-24T15:00:00Z",
+		numPeople: 6,
+		pricePerPerson: 350000,
+		paidAt: "2026-10-18T08:20:00Z",
+		settledAt: "2026-10-28T02:00:00Z",
+	},
+	{
+		id: "e1100000-0000-4000-8110-000000000005",
+		bookingId: "e1100000-0000-4000-8110-000000000105",
+		chargeId: "e1100000-0000-4000-8110-000000000205",
+		route: { id: ROUTES[2].id },
+		title: "Bình minh biển Thanh Bình – Làng chài Thanh Khê",
+		description:
+			"Đón bình minh trên bãi Thanh Bình, xem ngư dân kéo thuyền thúng vào bờ và ăn sáng ở chợ cá.",
+		areaCode: "DNG-THANH-KHE",
+		tripType: "day_trip",
+		startsAt: "2026-10-30T22:00:00Z",
+		endsAt: "2026-10-31T01:30:00Z",
+		numPeople: 8,
+		pricePerPerson: 250000,
+		paidAt: "2026-10-22T13:45:00Z",
+		refund: {
+			id: "e1100000-0000-4000-8110-000000000305",
+			amount: 250000,
+			succeededAt: "2026-10-28T04:10:00Z",
+			reason: "Một khách đổi lịch công tác nên hủy trước ngày đi.",
+		},
+		settledAt: "2026-11-04T02:00:00Z",
+	},
+	{
+		id: "e1100000-0000-4000-8110-000000000006",
+		bookingId: "e1100000-0000-4000-8110-000000000106",
+		chargeId: "e1100000-0000-4000-8110-000000000206",
+		route: { id: ROUTES[3].id },
+		title: "Đi bộ ven sông Cẩm Lệ – Làng rau La Hường",
+		description:
+			"Đi bộ sáng sớm dọc sông Cẩm Lệ, thăm vườn rau La Hường và tự tay hái rau nấu bữa trưa.",
+		areaCode: "DNG-CAM-LE",
+		tripType: "day_trip",
+		startsAt: "2026-10-31T23:00:00Z",
+		endsAt: "2026-11-01T04:00:00Z",
+		numPeople: 10,
+		pricePerPerson: 300000,
+		paidAt: "2026-10-24T10:30:00Z",
+		settledAt: "2026-11-05T02:00:00Z",
+	},
+	{
+		id: "e1100000-0000-4000-8110-000000000007",
+		bookingId: "e1100000-0000-4000-8110-000000000107",
+		chargeId: "e1100000-0000-4000-8110-000000000207",
+		route: { id: ROUTES[0].id },
+		title: "Leo núi Thủy Sơn – Ngắm bình minh Non Nước",
+		description:
+			"Leo Thủy Sơn trước khi trời sáng, đón bình minh trên đài Vọng Giang rồi xuống làng đá Non Nước.",
+		areaCode: "DNG-NGU-HANH-SON",
+		tripType: "day_trip",
+		startsAt: "2026-11-06T22:00:00Z",
+		endsAt: "2026-11-07T02:30:00Z",
+		numPeople: 7,
+		pricePerPerson: 400000,
+		paidAt: "2026-10-30T09:05:00Z",
+		settledAt: "2026-11-11T02:00:00Z",
+	},
+];
+
+const COMMISSION_RATE_BPS = 500n; // 5.00%, the rate in force when these Trips were settled.
+
+function minorOf(vnd: number): bigint {
+	return BigInt(Math.round(vnd)) * 100n;
+}
+
+function money(minor: bigint): string {
+	return `${minor / 100n}.${(minor % 100n).toString().padStart(2, "0")}`;
+}
+
+function providerRef(prefix: string, at: string): string {
+	return `${prefix}${at.replace(/\D/g, "").slice(0, 12)}`;
+}
+
+export async function backfillTripAreaSnapshots(ds: Pick<DataSource, "query">): Promise<number> {
+	let updated = 0;
+	for (const field of ["title", "route"] as const) {
+		for (const { code, keywords } of AREA_KEYWORDS) {
+			const patterns = keywords.map((keyword) => `%${keyword}%`);
+			const column = field === "title" ? `t."title"` : `r."name"`;
+			const rows = (await ds.query(
+				`UPDATE "trips" t
+				 SET "area_code" = ga."code", "area_name" = ga."name",
+					"province_code" = ga."province_code", "province_name" = ga."province_name"
+				 FROM "geo_areas" ga, "trekking_routes" r
+				 WHERE ga."code" = $1 AND r."id" = t."route_id"
+					AND t."area_code" IS NULL
+					AND lower(${column}) LIKE ANY($2::text[])
+				 RETURNING t."id"`,
+				[code, patterns]
+			)) as [unknown[], number] | unknown[];
+			updated += Array.isArray(rows[0]) ? (rows[0] as unknown[]).length : rows.length;
+		}
+	}
+	return updated;
+}
+
+async function ensureRoutes(ds: DataSource, hostId: string): Promise<void> {
+	for (const route of ROUTES) {
+		const lineString = `SRID=4326;LINESTRING(${route.path.map(([lon, lat]) => `${lon} ${lat}`).join(", ")})`;
+		await ds.query(
+			`INSERT INTO "trekking_routes" ("id", "host_id", "name", "description", "route_geom", "length_meters", "difficulty", "expected_duration_minutes", "status")
+			 VALUES ($1, $2, $3, $4, ST_GeomFromEWKT($5), $6, $7, $8, 'active')
+			 ON CONFLICT ("id") DO UPDATE SET "name" = EXCLUDED."name", "description" = EXCLUDED."description"`,
+			[
+				route.id,
+				hostId,
+				route.name,
+				route.description,
+				lineString,
+				route.lengthMeters,
+				route.difficulty,
+				route.durationMinutes,
+			]
+		);
+	}
+}
+
+async function resolveRouteId(
+	ds: DataSource,
+	hostId: string,
+	route: HistoryTrip["route"]
+): Promise<string | null> {
+	if ("id" in route) return route.id;
+	const rows = (await ds.query(
+		`SELECT "id" FROM "trekking_routes" WHERE "host_id" = $1
+		 ORDER BY ("name" = $2) DESC, "created_at" ASC LIMIT 1`,
+		[hostId, route.name]
+	)) as Array<{ id: string }>;
+	return rows[0]?.id ?? null;
+}
+
+export async function seedRevenueAnalyticsScenarios(ds: DataSource): Promise<void> {
+	if (!ds.isInitialized) await ds.initialize();
+	console.log("[seed:revenue-analytics] Seeding CTMS-110 revenue history and area snapshots...");
+
+	const [host] = (await ds.query(
+		`SELECT "id" FROM "users" WHERE "email" = 'host@ctms.local'`
+	)) as Array<{ id: string }>;
+	const [camper] = (await ds.query(
+		`SELECT "id" FROM "users" WHERE "email" = 'camper@ctms.local'`
+	)) as Array<{ id: string }>;
+	if (!host || !camper) {
+		console.warn("[seed:revenue-analytics] host@ctms.local or camper@ctms.local missing; skipped.");
+		return;
+	}
+
+	await ensureRoutes(ds, host.id);
+	await refreshDaNangSeedData(ds);
+
+	for (const trip of HISTORY_TRIPS) {
+		const routeId = await resolveRouteId(ds, host.id, trip.route);
+		if (!routeId) {
+			console.warn(`[seed:revenue-analytics] No route for "${trip.title}"; skipped.`);
+			continue;
+		}
+		const firstPoint =
+			"id" in trip.route ? ROUTES.find((route) => route.id === routeId)?.path[0] : undefined;
+		const meetingPoint = JSON.stringify({
+			type: "Point",
+			coordinates: firstPoint ?? [108.2022, 16.0544],
+		});
+		const durationNights = trip.tripType === "day_trip" ? 0 : 1;
+
+		const totalMinor = minorOf(trip.numPeople * trip.pricePerPerson);
+		const refundMinor = trip.refund ? minorOf(trip.refund.amount) : 0n;
+		const baseMinor = totalMinor - refundMinor;
+		const feeMinor = (baseMinor * COMMISSION_RATE_BPS) / 10000n;
+		const netMinor = baseMinor - feeMinor;
+
+		await ds.query(
+			`INSERT INTO "trips" ("id", "host_id", "route_id", "title", "description", "trip_type", "duration_nights",
+				"starts_at", "ends_at", "meeting_point", "meeting_at", "booking_deadline", "capacity_min", "capacity_max",
+				"seats_taken", "price_per_person", "status", "created_at",
+				"area_code", "area_name", "province_code", "province_name")
+			 SELECT $1::uuid, $2::uuid, $3::uuid, $4::varchar, $5::text, $12::trip_type, $13::int,
+				$6::timestamptz, $7::timestamptz,
+				ST_SetSRID(ST_GeomFromGeoJSON($8), 4326)::geography, $6::timestamptz - interval '30 minutes',
+				$6::timestamptz - interval '2 days', 4, 12, $9::int, $10::numeric, 'completed',
+				$6::timestamptz - interval '21 days',
+				ga."code", ga."name", ga."province_code", ga."province_name"
+			 FROM "geo_areas" ga WHERE ga."code" = $11
+			 ON CONFLICT ("id") DO UPDATE SET
+				"title" = EXCLUDED."title", "description" = EXCLUDED."description",
+				"route_id" = EXCLUDED."route_id", "meeting_point" = EXCLUDED."meeting_point",
+				"trip_type" = EXCLUDED."trip_type", "duration_nights" = EXCLUDED."duration_nights"`,
+			[
+				trip.id,
+				host.id,
+				routeId,
+				trip.title,
+				trip.description,
+				trip.startsAt,
+				trip.endsAt,
+				meetingPoint,
+				trip.numPeople,
+				trip.pricePerPerson,
+				trip.areaCode,
+				trip.tripType,
+				durationNights,
+			]
+		);
+
+		await ds.query(
+			`INSERT INTO "bookings" ("id", "trip_id", "user_id", "num_people", "status", "payment_status", "total_amount", "created_at")
+			 VALUES ($1, $2, $3, $4, 'completed', 'paid', $5, $6::timestamptz - interval '10 minutes')
+			 ON CONFLICT ("id") DO NOTHING`,
+			[trip.bookingId, trip.id, camper.id, trip.numPeople, money(totalMinor), trip.paidAt]
+		);
+
+		const chargeRef = providerRef("VNP", trip.paidAt);
+		await ds.query(
+			`INSERT INTO "payments" ("id", "booking_id", "amount", "type", "status", "provider_reference", "succeeded_at", "created_at", "updated_at")
+			 VALUES ($1, $2, $3, 'charge', 'succeeded', $4, $5, $5, $5)
+			 ON CONFLICT ("id") DO NOTHING`,
+			[trip.chargeId, trip.bookingId, money(totalMinor), chargeRef, trip.paidAt]
+		);
+		await ds.query(
+			`INSERT INTO "payment_transactions" ("payment_id", "transaction_ref", "status", "created_at")
+			 SELECT $1, $2, 'succeeded', $3
+			 WHERE NOT EXISTS (SELECT 1 FROM "payment_transactions" WHERE "payment_id" = $1)`,
+			[trip.chargeId, chargeRef, trip.paidAt]
+		);
+
+		if (trip.refund) {
+			await ds.query(
+				`INSERT INTO "payments" ("id", "booking_id", "amount", "type", "status", "review_status", "parent_payment_id", "succeeded_at", "created_at", "updated_at")
+				 VALUES ($1, $2, $3, 'refund', 'succeeded', 'approved', $4, $5, $5::timestamptz - interval '1 day', $5)
+				 ON CONFLICT ("id") DO NOTHING`,
+				[trip.refund.id, trip.bookingId, money(refundMinor), trip.chargeId, trip.refund.succeededAt]
+			);
+			await ds.query(
+				`INSERT INTO "payment_transactions" ("payment_id", "transaction_ref", "status", "raw_payload", "created_at")
+				 SELECT $1, $2, 'succeeded', $3::jsonb, $4
+				 WHERE NOT EXISTS (SELECT 1 FROM "payment_transactions" WHERE "payment_id" = $1)`,
+				[
+					trip.refund.id,
+					providerRef("RF", trip.refund.succeededAt),
+					JSON.stringify({ reason: trip.refund.reason }),
+					trip.refund.succeededAt,
+				]
+			);
+		}
+
+		await ds.query(
+			`INSERT INTO "settlements" ("trip_id", "host_id", "settlement_base", "commission_rate", "platform_fee", "net_amount", "settled_at", "created_at", "updated_at")
+			 VALUES ($1, $2, $3, '0.0500', $4, $5, $6, $6, $6)
+			 ON CONFLICT ("trip_id") DO NOTHING`,
+			[trip.id, host.id, money(baseMinor), money(feeMinor), money(netMinor), trip.settledAt]
+		);
+	}
+
+	const areaCount = await backfillTripAreaSnapshots(ds);
+	console.log(
+		`[seed:revenue-analytics] ${HISTORY_TRIPS.length} settled Trips ensured; ${areaCount} Trips received an area snapshot.`
+	);
+}
+
+// ==========================================================================
+// safety-hotspots.seed.ts (consolidated into the master seed)
+// ==========================================================================
+
+/**
+ * CTMS-116/117/118 seed: route-deviation evidence on host@ctms.local's Sơn Trà route, the
+ * hotspots the real CTMS-116 detector finds in it, and a review state for each, so the Admin
+ * "Điểm nóng an toàn" page has new detections, pending reviews and confirmed evidence.
+ *
+ * Rules (AGENTS.md):
+ * - Reuses host@ctms.local, admin@ctms.local and the members already booked on completed Trips;
+ *   never creates accounts, Routes or Trips.
+ * - Deviation events sit at separate places along the route and carry fixed GPS-log ids,
+ *   so a re-run inserts nothing new.
+ * - Hotspots come from SafetyHotspotsService.detect (BR-417 criteria), not hand-written rows.
+ * - Only newly detected fixtures receive their initial review through the real review service.
+ *   Existing Admin decisions and notes are preserved on re-runs.
+ */
+
+const ROUTE_NAME = "Bán Đảo Sơn Trà Discovery";
+const HOST_EMAIL = "host@ctms.local";
+const ADMIN_EMAIL = "admin@ctms.local";
+const METERS_PER_DEGREE_LAT = 111_320;
+
+interface Spot {
+	/** Fixed prefix of the GPS-log ids, keeps every event unique and re-runs idempotent. */
+	key: string;
+	lng: number;
+	lat: number;
+	routeFraction: number;
+	reviewStatus: "UNDER_REVIEW" | "CONFIRMED";
+	reviewNote?: string;
+}
+
+/** Separate places on the route where several groups left the trail in the last weeks. */
+const SPOTS: Spot[] = [
+	{
+		key: "a1180000-0000-4000-8118-0000000001",
+		lng: 108.2899,
+		lat: 16.1154,
+		routeFraction: 0.74,
+		reviewStatus: "CONFIRMED",
+		reviewNote:
+			"Đối chiếu nhật ký của Host: sau mưa các đoàn tránh đoạn dốc trơn bằng lối mòn sát mép vực ở Dốc Vọng Cảnh. Xác nhận là điểm nguy hiểm cần cập nhật hướng dẫn.",
+	},
+	{
+		key: "a1180000-0000-4000-8118-0000000002",
+		lng: 108.2803,
+		lat: 16.1207,
+		routeFraction: 0.5,
+		reviewStatus: "UNDER_REVIEW",
+		reviewNote:
+			"Đang hỏi Host về việc đoàn rẽ xuống suối lấy nước tại Trạm Suối Đá; cần xác minh lối xuống suối có an toàn không.",
+	},
+	{
+		key: "a1180000-0000-4000-8118-0000000003",
+		lng: 108.2678,
+		lat: 16.1147,
+		routeFraction: 0.2,
+		reviewStatus: "UNDER_REVIEW",
+		reviewNote:
+			"Các đoàn cùng rẽ vào lối mòn phía trên ngã ba. Đang đối chiếu với Host về biển chỉ hướng bị cây che khuất sau mưa.",
+	},
+	{
+		key: "a1180000-0000-4000-8118-0000000004",
+		lng: 108.2758,
+		lat: 16.1187,
+		routeFraction: 0.4,
+		reviewStatus: "UNDER_REVIEW",
+		reviewNote:
+			"Nhiều đoàn đi vòng qua đoạn đường có đá rơi. Đang xác minh độ ổn định của sườn dốc trước khi bổ sung cảnh báo.",
+	},
+	{
+		key: "a1180000-0000-4000-8118-0000000005",
+		lng: 108.2942,
+		lat: 16.1137,
+		routeFraction: 0.85,
+		reviewStatus: "UNDER_REVIEW",
+	},
+];
+
+/** Offsets in metres (north, east) of each event's start from the spot; all within 25 m. */
+const OFFSETS: Array<[number, number]> = [
+	[0, 0],
+	[8, -6],
+	[-10, 4],
+	[14, 9],
+	[-6, -12],
+	[4, 15],
+];
+
+interface Participant {
+	tripId: string;
+	userId: string;
+	startsAt: Date;
+}
+
+export async function seedSafetyHotspotScenarios(ds: DataSource): Promise<void> {
+	const [route] = (await ds.query(
+		`SELECT r."id", md5(ST_AsBinary(r."route_geom")) AS "routeVersion"
+		 FROM "trekking_routes" r JOIN "users" u ON u."id" = r."host_id"
+		 WHERE u."email" = $1 AND r."name" = $2`,
+		[HOST_EMAIL, ROUTE_NAME]
+	)) as Array<{ id: string; routeVersion: string }>;
+	const [admin] = (await ds.query(`SELECT "id" FROM "users" WHERE "email" = $1`, [
+		ADMIN_EMAIL,
+	])) as Array<{
+		id: string;
+	}>;
+	if (!route || !admin) {
+		console.log(`   ⚠️  Bỏ qua: chưa có tuyến "${ROUTE_NAME}" hoặc tài khoản ${ADMIN_EMAIL}.`);
+		return;
+	}
+
+	// Two members from each of the three completed Trips with the most joined members.
+	const participants = (await ds.query(
+		`WITH members AS (
+		   SELECT t."id" AS "tripId", bm."user_id" AS "userId", t."starts_at" AS "startsAt",
+		          row_number() OVER (PARTITION BY t."id" ORDER BY bm."user_id") AS rn,
+		          count(*) OVER (PARTITION BY t."id") AS total
+		   FROM "trips" t
+		   JOIN "bookings" b ON b."trip_id" = t."id" AND b."status" IN ('completed', 'confirmed')
+		   JOIN "booking_members" bm ON bm."booking_id" = b."id" AND bm."user_id" IS NOT NULL
+		   WHERE t."route_id" = $1 AND t."status" = 'completed'
+		     AND t."starts_at" > now() - interval '28 days'
+		 ), trips AS (
+		   SELECT "tripId" FROM members GROUP BY "tripId" ORDER BY max(total) DESC, "tripId" LIMIT 3
+		 )
+		 SELECT "tripId", "userId", "startsAt" FROM members
+		 WHERE "tripId" IN (SELECT "tripId" FROM trips) AND rn <= 2
+		 ORDER BY "tripId", "userId"`,
+		[route.id]
+	)) as Participant[];
+	const tripCount = new Set(participants.map((p) => p.tripId)).size;
+	const memberCount = new Set(participants.map((p) => p.userId)).size;
+	if (tripCount < 3 || memberCount < 3 || participants.length < 5) {
+		console.log(
+			"   ⚠️  Bỏ qua: tuyến Sơn Trà cần ít nhất 3 chuyến đã hoàn thành trong 28 ngày qua có thành viên tham gia."
+		);
+		return;
+	}
+
+	await ds.transaction(async (manager) => {
+		const analysisIds = new Map<string, string>();
+		for (const tripId of new Set(participants.map((p) => p.tripId))) {
+			await manager.query(
+				`INSERT INTO "route_deviation_trip_analyses"
+				   ("trip_id", "analysis_version", "route_id", "route_version", "runtime_context",
+				    "participants", "samples_total", "samples_used", "episodes", "analyzed_at")
+				 SELECT $1, $2, $3, $4, '{}'::jsonb, $5, 0, 0, 0, t."ends_at" + interval '1 hour'
+				 FROM "trips" t WHERE t."id" = $1
+				 ON CONFLICT ("trip_id", "analysis_version") DO NOTHING`,
+				[
+					tripId,
+					ROUTE_DEVIATION_ANALYSIS_VERSION,
+					route.id,
+					route.routeVersion,
+					participants.filter((p) => p.tripId === tripId).length,
+				]
+			);
+			const [row] = (await manager.query(
+				`SELECT "id" FROM "route_deviation_trip_analyses" WHERE "trip_id" = $1 AND "analysis_version" = $2`,
+				[tripId, ROUTE_DEVIATION_ANALYSIS_VERSION]
+			)) as Array<{ id: string }>;
+			analysisIds.set(tripId, row.id);
+		}
+
+		for (const spot of SPOTS) {
+			for (const [index, participant] of participants.entries()) {
+				const [north, east] = OFFSETS[index % OFFSETS.length];
+				const lat = spot.lat + north / METERS_PER_DEGREE_LAT;
+				const lng =
+					spot.lng + east / (METERS_PER_DEGREE_LAT * Math.cos((spot.lat * Math.PI) / 180));
+				const suffix = String(index).padStart(2, "0");
+				// Events start 2–4 hours into the Trip, a few minutes apart per member.
+				const startedAt = new Date(
+					new Date(participant.startsAt).getTime() + (2 * 60 + index * 7) * 60_000
+				);
+				await manager.query(
+					`INSERT INTO "route_deviation_events"
+					   ("analysis_id", "analysis_version", "config_version", "trip_id", "route_id", "route_version",
+					    "package_version", "user_id", "participant_role", "started_at", "confirmed_at", "ended_at",
+					    "end_reason", "sample_count", "valid_sample_count", "max_distance_meters", "avg_distance_meters",
+					    "start_location", "max_distance_location", "start_route_fraction", "start_gps_log_id",
+					    "end_gps_log_id", "runtime_context", "authoritative", "context_issues")
+					 VALUES ($1, $2, 'v3', $3, $4, $5, '1', $6, 'camper', $7,
+					   $7::timestamptz + interval '1 minute', $7::timestamptz + interval '9 minutes', 'RECOVERED',
+					   18, 16, $8, $9,
+					   ST_SetSRID(ST_MakePoint($10, $11), 4326)::geography,
+					   ST_SetSRID(ST_MakePoint($10, $11 + 0.0006), 4326)::geography,
+					   $12, $13, $14, '{}'::jsonb, true, '{}'::text[])
+					 ON CONFLICT ("analysis_version", "start_gps_log_id") DO NOTHING`,
+					[
+						analysisIds.get(participant.tripId),
+						ROUTE_DEVIATION_ANALYSIS_VERSION,
+						participant.tripId,
+						route.id,
+						route.routeVersion,
+						participant.userId,
+						startedAt,
+						72 + index * 6,
+						58 + index * 4,
+						lng,
+						lat,
+						spot.routeFraction,
+						`${spot.key}${suffix}`,
+						`${spot.key.slice(0, -2)}99${suffix}`,
+					]
+				);
+			}
+		}
+	});
+
+	// Real CTMS-116 detection over the evidence; idempotent, it skips places already covered.
+	const detection = await new SafetyHotspotsService(new SafetyHotspotsRepository(ds)).detect(
+		admin.id
+	);
+	console.log(
+		`   • Phát hiện điểm nóng: ${detection.candidatesCreated} mới từ ${detection.eventsConsidered} lần lệch tuyến.`
+	);
+
+	// Initialize only candidates created in this run; never undo a user's review.
+	const reviews = new HotspotReviewService(ds);
+	for (const spot of SPOTS) {
+		if (spot.reviewStatus === "UNDER_REVIEW" || !spot.reviewNote) continue;
+		const candidates = (await ds.query(
+			`SELECT "id" FROM "potential_safety_hotspots"
+			 WHERE "route_id" = $1 AND "route_version" = $2 AND "status" = 'UNDER_REVIEW'
+			   AND "id" = ANY($5::uuid[])
+			   AND ST_DWithin("center", ST_SetSRID(ST_MakePoint($3, $4), 4326)::geography, 60)`,
+			[route.id, route.routeVersion, spot.lng, spot.lat, detection.createdHotspotIds]
+		)) as Array<{ id: string }>;
+		for (const { id } of candidates) {
+			await reviews.review(admin.id, id, {
+				status: SafetyHotspotStatus.CONFIRMED,
+				reason: spot.reviewNote,
+			});
+		}
+	}
+
+	const summary = (await ds.query(
+		`SELECT "status", count(*)::int AS "count" FROM "potential_safety_hotspots"
+		 WHERE "route_id" = $1 GROUP BY "status" ORDER BY "status"`,
+		[route.id]
+	)) as Array<{ status: string; count: number }>;
+	console.log(
+		`   • Điểm nóng trên tuyến ${ROUTE_NAME}: ${summary.map((row) => `${row.status} ${row.count}`).join(", ")}`
+	);
+}
 
 const BCRYPT_COST_FACTOR = 10;
 export const DEMO_SYNC_TRIP_ID = "a1736fee-62be-4991-9478-a62288e9b80a";
@@ -63,6 +1686,27 @@ export type PorterSeedAvailability = "available" | "unavailable";
 export type PorterSeedProficiency = "learning" | "proficient" | "expert";
 export type PorterSeedUserStatus = "active" | "suspended";
 
+export const PORTER_STANDARD_SKILLS = {
+	BASIC_PREPARATION: "Chuẩn bị hành trang",
+	GROUP_FOLLOWING: "Đi theo đoàn",
+	ROUTE_NAVIGATION: "Định hướng trên tuyến",
+	BASIC_FIRST_AID: "Sơ cứu cơ bản",
+	ITINERARY_PLANNING: "Lập kế hoạch hành trình",
+	RESCUE_COORDINATION: "Điều phối cứu hộ",
+} as const;
+
+export interface PorterSeedCertificate {
+	type: "wfa" | "rescue" | "guide_card" | "other";
+	name: string;
+	certificateNumber?: string;
+	issuedBy: string;
+	issueDaysAgo?: number;
+	expiryDaysFromNow: number;
+	fileUrl: string;
+	status: "pending" | "verified" | "rejected";
+	rejectionReason?: string;
+}
+
 export interface PorterSeedFixture {
 	key: string;
 	email: string;
@@ -81,6 +1725,8 @@ export interface PorterSeedFixture {
 		timesLed: number;
 		routeNames: readonly PorterSeedRouteName[];
 	} | null;
+	certificates?: readonly PorterSeedCertificate[];
+	skills?: readonly string[];
 	conflictingTripTitle?: string;
 }
 
@@ -95,17 +1741,17 @@ export interface PorterSeedTripScenario {
 }
 
 export const PORTER_CONFLICT_TARGET_TRIP: PorterSeedTripScenario = {
-	title: "[CTMS-024] Trekking Khe Ram - Rừng Hòa Bắc (Sắp hết hạn - Còn 8h)",
+	title: "Trekking Khe Ram - Rừng Hòa Bắc",
 	window: { startsAfterDays: 2, startHour: 6, endsAfterDays: 3, endHour: 17 },
 };
 
 export const PORTER_NON_CONFLICT_TARGET_TRIP: PorterSeedTripScenario = {
-	title: "[CTMS-024] Khám Phá Bán Đảo Sơn Trà (Bình thường - Còn 12 chỗ)",
+	title: "Khám Phá Bán Đảo Sơn Trà",
 	window: { startsAfterDays: 4, startHour: 7, endsAfterDays: 4, endHour: 16 },
 };
 
 export const PORTER_CONFLICT_ASSIGNMENT_TRIP: PorterSeedTripScenario = {
-	title: "[H-09] Chuyến phân công Porter trùng lịch Khe Ram",
+	title: "Trekking Khe Ram – Dòng suối giữa rừng",
 	window: { startsAfterDays: 2, startHour: 12, endsAfterDays: 2, endHour: 16 },
 };
 
@@ -141,6 +1787,38 @@ export const PORTER_SEED_FIXTURES: readonly PorterSeedFixture[] = [
 			timesLed: 28,
 			routeNames: PORTER_SEED_ROUTE_NAMES,
 		},
+		certificates: [
+			{
+				type: "wfa",
+				name: "Sơ cấp cứu nơi hoang dã WFA",
+				certificateNumber: "WFA-VN-2024-019",
+				issuedBy: "Hội Chữ thập đỏ Việt Nam",
+				issueDaysAgo: 180,
+				expiryDaysFromNow: 520,
+				fileUrl: "/uploads/certificates/cert-wfa-demo.png",
+				status: "verified",
+			},
+			{
+				type: "rescue",
+				name: "Kỹ thuật cứu hộ đường sông và suối thác",
+				certificateNumber: "RIVER-RES-005",
+				issuedBy: "Trung tâm Đào tạo Cứu hộ Đường thủy",
+				issueDaysAgo: 100,
+				expiryDaysFromNow: 200,
+				fileUrl: "/uploads/certificates/cert-river-rescue-demo.png",
+				status: "rejected",
+				rejectionReason:
+					"Ảnh chụp chứng chỉ bị mờ góc dưới bên phải, không đọc được số hiệu và ngày cấp. Vui lòng chụp lại rõ nét cả 4 góc.",
+			},
+		],
+		skills: [
+			PORTER_STANDARD_SKILLS.ROUTE_NAVIGATION,
+			PORTER_STANDARD_SKILLS.BASIC_FIRST_AID,
+			PORTER_STANDARD_SKILLS.BASIC_PREPARATION,
+			PORTER_STANDARD_SKILLS.GROUP_FOLLOWING,
+			PORTER_STANDARD_SKILLS.ITINERARY_PLANNING,
+			PORTER_STANDARD_SKILLS.RESCUE_COORDINATION,
+		],
 	},
 	{
 		key: "proficient-lead",
@@ -160,6 +1838,28 @@ export const PORTER_SEED_FIXTURES: readonly PorterSeedFixture[] = [
 			timesLed: 9,
 			routeNames: PORTER_SEED_ROUTE_NAMES,
 		},
+		certificates: [
+			{
+				type: "wfa",
+				name: "Sơ cấp cứu nơi hoang dã WFA",
+				certificateNumber: "WFA-VN-2025-042",
+				issuedBy: "Viện Cứu hộ & Hoang dã Việt Nam",
+				issueDaysAgo: 60,
+				expiryDaysFromNow: 640,
+				fileUrl: "/uploads/certificates/cert-wfa-demo.png",
+				status: "verified",
+			},
+			{
+				type: "other",
+				name: "Kỹ năng sinh tồn và định vị rừng sâu",
+				certificateNumber: "SURV-VN-2026-11",
+				issuedBy: "Hiệp hội Kỹ năng Dã ngoại",
+				issueDaysAgo: 15,
+				expiryDaysFromNow: 365,
+				fileUrl: "/uploads/certificates/cert-survival-demo.png",
+				status: "pending",
+			},
+		],
 	},
 	{
 		key: "learning-support",
@@ -179,6 +1879,18 @@ export const PORTER_SEED_FIXTURES: readonly PorterSeedFixture[] = [
 			timesLed: 0,
 			routeNames: PORTER_SEED_ROUTE_NAMES,
 		},
+		certificates: [
+			{
+				type: "wfa",
+				name: "Sơ cấp cứu cơ bản (WFA)",
+				certificateNumber: "WFA-VN-2023-007",
+				issuedBy: "Viện Sơ cứu Y tế Cộng đồng",
+				issueDaysAgo: 730,
+				expiryDaysFromNow: -30,
+				fileUrl: "/uploads/certificates/cert-wfa-expired.png",
+				status: "verified",
+			},
+		],
 	},
 	{
 		key: "support-no-qualification",
@@ -213,6 +1925,38 @@ export const PORTER_SEED_FIXTURES: readonly PorterSeedFixture[] = [
 			timesLed: 41,
 			routeNames: PORTER_SEED_ROUTE_NAMES,
 		},
+		certificates: [
+			{
+				type: "wfa",
+				name: "Sơ cấp cứu nơi hoang dã WFA",
+				certificateNumber: "WFA-VN-2025-089",
+				issuedBy: "Viện Cứu hộ & Hoang dã Việt Nam",
+				issueDaysAgo: 120,
+				expiryDaysFromNow: 550,
+				fileUrl: "/uploads/certificates/cert-wfa-demo.png",
+				status: "verified",
+			},
+			{
+				type: "rescue",
+				name: "Cứu hộ địa hình núi dốc",
+				certificateNumber: "RESCUE-MT-104",
+				issuedBy: "Hội Cứu nạn Ngoài trời Quốc gia",
+				issueDaysAgo: 90,
+				expiryDaysFromNow: 430,
+				fileUrl: "/uploads/certificates/cert-mountain-rescue-demo.png",
+				status: "verified",
+			},
+			{
+				type: "guide_card",
+				name: "Thẻ hướng dẫn viên du lịch quốc tế",
+				certificateNumber: "HDV-QT-7749",
+				issuedBy: "Tổng cục Du lịch",
+				issueDaysAgo: 300,
+				expiryDaysFromNow: 695,
+				fileUrl: "/uploads/certificates/cert-guide-license-demo.png",
+				status: "verified",
+			},
+		],
 	},
 	{
 		key: "unavailable",
@@ -386,13 +2130,24 @@ export async function cleanDatabase(ds = dataSource): Promise<void> {
 		SELECT string_agg(quote_ident(tablename), ', ') as tablenames
 		FROM pg_tables
 		WHERE schemaname = 'public' 
-		  AND tablename NOT IN ('migrations', 'spatial_ref_sys')
+		  AND tablename NOT IN ('migrations', 'spatial_ref_sys', 'geo_areas')
 	`);
 
 	if (tablesRes.length > 0 && tablesRes[0]?.tablenames) {
 		const tableList = tablesRes[0].tablenames;
 		console.log("[cleanDatabase] 🧹 Truncating all user tables with CASCADE...");
 		await ds.query(`TRUNCATE TABLE ${tableList} RESTART IDENTITY CASCADE`);
+		await ds.query(`
+			INSERT INTO "geo_areas" ("code", "province_code", "province_name", "name", "sort_order") VALUES
+			('DNG-HOA-VANG', '48', 'Thành phố Đà Nẵng', 'Huyện Hòa Vang', 1),
+			('DNG-LIEN-CHIEU', '48', 'Thành phố Đà Nẵng', 'Quận Liên Chiểu', 2),
+			('DNG-NGU-HANH-SON', '48', 'Thành phố Đà Nẵng', 'Quận Ngũ Hành Sơn', 3),
+			('DNG-HAI-CHAU', '48', 'Thành phố Đà Nẵng', 'Quận Hải Châu', 4),
+			('DNG-THANH-KHE', '48', 'Thành phố Đà Nẵng', 'Quận Thanh Khê', 5),
+			('DNG-CAM-LE', '48', 'Thành phố Đà Nẵng', 'Quận Cẩm Lệ', 6),
+			('DNG-SON-TRA', '48', 'Thành phố Đà Nẵng', 'Quận Sơn Trà', 7)
+			ON CONFLICT ("code") DO NOTHING
+		`);
 		console.log(
 			`[cleanDatabase] ✅ Successfully wiped ${tableList.split(",").length} tables clean (RESTART IDENTITY CASCADE).\n`
 		);
@@ -422,7 +2177,7 @@ const SEED_ACCOUNTS: SeedAccount[] = [
 		phone: "0900000000",
 		password: "Admin@123",
 		role: "admin",
-		fullName: "Quản trị viên hệ thống",
+		fullName: "Lê Minh Tuấn",
 	},
 	{
 		label: "host",
@@ -430,7 +2185,7 @@ const SEED_ACCOUNTS: SeedAccount[] = [
 		phone: "0900000002",
 		password: "Host@123",
 		role: "host",
-		fullName: "Host Ban Mai",
+		fullName: "Nguyễn Thị Ban Mai",
 	},
 	{
 		label: "porter",
@@ -438,7 +2193,7 @@ const SEED_ACCOUNTS: SeedAccount[] = [
 		phone: "0900000001",
 		password: "Porter@123",
 		role: "porter",
-		fullName: "Porter Chuyên Nghiệp",
+		fullName: "Nguyễn Minh Sơn",
 		avatarUrl: "https://i.pravatar.cc/160?img=12",
 	},
 	{
@@ -447,7 +2202,7 @@ const SEED_ACCOUNTS: SeedAccount[] = [
 		phone: "0900000004",
 		password: "Porter2@123",
 		role: "porter",
-		fullName: "Porter 2",
+		fullName: "Trần Quốc Huy",
 		avatarUrl: "https://i.pravatar.cc/160?img=68",
 	},
 	{
@@ -456,10 +2211,10 @@ const SEED_ACCOUNTS: SeedAccount[] = [
 		phone: "0900000003",
 		password: "Camper@123",
 		role: "camper",
-		fullName: "Camper Nguyễn Văn An",
+		fullName: "Nguyễn Văn An",
 		dateOfBirth: "1998-10-20",
 		gender: "male",
-		address: "Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh",
+		address: "Số 123 Nguyễn Văn Linh, Phường Hải Châu, TP. Đà Nẵng",
 	},
 ];
 
@@ -589,7 +2344,7 @@ export async function seedDevHostAndRoute(): Promise<void> {
 		const passwordHash = await hash(hostPassword, BCRYPT_COST_FACTOR);
 		const insertedUser: Array<{ id: string }> = await dataSource.query(
 			`INSERT INTO "users" (email, phone, password_hash, role, status, full_name)
-			 VALUES ($1, $2, $3, 'host', 'active', 'Host Ban Mai')
+			 VALUES ($1, $2, $3, 'host', 'active', 'Nguyễn Thị Ban Mai')
 			 RETURNING id`,
 			[hostEmail, hostPhone, passwordHash]
 		);
@@ -602,7 +2357,7 @@ export async function seedDevHostAndRoute(): Promise<void> {
 	}
 
 	// 2. Create active Trekking Route
-	const routeName = "Đỉnh Núi Bidoup Trail";
+	const routeName = "Hải Vân Pass - Nam Hải Vân Trail";
 	const existingRoute: Array<{ id: string }> = await dataSource.query(
 		'SELECT "id" FROM "trekking_routes" WHERE "host_id" = $1 AND "name" = $2',
 		[hostId, routeName]
@@ -613,7 +2368,7 @@ export async function seedDevHostAndRoute(): Promise<void> {
 	} else {
 		const insertedRoute: Array<{ id: string }> = await dataSource.query(
 			`INSERT INTO "trekking_routes" (host_id, name, description, route_geom, length_meters, difficulty, expected_duration_minutes, status)
-			 VALUES ($1, $2, 'Cung đường trekking chinh phục đỉnh núi Bidoup', ST_GeogFromText('SRID=4326;LINESTRING(108.45 11.94, 108.47 11.95)'), 2500, 'moderate', 180, 'active')
+			 VALUES ($1, $2, 'Trekking sườn Nam Hải Vân, ngắm vịnh Làng Vân và rừng ven biển Đà Nẵng.', ST_GeogFromText('SRID=4326;LINESTRING(108.130 16.185,108.138 16.195,108.145 16.205,108.150 16.210)'), 2500, 'moderate', 180, 'active')
 			 RETURNING id`,
 			[hostId, routeName]
 		);
@@ -650,7 +2405,7 @@ export async function seedDevTrips(): Promise<void> {
 			const passwordHash = await hash(hostPassword, BCRYPT_COST_FACTOR);
 			const insertedUser: Array<{ id: string }> = await dataSource.query(
 				`INSERT INTO "users" (email, phone, password_hash, role, status, full_name)
-				 VALUES ($1, $2, $3, 'host', 'active', 'Host Ban Mai')
+				 VALUES ($1, $2, $3, 'host', 'active', 'Nguyễn Thị Ban Mai')
 				 RETURNING id`,
 				[hostEmail, hostPhone, passwordHash]
 			);
@@ -984,17 +2739,8 @@ export async function seedDevTrips(): Promise<void> {
 			}
 		}
 
-		// 5. Clean up obsolete legacy trips
-		await dataSource.query(
-			`UPDATE "trips"
-			 SET "status" = 'cancelled'
-			 WHERE "title" IN (
-				'Khám Phá Sơn Trà Xanh Trong Ngày',
-				'Chinh Phục Đỉnh Núi Bidoup - 2 Ngày 1 Đêm',
-				'Tà Năng - Phan Dũng: Thử Thách Băng Rừng Đồi Cỏ',
-				'Bạch Mộc Lương Tử - Săn Mây Đại Ngàn (Đã Hết Chỗ)'
-			 )`
-		);
+		// Updating fixture geography must not cancel existing bookings or Trips.
+		await refreshDaNangSeedData(dataSource);
 
 		// 6. Seed published Trips with fresh dates calculated from NOW (Da Nang locations only)
 		const now = new Date();
@@ -1011,23 +2757,24 @@ export async function seedDevTrips(): Promise<void> {
 		const sampleTrips = [
 			// Scenario 1: Normal capacity (12 seats remaining)
 			{
-				title: "[CTMS-024] Khám Phá Bán Đảo Sơn Trà (Bình thường - Còn 12 chỗ)",
+				title: "Khám Phá Bán Đảo Sơn Trà",
 				legacyTitles: [
 					"[CTMS-024] Khám Phá Sơn Trà (Bình thường - Còn 12 chỗ)",
 					"[CTMS-024] Khám Phá Bán Đảo Sơn Trà (Bình thường - Còn 12 chỗ)",
+					"Khám Phá Bán Đảo Sơn Trà",
 				],
 				routeName: "Bán Đảo Sơn Trà Discovery",
 				description:
-					"Chuyến đi bộ dã ngoại trong ngày ngắm voọc chà vá chân nâu và Đỉnh Bàn Cờ tại bán đảo Sơn Trà, Đà Nẵng. Trạng thái bình thường, còn nhiều chỗ trống.",
+					"Chuyến đi bộ dã ngoại trong ngày ngắm voọc chà vá chân nâu và Đỉnh Bàn Cờ tại bán đảo Sơn Trà, Đà Nẵng.",
 				coverImageUrl:
 					"https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80",
 				tripType: "day_trip",
 				durationNights: 0,
-				startsAt: inDays(4, 7),
-				endsAt: inDays(4, 16),
+				startsAt: inDays(8, 7),
+				endsAt: inDays(8, 16),
 				meetingPointGeom: "SRID=4326;POINT(108.260 16.110)",
-				meetingAt: inDays(4, 6),
-				bookingDeadline: inDays(3, 18),
+				meetingAt: inDays(8, 6),
+				bookingDeadline: inDays(7, 18),
 				capacityMin: 5,
 				capacityMax: 20,
 				seatsTaken: 8,
@@ -1076,14 +2823,16 @@ export async function seedDevTrips(): Promise<void> {
 			},
 			// Scenario 2: Low capacity urgency (<= 3 seats remaining -> exactly 2 remaining)
 			{
-				title: "[CTMS-024] Hải Vân Quan - Vịnh Làng Vân (Khẩn cấp: Chỉ còn 2 chỗ)",
+				title: "Hải Vân Quan - Vịnh Làng Vân",
 				legacyTitles: [
 					"[CTMS-024] Đỉnh Núi Bidoup Trail (Khẩn cấp: Chỉ còn 2 chỗ)",
 					"[CTMS-024] Hải Vân Quan - Vịnh Làng Vân (Khẩn cấp: Chỉ còn 2 chỗ)",
+					"[CTMS-024] Hải Vân Pass - Nam Hải Vân Trail (Khẩn cấp: Chỉ còn 2 chỗ)",
+					"Hải Vân Quan - Vịnh Làng Vân",
 				],
 				routeName: "Hải Vân Pass - Nam Hải Vân Trail",
 				description:
-					"Hành trình trekking 2N1Đ vượt sườn đèo Hải Vân và cắm trại vịnh biển Làng Vân hoang sơ dưới chân đèo. Số lượng chỗ sắp hết, chỉ còn 2 vé cuối cùng!",
+					"Hành trình trekking 2N1Đ vượt sườn đèo Hải Vân và cắm trại vịnh biển Làng Vân hoang sơ dưới chân đèo.",
 				coverImageUrl:
 					"https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80",
 				tripType: "overnight",
@@ -1149,14 +2898,15 @@ export async function seedDevTrips(): Promise<void> {
 			},
 			// Scenario 3: Completely Sold Out (seatsTaken == capacityMax -> 0 seats)
 			{
-				title: "[CTMS-024] Thám Hiểm Rừng Bà Nà - Núi Chúa (Đã Hết Chỗ - 0 chỗ)",
+				title: "Thám Hiểm Rừng Bà Nà - Núi Chúa",
 				legacyTitles: [
 					"[CTMS-024] Bạch Mộc Lương Tử Expedition (Đã Hết Chỗ - 0 chỗ)",
 					"[CTMS-024] Thám Hiểm Rừng Bà Nà - Núi Chúa (Đã Hết Chỗ - 0 chỗ)",
+					"Thám Hiểm Rừng Bà Nà - Núi Chúa",
 				],
 				routeName: "Rừng Nguyên Sinh Bà Nà - Núi Chúa",
 				description:
-					"Cung trekking thám hiểm lõi rừng nguyên sinh Bà Nà - Núi Chúa tại huyện Hòa Vang, Đà Nẵng. Đã đủ 10/10 khách tham gia, toàn bộ chỗ đã được đặt kín.",
+					"Cung trekking thám hiểm lõi rừng nguyên sinh Bà Nà - Núi Chúa tại huyện Hòa Vang, Đà Nẵng.",
 				coverImageUrl:
 					"https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1200&q=80",
 				tripType: "overnight",
@@ -1222,14 +2972,15 @@ export async function seedDevTrips(): Promise<void> {
 			},
 			// Scenario 4: Deadline approaching soon (< 24 hours -> 8 hours left)
 			{
-				title: "[CTMS-024] Trekking Khe Ram - Rừng Hòa Bắc (Sắp hết hạn - Còn 8h)",
+				title: "Trekking Khe Ram - Rừng Hòa Bắc",
 				legacyTitles: [
 					"[CTMS-024] Tà Năng - Phan Dũng (Sắp hết hạn đặt chỗ - Còn 8h)",
 					"[CTMS-024] Trekking Khe Ram - Rừng Hòa Bắc (Sắp hết hạn - Còn 8h)",
+					"Trekking Khe Ram - Rừng Hòa Bắc",
 				],
 				routeName: "Khe Ram - Suối Mơ - Rừng Hòa Bắc",
 				description:
-					"Cung trekking băng rừng thung lũng sông Cu Đê, vượt suối ghềnh đá Khe Ram tại Hòa Bắc, Đà Nẵng. Hạn chốt danh sách người tham gia sẽ đóng trong 8 giờ tới.",
+					"Cung trekking băng rừng thung lũng sông Cu Đê, vượt suối ghềnh đá Khe Ram tại Hòa Bắc, Đà Nẵng.",
 				coverImageUrl:
 					"https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=80",
 				tripType: "overnight",
@@ -1295,14 +3046,15 @@ export async function seedDevTrips(): Promise<void> {
 			},
 			// Scenario 5: Past booking deadline (Deadline was 2 hours ago -> booking closed)
 			{
-				title: "[CTMS-024] Sơn Trà Sunset Trekking Mũi Nghê (Đã Hết Hạn Đặt Vé)",
+				title: "Sơn Trà – Hoàng hôn Mũi Nghê",
 				legacyTitles: [
 					"[CTMS-024] Sơn Trà Sunset Trek (Đã Hết Hạn Đặt Vé)",
 					"[CTMS-024] Sơn Trà Sunset Trekking Mũi Nghê (Đã Hết Hạn Đặt Vé)",
+					"Sơn Trà – Hoàng hôn Mũi Nghê",
 				],
 				routeName: "Bán Đảo Sơn Trà Discovery",
 				description:
-					"Chuyến đi bộ ngắm hoàng hôn rực rỡ tại Mũi Nghê Sơn Trà đã qua hạn chốt danh sách người tham gia (đóng từ 2 giờ trước). Không thể đăng ký thêm.",
+					"Đi bộ men theo sườn núi Sơn Trà ra Mũi Nghê, dừng ngắm biển và hoàng hôn cuối ngày.",
 				coverImageUrl:
 					"https://images.unsplash.com/photo-1510312305653-8ed496efae75?auto=format&fit=crop&w=1200&q=80",
 				tripType: "day_trip",
@@ -1352,11 +3104,14 @@ export async function seedDevTrips(): Promise<void> {
 			},
 			// Scenario 6: December 2026 Trekking & Equipment Rental Test (Overnight 2D1N)
 			{
-				title: "[Tháng 12] Cắm Trại Đêm Vịnh Làng Vân & Trekking Đèo Hải Vân",
-				legacyTitles: ["[Tháng 12] Cắm Trại Đêm Vịnh Làng Vân & Trekking Đèo Hải Vân"],
+				title: "Cắm Trại Đêm Vịnh Làng Vân & Trekking Đèo Hải Vân",
+				legacyTitles: [
+					"[Tháng 12] Cắm Trại Đêm Vịnh Làng Vân & Trekking Đèo Hải Vân",
+					"Cắm Trại Đêm Vịnh Làng Vân & Trekking Đèo Hải Vân",
+				],
 				routeName: "Hải Vân Pass - Nam Hải Vân Trail",
 				description:
-					"Chuyến đi trekking khám phá đèo Hải Vân và cắm trại đêm tại bãi biển hoang sơ Vịnh Làng Vân vào tháng 12/2026. Thích hợp thuê lều, túi ngủ, đèn pin dã ngoại và test thanh toán trực tuyến.",
+					"Chuyến đi trekking khám phá đèo Hải Vân và cắm trại đêm tại bãi biển hoang sơ Vịnh Làng Vân vào tháng 12/2026. Lịch trình có cắm trại bãi biển, sử dụng lều, túi ngủ và đèn pin dã ngoại.",
 				coverImageUrl:
 					"https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80",
 				tripType: "overnight",
@@ -1420,8 +3175,11 @@ export async function seedDevTrips(): Promise<void> {
 			},
 			// Scenario 7: December 2026 Day Trip Test
 			{
-				title: "[Tháng 12] Khám Phá Rừng Nguyên Sinh Sơn Trà - Đỉnh Bàn Cờ",
-				legacyTitles: ["[Tháng 12] Khám Phá Rừng Nguyên Sinh Sơn Trà - Đỉnh Bàn Cờ"],
+				title: "Khám Phá Rừng Nguyên Sinh Sơn Trà - Đỉnh Bàn Cờ",
+				legacyTitles: [
+					"[Tháng 12] Khám Phá Rừng Nguyên Sinh Sơn Trà - Đỉnh Bàn Cờ",
+					"Khám Phá Rừng Nguyên Sinh Sơn Trà - Đỉnh Bàn Cờ",
+				],
 				routeName: "Bán Đảo Sơn Trà Discovery",
 				description:
 					"Trekking khám phá thảm thực vật bán đảo Sơn Trà trong tiết trời dịu mát của tháng 12/2026. Lộ trình nhẹ nhàng, dễ đi, có sẵn nhiều thiết bị hỗ trợ trợ lực gậy trekking, balo cho thuê.",
@@ -1610,7 +3368,7 @@ export async function seedDevTrips(): Promise<void> {
 			}
 		}
 
-		// Ensure completed demo trips (e.g. Trekking Sơn Trà Hoàn Thành - Demo Khiếu Nại) have cover images
+		// Ensure completed demo trips (e.g. Trekking Nam Hải Vân – Khám phá rừng ven biển) have cover images
 		await dataSource.query(`
 			UPDATE "trips"
 			SET "cover_image_url" = COALESCE("cover_image_url", 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80')
@@ -1698,7 +3456,7 @@ async function seedDemoBookingMembers(): Promise<void> {
 		userMap.set(c.email, userId);
 	}
 
-	// Target trip: [CTMS-024] Hải Vân Quan - Vịnh Làng Vân (Khẩn cấp: Chỉ còn 2 chỗ)
+	// Target trip: Hải Vân Quan - Vịnh Làng Vân
 	const tripRows: Array<{
 		id: string;
 		starts_at: Date;
@@ -2086,7 +3844,7 @@ export async function seedHostGroupBookingsWithEquipment(): Promise<void> {
 				{ name: "Đèn pin đội đầu chống nước IPX8 Black Diamond", quantity: 3 },
 			],
 		},
-		// 2. Chuyến Sơn Trà: Camper Nguyễn Văn An đặt cho mình + Lan + Nam + Thu Thảo (Tổng 4 người, thuê 3 món)
+		// 2. Chuyến Sơn Trà: Nguyễn Văn An đặt cho mình + Lan + Nam + Thu Thảo (Tổng 4 người, thuê 3 món)
 		{
 			tripTitlePattern: "%Khám Phá Bán Đảo Sơn Trà (Bình thường%",
 			bookerEmail: "camper@ctms.local",
@@ -2546,7 +4304,7 @@ async function seedDiverseTripAndRouteStatuses(
 	};
 
 	// 1. Route Pending Approval
-	const pendingRouteName = "Đồi Dương - Suối Lương Trail (Chờ Duyệt)";
+	const pendingRouteName = "Đồi Dương – Suối Lương";
 	const existingPendingRoute: Array<{ id: string }> = await dataSource.query(
 		'SELECT "id" FROM "trekking_routes" WHERE "name" = $1',
 		[pendingRouteName]
@@ -2574,7 +4332,7 @@ async function seedDiverseTripAndRouteStatuses(
 	routeIds[pendingRouteName] = pendingRouteId;
 
 	// 2. Route Closed (do sạt lở)
-	const closedRouteName = "Đỉnh Mẹ Suốt Cung Sạt Lở (Tạm Đóng)";
+	const closedRouteName = "Đường mòn sườn núi Nam Hải Vân";
 	const existingClosedRoute: Array<{ id: string }> = await dataSource.query(
 		'SELECT "id" FROM "trekking_routes" WHERE "name" = $1',
 		[closedRouteName]
@@ -2601,7 +4359,7 @@ async function seedDiverseTripAndRouteStatuses(
 	if (!sonTraId) return;
 
 	// Trip: Pending Approval (Chờ Admin duyệt)
-	const pendingTripTitle = "[CTMS-024] Thám Hiểm Rừng Hòa Bắc (Chờ Admin phê duyệt)";
+	const pendingTripTitle = "Thám Hiểm Rừng Hòa Bắc";
 	const existingPendingTrip: Array<{ id: string }> = await dataSource.query(
 		'SELECT "id" FROM "trips" WHERE "title" = $1',
 		[pendingTripTitle]
@@ -2640,7 +4398,7 @@ async function seedDiverseTripAndRouteStatuses(
 	}
 
 	// Trip: Draft (Host đang lưu nháp)
-	const draftTripTitle = "[CTMS-024] Trekking Suối Mơ Hòa Vang (Bản nháp của Host)";
+	const draftTripTitle = "Trekking Suối Mơ Hòa Vang";
 	const existingDraftTrip: Array<{ id: string }> = await dataSource.query(
 		'SELECT "id" FROM "trips" WHERE "title" = $1',
 		[draftTripTitle]
@@ -2654,7 +4412,7 @@ async function seedDiverseTripAndRouteStatuses(
 				capacity_min, capacity_max, seats_taken, price_per_person,
 				itinerary, includes, excludes, cancellation_policy, status
 			) VALUES (
-				$1, $2, $3, 'Bản phác thảo kế hoạch chuyến đi chưa gửi duyệt của Host.',
+				$1, $2, $3, 'Hành trình đi bộ ven suối Mơ, nghỉ dưới tán cây và khám phá thiên nhiên Hòa Vang.',
 				'https://images.unsplash.com/photo-1478131143081-80f7f84ca84d?auto=format&fit=crop&w=1200&q=80',
 				'day_trip', 0, $4, $5,
 				ST_GeogFromText('SRID=4326;POINT(108.030 16.100)'), $6, $7,
@@ -2679,7 +4437,7 @@ async function seedDiverseTripAndRouteStatuses(
 	}
 
 	// Trip: Cancelled (Đã hủy do thiếu người sau hạn chót đặt chỗ)
-	const cancelledTripTitle = "[CTMS-024] Chinh Phục Đỉnh Núi Chúa (Đã hủy do thiếu người)";
+	const cancelledTripTitle = "Chinh Phục Đỉnh Núi Chúa";
 	const existingCancelledTrip: Array<{ id: string }> = await dataSource.query(
 		'SELECT "id" FROM "trips" WHERE "title" = $1',
 		[cancelledTripTitle]
@@ -2693,12 +4451,12 @@ async function seedDiverseTripAndRouteStatuses(
 				capacity_min, capacity_max, seats_taken, price_per_person,
 				itinerary, includes, excludes, cancellation_policy, status
 			) VALUES (
-				$1, $2, $3, 'Chuyến đi tự động bị hủy do đến hạn chót đặt vé mà số lượng người đăng ký không đạt mức tối thiểu (capacity_min).',
+				$1, $2, $3, 'Đi bộ xuyên rừng lên đỉnh Núi Chúa, dừng nghỉ bên suối và ngắm cảnh núi rừng Hòa Vang.',
 				'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80',
 				'day_trip', 0, $4, $5,
 				ST_GeogFromText('SRID=4326;POINT(108.010 15.990)'), $6, $7,
 				10, 25, 2, '550000',
-				'{"summary": "Chuyến đi đã bị hủy theo quy chế capacity_min."}'::jsonb,
+				'{"summary": "Tập trung tại chân núi Bà Nà, trekking đường rừng, nghỉ trưa bên suối và trở về trong ngày."}'::jsonb,
 				NULL,
 				NULL,
 				$8::jsonb,
@@ -2718,6 +4476,189 @@ async function seedDiverseTripAndRouteStatuses(
 	}
 }
 
+/** Readable display names for the explicitly selected development fixtures only. */
+export function readableDemoTripTitle(title: string): string {
+	return title
+		.replace(/^\[(?:DEMO CTMS-306|CTMS-024|UI TEST CTMS-308)\]\s*/u, "")
+		.replace(
+			/\s*\((?:Bình thường|Khẩn cấp|Đã Hết Chỗ|Đã Hết Hạn|Sắp hết hạn|Chờ Admin|Bản nháp|Đã hủy)[^)]*\)\s*$/iu,
+			""
+		)
+		.replace(/Sơn Trà - Xem dữ liệu ngoại tuyến/u, "Sơn Trà – Hành trình ven biển")
+		.trim();
+}
+
+/** One-time opt-in cleanup; no Trip status, package, role or review outcome changes. */
+export async function tidyDemoCopyForReview(ds: DataSource = dataSource) {
+	if (process.env.NODE_ENV === "production" || process.env.CTMS138_DEMO_SEED !== "1")
+		throw new Error("Demo cleanup requires CTMS138_DEMO_SEED=1 outside production.");
+	return ds.transaction(async (manager) => {
+		const trips: Array<{ id: string; title: string }> = await manager.query(
+			`SELECT t.id,t.title FROM trips t JOIN users u ON u.id=t.host_id WHERE u.email='host@ctms.local' AND (t.title LIKE '[DEMO CTMS-306]%' OR t.title LIKE '[CTMS-024]%' OR t.title LIKE '[UI TEST CTMS-308]%') FOR UPDATE OF t`
+		);
+		for (const trip of trips)
+			await manager.query("UPDATE trips SET title=$2 WHERE id=$1 AND title=$3", [
+				trip.id,
+				readableDemoTripTitle(trip.title),
+				trip.title,
+			]);
+		const decisions: Array<{ id: string }> = await manager.query(
+			`WITH updated AS (UPDATE porter_level_decisions d SET reason=$1 FROM users u,trekking_routes r WHERE d.porter_id=u.id AND d.route_id=r.id AND u.email='porter.expert@ctms.local' AND r.name='Bán Đảo Sơn Trà Discovery' AND d.source='direct' AND d.outcome='rejected' AND d.reason=$2 RETURNING d.id) SELECT id FROM updated`,
+			[
+				"Chưa có minh chứng chứng chỉ phù hợp để công nhận cấp đề xuất.",
+				"Kiểm thử CTMS-138: chưa có minh chứng chứng chỉ phù hợp, không công nhận cấp đề xuất; giữ nguyên cấp hiện tại.",
+			]
+		);
+		return { tripsRenamed: trips.length, decisionNotesUpdated: decisions.length };
+	});
+}
+
+export const PORTER_LEVEL_DEMO_COPY = {
+	reason:
+		"Tôi đã hỗ trợ nhiều đoàn trên tuyến này và muốn đăng ký lên cấp Thành thạo. Tôi có thể bổ sung nhật ký chuyến đi và giấy tờ cần thiết.",
+	responsibilities: "Chưa cấu hình phạm vi phụ trách.",
+	additionalInfo: "Vui lòng bổ sung thông tin về các chuyến đã tham gia và minh chứng liên quan.",
+	cancelled: "Tôi xin rút yêu cầu để bổ sung hồ sơ trước khi gửi lại.",
+} as const;
+
+/** Demonstration criteria only, not production qualification standards. */
+export const PORTER_LEVEL_DEMO_CRITERIA = {
+	learning: {
+		name: "Học việc",
+		minExperienceYears: 0,
+		minTimesLed: 0,
+		requiredSkills: [
+			PORTER_STANDARD_SKILLS.BASIC_PREPARATION,
+			PORTER_STANDARD_SKILLS.GROUP_FOLLOWING,
+		],
+		requiredCertifications: [],
+		responsibilities: "Hỗ trợ chuẩn bị và theo đoàn dưới sự hướng dẫn của người hỗ trợ phụ trách.",
+	},
+	proficient: {
+		name: "Thành thạo",
+		minExperienceYears: 2,
+		minTimesLed: 10,
+		requiredSkills: [
+			PORTER_STANDARD_SKILLS.ROUTE_NAVIGATION,
+			PORTER_STANDARD_SKILLS.BASIC_FIRST_AID,
+		],
+		requiredCertifications: ["wfa"],
+		responsibilities: "Hỗ trợ điều phối đoàn, kiểm tra trang bị và xử lý tình huống thông thường.",
+	},
+	expert: {
+		name: "Chuyên gia",
+		minExperienceYears: 5,
+		minTimesLed: 25,
+		requiredSkills: [
+			PORTER_STANDARD_SKILLS.ITINERARY_PLANNING,
+			PORTER_STANDARD_SKILLS.RESCUE_COORDINATION,
+			PORTER_STANDARD_SKILLS.BASIC_FIRST_AID,
+		],
+		requiredCertifications: ["wfa", "rescue"],
+		responsibilities: "Phụ trách tuyến và phối hợp xử lý tình huống khẩn cấp.",
+	},
+} as const;
+
+/** Opt-in refresh limited to untouched demonstration policies. */
+export async function refreshPorterLevelDemoCriteria(ds: DataSource = dataSource) {
+	if (process.env.NODE_ENV === "production" || process.env.CTMS138_DEMO_SEED !== "1")
+		throw new Error("Demo refresh requires CTMS138_DEMO_SEED=1 outside production.");
+	return ds.transaction(async (manager) => {
+		let policiesUpdated = 0;
+		for (const [level, definition] of Object.entries(PORTER_LEVEL_DEMO_CRITERIA)) {
+			const rows: Array<{ level: string }> = await manager.query(
+				`WITH updated AS (UPDATE porter_level_policies SET definition=$2::jsonb,version=version+1,updated_at=now()
+    WHERE level=$1 AND version<=2 AND definition->>'responsibilities'=$3
+    AND (definition->>'minExperienceYears') IS NULL AND (definition->>'minTimesLed') IS NULL
+    AND definition->'requiredSkills'='[]'::jsonb AND definition->'requiredCertifications'='[]'::jsonb RETURNING level) SELECT level FROM updated`,
+				[level, JSON.stringify(definition), PORTER_LEVEL_DEMO_COPY.responsibilities]
+			);
+			policiesUpdated += rows.length;
+		}
+		const previousReason =
+			"Tôi muốn được xét lên cấp Thành thạo trên tuyến này. Nhờ quản trị viên xem xét hồ sơ và kinh nghiệm đã khai báo.";
+		const requests: Array<{ id: string }> = await manager.query(
+			`WITH updated AS (UPDATE porter_level_requests r SET reason=$2,submission_hash=$3,version=version+1
+   WHERE r.id IN ('c1380000-0000-4000-8000-000000000001','c1380000-0000-4000-8000-000000000002','c1380000-0000-4000-8000-000000000003')
+   AND r.reason=$1 AND r.porter_id=(SELECT id FROM users WHERE email='porter.learning@ctms.local')
+   AND NOT EXISTS(SELECT 1 FROM porter_level_decisions WHERE request_id=r.id)
+   AND NOT EXISTS(SELECT 1 FROM porter_level_request_evidence WHERE request_id=r.id) RETURNING id) SELECT id FROM updated`,
+			[
+				previousReason,
+				PORTER_LEVEL_DEMO_COPY.reason,
+				createHash("sha256").update(PORTER_LEVEL_DEMO_COPY.reason).digest("hex"),
+			]
+		);
+		return { policiesUpdated, requestsUpdated: requests.length };
+	});
+}
+
+/** Explicit non-production maintenance for untouched, deterministic demo rows only. */
+export async function refreshPorterLevelDemoCopy(ds: DataSource = dataSource) {
+	if (process.env.NODE_ENV === "production")
+		throw new Error("Demo copy refresh must not run in production.");
+	return ds.transaction(async (manager) => {
+		let requestsUpdated = 0;
+		const statuses = ["pending", "needs_info", "cancelled"] as const;
+		for (const [index, status] of statuses.entries()) {
+			const id = `c1380000-0000-4000-8000-00000000000${index + 1}`;
+			const oldReason = `[DEMO CTMS-138] Yêu cầu minh họa ${status}; người test tự tải minh chứng nếu cần.`;
+			const rows: Array<{ id: string }> = await manager.query(
+				`WITH updated AS (UPDATE porter_level_requests r
+				SET reason=$2, submission_hash=$3, version=version+1,
+				decision_reason=CASE WHEN status='needs_info' THEN $7 ELSE decision_reason END
+				WHERE r.id=$1 AND r.reason=$4 AND r.status=$5 AND r.version=$6
+				AND r.porter_id=(SELECT id FROM users WHERE email='porter.learning@ctms.local')
+				AND (SELECT count(*) FROM porter_level_request_events WHERE request_id=r.id)=$8
+				AND NOT EXISTS(SELECT 1 FROM porter_level_decisions WHERE request_id=r.id)
+				AND NOT EXISTS(SELECT 1 FROM porter_level_request_evidence WHERE request_id=r.id)
+				RETURNING r.id) SELECT id FROM updated`,
+				[
+					id,
+					PORTER_LEVEL_DEMO_COPY.reason,
+					createHash("sha256").update(PORTER_LEVEL_DEMO_COPY.reason).digest("hex"),
+					oldReason,
+					status,
+					status === "pending" ? 1 : 2,
+					PORTER_LEVEL_DEMO_COPY.additionalInfo,
+					status === "pending" ? 1 : 2,
+				]
+			);
+			if (!rows.length) continue;
+			requestsUpdated += rows.length;
+			// These are original generated demo events, not decisions or user-entered history.
+			await manager.query(
+				`UPDATE porter_level_request_events SET reason=$3::text,
+				snapshot=jsonb_set(snapshot,'{reason}',to_jsonb($3::text))
+				WHERE request_id=$1 AND action='created' AND reason=$2`,
+				[id, oldReason, PORTER_LEVEL_DEMO_COPY.reason]
+			);
+			await manager.query(
+				`UPDATE porter_level_request_events SET reason=$2,
+				snapshot=jsonb_set(snapshot,'{reason}',to_jsonb($3::text))
+				WHERE request_id=$1 AND reason LIKE '[DEMO]%'`,
+				[
+					id,
+					status === "needs_info"
+						? PORTER_LEVEL_DEMO_COPY.additionalInfo
+						: PORTER_LEVEL_DEMO_COPY.cancelled,
+					PORTER_LEVEL_DEMO_COPY.reason,
+				]
+			);
+		}
+		const policies: Array<{ level: string }> = await manager.query(
+			`WITH updated AS (UPDATE porter_level_policies
+			SET definition=jsonb_set(definition,'{responsibilities}',to_jsonb($1::text)),version=version+1
+			WHERE version=1 AND definition->>'responsibilities'=$2 RETURNING level) SELECT level FROM updated`,
+			[
+				PORTER_LEVEL_DEMO_COPY.responsibilities,
+				"[DEMO CTMS-138] Nội dung minh họa để test UI. Admin cần cấu hình tiêu chí thực tế; chưa quy định ngưỡng nghiệp vụ.",
+			]
+		);
+		return { requestsUpdated, policiesUpdated: policies.length };
+	});
+}
+
 /** Optional demo records only; never overwrite an Admin policy or reviewed qualification. */
 export async function seedPorterLevelDemo(ds: DataSource = dataSource): Promise<void> {
 	if (process.env.NODE_ENV === "production") {
@@ -2731,7 +4672,7 @@ export async function seedPorterLevelDemo(ds: DataSource = dataSource): Promise<
 		const porter = accounts.find((account) => account.email === "porter.learning@ctms.local");
 		if (!admin || !porter)
 			throw new Error("CTMS-138 demo requires existing Admin and learning Porter.");
-		for (const [level, name] of [
+		for (const [level] of [
 			["learning", "Học việc"],
 			["proficient", "Thành thạo"],
 			["expert", "Chuyên gia"],
@@ -2741,15 +4682,9 @@ export async function seedPorterLevelDemo(ds: DataSource = dataSource): Promise<
 				 VALUES($1,$2::jsonb,1,$3) ON CONFLICT(level) DO NOTHING`,
 				[
 					level,
-					JSON.stringify({
-						name,
-						minExperienceYears: null,
-						minTimesLed: null,
-						requiredSkills: [],
-						requiredCertifications: [],
-						responsibilities:
-							"[DEMO CTMS-138] Nội dung minh họa để test UI. Admin cần cấu hình tiêu chí thực tế; chưa quy định ngưỡng nghiệp vụ.",
-					}),
+					JSON.stringify(
+						PORTER_LEVEL_DEMO_CRITERIA[level as keyof typeof PORTER_LEVEL_DEMO_CRITERIA]
+					),
 					admin.id,
 				]
 			);
@@ -2789,7 +4724,7 @@ export async function seedPorterLevelDemo(ds: DataSource = dataSource): Promise<
 			if (qualification.proficiency !== "learning") continue;
 			// Stable IDs prevent reseeding a request after a tester completes or cancels it.
 			const id = `c1380000-0000-4000-8000-00000000000${index + 1}`;
-			const reason = `[DEMO CTMS-138] Yêu cầu minh họa ${status}; người test tự tải minh chứng nếu cần.`;
+			const reason = PORTER_LEVEL_DEMO_COPY.reason;
 			const inserted: Array<{ id: string }> = await manager.query(
 				`INSERT INTO porter_level_requests(id,qualification_id,porter_id,route_id,current_level,current_verified,
 				 target_level,reason,status,submission_hash)
@@ -2820,8 +4755,8 @@ export async function seedPorterLevelDemo(ds: DataSource = dataSource): Promise<
 			if (status === "pending") continue;
 			const feedback =
 				status === "needs_info"
-					? "[DEMO] Vui lòng bổ sung kinh nghiệm dẫn tuyến và minh chứng."
-					: "[DEMO] Porter rút yêu cầu mẫu.";
+					? PORTER_LEVEL_DEMO_COPY.additionalInfo
+					: PORTER_LEVEL_DEMO_COPY.cancelled;
 			await manager.query(
 				`UPDATE porter_level_requests SET status=$2::varchar,version=2,decision_reason=$3,
 				 decided_by=CASE WHEN $2::varchar='needs_info' THEN $4::uuid END,
@@ -2919,7 +4854,45 @@ async function seedPorterProfileAndAssignments(routeIds: Record<string, string>)
 			]
 		);
 
-		if (fixture.key === "expert-lead") {
+		// Seed porter certificates (CTMS-138)
+		await dataSource.query('DELETE FROM "porter_certificates" WHERE "porter_id" = $1', [porterId]);
+		if (fixture.certificates && fixture.certificates.length > 0) {
+			for (const cert of fixture.certificates) {
+				const isVerified = cert.status === "verified";
+				const isRejected = cert.status === "rejected";
+				await dataSource.query(
+					`INSERT INTO "porter_certificates" (
+						porter_id, type, name, certificate_number,
+						issued_by, issued_date, expiry_date, file_url,
+						status, rejection_reason, verified_by, verified_at
+					) VALUES (
+						$1, $2, $3, $4,
+						$5,
+						CASE WHEN $6::int IS NOT NULL THEN (CURRENT_DATE - ($6 || ' days')::interval)::date ELSE NULL END,
+						(CURRENT_DATE + ($7 || ' days')::interval)::date,
+						$8, $9, $10,
+						$11,
+						CASE WHEN $12::boolean THEN NOW() ELSE NULL END
+					)`,
+					[
+						porterId,
+						cert.type,
+						cert.name,
+						cert.certificateNumber ?? null,
+						cert.issuedBy,
+						cert.issueDaysAgo ?? null,
+						cert.expiryDaysFromNow,
+						cert.fileUrl,
+						cert.status,
+						cert.rejectionReason ?? null,
+						isVerified || isRejected ? adminId : null,
+						isVerified || isRejected,
+					]
+				);
+			}
+		}
+
+		if (fixture.profile) {
 			await dataSource.query(
 				`INSERT INTO "porter_verifications" (porter_id, status, submitted_at, reviewed_at)
 				 VALUES ($1, 'approved', now(), now())
@@ -2928,6 +4901,18 @@ async function seedPorterProfileAndAssignments(routeIds: Record<string, string>)
 					reviewed_at = COALESCE("porter_verifications".reviewed_at, now()),
 					rejection_reason = NULL`,
 				[porterId]
+			);
+		}
+
+		if (fixture.skills && fixture.skills.length > 0) {
+			await dataSource.query(
+				`INSERT INTO "porter_level_evidence" (porter_id, skills, version)
+				 VALUES ($1, $2, 1)
+				 ON CONFLICT (porter_id) DO UPDATE SET
+					skills = EXCLUDED.skills,
+					version = "porter_level_evidence".version + 1,
+					updated_at = NOW()`,
+				[porterId, fixture.skills]
 			);
 		}
 
@@ -2971,12 +4956,101 @@ async function seedPorterProfileAndAssignments(routeIds: Record<string, string>)
 				[tripId, porterId]
 			);
 		}
+
+		// Seed completed led trips for expert-lead (Nguyễn Minh Sơn) so "Lịch sử chuyến đã dẫn" and Host assignment views have data
+		if (fixture.key === "expert-lead") {
+			const completedTripRows: Array<{ id: string; host_id: string }> = await dataSource.query(
+				`SELECT id, host_id FROM trips WHERE status = 'completed' AND title IN (
+					'Sơn Trà – Bình minh trên đỉnh Bàn Cờ',
+					'Sơn Trà – Dạo bước dưới tán rừng',
+					'Trekking Sơn Trà Hoàn Thành - Demo Khiếu Nại',
+					'Chèo SUP Hồ Hòa Trung - Đang giữ 72h',
+					'Chèo kayak sông Cu Đê – Hòa Bắc'
+				) LIMIT 5`
+			);
+
+			for (const cTrip of completedTripRows) {
+				await dataSource.query(
+					`INSERT INTO "trip_porters" (trip_id, porter_id, status)
+					 VALUES ($1, $2, 'assigned')
+					 ON CONFLICT (trip_id, porter_id) DO UPDATE SET status = 'assigned'`,
+					[cTrip.id, porterId]
+				);
+
+				await dataSource.query(
+					`INSERT INTO "porter_requests" (
+						id, trip_id, porter_id, requested_by, requested_role, status, note, expires_at, responded_at, created_at, updated_at
+					) VALUES (
+						gen_random_uuid(), $1, $2, $3, 'lead', 'accepted',
+						'Phụ trách trưởng đoàn dẫn đường và an toàn cho chuyến đi.',
+						NOW() + interval '2 days',
+						NOW() - interval '5 days',
+						NOW() - interval '7 days',
+						NOW() - interval '5 days'
+					) ON CONFLICT (id) DO NOTHING`,
+					[cTrip.id, porterId, cTrip.host_id]
+				);
+			}
+		}
 	}
 }
 
 // --------------------------------------------------------------------------
 // Helper: Seed Camper Health Profiles & Emergency Contacts
 // --------------------------------------------------------------------------
+/** Populate the main local account without replacing health notes entered through the app. */
+export async function seedCamperHealthProfile(ds: DataSource = dataSource): Promise<void> {
+	if (process.env.NODE_ENV === "production") {
+		throw new Error("Health profile seed is development-only");
+	}
+	if (!ds.isInitialized) await ds.initialize();
+	await ds.transaction(async (manager) => {
+		const [camper]: Array<{ id: string }> = await manager.query(
+			"SELECT id FROM users WHERE email = $1 AND role = 'camper' AND status = 'active'",
+			["camper@ctms.local"]
+		);
+		if (!camper) throw new Error("Không tìm thấy tài khoản camper@ctms.local đang hoạt động.");
+		const activity = JSON.stringify({
+			comfortableDistanceKm: 8,
+			comfortableWalkingMinutes: 180,
+			activityNotes: null,
+			confirmedAt: new Date().toISOString(),
+		});
+		await manager.query(
+			`INSERT INTO health_profiles
+			 (user_id, blood_type, physical_fitness_level, activity_profile,
+			  emergency_notes, medical_conditions,
+			  is_consent_granted, consent_granted_at)
+			 VALUES ($1, 'O+', 'INTERMEDIATE', $2::jsonb,
+			  'Có tiền sử hạ đường huyết nhẹ khi vận động cường độ cao liên tục',
+			  '[]'::jsonb, true, now())
+			 ON CONFLICT (user_id) DO UPDATE SET
+			 blood_type = EXCLUDED.blood_type,
+			 physical_fitness_level = EXCLUDED.physical_fitness_level,
+			 activity_profile = EXCLUDED.activity_profile,
+			 emergency_notes = EXCLUDED.emergency_notes,
+			 version = health_profiles.version + 1, updated_at = now()
+			 WHERE health_profiles.activity_profile IS NULL
+			 AND health_profiles.blood_type = 'UNKNOWN'
+			 AND health_profiles.physical_fitness_level = 'BEGINNER'
+			 AND health_profiles.dietary_restrictions IS NULL
+			 AND health_profiles.emergency_notes IS NULL
+			 AND health_profiles.allergies = '[]'::jsonb
+			 AND health_profiles.medical_conditions = '[]'::jsonb`,
+			[camper.id, activity]
+		);
+		// Supply only missing activity facts, retaining existing health notes.
+		await manager.query(
+			`UPDATE health_profiles SET
+			 activity_profile = COALESCE(activity_profile, $2::jsonb),
+			 version = version + 1, updated_at = now()
+			 WHERE user_id = $1 AND activity_profile IS NULL`,
+			[camper.id, activity]
+		);
+	});
+	console.log("Đã bổ sung hồ sơ sức khỏe cho camper@ctms.local.");
+}
+
 async function seedCamperHealthAndContacts(): Promise<void> {
 	console.log("[seed:dev-trips] Seeding Camper health profiles & emergency contacts...");
 	const camperRows: Array<{ id: string }> = await dataSource.query(
@@ -2990,7 +5064,7 @@ async function seedCamperHealthAndContacts(): Promise<void> {
 	await dataSource.query(
 		`UPDATE "users"
 		 SET "date_of_birth" = '1998-10-20',
-		     "address" = 'Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
+		     "address" = 'Số 123 Nguyễn Văn Linh, Phường Hải Châu, TP. Đà Nẵng',
 		     "gender" = 'male'
 		 WHERE "id" = $1`,
 		[camperId]
@@ -3004,22 +5078,34 @@ async function seedCamperHealthAndContacts(): Promise<void> {
 		[camperId]
 	);
 
-	// Health profile
-	await dataSource.query(
-		`INSERT INTO "health_profiles" (
-			user_id, blood_type, physical_fitness_level, dietary_restrictions, emergency_notes,
-			allergies, medical_conditions, is_consent_granted, consent_granted_at
-		) VALUES (
-			$1, 'O+', 'INTERMEDIATE', 'Ăn chay bán phần', 'Có tiền sử hạ đường huyết nhẹ khi vận động cường độ cao liên tục',
-			'["Dị ứng phấn hoa dại"]'::jsonb, '[]'::jsonb, true, NOW()
-		) ON CONFLICT (user_id) DO UPDATE SET
-			blood_type = EXCLUDED.blood_type,
-			physical_fitness_level = EXCLUDED.physical_fitness_level,
-			dietary_restrictions = EXCLUDED.dietary_restrictions,
-			emergency_notes = EXCLUDED.emergency_notes,
-			allergies = EXCLUDED.allergies,
-			is_consent_granted = EXCLUDED.is_consent_granted`,
-		[camperId]
+	await seedCamperHealthProfile(dataSource);
+}
+
+/**
+ * CTMS-106. Trip preferences for the main Camper so "Gợi ý cho bạn" ranks by preferences and the
+ * booking history already seeded. Existing preferences are kept: a Camper's own choice wins.
+ */
+export async function seedCamperTripPreferences(ds: DataSource = dataSource): Promise<void> {
+	const [camper]: Array<{ id: string }> = await ds.query(
+		'SELECT "id" FROM "users" WHERE "email" = $1',
+		["camper@ctms.local"]
+	);
+	if (!camper) return;
+	await ds.query(
+		`INSERT INTO "camper_trip_preferences"
+			("user_id", "trip_types", "difficulties", "regions", "min_price", "max_price")
+		 VALUES ($1, ARRAY['overnight']::text[], ARRAY['moderate', 'hard']::text[],
+			ARRAY['ba_na_hoa_vang', 'son_tra']::text[], 500000, 2500000)
+		 ON CONFLICT ("user_id") DO NOTHING`,
+		[camper.id]
+	);
+	// Profile experience, only where the Camper has not written their own.
+	await ds.query(
+		`UPDATE "users" SET
+			"camping_experience_years" = COALESCE("camping_experience_years", 3),
+			"trekking_experience_details" = COALESCE("trekking_experience_details", $2)
+		 WHERE "id" = $1`,
+		[camper.id, "Đã trekking bán đảo Sơn Trà, đèo Hải Vân và cắm trại qua đêm ở Bà Nà hai lần."]
 	);
 }
 
@@ -3050,7 +5136,7 @@ export async function seedWeatherRiskScenarios(): Promise<void> {
 			const passwordHash = await hash(hostPassword, BCRYPT_COST_FACTOR);
 			const insertedUser: Array<{ id: string }> = await dataSource.query(
 				`INSERT INTO "users" (email, phone, password_hash, role, status, full_name)
-				 VALUES ($1, $2, $3, 'host', 'active', 'Host Ban Mai')
+				 VALUES ($1, $2, $3, 'host', 'active', 'Nguyễn Thị Ban Mai')
 				 RETURNING id`,
 				[hostEmail, hostPhone, passwordHash]
 			);
@@ -3095,7 +5181,7 @@ export async function seedWeatherRiskScenarios(): Promise<void> {
 		}
 
 		// 3. Scenario 1: GREEN Risk Route (Allowed)
-		const greenRouteName = "Cung Đường An Toàn (Mức Xanh)";
+		const greenRouteName = "Đường mòn ven suối Lương";
 		const existingGreenRoute: Array<{ id: string }> = await dataSource.query(
 			'SELECT "id" FROM "trekking_routes" WHERE "host_id" = $1 AND "name" = $2',
 			[hostId, greenRouteName]
@@ -3107,7 +5193,7 @@ export async function seedWeatherRiskScenarios(): Promise<void> {
 		} else {
 			const res: Array<{ id: string }> = await dataSource.query(
 				`INSERT INTO "trekking_routes" (host_id, name, description, route_geom, length_meters, difficulty, expected_duration_minutes, status)
-				 VALUES ($1, $2, 'Tuyến trekking thời tiết đẹp, đủ điều kiện an toàn đăng ký', ST_GeogFromText('SRID=4326;LINESTRING(108.45 11.94, 108.47 11.95)'), 2000, 'easy', 120, 'active')
+				 VALUES ($1, $2, 'Đường đi ven suối Lương dưới chân đèo Hải Vân, qua các bãi đá và rừng cây râm mát.', ST_GeogFromText('SRID=4326;LINESTRING(108.1290 16.1405,108.1262 16.1428,108.1243 16.1449)'), 2000, 'easy', 120, 'active')
 				 RETURNING id`,
 				[hostId, greenRouteName]
 			);
@@ -3145,7 +5231,7 @@ export async function seedWeatherRiskScenarios(): Promise<void> {
 		);
 
 		// 4. Scenario 2: RED Risk Route (Blocked)
-		const redRouteName = "Cung Đường Bão Nguy Hiểm (Mức Đỏ)";
+		const redRouteName = "Đường rừng Nam Hải Vân";
 		const existingRedRoute: Array<{ id: string }> = await dataSource.query(
 			'SELECT "id" FROM "trekking_routes" WHERE "host_id" = $1 AND "name" = $2',
 			[hostId, redRouteName]
@@ -3157,7 +5243,7 @@ export async function seedWeatherRiskScenarios(): Promise<void> {
 		} else {
 			const res: Array<{ id: string }> = await dataSource.query(
 				`INSERT INTO "trekking_routes" (host_id, name, description, route_geom, length_meters, difficulty, expected_duration_minutes, status)
-				 VALUES ($1, $2, 'Tuyến đường rủi ro thời tiết MỨC ĐỎ - Tạm dừng nhận đăng ký mới', ST_GeogFromText('SRID=4326;LINESTRING(108.45 11.94, 108.48 11.96)'), 3500, 'hard', 240, 'active')
+				 VALUES ($1, $2, 'Đường mòn rừng Nam Hải Vân qua các sườn dốc hướng ra biển, cần theo dõi thời tiết trước khi khởi hành.', ST_GeogFromText('SRID=4326;LINESTRING(108.130 16.185,108.138 16.195,108.145 16.205)'), 3500, 'hard', 240, 'active')
 				 RETURNING id`,
 				[hostId, redRouteName]
 			);
@@ -3293,7 +5379,7 @@ export async function seedCamperRefunds(): Promise<{
 			"starts_at", "ends_at", "meeting_point", "booking_deadline",
 			"capacity_min", "capacity_max", "price_per_person", "status", "cancellation_policy"
 		 ) VALUES (
-			$1, $2, $3, 'Trekking Sơn Trà Hoàn Thành - Demo Khiếu Nại', 'Chuyến đi vừa hoàn thành cách đây 3 giờ', 'day_trip', 0,
+			$1, $2, $3, 'Trekking Nam Hải Vân – Khám phá rừng ven biển', 'Chuyến đi vừa hoàn thành cách đây 3 giờ', 'day_trip', 0,
 			now() - interval '10 hours', now() - interval '3 hours',
 			ST_SetSRID(ST_GeomFromGeoJSON($4), 4326)::geography, now() - interval '1 day',
 			1, 10, '850000.00', 'completed',
@@ -3473,34 +5559,34 @@ const SEED_SETTLEMENT_USERS: SeedSettlementUser[] = [
 	{
 		email: "admin@ctms.local",
 		phone: "0900000000",
-		fullName: "Administrator",
+		fullName: "Lê Minh Tuấn",
 		role: "admin",
 		password: "Admin@123",
 	},
 	{
 		email: "host@ctms.local",
 		phone: "0900000002",
-		fullName: "Host Ban Mai",
+		fullName: "Nguyễn Thị Ban Mai",
 		role: "host",
 		password: "Host@123",
 	},
 	{
 		email: "camper@ctms.local",
 		phone: "0900000003",
-		fullName: "Camper Nguyễn Văn An",
+		fullName: "Nguyễn Văn An",
 		role: "camper",
 		password: "Camper@123",
 		dateOfBirth: "1998-10-20",
 		gender: "male",
-		address: "Số 123 Đường Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh",
+		address: "Số 123 Nguyễn Văn Linh, Phường Hải Châu, TP. Đà Nẵng",
 	},
 ];
 
 const SEED_TRIP_TITLES = [
-	"Trekking Bạch Mã 2N1Đ - Đủ điều kiện Quyết toán",
-	"Chèo SUP Hồ Hòa Trung - Đang giữ 72h",
-	"Khám phá Đỉnh Bàn Cờ - Bị giữ do Khiếu nại",
-	"Cắm trại Đảo Điệp Sơn - Đã quyết toán thành công",
+	"Trekking bán đảo Sơn Trà qua đêm",
+	"Chèo SUP hồ Hòa Trung",
+	"Khám phá Đỉnh Bàn Cờ",
+	"Cắm trại bãi Tiên Sa – Sơn Trà",
 ];
 
 async function ensureSettlementUser(user: SeedSettlementUser): Promise<string> {
@@ -3587,8 +5673,8 @@ export async function seedSettlementsAndPayouts(): Promise<void> {
 				"host_id", "name", "description", "route_geom", "length_meters",
 				"difficulty", "expected_duration_minutes", "status"
 			 ) VALUES (
-				$1, 'Cung đường Trekking Demo', 'Tuyến đường mẫu cho kịch bản quyết toán',
-				ST_GeogFromText('SRID=4326;LINESTRING(108.45 11.94, 108.47 11.95)'), 3000,
+				$1, 'Đường dạo rừng Hòa Bắc', 'Cung đường đi bộ dưới tán rừng Hòa Bắc, thích hợp dã ngoại và ngắm cảnh.',
+				ST_GeogFromText('SRID=4326;LINESTRING(108.020 16.090,108.035 16.105,108.050 16.120)'), 3000,
 				'moderate', 240, 'active'
 			 ) RETURNING "id"`,
 			[hostId]
@@ -3684,8 +5770,8 @@ export async function seedSettlementsAndPayouts(): Promise<void> {
 			"starts_at", "ends_at", "meeting_point", "booking_deadline",
 			"capacity_min", "capacity_max", "price_per_person", "status", "cancellation_policy"
 		 ) VALUES (
-			$1, $2, 'Trekking Bạch Mã 2N1Đ - Đủ điều kiện Quyết toán',
-			'Chuyến đi đã kết thúc cách đây 80 giờ, vượt qua mốc bảo lưu 72h và sẵn sàng quyết toán.',
+			$1, $2, 'Trekking bán đảo Sơn Trà qua đêm',
+			'Trekking đường rừng bán đảo Sơn Trà, nghỉ qua đêm bên biển và ngắm bình minh trên vịnh Đà Nẵng.',
 			'day_trip', 0,
 			now() - interval '86 hours', now() - interval '80 hours',
 			ST_SetSRID(ST_GeomFromGeoJSON($3), 4326)::geography, now() - interval '4 days',
@@ -3741,7 +5827,7 @@ export async function seedSettlementsAndPayouts(): Promise<void> {
 			"starts_at", "ends_at", "meeting_point", "booking_deadline",
 			"capacity_min", "capacity_max", "price_per_person", "status", "cancellation_policy"
 		 ) VALUES (
-			$1, $2, 'Chèo SUP Hồ Hòa Trung - Đang giữ 72h',
+			$1, $2, 'Chèo SUP hồ Hòa Trung',
 			'Chuyến đi vừa kết thúc 20 giờ trước, hệ thống đang giữ bảo lưu phòng khiếu nại (72h).',
 			'day_trip', 0,
 			now() - interval '26 hours', now() - interval '20 hours',
@@ -3798,8 +5884,8 @@ export async function seedSettlementsAndPayouts(): Promise<void> {
 			"starts_at", "ends_at", "meeting_point", "booking_deadline",
 			"capacity_min", "capacity_max", "price_per_person", "status", "cancellation_policy"
 		 ) VALUES (
-			$1, $2, 'Khám phá Đỉnh Bàn Cờ - Bị giữ do Khiếu nại',
-			'Chuyến đi đã hoàn thành 90 giờ trước nhưng đang có yêu cầu khiếu nại hoàn tiền chưa xử lý.',
+			$1, $2, 'Khám phá Đỉnh Bàn Cờ',
+			'Khám phá các đường mòn lên Đỉnh Bàn Cờ, ngắm toàn cảnh rừng Sơn Trà và vịnh Đà Nẵng.',
 			'day_trip', 0,
 			now() - interval '96 hours', now() - interval '90 hours',
 			ST_SetSRID(ST_GeomFromGeoJSON($3), 4326)::geography, now() - interval '5 days',
@@ -3877,7 +5963,7 @@ export async function seedSettlementsAndPayouts(): Promise<void> {
 			"starts_at", "ends_at", "meeting_point", "booking_deadline",
 			"capacity_min", "capacity_max", "price_per_person", "status", "cancellation_policy"
 		 ) VALUES (
-			$1, $2, 'Cắm trại Đảo Điệp Sơn - Đã quyết toán thành công',
+			$1, $2, 'Cắm trại bãi Tiên Sa – Sơn Trà',
 			'Chuyến đi đã được quyết toán tự động, phí 5% đã thu và 95% đã ghi có vào ví Host.',
 			'day_trip', 0,
 			now() - interval '6 days', now() - interval '5 days',
@@ -3964,7 +6050,7 @@ export async function seedSettlementsAndPayouts(): Promise<void> {
 		 ) VALUES (
 			$1, $2, $3, 'settlement_credit',
 			'4000000.00', '200000.00', '3800000.00', '3800000.00',
-			'Quyết toán doanh thu chuyến: Cắm trại Đảo Điệp Sơn - Đã quyết toán thành công',
+			'Quyết toán doanh thu chuyến: Cắm trại bãi Tiên Sa – Sơn Trà',
 			now() - interval '4 days'
 		 )`,
 		[wallet1Id, settlement4Id, trip4Id]
@@ -4086,8 +6172,8 @@ export async function seedUserBankAccounts(): Promise<void> {
 		await dataSource.query(
 			`INSERT INTO "user_bank_accounts" ("user_id", "bank_name", "account_number", "account_holder_name", "is_default")
 			 VALUES 
-				($1, 'Vietcombank', '1012345678', 'CAMPER NGUYEN VAN AN', true),
-				($1, 'Techcombank', '19034567890123', 'CAMPER NGUYEN VAN AN', false)
+				($1, 'Vietcombank', '1012345678', 'NGUYEN VAN AN', true),
+				($1, 'Techcombank', '19034567890123', 'NGUYEN VAN AN', false)
 			 ON CONFLICT ("user_id", "bank_name", "account_number") 
 			 DO UPDATE SET 
 				"account_holder_name" = EXCLUDED."account_holder_name",
@@ -4154,7 +6240,7 @@ export async function seedDeviceSyncTelemetry(ds = dataSource): Promise<void> {
 				"starts_at", "ends_at", "meeting_point", "booking_deadline",
 				"capacity_min", "capacity_max", "price_per_person", "status", "cancellation_policy"
 			 ) VALUES (
-				$1, $2, $3, 'Trekking Sơn Trà Hoàn Thành - Demo Khiếu Nại', 'Chuyến đi phục vụ đồng bộ GPS & an toàn ngoại tuyến', 'day_trip', 0,
+				$1, $2, $3, 'Trekking Nam Hải Vân – Khám phá rừng ven biển', 'Chuyến đi phục vụ đồng bộ GPS & an toàn ngoại tuyến', 'day_trip', 0,
 				now() - interval '10 hours', now() - interval '3 hours',
 				ST_SetSRID(ST_GeomFromGeoJSON($4), 4326)::geography, now() - interval '1 day',
 				1, 10, '850000.00', 'completed',
@@ -4293,7 +6379,7 @@ export async function seedDeviceSyncTelemetry(ds = dataSource): Promise<void> {
 			"starts_at", "ends_at", "meeting_point", "booking_deadline",
 			"capacity_min", "capacity_max", "price_per_person", "status", "cancellation_policy"
 		 ) VALUES (
-			$1, $2, $3, 'Trekking Sơn Trà - Đang Diễn Ra (CTMS-064 Offline Buffer Demo)',
+			$1, $2, $3, 'Trekking Sơn Trà – Hành trình ven biển',
 			'Chuyến đi đang diễn ra phục vụ kiểm thử Offline Buffer GPS & Cảnh báo an toàn ngoại tuyến', 'day_trip', 0,
 			now() - interval '2 hours', now() + interval '7 days',
 			ST_SetSRID(ST_GeomFromGeoJSON($4), 4326)::geography, now() - interval '1 day',
@@ -4724,7 +6810,7 @@ export async function seedManageTripIncidents(
 			"location_status", "captured_offline", "received_at"
 		 ) VALUES (
 			$1, $2, $3, $4, 'injury', 'high', 'investigating',
-			'Camper Nguyễn Văn An bị trượt chân trên dốc đá gần Bãi Rạng. Cần sơ cứu vết thương và theo dõi sức khỏe.',
+			'Nguyễn Văn An bị trượt chân trên dốc đá gần Bãi Rạng. Cần sơ cứu vết thương và theo dõi sức khỏe.',
 			now() - interval '120 minutes',
 			ST_SetSRID(ST_MakePoint(108.290, 16.115), 4326)::geography, 8.5, now() - interval '120 minutes',
 			'fresh', false, now() - interval '115 minutes'
@@ -4836,7 +6922,7 @@ export async function seedTripReviewScenarios(ds = dataSource, titlesOnly = fals
 			{ key: "6", title: "Ngũ Hành Sơn", hours: 1, noShow: false, saved: false },
 			{
 				key: "5",
-				title: "Bạch Mã — Hết hạn chỉnh sửa",
+				title: "Bà Nà – Đường rừng buổi sớm",
 				hours: 48,
 				noShow: false,
 				saved: true,
@@ -4900,6 +6986,85 @@ export async function seedTripReviewScenarios(ds = dataSource, titlesOnly = fals
 					);
 				}
 			}
+		}
+	});
+}
+
+/** CTMS-390: opt-in Android review scenarios using existing local accounts. */
+async function seedPorterReviewScenarios(ds = dataSource): Promise<void> {
+	if (process.env.NODE_ENV === "production") throw new Error("Local review data only");
+	const database = new URL(process.env.DATABASE_URL ?? "postgresql://localhost/ctms");
+	if (!["localhost", "127.0.0.1", "[::1]"].includes(database.hostname)) {
+		throw new Error("Porter review scenarios require a local database");
+	}
+	if (!ds.isInitialized) await ds.initialize();
+	await ds.transaction(async (manager) => {
+		const accounts: Array<{ id: string; role: string }> = await manager.query(
+			`SELECT id, role FROM users WHERE status='active' AND
+			(email, role::text) IN (('host@ctms.local','host'),('camper@ctms.local','camper'),
+				('porter@ctms.local','porter'))`
+		);
+		const host = accounts.find((account) => account.role === "host");
+		const camper = accounts.find((account) => account.role === "camper");
+		const porter = accounts.find((account) => account.role === "porter");
+		if (!host || !camper || !porter)
+			throw new Error("Existing Host, Camper and Porter accounts are required");
+		const routes: Array<{ id: string }> = await manager.query(
+			"SELECT id FROM trekking_routes WHERE host_id=$1 AND name ILIKE '%Sơn Trà%' ORDER BY created_at,id LIMIT 1",
+			[host.id]
+		);
+		const route = routes[0];
+		if (!route) throw new Error("An existing Sơn Trà route owned by the local Host is required");
+		const scenarios = [
+			{ key: 1, title: "Trekking Sơn Trà – Đón bình minh", hours: 1, status: "assigned" },
+			{ key: 2, title: "Trekking Sơn Trà – Lối mòn ven biển", hours: 2, status: "unassigned" },
+			{ key: 3, title: "Trekking Sơn Trà – Đỉnh Bàn Cờ", hours: 48, status: "assigned" },
+		];
+		for (const scenario of scenarios) {
+			const tripId = `d3900000-0000-4000-8000-00000000000${scenario.key}`;
+			const bookingId = `d3900000-0000-4000-8001-00000000000${scenario.key}`;
+			const memberId = `d3900000-0000-4000-8002-00000000000${scenario.key}`;
+			await manager.query(
+				`INSERT INTO trips (id,host_id,route_id,title,trip_type,duration_nights,starts_at,ends_at,
+					meeting_point,booking_deadline,capacity_min,capacity_max,seats_taken,price_per_person,status)
+				VALUES ($1,$2,$3,$4,'day_trip',0,now()-make_interval(hours=>$5)-interval '4 hours',
+					now()-make_interval(hours=>$5),ST_GeogFromText('POINT(108.28 16.12)'),
+					now()-make_interval(hours=>$5)-interval '1 day',1,10,1,0,'completed')
+				ON CONFLICT (id) DO NOTHING`,
+				[tripId, host.id, route.id, scenario.title, scenario.hours]
+			);
+			await manager.query(
+				`INSERT INTO bookings (id,trip_id,user_id,num_people,status,payment_status,completed_at,
+					trip_starts_at_snapshot,trip_ends_at_snapshot)
+				SELECT $1,t.id,$2,1,'completed','not_required',t.ends_at,t.starts_at,t.ends_at
+				FROM trips t WHERE t.id=$3 ON CONFLICT (id) DO NOTHING`,
+				[bookingId, camper.id, tripId]
+			);
+			await manager.query(
+				`INSERT INTO booking_members (id,booking_id,user_id,is_primary,member_status,checked_in_at)
+				SELECT $1,b.id,$2,true,'joined',b.trip_starts_at_snapshot FROM bookings b WHERE b.id=$3
+				ON CONFLICT (id) DO NOTHING`,
+				[memberId, camper.id, bookingId]
+			);
+			await manager.query(
+				"INSERT INTO trip_porters (trip_id,porter_id,status) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING",
+				[tripId, porter.id, scenario.status]
+			);
+			if (scenario.key === 1) continue;
+			// The retained scenario represents a review left before the assignment was removed.
+			await manager.query(
+				`WITH inserted AS (
+					INSERT INTO porter_reviews (booking_id,member_id,reviewer_id,trip_id,porter_id,
+						rating,comment,edit_expires_at,created_at,updated_at)
+					SELECT b.id,$2,$3,b.trip_id,$4,5,'Anh Sơn hướng dẫn kỹ ở đoạn dốc và chờ cả đoàn tập hợp.',
+						date_trunc('milliseconds',b.completed_at + interval '24 hours'),
+						b.completed_at + interval '5 minutes', b.completed_at + interval '5 minutes'
+					FROM bookings b WHERE b.id=$1 ON CONFLICT DO NOTHING RETURNING *
+				)
+				INSERT INTO porter_review_revisions (review_id,revision,rating,comment,recorded_at)
+				SELECT id,revision,rating,comment,updated_at FROM inserted`,
+				[bookingId, memberId, camper.id, porter.id]
+			);
 		}
 	});
 }
@@ -5540,6 +7705,517 @@ export async function seedDemandInsightScenarios(ds = dataSource): Promise<void>
 	);
 }
 
+/** Host 1 Trips moved to real Đà Nẵng places (CTMS-110); old titles stay listed for cleanup. */
+function daNangMove(from: string): (typeof DA_NANG_TRIP_MOVES)[number] {
+	const move = DA_NANG_TRIP_MOVES.find((item) => item.from === from || item.title === from);
+	if (!move) throw new Error(`Missing Đà Nẵng mapping for ${from}`);
+	return move;
+}
+
+export const SEED_PERF_TRIP_TITLES = [
+	...DA_NANG_TRIP_MOVES.map((move) => move.title),
+	"Trekking Tà Năng - Phan Dũng (Lâm Đồng)",
+	"Chinh phục đỉnh Fansipan 3N2Đ Chạm Đỉnh Mây (Lào Cai)",
+	"Cung đường săn mây Tà Xùa (Sơn La)",
+	"Khám phá Rừng Tràm Trà Sư (An Giang)",
+	"Thám hiểm Thác Bản Giốc & Pác Bó (Cao Bằng)",
+	"Chinh phục đỉnh Bidoup Núi Bà (Lâm Đồng)",
+	"Bạch Mộc Lương Tử Expedition (Lai Châu)",
+	"Săn mây Y Tý - Bát Xát (Lào Cai)",
+	"Trekking Mù Cang Chải mùa vàng (Yên Bái)",
+	"Khám phá VQG Cát Tiên (Đồng Nai)",
+];
+
+/**
+ * CTMS-101: Seed realistic performance reporting scenarios
+ * (trips, bookings, settlements across multiple hosts & provinces).
+ */
+export async function seedPerformanceReportsScenarios(ds: DataSource = dataSource): Promise<void> {
+	if (!ds.isInitialized) {
+		await ds.initialize();
+	}
+	console.log("[seed:performance-reports] Seeding CTMS-101 demo data...");
+	await refreshDaNangSeedData(ds);
+
+	// 1. Get host accounts: host@ctms.local and ensure a second host for cross-host testing
+	const host1Rows = await ds.query('SELECT id FROM "users" WHERE email = $1 LIMIT 1', [
+		"host@ctms.local",
+	]);
+	if (host1Rows.length === 0) {
+		await seedDevHostAndRoute();
+	}
+	const host1Id = (
+		await ds.query('SELECT id FROM "users" WHERE email = $1 LIMIT 1', ["host@ctms.local"])
+	)[0].id;
+
+	// Reuse a legacy secondary Host if it exists; fresh databases use the primary account.
+	const host2Rows = await ds.query('SELECT id FROM "users" WHERE email = $1 LIMIT 1', [
+		"host2@ctms.local",
+	]);
+	const host2Id = host2Rows[0]?.id ?? host1Id;
+
+	// Ensure Campers
+	const camperRows = await ds.query(
+		`SELECT id FROM "users" WHERE role = 'camper' OR email LIKE '%camper%' ORDER BY id LIMIT 10`
+	);
+	const camperIds: string[] =
+		camperRows.length > 0 ? camperRows.map((r: { id: string }) => r.id) : [host1Id];
+
+	// 2. Ensure Routes
+	let route1Rows = await ds.query('SELECT id FROM "trekking_routes" WHERE name = $1 LIMIT 1', [
+		"Cung đường Tà Lang – Giàn Bí",
+	]);
+	if (route1Rows.length === 0) {
+		route1Rows = await ds.query(
+			`INSERT INTO "trekking_routes" (host_id, name, description, route_geom, length_meters, difficulty, expected_duration_minutes, status)
+			 VALUES ($1, 'Cung đường Tà Lang – Giàn Bí', 'Cung đường xuyên rừng Hòa Bắc qua Tà Lang và Giàn Bí, men theo thung lũng sông Cu Đê.', ST_GeogFromText('SRID=4326;LINESTRING(108.020 16.090,108.035 16.105,108.050 16.120,108.065 16.135)'), 18000, 'moderate', 360, 'active')
+			 RETURNING id`,
+			[host1Id]
+		);
+	}
+	const route1Id = route1Rows[0].id;
+
+	let route2Rows = await ds.query('SELECT id FROM "trekking_routes" WHERE name = $1 LIMIT 1', [
+		"Cung đường đỉnh Núi Chúa – Bà Nà",
+	]);
+	if (route2Rows.length === 0) {
+		route2Rows = await ds.query(
+			`INSERT INTO "trekking_routes" (host_id, name, description, route_geom, length_meters, difficulty, expected_duration_minutes, status)
+			 VALUES ($1, 'Cung đường đỉnh Núi Chúa – Bà Nà', 'Đường mòn xuyên rừng Bà Nà lên đỉnh Núi Chúa, qua các đoạn dốc và điểm nghỉ dưới tán rừng.', ST_GeogFromText('SRID=4326;LINESTRING(108.010 15.990,108.018 16.002,108.025 16.015,108.030 16.025)'), 12000, 'hard', 480, 'active')
+			 RETURNING id`,
+			[host2Id]
+		);
+	}
+	const route2Id = route2Rows[0].id;
+
+	// Host 1 Trips run on real Đà Nẵng routes; fall back to route 1 on a fresh database.
+	const daNangRouteId = async (name: string): Promise<string> =>
+		(
+			(await ds.query('SELECT id FROM "trekking_routes" WHERE name = $1 LIMIT 1', [
+				name,
+			])) as Array<{
+				id: string;
+			}>
+		)[0]?.id ?? route1Id;
+	const hoaBacRouteId = await daNangRouteId("Khe Ram - Suối Mơ - Rừng Hòa Bắc");
+	const baNaRouteId = await daNangRouteId("Rừng Nguyên Sinh Bà Nà - Núi Chúa");
+	const sonTraRouteId = await daNangRouteId("Bán Đảo Sơn Trà Discovery");
+
+	// Existing trips, bookings and settlements retain their IDs and all user actions.
+
+	const meetingPoint = JSON.stringify({ type: "Point", coordinates: [108.2022, 16.0544] });
+
+	interface SeedBookingItem {
+		daysAgo: number;
+		numPeople: number;
+		status: "completed" | "confirmed" | "cancelled" | "pending_payment";
+		paymentStatus: "paid" | "unpaid";
+	}
+
+	interface SeedTripConfig {
+		hostId: string;
+		routeId: string;
+		title: string;
+		description: string;
+		tripType: string;
+		durationNights: number;
+		createdDaysAgo: number;
+		startsDaysAgo: number;
+		endsDaysAgo: number;
+		deadlineDaysAgo: number;
+		capacityMin: number;
+		capacityMax: number;
+		seatsTaken: number;
+		pricePerPerson: number;
+		status: "completed" | "ongoing" | "published";
+		settlement?: {
+			settledDaysAgo: number;
+			base: number;
+			fee: number;
+			net: number;
+		};
+		bookings: SeedBookingItem[];
+	}
+
+	const tripConfigs: SeedTripConfig[] = [
+		// Trip 1 (Host 1, Lâm Đồng)
+		{
+			hostId: host1Id,
+			routeId: hoaBacRouteId,
+			title: daNangMove("Trekking Tà Lang – Giàn Bí, bản làng Cơ Tu Hòa Bắc").title,
+			description: daNangMove("Trekking Tà Lang – Giàn Bí, bản làng Cơ Tu Hòa Bắc").description,
+			tripType: "overnight",
+			durationNights: 2,
+			createdDaysAgo: 28,
+			startsDaysAgo: 14,
+			endsDaysAgo: 12,
+			deadlineDaysAgo: 16,
+			capacityMin: 5,
+			capacityMax: 20,
+			seatsTaken: 16,
+			pricePerPerson: 2000000,
+			status: "completed",
+			settlement: {
+				settledDaysAgo: 10,
+				base: 32000000,
+				fee: 1600000,
+				net: 30400000,
+			},
+			bookings: [
+				{ daysAgo: 28, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 28, numPeople: 2, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 26, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 26, numPeople: 2, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 25, numPeople: 4, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 25, numPeople: 2, status: "cancelled", paymentStatus: "unpaid" },
+				{ daysAgo: 23, numPeople: 2, status: "completed", paymentStatus: "paid" },
+			],
+		},
+		// Trip 2 (Host 2, Lào Cai)
+		{
+			hostId: host2Id,
+			routeId: route2Id,
+			title: "Chinh phục đỉnh Núi Chúa – Rừng Bà Nà",
+			description:
+				"Trekking xuyên rừng Bà Nà lên đỉnh Núi Chúa, nghỉ qua đêm và đón bình minh giữa núi rừng Hòa Vang.",
+			tripType: "overnight",
+			durationNights: 2,
+			createdDaysAgo: 25,
+			startsDaysAgo: 10,
+			endsDaysAgo: 8,
+			deadlineDaysAgo: 12,
+			capacityMin: 5,
+			capacityMax: 25,
+			seatsTaken: 20,
+			pricePerPerson: 2500000,
+			status: "completed",
+			settlement: {
+				settledDaysAgo: 7,
+				base: 50000000,
+				fee: 2500000,
+				net: 47500000,
+			},
+			bookings: [
+				{ daysAgo: 25, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 25, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 23, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 23, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 23, numPeople: 2, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 22, numPeople: 4, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 22, numPeople: 2, status: "cancelled", paymentStatus: "unpaid" },
+				{ daysAgo: 20, numPeople: 2, status: "completed", paymentStatus: "paid" },
+			],
+		},
+		// Trip 3 (Host 2, Sơn La)
+		{
+			hostId: host2Id,
+			routeId: route2Id,
+			title: "Săn mây Bà Nà – Bình minh trên đỉnh núi",
+			description:
+				"Men theo đường mòn rừng Bà Nà, dừng nghỉ trên sườn núi và ngắm mây sớm trên thung lũng Hòa Vang.",
+			tripType: "overnight",
+			durationNights: 2,
+			createdDaysAgo: 22,
+			startsDaysAgo: 8,
+			endsDaysAgo: 6,
+			deadlineDaysAgo: 10,
+			capacityMin: 4,
+			capacityMax: 16,
+			seatsTaken: 13,
+			pricePerPerson: 1800000,
+			status: "completed",
+			settlement: {
+				settledDaysAgo: 5,
+				base: 23400000,
+				fee: 1170000,
+				net: 22230000,
+			},
+			bookings: [
+				{ daysAgo: 22, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 22, numPeople: 2, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 20, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 20, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 19, numPeople: 2, status: "completed", paymentStatus: "paid" },
+			],
+		},
+		// Trip 4 (Host 1, An Giang)
+		{
+			hostId: host1Id,
+			routeId: hoaBacRouteId,
+			title: daNangMove("Chèo kayak sông Cu Đê – Hòa Bắc").title,
+			description: daNangMove("Chèo kayak sông Cu Đê – Hòa Bắc").description,
+			tripType: "day_trip",
+			durationNights: 0,
+			createdDaysAgo: 19,
+			startsDaysAgo: 6,
+			endsDaysAgo: 4,
+			deadlineDaysAgo: 8,
+			capacityMin: 5,
+			capacityMax: 20,
+			seatsTaken: 15,
+			pricePerPerson: 1500000,
+			status: "completed",
+			settlement: {
+				settledDaysAgo: 3,
+				base: 22500000,
+				fee: 1125000,
+				net: 21375000,
+			},
+			bookings: [
+				{ daysAgo: 19, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 19, numPeople: 2, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 17, numPeople: 5, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 17, numPeople: 1, status: "cancelled", paymentStatus: "unpaid" },
+				{ daysAgo: 16, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 16, numPeople: 2, status: "completed", paymentStatus: "paid" },
+			],
+		},
+		// Trip 5 (Host 2, Cao Bằng)
+		{
+			hostId: host2Id,
+			routeId: route2Id,
+			title: "Khám phá thác Tóc Tiên – Rừng Bà Nà",
+			description:
+				"Khám phá cảnh quan thác Tóc Tiên và những đoạn đường rừng dưới chân núi Bà Nà, nghỉ đêm giữa thiên nhiên Hòa Vang.",
+			tripType: "overnight",
+			durationNights: 2,
+			createdDaysAgo: 16,
+			startsDaysAgo: 4,
+			endsDaysAgo: 2,
+			deadlineDaysAgo: 6,
+			capacityMin: 4,
+			capacityMax: 18,
+			seatsTaken: 14,
+			pricePerPerson: 2200000,
+			status: "completed",
+			settlement: {
+				settledDaysAgo: 1,
+				base: 30800000,
+				fee: 1540000,
+				net: 29260000,
+			},
+			bookings: [
+				{ daysAgo: 16, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 16, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 14, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 14, numPeople: 3, status: "completed", paymentStatus: "paid" },
+				{ daysAgo: 12, numPeople: 2, status: "completed", paymentStatus: "paid" },
+			],
+		},
+		// Trip 6 (Host 1, Lâm Đồng)
+		{
+			hostId: host1Id,
+			routeId: baNaRouteId,
+			title: daNangMove("Xuyên rừng Bà Nà – Chinh phục đỉnh Núi Chúa").title,
+			description: daNangMove("Xuyên rừng Bà Nà – Chinh phục đỉnh Núi Chúa").description,
+			tripType: "overnight",
+			durationNights: 2,
+			createdDaysAgo: 12,
+			startsDaysAgo: 1,
+			endsDaysAgo: -1,
+			deadlineDaysAgo: 3,
+			capacityMin: 5,
+			capacityMax: 18,
+			seatsTaken: 14,
+			pricePerPerson: 2400000,
+			status: "ongoing",
+			bookings: [
+				{ daysAgo: 12, numPeople: 3, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 12, numPeople: 2, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 10, numPeople: 5, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 10, numPeople: 2, status: "cancelled", paymentStatus: "unpaid" },
+				{ daysAgo: 9, numPeople: 2, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 9, numPeople: 2, status: "confirmed", paymentStatus: "paid" },
+			],
+		},
+		// Trip 7 (Host 2, Lai Châu)
+		{
+			hostId: host2Id,
+			routeId: route2Id,
+			title: "Xuyên rừng Bà Nà – Hành trình qua suối",
+			description:
+				"Theo đường mòn dưới tán rừng Bà Nà, vượt những đoạn suối cạn và cắm trại trên sườn núi Hòa Vang.",
+			tripType: "overnight",
+			durationNights: 2,
+			createdDaysAgo: 9,
+			startsDaysAgo: 0,
+			endsDaysAgo: -2,
+			deadlineDaysAgo: 2,
+			capacityMin: 4,
+			capacityMax: 15,
+			seatsTaken: 12,
+			pricePerPerson: 2800000,
+			status: "ongoing",
+			bookings: [
+				{ daysAgo: 9, numPeople: 3, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 9, numPeople: 2, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 7, numPeople: 4, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 7, numPeople: 3, status: "confirmed", paymentStatus: "paid" },
+			],
+		},
+		// Trip 8 (Host 2, Lào Cai)
+		{
+			hostId: host2Id,
+			routeId: route2Id,
+			title: "Săn mây đỉnh Núi Chúa – Hòa Vang",
+			description:
+				"Đi bộ xuyên rừng Bà Nà, nghỉ qua đêm trên sườn Núi Chúa và đón biển mây trong ánh bình minh.",
+			tripType: "overnight",
+			durationNights: 2,
+			createdDaysAgo: 7,
+			startsDaysAgo: -5,
+			endsDaysAgo: -7,
+			deadlineDaysAgo: -3,
+			capacityMin: 4,
+			capacityMax: 16,
+			seatsTaken: 10,
+			pricePerPerson: 2000000,
+			status: "published",
+			bookings: [
+				{ daysAgo: 7, numPeople: 3, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 7, numPeople: 2, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 5, numPeople: 3, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 5, numPeople: 1, status: "cancelled", paymentStatus: "unpaid" },
+				{ daysAgo: 4, numPeople: 2, status: "confirmed", paymentStatus: "paid" },
+			],
+		},
+		// Trip 9 (Host 2, Yên Bái)
+		{
+			hostId: host2Id,
+			routeId: route2Id,
+			title: "Trekking rừng Bà Nà – Khám phá thác và suối",
+			description:
+				"Khám phá những lối mòn rừng Bà Nà, dừng chân bên suối và trải nghiệm cắm trại ở vùng núi Hòa Vang.",
+			tripType: "overnight",
+			durationNights: 2,
+			createdDaysAgo: 4,
+			startsDaysAgo: -8,
+			endsDaysAgo: -10,
+			deadlineDaysAgo: -5,
+			capacityMin: 5,
+			capacityMax: 20,
+			seatsTaken: 12,
+			pricePerPerson: 1900000,
+			status: "published",
+			bookings: [
+				{ daysAgo: 4, numPeople: 3, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 4, numPeople: 2, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 2, numPeople: 4, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 2, numPeople: 3, status: "pending_payment", paymentStatus: "unpaid" },
+			],
+		},
+		// Trip 10 (Host 1, Đồng Nai)
+		{
+			hostId: host1Id,
+			routeId: sonTraRouteId,
+			title: daNangMove("Ngắm voọc chà vá chân nâu – Rừng Sơn Trà").title,
+			description: daNangMove("Ngắm voọc chà vá chân nâu – Rừng Sơn Trà").description,
+			tripType: "day_trip",
+			durationNights: 0,
+			createdDaysAgo: 2,
+			startsDaysAgo: -12,
+			endsDaysAgo: -13,
+			deadlineDaysAgo: -8,
+			capacityMin: 4,
+			capacityMax: 15,
+			seatsTaken: 8,
+			pricePerPerson: 1600000,
+			status: "published",
+			bookings: [
+				{ daysAgo: 2, numPeople: 3, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 2, numPeople: 2, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 1, numPeople: 2, status: "confirmed", paymentStatus: "paid" },
+				{ daysAgo: 1, numPeople: 1, status: "pending_payment", paymentStatus: "unpaid" },
+			],
+		},
+	];
+
+	let camperIndex = 0;
+	let totalBookingsCreated = 0;
+
+	for (const config of tripConfigs) {
+		const existing: Array<{ id: string }> = await ds.query(
+			"SELECT id FROM trips WHERE host_id=$1 AND title=$2 LIMIT 1",
+			[config.hostId, config.title]
+		);
+		if (existing.length > 0) continue;
+		const tripRes = await ds.query(
+			`INSERT INTO "trips" (
+				host_id, route_id, title, description, trip_type, duration_nights,
+				starts_at, ends_at, meeting_point, booking_deadline, capacity_min, capacity_max,
+				seats_taken, price_per_person, status, created_at
+			) VALUES (
+				$1, $2, $3, $4, $5, $6,
+				now() - ($7 || ' days')::interval, now() - ($8 || ' days')::interval,
+				ST_SetSRID(ST_GeomFromGeoJSON($9), 4326)::geography, now() - ($10 || ' days')::interval,
+				$11, $12, $13, $14, $15, now() - ($16 || ' days')::interval
+			) RETURNING id`,
+			[
+				config.hostId,
+				config.routeId,
+				config.title,
+				config.description,
+				config.tripType,
+				config.durationNights,
+				config.startsDaysAgo,
+				config.endsDaysAgo,
+				meetingPoint,
+				config.deadlineDaysAgo,
+				config.capacityMin,
+				config.capacityMax,
+				config.seatsTaken,
+				config.pricePerPerson.toFixed(2),
+				config.status,
+				config.createdDaysAgo,
+			]
+		);
+		const tripId = tripRes[0].id;
+
+		// Insert bookings
+		for (const b of config.bookings) {
+			const camperId = camperIds[camperIndex % camperIds.length];
+			camperIndex++;
+			const totalAmount = (b.numPeople * config.pricePerPerson).toFixed(2);
+			const holdExpiry = b.status === "pending_payment" ? "now() + interval '15 minutes'" : "null";
+
+			await ds.query(
+				`INSERT INTO "bookings" (
+					trip_id, user_id, num_people, status, payment_status, total_amount, hold_expires_at, created_at
+				) VALUES (
+					$1, $2, $3, $4, $5, $6, ${holdExpiry}, now() - ($7 || ' days')::interval
+				)`,
+				[tripId, camperId, b.numPeople, b.status, b.paymentStatus, totalAmount, b.daysAgo]
+			);
+			totalBookingsCreated++;
+		}
+
+		// Insert settlement if trip completed and settled
+		if (config.settlement) {
+			await ds.query(
+				`INSERT INTO "settlements" (
+					trip_id, host_id, settlement_base, commission_rate, platform_fee, net_amount, settled_at, created_at, updated_at
+				) VALUES (
+					$1, $2, $3, '0.0500', $4, $5, now() - ($6 || ' days')::interval, now() - ($6 || ' days')::interval, now() - ($6 || ' days')::interval
+				)`,
+				[
+					tripId,
+					config.hostId,
+					config.settlement.base.toFixed(2),
+					config.settlement.fee.toFixed(2),
+					config.settlement.net.toFixed(2),
+					config.settlement.settledDaysAgo,
+				]
+			);
+		}
+	}
+
+	// CTMS-110: recreated Trips get their Đà Nẵng area snapshot straight away.
+	await backfillTripAreaSnapshots(ds);
+
+	console.log(
+		`[seed:performance-reports] ✅ Seeded ${tripConfigs.length} demo trips with ${totalBookingsCreated} bookings & settlements across 18 dates.`
+	);
+}
 function recoveryDemoCore(): PackageCore {
 	return {
 		tripId: "trip",
@@ -5583,7 +8259,210 @@ function recoveryDemoCore(): PackageCore {
 }
 
 /** Opt-in additive UI demo. Never resets accounts or calls the destructive master seed. */
-export async function seedRouteRecoveryDemo(db: DataSource): Promise<void> {
+type RecoveryDemoMode = boolean | { screenshotRun: number; departureDue?: boolean };
+function recoveryDemoTripId(mode: RecoveryDemoMode): string {
+	if (mode && (process.env.CTMS306_DEMO_SEED !== "1" || process.env.NODE_ENV === "production"))
+		throw new Error("CTMS-306 demo seed requires CTMS306_DEMO_SEED=1 outside production");
+	if (typeof mode === "object") {
+		if (!Number.isInteger(mode.screenshotRun) || mode.screenshotRun < 1 || mode.screenshotRun > 99)
+			throw new Error("Screenshot run must be an explicit integer from 1 to 99");
+		return `306de000-0000-4000-8000-${String(mode.screenshotRun * 10 + 1).padStart(12, "0")}`;
+	}
+	return mode ? "306de000-0000-4000-8000-000000000001" : "316de000-0000-4000-8000-000000000001";
+}
+/** Opt-in setup for the existing demo only; never clears shared development data. */
+export async function seedPackagePolicyDemo(
+	db: DataSource,
+	readableDemo: RecoveryDemoMode = false
+): Promise<void> {
+	if (process.env.NODE_ENV === "production") throw new Error("Demo setup forbidden in production");
+	await db.transaction(async (manager) => {
+		const tripId = recoveryDemoTripId(readableDemo);
+		const [trip] = (await manager.query("SELECT title,status FROM trips WHERE id=$1 FOR UPDATE", [
+			tripId,
+		])) as Array<{ title: string; status: string }>;
+		if (
+			!(
+				trip?.title.startsWith(readableDemo ? "[DEMO CTMS-306]" : "[DEMO CTMS-316]") ||
+				(readableDemo && trip?.title === "Sơn Trà – Hành trình ven biển")
+			) ||
+			trip.status !== "published"
+		)
+			throw new Error("Requires the existing published recovery demo");
+		const [porter] = (await manager.query(
+			"SELECT id FROM users WHERE email='porter@ctms.local' AND status='active' AND role='porter'"
+		)) as Array<{ id: string }>;
+		if (!porter) throw new Error("Existing demo Porter account required");
+		const [pkg] = (await manager.query(
+			"SELECT id FROM offline_packages WHERE trip_id=$1 ORDER BY package_version DESC LIMIT 1",
+			[tripId]
+		)) as Array<{ id: string }>;
+		if (!pkg) throw new Error("Existing demo package required");
+		await manager.query(
+			"INSERT INTO trip_porters(trip_id,porter_id,status) VALUES($1,$2,'assigned') ON CONFLICT(trip_id,porter_id) DO NOTHING",
+			[tripId, porter.id]
+		);
+		await manager.query(
+			"INSERT INTO offline_package_requirements(trip_id,package_id) VALUES($1,$2) ON CONFLICT(trip_id) DO NOTHING",
+			[tripId, pkg.id]
+		);
+	});
+	console.log(
+		"[seed:package-policy] Existing demo assignment/requirement ensured; no source approval or Trip lifecycle change."
+	);
+}
+
+/** Explicitly labelled evidence fixture, not the approved safety-package pipeline. */
+export async function seedPackagePolicyVersion(
+	db: DataSource,
+	version: number,
+	required = true,
+	readableDemo: RecoveryDemoMode = false
+): Promise<void> {
+	if (process.env.NODE_ENV === "production" || ![2, 3, 4].includes(version))
+		throw new Error("Only demo evidence versions 2-4 are supported outside production");
+	await db.transaction(async (m) => {
+		const tripId = recoveryDemoTripId(readableDemo);
+		const [trip] = (await m.query("SELECT title,status FROM trips WHERE id=$1 FOR UPDATE", [
+			tripId,
+		])) as Array<{ title: string; status: string }>;
+		if (
+			!(
+				trip?.title.startsWith(readableDemo ? "[DEMO CTMS-306]" : "[DEMO CTMS-316]") ||
+				(readableDemo && trip?.title === "Sơn Trà – Hành trình ven biển")
+			) ||
+			trip.status !== "published"
+		)
+			throw new Error("Requires existing published demo; does not bypass ongoing locks");
+		const [existing] = (await m.query(
+			"SELECT id FROM offline_packages WHERE trip_id=$1 AND package_version=$2",
+			[tripId, version]
+		)) as Array<{ id: string }>;
+		if (existing) {
+			console.log(`[seed:package-policy] Demo v${version} already exists; unchanged.`);
+			return;
+		}
+		const core = await new PackageCoreReader().read(m, tripId);
+		const safety: PackageSafetyInputs = {
+			revision: `demo-evidence-v${version}-no-safety-advice`,
+			blockers: [],
+			conditionEvidence: [],
+			feeds: [],
+			hazards: [],
+			guidance: [],
+			policy: {
+				version: "DEMO-NOT-APPROVED",
+				approvalId: "DEMO-NOT-FOR-NAVIGATION",
+				requiredGovernmentSources: [],
+				baselineTopics: [],
+				conditionTopics: [],
+				hazardTopics: [],
+				requiredConditions: [],
+				requireCheckpoints: true,
+				requiredWaypointTypes: [WaypointType.START, WaypointType.FINISH],
+			},
+		};
+		const builder = new PackageArtifactBuilder();
+		const artifact = builder.build(
+			{
+				core,
+				safety,
+				nextVersion: version,
+				coreFingerprint: digest(canonical(core)),
+				sourceFingerprint: sourceFingerprint(safety),
+			},
+			new TripSafetyContextResolver().resolve(core, safety),
+			[],
+			[],
+			new Date().toISOString()
+		);
+		builder.verify(artifact.bytes, artifact.manifest);
+		await new LocalPackageArtifactStorage().put(`${artifact.sha256}.zip`, artifact.bytes);
+		const id = randomUUID();
+		await m.query(
+			`INSERT INTO offline_packages(id,trip_id,package_version,generation_key,schema_version,manifest,provenance,sha256,size_bytes,artifact_key,generated_at)
+		 VALUES($1,$2,$3,$4,1,$5,$6,$4,$7,$8,$9)`,
+			[
+				id,
+				tripId,
+				version,
+				artifact.sha256,
+				artifact.manifest,
+				{ testFixture: true, source: "CTMS-306 DEMO EVIDENCE ONLY; not approved safety pipeline" },
+				artifact.bytes.length,
+				`${artifact.sha256}.zip`,
+				artifact.manifest.generatedAt,
+			]
+		);
+		if (required)
+			await m.query(
+				"UPDATE offline_package_requirements SET package_id=$2,required_at=now(),last_checked_at=NULL,last_reason_code=NULL WHERE trip_id=$1",
+				[tripId, id]
+			);
+		console.log(
+			`[seed:package-policy] Demo v${version} created (required=${required}); source freshness remains unknown.`
+		);
+	});
+}
+
+/** Manual ongoing fixture only: NOT evidence of a successful departure gate. */
+export async function seedPackagePolicyOngoing(
+	db: DataSource,
+	readableDemo: RecoveryDemoMode = false
+): Promise<void> {
+	if (process.env.NODE_ENV === "production") throw new Error("Fixture forbidden in production");
+	await db.transaction(async (m) => {
+		const tripId = recoveryDemoTripId(readableDemo);
+		const [trip] = (await m.query("SELECT title,status FROM trips WHERE id=$1 FOR UPDATE", [
+			tripId,
+		])) as Array<{ title: string; status: string }>;
+		if (
+			!(
+				trip?.title.startsWith(readableDemo ? "[DEMO CTMS-306]" : "[DEMO CTMS-316]") ||
+				(readableDemo && trip?.title === "Sơn Trà – Hành trình ven biển")
+			) ||
+			!["published", "ongoing"].includes(trip.status)
+		)
+			throw new Error("Unexpected demo state");
+		const [report] = (await m.query(
+			`SELECT r.user_id,r.device_id,r.package_id FROM offline_package_device_reports r
+		 JOIN offline_packages p ON p.id=r.package_id JOIN users u ON u.id=r.user_id
+		 JOIN trip_porters tp ON tp.trip_id=r.trip_id AND tp.porter_id=r.user_id AND tp.status='assigned'
+		 WHERE r.trip_id=$1 AND p.package_version=3 AND r.status='active' AND u.email='porter@ctms.local'
+		 ORDER BY r.activated_at DESC LIMIT 1`,
+			[tripId]
+		)) as Array<{ user_id: string; device_id: string; package_id: string }>;
+		if (!report) throw new Error("Real Porter device report for active demo v3 required");
+		const newer = await m.query(
+			"SELECT id FROM offline_packages WHERE trip_id=$1 AND package_version=4",
+			[tripId]
+		);
+		if (!newer.length) throw new Error("Publish optional demo v4 first");
+		await m.query(
+			`INSERT INTO offline_package_departures(trip_id,user_id,device_id,package_id,locked_at)
+		 VALUES($1,$2,$3,$4,now()) ON CONFLICT(trip_id) DO NOTHING`,
+			[tripId, report.user_id, report.device_id, report.package_id]
+		);
+		const [lock] = (await m.query(
+			"SELECT package_id,locked_at FROM offline_package_departures WHERE trip_id=$1",
+			[tripId]
+		)) as Array<{ package_id: string; locked_at: Date | null }>;
+		if (lock.package_id !== report.package_id || !lock.locked_at)
+			throw new Error("Conflicting demo lock; not overwritten");
+		await m.query(
+			"UPDATE trips SET status='ongoing',starts_at=LEAST(starts_at,now()-interval '1 minute'),ends_at=GREATEST(ends_at,now()+interval '1 day'),updated_at=now() WHERE id=$1",
+			[tripId]
+		);
+	});
+	console.log(
+		"[seed:package-policy] MANUAL ONGOING FIXTURE: v3 locked, v4 optional; no source approval, NOT a successful departure-gate test."
+	);
+}
+
+export async function seedRouteRecoveryDemo(
+	db: DataSource,
+	readableDemo: RecoveryDemoMode = false
+): Promise<void> {
 	if (process.env.NODE_ENV === "production")
 		throw new Error("Demo seed is forbidden in production");
 	if (
@@ -5593,11 +8472,15 @@ export async function seedRouteRecoveryDemo(db: DataSource): Promise<void> {
 	)
 		throw new Error("Recovery demo must not run with destructive seed flags");
 	if (!db.isInitialized) await db.initialize();
-	const tripId = "316de000-0000-4000-8000-000000000001";
+	const tripId = recoveryDemoTripId(readableDemo);
+	const demoPrefix = readableDemo ? "[DEMO CTMS-306]" : "[DEMO CTMS-316]";
 	const rows: Array<{ id: string; title: string; host_id: string; route_id: string }> =
 		await db.query("SELECT id,title,host_id,route_id FROM trips WHERE id=$1", [tripId]);
 	if (rows.length) {
-		if (!rows[0].title.startsWith("[DEMO CTMS-316]"))
+		if (
+			!rows[0].title.startsWith(demoPrefix) &&
+			!(readableDemo && rows[0].title === "Sơn Trà – Hành trình ven biển")
+		)
 			throw new Error("Demo identity collision; refusing to modify existing Trip");
 		const [metadata] = (await db.query(
 			"SELECT * FROM offline_packages WHERE trip_id=$1 ORDER BY package_version DESC LIMIT 1",
@@ -5654,9 +8537,11 @@ export async function seedRouteRecoveryDemo(db: DataSource): Promise<void> {
 	const host = hostRow.id;
 	const booking = randomUUID();
 	const core = recoveryDemoCore();
-	core.tripId = "316de000-0000-4000-8000-000000000001";
-	core.routeId = "316de000-0000-4000-8000-000000000002";
-	core.startsAt = new Date(Date.now() + 3600000).toISOString();
+	core.tripId = tripId;
+	core.routeId = `${tripId.slice(0, -1)}2`;
+	core.startsAt = new Date(
+		Date.now() + (typeof readableDemo === "object" && readableDemo.departureDue ? -60000 : 3600000)
+	).toISOString();
 	core.endsAt = new Date(Date.now() + 7 * 86400000).toISOString();
 	core.geometry = {
 		type: "LineString",
@@ -5672,7 +8557,13 @@ export async function seedRouteRecoveryDemo(db: DataSource): Promise<void> {
 	core.checkpoints = [0, 2, 5].map((index, order) => ({
 		id: randomUUID(),
 		routeId: core.routeId,
-		name: `[TEST] Trạm ${order + 1}`,
+		name: readableDemo
+			? [
+					"Điểm tập trung ven biển (Mẫu)",
+					"Điểm nghỉ giữa tuyến (Mẫu)",
+					"Điểm kết thúc hành trình (Mẫu)",
+				][order]
+			: `[TEST] Trạm ${order + 1}`,
 		type:
 			order === 0
 				? CheckpointType.START
@@ -5682,7 +8573,13 @@ export async function seedRouteRecoveryDemo(db: DataSource): Promise<void> {
 		location: { type: "Point" as const, coordinates: core.geometry.coordinates[index] },
 		radiusMeters: 30,
 		expectedArrivalOffset: order * 30,
-		instructions: "Test fixture only; not real navigation data.",
+		instructions: readableDemo
+			? [
+					"Đối chiếu danh sách thành viên và thống nhất lịch trình với người hỗ trợ. Đây là điểm mẫu để thử giao diện, không dùng dẫn đường thực tế.",
+					"Điểm dừng mẫu để xem mô tả và khoảng cách. Thời gian nghỉ do người phụ trách chuyến thống nhất.",
+					"Điểm kết thúc mẫu để kiểm tra danh sách điểm dừng. Xác nhận đủ thành viên theo quy trình của chuyến.",
+				][order]
+			: "Test fixture only; not real navigation data.",
 		routePosition: order / 2,
 	}));
 	core.waypoints = core.waypoints.map((w, index) => ({
@@ -5801,6 +8698,21 @@ export async function seedRouteRecoveryDemo(db: DataSource): Promise<void> {
 			]
 		);
 	});
+	if (readableDemo) {
+		await db.transaction(async (m) => {
+			await m.query(
+				"UPDATE trips SET title='Sơn Trà – Hành trình ven biển',description='Dữ liệu mẫu thử giao diện; không dùng dẫn đường hay hướng dẫn an toàn thực tế.' WHERE id=$1",
+				[tripId]
+			);
+			await m.query("UPDATE trekking_routes SET name='Sơn Trà – Tuyến ven biển' WHERE id=$1", [
+				core.routeId,
+			]);
+			await m.query(
+				"INSERT INTO trip_porters(trip_id,porter_id,status) SELECT $1,id,'assigned' FROM users WHERE email='porter@ctms.local' AND role='porter' AND status='active' ON CONFLICT(trip_id,porter_id) DO NOTHING",
+				[tripId]
+			);
+		});
+	}
 	await new CheckpointArrivalsRepository(db).registerActivePackage({
 		tripId: core.tripId,
 		routeId: core.routeId,
@@ -5823,7 +8735,860 @@ export async function seedRouteRecoveryDemo(db: DataSource): Promise<void> {
 	);
 }
 
+/** CTMS-370: refresh only the existing Host monitoring fixture, retaining source history. */
+/** Opt-in local monitoring fixture reusing existing accounts and preserving existing transactions. */
+export async function seedHostMonitoringGroup(ds: DataSource): Promise<void> {
+	if (!ds.isInitialized) await ds.initialize();
+	await ds.transaction(async (manager) => {
+		const [source] = await manager.query<
+			Array<{ hostId: string; routeId: string; porterId: string }>
+		>(`
+ SELECT t.host_id AS "hostId",t.route_id AS "routeId",p.porter_id AS "porterId"
+ FROM trips t JOIN users u ON u.id=t.host_id JOIN trip_porters p ON p.trip_id=t.id AND p.status='assigned'
+ WHERE u.email='host@ctms.local' AND t.title='Chinh phục đèo Hải Vân' LIMIT 1`);
+		if (!source) throw new Error("Existing Host monitoring Trip and assigned Porter are required");
+		const accounts = await manager.query<Array<{ id: string; name: string }>>(`
+ SELECT id,full_name AS name FROM users WHERE role='camper'
+ AND (email='camper@ctms.local' OR full_name ~ '^Camper Demo [0-9]+$'
+ OR id IN (SELECT user_id FROM booking_members WHERE booking_id=md5('ctms-370-group-booking')::uuid))
+ ORDER BY (email='camper@ctms.local') DESC,id LIMIT 24`);
+		if (accounts.length !== 24) throw new Error("24 existing Camper accounts are required");
+		const names = [
+			"Nguyễn Văn An",
+			"Trần Quốc Huy",
+			"Lê Thanh Mai",
+			"Phạm Thanh Bình",
+			"Nguyễn Minh Anh",
+			"Đặng Ngọc Lan",
+			"Võ Hoàng Nam",
+			"Bùi Thu Hà",
+			"Đỗ Minh Khang",
+			"Hồ Phương Thảo",
+			"Ngô Đức Anh",
+			"Dương Thị Hương",
+			"Lý Quang Huy",
+			"Phan Bảo Ngọc",
+			"Trịnh Hải Đăng",
+			"Mai Khánh Linh",
+			"Đinh Tuấn Kiệt",
+			"Tạ Minh Châu",
+			"Cao Thanh Tùng",
+			"Lương Ngọc Ánh",
+			"Vũ Gia Bảo",
+			"Đoàn Thảo Nguyên",
+			"Trương Hoài An",
+			"Huỳnh Bích Trâm",
+		];
+		for (const [index, account] of accounts.entries()) {
+			await manager.query(
+				"UPDATE users SET full_name=$2 WHERE id=$1 AND full_name ~ '^Camper Demo [0-9]+$'",
+				[account.id, names[index]]
+			);
+		}
+		const [trip] = await manager.query<Array<{ id: string }>>(
+			`
+ INSERT INTO trips(id,host_id,route_id,title,description,trip_type,duration_nights,starts_at,ends_at,
+ meeting_point,booking_deadline,capacity_min,capacity_max,seats_taken,price_per_person,status)
+ SELECT md5('ctms-370-group-trip')::uuid,$1,$2,'Hành trình xanh Hải Vân',
+ 'Cùng khám phá đèo Hải Vân và thu gom rác dọc tuyến, góp phần giữ gìn cảnh quan thiên nhiên.',
+ 'day_trip',0,now()-interval '1 hour',now()+interval '6 hours',
+ ST_StartPoint(r.route_geom::geometry)::geography,now()-interval '2 hours',1,30,24,0,'ongoing'
+ FROM trekking_routes r WHERE r.id=$2
+ ON CONFLICT(id) DO UPDATE SET title=EXCLUDED.title,description=EXCLUDED.description RETURNING id`,
+			[source.hostId, source.routeId]
+		);
+		await manager.query(
+			`INSERT INTO bookings(id,trip_id,user_id,num_people,status,payment_status,base_price,total_amount)
+ VALUES(md5('ctms-370-group-booking')::uuid,$1,$2,24,'confirmed','not_required',0,0)
+ ON CONFLICT(id) DO NOTHING`,
+			[trip.id, accounts[0].id]
+		);
+		await manager.query(
+			`INSERT INTO trip_porters(trip_id,porter_id,status) VALUES($1,$2,'assigned') ON CONFLICT DO NOTHING`,
+			[trip.id, source.porterId]
+		);
+		for (const [index, account] of accounts.entries()) {
+			await manager.query(
+				`INSERT INTO booking_members(id,booking_id,user_id,is_primary,member_status,checked_in_at)
+ VALUES(md5('ctms-370-group-member:' || $1::text)::uuid,md5('ctms-370-group-booking')::uuid,$1::uuid,$2,'joined',now()-interval '1 hour')
+ ON CONFLICT(id) DO NOTHING`,
+				[account.id, index === 0]
+			);
+		}
+		const positioned = [
+			...accounts.slice(0, 23).map((account) => ({ id: account.id, role: "camper" })),
+			{ id: source.porterId, role: "porter" },
+		];
+		for (const [index, person] of positioned.entries()) {
+			await manager.query(
+				`INSERT INTO gps_logs(id,trip_id,user_id,participant_role,event_time,location,accuracy_meters,config_version,received_at)
+ SELECT md5('ctms-370-group-gps:' || $1::text || ':' || $2::text)::uuid,$1::uuid,$2::uuid,$3::gps_participant_role,
+ now()-make_interval(secs=>$4),ST_LineInterpolatePoint(r.route_geom::geometry,$5)::geography,5,'v3',now()
+ FROM trekking_routes r WHERE r.id=$6
+ ON CONFLICT(id) DO UPDATE SET event_time=EXCLUDED.event_time,received_at=EXCLUDED.received_at`,
+				[
+					trip.id,
+					person.id,
+					person.role,
+					index === 23 ? 1200 : 30,
+					index < 18 ? 0.35 : 0.55,
+					source.routeId,
+				]
+			);
+		}
+	});
+	console.log("[seed:host-monitoring] Existing-account group Trip prepared");
+}
+
+export async function seedHostTripMonitoring(ds: DataSource = dataSource): Promise<void> {
+	if (!ds.isInitialized) await ds.initialize();
+	await ds.transaction(async (manager) => {
+		const trips = await manager.query<Array<{ id: string; routeId: string }>>(
+			`SELECT t.id,t.route_id AS "routeId" FROM trips t JOIN users u ON u.id=t.host_id
+			 JOIN trekking_routes r ON r.id=t.route_id
+			 WHERE u.email='host@ctms.local' AND t.status='ongoing'
+			 AND t.title IN ('Trekking Nam Hải Vân – Khám phá rừng ven biển','Chinh phục đèo Hải Vân')
+			 AND r.name='Hải Vân Pass - Nam Hải Vân Trail' ORDER BY t.id LIMIT 1`
+		);
+		const trip = trips[0];
+		if (!trip) throw new Error("Existing Host monitoring Trip is required");
+		await manager.query("UPDATE trips SET title='Chinh phục đèo Hải Vân' WHERE id=$1", [trip.id]);
+		await manager.query(
+			`UPDATE trips SET title=CASE title
+ WHEN '[DEMO CTMS-316] Sơn Trà - Quay lại tuyến' THEN 'Khám phá cung đường Sơn Trà'
+ WHEN 'Sơn Trà - Nền mới' THEN 'Khám phá đỉnh Bàn Cờ' END
+ WHERE host_id=(SELECT host_id FROM trips WHERE id=$1)
+ AND title IN ('[DEMO CTMS-316] Sơn Trà - Quay lại tuyến','Sơn Trà - Nền mới')`,
+			[trip.id]
+		);
+		const participants = await manager.query<Array<{ userId: string; role: string }>>(
+			`SELECT DISTINCT m.user_id AS "userId",'camper' AS role FROM booking_members m
+			 JOIN bookings b ON b.id=m.booking_id JOIN users u ON u.id=m.user_id
+			 WHERE b.trip_id=$1 AND m.member_status='joined'
+			 AND b.status IN ('confirmed','completed') AND u.email='camper@ctms.local'
+			 UNION ALL SELECT porter_id,'porter' FROM trip_porters WHERE trip_id=$1 AND status='assigned'`,
+			[trip.id]
+		);
+		if (participants.length === 0) throw new Error("Existing monitoring participants are required");
+		for (const participant of participants) {
+			const isCamper = participant.role === "camper";
+			const farLocation = isCamper && process.argv.includes("--host-monitoring-far-location");
+			const ageSeconds = isCamper ? 30 : 1200;
+			const fraction = isCamper ? 0.35 : 0.55;
+			for (let sample = 0; sample < 3; sample++) {
+				await manager.query(
+					`INSERT INTO gps_logs(id,trip_id,user_id,participant_role,event_time,location,
+					 accuracy_meters,config_version,received_at)
+					 SELECT md5('ctms-370-gps:' || $1::text || ':' || $2::text || ':' || $3::text || ':' || $6::text)::uuid,
+					 $1::uuid,$2::uuid,$3::gps_participant_role,now()-($4::int+(2-$6::int)*10)*interval '1 second',
+					 CASE WHEN $8::boolean THEN ST_SetSRID(ST_MakePoint(-122.084,37.4219983),4326)::geography
+					 ELSE ST_LineInterpolatePoint(r.route_geom::geometry,$5::double precision)::geography END,5,'v3',now()
+					 FROM trekking_routes r WHERE r.id=$7
+					 ON CONFLICT(id) DO UPDATE SET event_time=EXCLUDED.event_time,location=EXCLUDED.location,
+					 accuracy_meters=EXCLUDED.accuracy_meters,received_at=EXCLUDED.received_at`,
+					[
+						trip.id,
+						participant.userId,
+						participant.role,
+						ageSeconds,
+						fraction,
+						sample,
+						trip.routeId,
+						farLocation,
+					]
+				);
+			}
+			if (isCamper) {
+				await manager.query(
+					`INSERT INTO safety_events(id,trip_id,user_id,participant_role,event_type,event_time,
+					 location,accuracy_meters,distance_to_route_meters,consecutive_valid_samples,
+					 route_id,route_version,config_version,received_at)
+					 SELECT md5((CASE WHEN $4::boolean THEN 'ctms-370-far:' ELSE 'ctms-370-recovery:' END) || $1::text || ':' || $2::text)::uuid,
+					 $1::uuid,$2::uuid,'camper',
+					 CASE WHEN $4::boolean THEN 'OFF_ROUTE'::safety_event_type ELSE 'ON_ROUTE_RECOVERED'::safety_event_type END,
+					 now()-interval '30 seconds',g.location,5,ST_Distance(g.location,r.route_geom),3,r.id,
+					 COALESCE((SELECT route_version FROM safety_events WHERE trip_id=$1::uuid AND route_id=r.id
+					 ORDER BY event_time DESC LIMIT 1),'v3'),'v3',now()
+					 FROM trekking_routes r CROSS JOIN LATERAL (
+					 SELECT CASE WHEN $4::boolean THEN ST_SetSRID(ST_MakePoint(-122.084,37.4219983),4326)::geography
+					 ELSE ST_LineInterpolatePoint(r.route_geom::geometry,0.35)::geography END AS location
+					 ) g WHERE r.id=$3
+					 ON CONFLICT(id) DO UPDATE SET event_time=EXCLUDED.event_time,received_at=EXCLUDED.received_at`,
+					[trip.id, participant.userId, trip.routeId, farLocation]
+				);
+			}
+		}
+	});
+	console.log("[seed:host-monitoring] Existing Trip locations refreshed");
+}
+
+/** Opt-in operational alerts, sourced from GPS and Porter confirmations rather than warning rows. */
+export async function seedHostMonitoringAlerts(ds: DataSource): Promise<void> {
+	await ds.transaction(async (manager) => {
+		const [trip] = await manager.query<Array<{ id: string; routeId: string; porterId: string }>>(`
+ SELECT t.id,t.route_id AS "routeId",p.porter_id AS "porterId" FROM trips t
+ JOIN trip_porters p ON p.trip_id=t.id AND p.status='assigned'
+ WHERE t.id=md5('ctms-370-group-trip')::uuid AND t.status='ongoing' LIMIT 1`);
+		if (!trip) throw new Error("Existing ongoing group Trip is required for alerts");
+		const members = await manager.query<Array<{ id: string; userId: string }>>(`
+ SELECT m.id,m.user_id AS "userId" FROM booking_members m JOIN users u ON u.id=m.user_id
+ WHERE m.booking_id=md5('ctms-370-group-booking')::uuid AND m.member_status='joined'
+ ORDER BY (u.email='camper@ctms.local') DESC,u.id`);
+		const checkpoints = await manager.query<Array<{ id: string; fraction: number }>>(
+			`
+ SELECT c.id,ST_LineLocatePoint(r.route_geom::geometry,c.location::geometry) AS fraction
+ FROM checkpoints c JOIN trekking_routes r ON r.id=c.route_id WHERE r.id=$1
+ ORDER BY fraction DESC LIMIT 2`,
+			[trip.routeId]
+		);
+		if (members.length < 3 || checkpoints.length !== 2 || Number(checkpoints[1].fraction) <= 0.55)
+			throw new Error("Existing group members and two later Route checkpoints are required");
+		const [finish, reference] = checkpoints;
+		for (const [checkpoint, age] of [
+			[reference, 65],
+			[finish, 40],
+		] as const) {
+			await manager.query(
+				`
+ INSERT INTO checkpoint_visits(id,trip_id,checkpoint_id,member_id,confirmed_by_id,arrived_at,location)
+ SELECT md5('ctms-374-visit:' || $1::text || ':' || $2::text)::uuid,$1::uuid,$2::uuid,$3::uuid,$4::uuid,
+ now()-make_interval(mins=>$5::int),location FROM checkpoints WHERE id=$2::uuid
+ ON CONFLICT(id) DO UPDATE SET arrived_at=EXCLUDED.arrived_at`,
+				[trip.id, checkpoint.id, members[0].id, trip.porterId, age]
+			);
+		}
+		for (const [index, member] of members.slice(0, 3).entries()) {
+			const fraction =
+				index === 0
+					? 0.35
+					: index === 1
+						? (Number(reference.fraction) + Number(finish.fraction)) / 2
+						: 1;
+			await manager.query(
+				`
+ INSERT INTO gps_logs(id,trip_id,user_id,participant_role,event_time,location,accuracy_meters,config_version,received_at)
+ SELECT md5('ctms-374-gps:' || $1::text || ':' || $2::text)::uuid,$1::uuid,$2::uuid,'camper',now()-interval '30 seconds',
+ CASE WHEN $4::boolean THEN ST_Project(ST_LineInterpolatePoint(r.route_geom::geometry,$3)::geography,120,pi()/2)
+ ELSE ST_LineInterpolatePoint(r.route_geom::geometry,$3)::geography END,5,'v3',now()
+ FROM trekking_routes r WHERE r.id=$5
+ ON CONFLICT(id) DO UPDATE SET event_time=EXCLUDED.event_time,location=EXCLUDED.location,received_at=EXCLUDED.received_at`,
+				[trip.id, member.userId, fraction, index === 0, trip.routeId]
+			);
+			if (index === 1) continue;
+			for (const recovered of index === 2 ? [false, true] : [false]) {
+				await manager.query(
+					`
+ INSERT INTO safety_events(id,trip_id,user_id,participant_role,event_type,event_time,location,
+ accuracy_meters,distance_to_route_meters,consecutive_valid_samples,route_id,route_version,config_version,received_at)
+ SELECT md5('ctms-374-route:' || $1::text || ':' || $2::text || ':' || $3::text)::uuid,$1::uuid,$2::uuid,'camper',
+ CASE WHEN $3::boolean THEN 'ON_ROUTE_RECOVERED'::safety_event_type ELSE 'OFF_ROUTE'::safety_event_type END,
+ now()-make_interval(secs=>CASE WHEN $3::boolean THEN 30 ELSE 90 END),g.location,5,
+ CASE WHEN $3::boolean THEN 0 ELSE 120 END,3,r.id,md5(ST_AsBinary(r.route_geom)),'v3',now()
+ FROM trekking_routes r JOIN gps_logs g ON g.id=md5('ctms-374-gps:' || $1::text || ':' || $2::text)::uuid WHERE r.id=$4
+ ON CONFLICT(id) DO UPDATE SET event_time=EXCLUDED.event_time,location=EXCLUDED.location,received_at=EXCLUDED.received_at`,
+					[trip.id, member.userId, recovered, trip.routeId]
+				);
+			}
+		}
+	});
+	console.log("[seed:host-monitoring] GPS, recovery and Porter checkpoint confirmations prepared");
+}
+
+/** CTMS-380: additive inbox scenarios using the existing primary Host/Admin accounts. */
+export async function seedInAppNotificationScenarios(ds: DataSource = dataSource): Promise<void> {
+	if (!ds.isInitialized) await ds.initialize();
+	const notices = new InAppNotificationsService(ds);
+	const titles = [
+		"Bình minh trên đèo Hải Vân",
+		"Hải Vân – Cung đường ven núi",
+		"Hải Vân – Mùa cỏ lau",
+		"Hải Vân – Khám phá rừng xanh",
+		"Hải Vân – Ngắm vịnh từ trên cao",
+		"Hải Vân – Hành trình trong mây",
+		"Hải Vân – Dấu chân bên sườn núi",
+		"Hải Vân – Đón nắng đầu ngày",
+		"Hải Vân – Gió biển và rừng núi",
+		"Hải Vân – Cuối tuần giữa thiên nhiên",
+		"Hải Vân – Con đường qua triền dốc",
+		"Hải Vân – Khám phá đỉnh đèo",
+		"Hải Vân – Sắc xanh mùa mới",
+		"Hải Vân – Hẹn cùng bình minh",
+		"Hải Vân – Về phía biển",
+		"Hải Vân – Lắng nghe núi rừng",
+		"Hải Vân – Ngày mới trên đỉnh núi",
+		"Hải Vân – Bước qua rừng già",
+		"Hải Vân – Dọc theo mây trắng",
+		"Hải Vân – Vịnh xanh dưới chân đèo",
+		"Hải Vân – Ngắm biển mùa thu",
+		"Hải Vân – Nắng sớm bên đường mòn",
+		"Hải Vân – Hành trình đón gió",
+		"Hải Vân – Hoàng hôn trên sườn núi",
+		"Hải Vân – Buổi sáng giữa tầng mây",
+	];
+	await ds.transaction(async (manager) => {
+		const actors: { id: string; email: string }[] = await manager.query(
+			"SELECT id,email FROM users WHERE email = ANY($1) AND status = 'active'",
+			[["host@ctms.local", "admin@ctms.local"]]
+		);
+		const host = actors.find((actor) => actor.email === "host@ctms.local");
+		const admin = actors.find((actor) => actor.email === "admin@ctms.local");
+		if (!host || !admin) throw new Error("Primary Host and Admin seed accounts are required");
+		const routes: { id: string }[] = await manager.query(
+			`SELECT id FROM trekking_routes WHERE host_id = $1 AND status = 'active'
+			 AND (name ILIKE '%Hải Vân%' OR name ILIKE '%Hai Van%') ORDER BY created_at LIMIT 1`,
+			[host.id]
+		);
+		if (!routes[0])
+			throw new Error("An existing active Hai Van Route owned by the primary Host is required");
+		await manager.query(
+			`UPDATE users SET full_name = CASE WHEN id = $1 THEN 'Nguyễn Thị Mai' ELSE 'Nguyễn Minh Anh' END
+			WHERE (id = $1 AND full_name = 'Nguyễn Thị Ban Mai') OR (id = $2 AND full_name = 'Lê Minh Tuấn')`,
+			[host.id, admin.id]
+		);
+		for (const [index, title] of titles.entries()) {
+			// Keep scenario identities stable when adding a new submission for realtime verification.
+			const rejected = index === 23;
+			const reminder = index === 22;
+			const submittedAt = new Date(
+				Date.now() - (rejected ? 25 * 60 : reminder ? 23 * 60 + 20 : index * 5) * 60_000
+			);
+			const startsAt = new Date();
+			startsAt.setDate(startsAt.getDate() + 14 + index);
+			startsAt.setHours(7, 0, 0, 0);
+			const endsAt = new Date(startsAt.getTime() + 8 * 60 * 60_000);
+			const key = `ctms-380-trip:${index}`;
+			// Stable RFC-4122 version/variant bits are required by the public UUID validators.
+			const seedId =
+				"(substr(md5($1),1,12)||'4'||substr(md5($1),14,3)||'8'||substr(md5($1),18))::uuid";
+			const oldRows: { id: string }[] = await manager.query(
+				`SELECT id FROM trips
+				WHERE id=md5($1)::uuid AND id<>${seedId} AND host_id=$2`,
+				[key, host.id]
+			);
+			for (const old of oldRows) {
+				const protectedRows: { id: string }[] = await manager.query(
+					`SELECT id FROM trips WHERE id=$1 AND
+					(updated_at<>created_at OR title<>$2 OR status NOT IN ('pending_approval','rejected')
+					 OR EXISTS(SELECT 1 FROM bookings WHERE trip_id=$1))`,
+					[old.id, title]
+				);
+				if (protectedRows.length)
+					throw new Error("An earlier inbox fixture has user changes; refusing to replace it");
+				// Only untouched rows created by this fixture are repaired; operational Trips are never selected.
+				await manager.query("DELETE FROM in_app_notifications WHERE trip_id=$1", [old.id]);
+				await manager.query("DELETE FROM audit_logs WHERE target_type='trip' AND target_id=$1", [
+					old.id,
+				]);
+				await manager.query("DELETE FROM trips WHERE id=$1", [old.id]);
+			}
+			const inserted: { id: string }[] = await manager.query(
+				`INSERT INTO trips
+				(id,host_id,route_id,title,trip_type,duration_nights,starts_at,ends_at,meeting_point,meeting_at,
+				 booking_deadline,capacity_min,capacity_max,price_per_person,status,created_at,updated_at)
+				SELECT ${seedId},$2,r.id,$3,'day_trip',0,$4,$5,ST_StartPoint(r.route_geom::geometry)::geography,
+				$4::timestamptz-interval '30 minutes',$4::timestamptz-interval '2 days',2,20,350000,
+				$6::trip_status,$7,$7 FROM trekking_routes r WHERE r.id=$8 ON CONFLICT(id) DO NOTHING RETURNING id`,
+				[
+					key,
+					host.id,
+					title,
+					startsAt,
+					endsAt,
+					rejected ? TripStatus.REJECTED : TripStatus.PENDING_APPROVAL,
+					submittedAt,
+					routes[0].id,
+				]
+			);
+			const trips: { id: string; status: string; updatedAt: Date }[] = await manager.query(
+				`SELECT id,status,updated_at AS "updatedAt" FROM trips WHERE id=${seedId}`,
+				[key]
+			);
+			const trip = trips[0];
+			// Preserve all existing user decisions, dates, prices, and read state on reruns.
+			if (inserted.length === 0) continue;
+			await manager.query(
+				`INSERT INTO trip_waypoints(id,trip_id,type,name,location,day_number,sequence_order,planned_at)
+				SELECT md5($1||':start')::uuid,$2::uuid,'start'::waypoint_type,'Điểm tập trung chân đèo',ST_StartPoint(r.route_geom::geometry)::geography,1,1,$3::timestamptz
+				FROM trekking_routes r WHERE r.id=$5
+				UNION ALL SELECT md5($1||':finish')::uuid,$2::uuid,'finish'::waypoint_type,'Điểm kết thúc hành trình',ST_EndPoint(r.route_geom::geometry)::geography,1,2,$4::timestamptz
+				FROM trekking_routes r WHERE r.id=$5`,
+				[key, trip.id, startsAt, endsAt, routes[0].id]
+			);
+			await manager.query(
+				`INSERT INTO audit_logs(id,actor_id,action,target_type,target_id,"before","after",reason,created_at)
+				VALUES(md5($1||':submit')::uuid,$2,'trip.submitted_for_approval','trip',$3,
+				'{"status":"draft"}'::jsonb,'{"status":"pending_approval"}'::jsonb,'Chủ chuyến gửi lịch trình để xét duyệt.',$4)`,
+				[key, host.id, trip.id, submittedAt]
+			);
+			const type = rejected
+				? InAppNotificationType.AUTO_REJECTED
+				: reminder
+					? InAppNotificationType.REVIEW_REMINDER
+					: InAppNotificationType.REVIEW_REQUESTED;
+			await notices.enqueueTripReview(
+				manager,
+				trip.id,
+				type,
+				trip.updatedAt.toISOString(),
+				reminder || rejected ? new Date() : submittedAt
+			);
+			if (reminder || rejected)
+				await manager.query(
+					`INSERT INTO audit_logs(id,actor_id,action,target_type,target_id,"before","after",reason)
+				VALUES(md5($1||':outcome')::uuid,NULL,$2,'trip',$3,'{"status":"pending_approval"}'::jsonb,$4::jsonb,$5)`,
+					[
+						key,
+						rejected ? "trip.auto_rejected" : "trip.review.reminder_sent",
+						trip.id,
+						JSON.stringify({ status: trip.status }),
+						rejected
+							? "Chuyến đi chưa được duyệt trong thời hạn 24 giờ."
+							: "Lịch trình đang chờ xét duyệt trước khi hết hạn.",
+					]
+				);
+			if (index === 0)
+				await manager.query(
+					"UPDATE in_app_notifications SET read_at=now() WHERE trip_id=$1 AND recipient_id=$2",
+					[trip.id, admin.id]
+				);
+		}
+		// Historical inbox records retain read state after their original Trip becomes unavailable.
+		for (const actor of [host, admin]) {
+			await manager.query(
+				`DELETE FROM in_app_notifications WHERE recipient_id=$1
+				AND id=md5('ctms-380-unavailable:'||$1::text)::uuid AND read_at IS NULL`,
+				[actor.id]
+			);
+			await manager.query(
+				`INSERT INTO in_app_notifications
+			(id,recipient_id,trip_id,event_type,source_key,occurred_at)
+			VALUES(uuid_generate_v4(),$1::uuid,NULL,$2,'ctms-380-unavailable:'||$1::text,now()-interval '1 hour')
+			ON CONFLICT(source_key,recipient_id) DO NOTHING`,
+				[
+					actor.id,
+					actor.id === host.id
+						? InAppNotificationType.AUTO_REJECTED
+						: InAppNotificationType.REVIEW_REQUESTED,
+				]
+			);
+		}
+	});
+	console.log(
+		"[seed:in-app-notifications] Existing primary accounts and additive inbox scenarios prepared"
+	);
+}
+
+/** Additive reputation scenarios in the default main seed and the targeted rerun. */
+async function seedReputationScenarios(ds = dataSource): Promise<void> {
+	if (process.env.NODE_ENV === "production") throw new Error("Local reputation data only");
+	const database = new URL(process.env.DATABASE_URL ?? "postgresql://localhost/ctms");
+	if (!["localhost", "127.0.0.1", "[::1]", "postgres"].includes(database.hostname)) {
+		throw new Error("Reputation scenarios require a local database");
+	}
+	if (!ds.isInitialized) await ds.initialize();
+	await ds.transaction(async (manager) => {
+		const accounts: Array<{ id: string; email: string }> = await manager.query(
+			"SELECT id,email FROM users WHERE status='active' AND email IN ('host@ctms.local','camper@ctms.local','porter@ctms.local')"
+		);
+		const host = accounts.find((person) => person.email === "host@ctms.local");
+		const camper = accounts.find((person) => person.email === "camper@ctms.local");
+		const porter = accounts.find((person) => person.email === "porter@ctms.local");
+		if (!host || !camper || !porter) throw new Error("Existing local accounts required");
+		await manager.query(
+			"UPDATE users SET full_name='Nguyễn Thị Mai' WHERE id=$1 AND full_name='Host Ban Mai'",
+			[host.id]
+		);
+		const routes: Array<{ id: string }> = await manager.query(
+			"SELECT id FROM trekking_routes WHERE host_id=$1 ORDER BY (name ILIKE '%Sơn Trà%') DESC,created_at,id LIMIT 1",
+			[host.id]
+		);
+		if (!routes[0]) throw new Error("An existing Host route is required");
+		const others: Array<{ id: string }> = await manager.query(
+			"SELECT id FROM users WHERE role='porter' AND status='active' AND id<>$1 ORDER BY created_at,id LIMIT 1",
+			[porter.id]
+		);
+		if (others[0]) {
+			await manager.query(
+				"UPDATE users SET full_name='Trần Quốc Huy' WHERE id=$1 AND full_name ~ '^Porter [0-9]+$'",
+				[others[0].id]
+			);
+		}
+		for (const scenario of [
+			{ key: 1, title: "Sơn Trà – Bình minh trên đỉnh Bàn Cờ", status: "assigned", rating: 4 },
+			{ key: 2, title: "Sơn Trà – Dạo bước dưới tán rừng", status: "unassigned", rating: 5 },
+		]) {
+			const trip = `d4140000-0000-4000-8000-00000000000${scenario.key}`;
+			const booking = `d4140000-0000-4000-8001-00000000000${scenario.key}`;
+			const member = `d4140000-0000-4000-8002-00000000000${scenario.key}`;
+			await manager.query(
+				`INSERT INTO trips(id,host_id,route_id,title,trip_type,duration_nights,starts_at,ends_at,
+				meeting_point,booking_deadline,capacity_min,capacity_max,seats_taken,price_per_person,status)
+				VALUES($1,$2,$3,$4,'day_trip',0,now()-interval '6 hours',now()-interval '2 hours',
+				ST_GeogFromText('POINT(108.28 16.12)'),now()-interval '2 days',1,12,1,0,'completed')
+				ON CONFLICT(id) DO NOTHING`,
+				[trip, host.id, routes[0].id, scenario.title]
+			);
+			await manager.query(
+				`INSERT INTO bookings(id,trip_id,user_id,num_people,status,payment_status,completed_at,
+				trip_starts_at_snapshot,trip_ends_at_snapshot)
+				SELECT $1,id,$2,1,'completed','not_required',ends_at,starts_at,ends_at FROM trips WHERE id=$3
+				ON CONFLICT(id) DO NOTHING`,
+				[booking, camper.id, trip]
+			);
+			await manager.query(
+				`INSERT INTO booking_members(id,booking_id,user_id,is_primary,member_status,checked_in_at)
+				SELECT $1,id,$2,true,'joined',trip_starts_at_snapshot FROM bookings WHERE id=$3
+				ON CONFLICT(id) DO NOTHING`,
+				[member, camper.id, booking]
+			);
+			for (const person of [porter, ...(scenario.key === 1 ? others : [])]) {
+				await manager.query(
+					"INSERT INTO trip_porters(trip_id,porter_id,status) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
+					[trip, person.id, scenario.status]
+				);
+			}
+			await manager.query(
+				`WITH saved AS (
+				INSERT INTO porter_reviews(booking_id,member_id,reviewer_id,trip_id,porter_id,rating,comment,
+				edit_expires_at,created_at,updated_at)
+				SELECT id,$2,$3,trip_id,$4,$5,'Hướng dẫn rõ ràng, luôn chờ cả đoàn ở điểm nghỉ.',
+				date_trunc('milliseconds',completed_at+interval '24 hours'),
+				completed_at+interval '5 minutes',completed_at+interval '5 minutes' FROM bookings WHERE id=$1
+				ON CONFLICT DO NOTHING RETURNING *)
+				INSERT INTO porter_review_revisions(review_id,revision,rating,comment,recorded_at)
+				SELECT id,revision,rating,comment,updated_at FROM saved`,
+				[booking, member, camper.id, porter.id, scenario.rating]
+			);
+			await manager.query(
+				`INSERT INTO trip_reviews(booking_id,member_id,reviewer_id,trip_id,host_id,target,target_id,
+				rating,comment,created_at,updated_at)
+				SELECT id,$2,$3,trip_id,$4,'host',$4,$5,'Tổ chức chu đáo, lịch trình phù hợp với cả đoàn.',
+				completed_at+interval '5 minutes',completed_at+interval '5 minutes'
+				FROM bookings WHERE id=$1 ON CONFLICT DO NOTHING`,
+				[booking, member, camper.id, host.id, scenario.rating]
+			);
+		}
+		const invitationTrip = "d4140000-0000-4000-8000-000000000003";
+		await manager.query(
+			`INSERT INTO trips(id,host_id,route_id,title,trip_type,duration_nights,starts_at,ends_at,
+			meeting_point,booking_deadline,capacity_min,capacity_max,seats_taken,price_per_person,status)
+			VALUES($1,$2,$3,'Sơn Trà – Hẹn mùa lá mới','day_trip',0,now()+interval '7 days',
+			now()+interval '7 days 6 hours',ST_GeogFromText('POINT(108.28 16.12)'),
+			now()+interval '5 days',1,12,0,0,'published') ON CONFLICT(id) DO NOTHING`,
+			[invitationTrip, host.id, routes[0].id]
+		);
+		for (const person of [porter, ...others]) {
+			await manager.query(
+				`INSERT INTO porter_requests(trip_id,porter_id,requested_by,requested_role,note,status,expires_at)
+				SELECT $1,$2,$3,'support','Hỗ trợ đoàn trên tuyến rừng và nhắc cả đoàn tại các điểm nghỉ.',
+				'pending',now()+interval '2 days'
+				WHERE NOT EXISTS(SELECT 1 FROM porter_requests WHERE trip_id=$1 AND porter_id=$2)`,
+				[invitationTrip, person.id, host.id]
+			);
+		}
+	});
+}
+
+/** Deterministic UUIDv8 with RFC variant bits, accepted by API UUID validation. */
+export function porterLifecycleFixtureId(key: string): string {
+	const hex = createHash("sha256").update(key).digest("hex");
+	return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-8${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
+/** Additive operational fixtures; never reset a Trip after a Porter has used it. */
+export async function seedPorterTripLifecycle(ds: DataSource = dataSource): Promise<void> {
+	if (!ds.isInitialized) await ds.initialize();
+	await ds.transaction(async (manager) => {
+		const users: Array<{ id: string; email: string }> = await manager.query(
+			`SELECT id,email FROM users WHERE status='active'
+			 AND ((email='host@ctms.local' AND role='host')
+			 OR (email='porter@ctms.local' AND role='porter')
+			 OR (email='camper@ctms.local' AND role='camper'))`
+		);
+		const host = users.find((user) => user.email === "host@ctms.local");
+		const porter = users.find((user) => user.email === "porter@ctms.local");
+		const camper = users.find((user) => user.email === "camper@ctms.local");
+		if (!host || !porter || !camper) {
+			throw new Error("Cần có tài khoản host, porter và camper chính trước khi bổ sung chuyến đi.");
+		}
+		const routes: Array<{ id: string }> = await manager.query(
+			`SELECT id FROM trekking_routes WHERE host_id=$1 AND status='active'
+			 ORDER BY (name ILIKE '%Sơn Trà%') DESC,created_at,id LIMIT 1`,
+			[host.id]
+		);
+		if (!routes[0]) throw new Error("Chủ chuyến cần có ít nhất một tuyến đường đang hoạt động.");
+		const scenarios = [
+			{
+				key: "departure",
+				title: "Đi bộ ven rừng Sơn Trà",
+				startHours: -0.25,
+				endHours: 6,
+				status: TripStatus.PUBLISHED,
+			},
+			{
+				key: "return",
+				title: "Ngắm biển từ đỉnh Bàn Cờ",
+				startHours: -4,
+				endHours: -1,
+				status: TripStatus.ONGOING,
+			},
+			{
+				key: "upcoming",
+				title: "Đón bình minh trên bán đảo Sơn Trà",
+				startHours: 24,
+				endHours: 30,
+				status: TripStatus.PUBLISHED,
+			},
+		];
+		for (const scenario of scenarios) {
+			// One set per calendar day; running again retains dates, notes and all user transitions.
+			const key = `porter-lifecycle:${new Date().toISOString().slice(0, 10)}:${scenario.key}`;
+			// Repair only untouched records from the initial pre-release UUID generation bug.
+			// Explicit opt-in; never re-key a Trip or remove records with operational history.
+			if (process.argv.includes("--repair-porter-lifecycle-ids")) {
+				const legacy: Array<{ id: string }> = await manager.query(
+					`SELECT id FROM trips WHERE id=md5($1)::uuid AND host_id=$2
+					 AND title=$3 AND status=$4::trip_status AND updated_at=created_at
+					 AND NOT EXISTS(SELECT 1 FROM audit_logs WHERE target_id=trips.id)
+					 AND NOT EXISTS(SELECT 1 FROM offline_packages WHERE trip_id=trips.id)
+					 AND NOT EXISTS(SELECT 1 FROM payments p JOIN bookings b ON b.id=p.booking_id WHERE b.trip_id=trips.id)
+					 AND NOT EXISTS(SELECT 1 FROM bookings WHERE trip_id=trips.id AND
+					  (id<>md5($1||':booking')::uuid OR status<>'confirmed' OR total_amount<>0))
+					 FOR UPDATE`,
+					[key, host.id, scenario.title, scenario.status]
+				);
+				if (legacy[0]) {
+					await manager.query("DELETE FROM bookings WHERE trip_id=$1", [legacy[0].id]);
+					await manager.query("DELETE FROM trips WHERE id=$1", [legacy[0].id]);
+				}
+			}
+			const trips: Array<{ id: string }> = await manager.query(
+				`INSERT INTO trips(id,host_id,route_id,title,description,trip_type,duration_nights,
+				 starts_at,ends_at,meeting_point,meeting_at,booking_deadline,capacity_min,capacity_max,
+				 seats_taken,price_per_person,status,participation_evaluated_at,actual_started_at,started_by_id)
+				 SELECT $1::uuid,$2,r.id,$3,
+				 'Hành trình đi bộ cộng đồng, khám phá rừng và ngắm biển. Đơn vị tổ chức hỗ trợ chi phí tham gia.',
+				 'day_trip',0,now()+$4*interval '1 hour',now()+$5*interval '1 hour',
+				 ST_StartPoint(r.route_geom::geometry)::geography,now()+($4-0.5)*interval '1 hour',
+				 now()+($4-2)*interval '1 hour',1,12,1,0,$6::trip_status,
+				 CASE WHEN $4<0 THEN now() ELSE NULL END,
+				 CASE WHEN $6='ongoing' THEN now()+$4*interval '1 hour' ELSE NULL END,
+				 CASE WHEN $6='ongoing' THEN $7::uuid ELSE NULL END
+				 FROM trekking_routes r WHERE r.id=$8
+				 ON CONFLICT(id) DO NOTHING RETURNING id`,
+				[
+					porterLifecycleFixtureId(key),
+					host.id,
+					scenario.title,
+					scenario.startHours,
+					scenario.endHours,
+					scenario.status,
+					porter.id,
+					routes[0].id,
+				]
+			);
+			if (!trips[0]) continue;
+			const tripId = trips[0].id;
+			await manager.query(
+				"INSERT INTO trip_porters(trip_id,porter_id,status) VALUES($1,$2,'assigned')",
+				[tripId, porter.id]
+			);
+			await manager.query(
+				`INSERT INTO bookings(id,trip_id,user_id,num_people,status,payment_status,base_price,total_amount,
+				 trip_starts_at_snapshot,trip_ends_at_snapshot)
+				 SELECT $1::uuid,id,$2,1,'confirmed','not_required',0,0,starts_at,ends_at
+				 FROM trips WHERE id=$3`,
+				[porterLifecycleFixtureId(`${key}:booking`), camper.id, tripId]
+			);
+			await manager.query(
+				`INSERT INTO booking_members(id,booking_id,user_id,is_primary,member_status,checked_in_at)
+				 VALUES($1::uuid,$2::uuid,$3,true,'joined',now())`,
+				[
+					porterLifecycleFixtureId(`${key}:member`),
+					porterLifecycleFixtureId(`${key}:booking`),
+					camper.id,
+				]
+			);
+		}
+	});
+	console.log(
+		"[seed:porter-lifecycle] Đã bổ sung chuyến đi cho các tài khoản chính; giữ nguyên chuyến đã có."
+	);
+}
+
+/** Refresh telemetry only on the known operational fixture; never change Trip/user/financial state. */
+export async function seedMemberLocations(
+	ds: DataSource = dataSource,
+	required = true
+): Promise<void> {
+	if (!ds.isInitialized) await ds.initialize();
+	const seeded = await ds.transaction(async (manager) => {
+		const fixture = porterLifecycleFixtureId(
+			`porter-lifecycle:${new Date().toISOString().slice(0, 10)}:return`
+		);
+		const rows: Array<{ tripId: string; routeId: string; camperId: string; porterId: string }> =
+			await manager.query(
+				`SELECT t.id AS "tripId",t.route_id AS "routeId",c.id AS "camperId",p.id AS "porterId"
+			 FROM trips t JOIN users h ON h.id=t.host_id AND h.email='host@ctms.local'
+			 JOIN users c ON c.email='camper@ctms.local' AND c.status='active'
+			 JOIN users p ON p.email='porter@ctms.local' AND p.status='active'
+			 WHERE t.id=$1 AND t.status='ongoing'
+			 AND EXISTS(SELECT 1 FROM trip_porters tp WHERE tp.trip_id=t.id AND tp.porter_id=p.id AND tp.status='assigned')
+			 AND EXISTS(SELECT 1 FROM booking_members m JOIN bookings b ON b.id=m.booking_id
+			  WHERE b.trip_id=t.id AND b.status='confirmed' AND m.user_id=c.id AND m.member_status='joined' AND m.left_at IS NULL)`,
+				[fixture]
+			);
+		const trip = rows[0];
+		if (!trip) {
+			if (!required) return false;
+			throw new Error(
+				"Cần chuyến đi đang diễn ra của seed:porter-lifecycle; không đặt lại chuyến đã kết thúc."
+			);
+		}
+		for (const [userId, role, fraction] of [
+			[trip.camperId, "camper", 0.35],
+			[trip.porterId, "porter", 0.55],
+		] as const) {
+			let latestId = "";
+			for (let sample = 0; sample < 3; sample++) {
+				latestId = randomUUID();
+				await manager.query(
+					`INSERT INTO gps_logs(id,trip_id,user_id,participant_role,event_time,location,accuracy_meters,config_version,received_at)
+					 SELECT $1,$2,$3,$4::gps_participant_role,now()-$6::int*interval '1 second',position.location,5,'v3',now()
+					 FROM trekking_routes r CROSS JOIN LATERAL (
+					 SELECT CASE WHEN $4='camper'
+					 THEN ST_Project(ST_LineInterpolatePoint(r.route_geom::geometry,$5)::geography,100,step*pi()/2)
+					 ELSE ST_LineInterpolatePoint(r.route_geom::geometry,$5)::geography END AS location
+					 FROM generate_series(0,3) step ORDER BY ST_Distance(
+					 CASE WHEN $4='camper' THEN ST_Project(ST_LineInterpolatePoint(r.route_geom::geometry,$5)::geography,100,step*pi()/2)
+					 ELSE ST_LineInterpolatePoint(r.route_geom::geometry,$5)::geography END,r.route_geom) DESC LIMIT 1
+					 ) position WHERE r.id=$7`,
+					[latestId, trip.tripId, userId, role, fraction, (2 - sample) * 10, trip.routeId]
+				);
+			}
+			if (role === "camper")
+				await manager.query(
+					`INSERT INTO safety_events(id,trip_id,user_id,participant_role,event_type,event_time,location,
+				 accuracy_meters,distance_to_route_meters,consecutive_valid_samples,route_id,route_version,config_version,received_at)
+				 SELECT $1,g.trip_id,g.user_id,'camper','OFF_ROUTE',g.event_time,g.location,5,
+				 ST_Distance(g.location,r.route_geom),3,r.id,md5(ST_AsText(r.route_geom::geometry)),'v3',now()
+				 FROM gps_logs g JOIN trekking_routes r ON r.id=$3 WHERE g.id=$2`,
+					[randomUUID(), latestId, trip.routeId]
+				);
+		}
+	});
+	if (seeded !== false)
+		console.log(
+			"[seed:member-locations] Đã bổ sung vị trí đồng bộ cho khách tham gia và người dẫn đoàn hiện có."
+		);
+}
+
 export async function runMasterSeed(): Promise<void> {
+	if (process.env.NODE_ENV === "production") {
+		throw new Error("[seed:master] Refusing to run seed script in production environment!");
+	}
+	if (process.argv.includes("--member-locations-only")) {
+		try {
+			await seedMemberLocations();
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
+	if (process.argv.includes("--porter-lifecycle-only")) {
+		try {
+			await seedPorterTripLifecycle();
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
+	if (process.argv.includes("--da-nang-only")) {
+		try {
+			console.log("[seed:da-nang]", await refreshDaNangSeedData(dataSource));
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
+	if (process.argv.includes("--reputation-only")) {
+		try {
+			await seedReputationScenarios();
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
+	const standaloneSeed = process.argv.includes("--health-profile-only")
+		? seedCamperHealthProfile
+		: process.argv.includes("--financial-adjustments-only")
+			? seedFinancialAdjustments
+			: process.argv.includes("--bank-accounts-only")
+				? seedUserBankAccounts
+				: process.argv.includes("--group-bookings-only")
+					? seedHostGroupBookingsWithEquipment
+					: undefined;
+	if (standaloneSeed) {
+		try {
+			await standaloneSeed();
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
+	if (process.argv.includes("--porter-reviews-only")) {
+		try {
+			await seedPorterReviewScenarios();
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
+	if (process.argv.includes("--in-app-notifications-only")) {
+		try {
+			await seedInAppNotificationScenarios(dataSource);
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
+	if (process.argv.includes("--host-monitoring-only")) {
+		try {
+			await seedHostTripMonitoring(dataSource);
+			if (process.argv.includes("--host-monitoring-group"))
+				await seedHostMonitoringGroup(dataSource);
+			if (process.argv.includes("--host-monitoring-alerts"))
+				await seedHostMonitoringAlerts(dataSource);
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
+	if (process.argv.includes("--revenue-analytics-only")) {
+		try {
+			await seedRevenueAnalyticsScenarios(dataSource);
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
+	if (process.argv.includes("--safety-hotspots-only")) {
+		try {
+			if (!dataSource.isInitialized) await dataSource.initialize();
+			await seedSafetyHotspotScenarios(dataSource);
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
+	if (process.argv.includes("--performance-reports-only")) {
+		try {
+			await seedPerformanceReportsScenarios(dataSource);
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
 	if (
 		process.argv.some((arg) =>
 			["--route-recovery-only", "--route-recovery-start", "--route-recovery-prepare"].includes(arg)
@@ -5836,7 +9601,6 @@ export async function runMasterSeed(): Promise<void> {
 		}
 		return;
 	}
-
 	if (process.argv.includes("--demand-insights-only")) {
 		try {
 			await seedDemandInsightScenarios(dataSource);
@@ -5883,10 +9647,6 @@ export async function runMasterSeed(): Promise<void> {
 		`   🚀 STARTING CTMS MASTER DATABASE SEEDING ${isFresh ? "(FRESH / CLEAN WIPE)" : "(IDEMPOTENT MODE)"}`
 	);
 	console.log("==========================================================================\n");
-
-	if (process.env.NODE_ENV === "production") {
-		throw new Error("[seed:master] Refusing to run seed script in production environment!");
-	}
 
 	if (!dataSource.isInitialized) {
 		console.log("🔌 Connecting to database...");
@@ -5946,6 +9706,9 @@ export async function runMasterSeed(): Promise<void> {
 		console.log("👉 [6/9] Seeding Settlements, Host Wallets & Payout Requests...");
 		console.log("--------------------------------------------------------------------------");
 		await seedSettlementsAndPayouts();
+		await seedFinancialAdjustments();
+		// Weather decisions, notices and Host weather penalties (debits/refunds use the wallets above).
+		await seedWeatherOperationsDemo();
 		console.log("✅ Step 6 completed.\n");
 
 		// Step 7: User Bank Accounts (Host & Camper)
@@ -5984,11 +9747,51 @@ export async function runMasterSeed(): Promise<void> {
 
 		// Step 12: Trip Review Moderation & AI Analytics (CTMS-412)
 		console.log("--------------------------------------------------------------------------");
-		console.log("👉 [12/12] Seeding Trip Review Moderation & AI Analytics (CTMS-412)...");
+		console.log("👉 [12/13] Seeding Trip Review Moderation & AI Analytics (CTMS-412)...");
 		console.log("--------------------------------------------------------------------------");
 		await seedReviewAnalysisScenarios(dataSource, false, 1);
 		await seedReviewAnalysisScenarios(dataSource, false, 2);
 		console.log("✅ Step 12 completed.\n");
+
+		// Step 13: Performance Reports Scenarios (CTMS-101)
+		console.log("--------------------------------------------------------------------------");
+		console.log("👉 [13/13] Seeding Booking & Trip Performance Reports (CTMS-101)...");
+		console.log("--------------------------------------------------------------------------");
+		await seedPerformanceReportsScenarios(dataSource);
+		console.log("✅ Step 13 completed.\n");
+
+		// Step 14: Camper trip preferences for personalized recommendations (CTMS-106)
+		console.log("👉 [14/14] Seeding Camper trip preferences (CTMS-106)...");
+		await seedCamperTripPreferences(dataSource);
+		console.log("✅ Step 14 completed.\n");
+
+		// Step 15: Revenue analytics history and Trip area snapshots (CTMS-110). Runs after the
+		// performance-report seed because that step recreates its own Trips.
+		console.log("👉 [15/15] Seeding revenue analytics history and Trip areas (CTMS-110)...");
+		await seedRevenueAnalyticsScenarios(dataSource);
+		console.log("✅ Step 15 completed.\n");
+
+		// Step 16: Safety hotspots on the Sơn Trà route (CTMS-116/117/118). Runs last so the
+		// completed Trips and their members already exist.
+		console.log("👉 [16/16] Seeding safety hotspots (CTMS-116/117/118)...");
+		await seedSafetyHotspotScenarios(dataSource);
+		console.log("✅ Step 16 completed.\n");
+		await refreshDaNangSeedData(dataSource);
+
+		// Run after accounts, routes and review sources; reruns preserve existing user changes.
+		console.log("👉 [17/17] Seeding Host and Porter reputation scenarios...");
+		await seedReputationScenarios(dataSource);
+		console.log("✅ Step 17 completed.\n");
+
+		console.log("👉 [18/19] Seeding AI auto-moderation review scenarios...");
+		await seedAiAutoModerationScenarios(dataSource);
+		console.log("✅ Step 18 completed.\n");
+
+		console.log("👉 [19/19] Seeding 12-month Host business analytics history...");
+		await seedHostAnalyticsHistoryScenarios(dataSource);
+		console.log("✅ Step 19 completed.\n");
+		await seedPorterTripLifecycle(dataSource);
+		await seedMemberLocations(dataSource, false);
 
 		const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(2);
 
@@ -6005,17 +9808,15 @@ export async function runMasterSeed(): Promise<void> {
 		console.log(
 			"├──────────────┼──────────────────────┼─────────────┼────────────────────────────────────┤"
 		);
+		console.log("│ Admin        │ admin@ctms.local     │ Admin@123   │ Lê Minh Tuấn             │");
 		console.log(
-			"│ Admin        │ admin@ctms.local     │ Admin@123   │ Quản trị viên hệ thống             │"
-		);
-		console.log(
-			"│ Host         │ host@ctms.local      │ Host@123    │ Host Ban Mai (Tất cả tour, ví 3.8M)│"
+			"│ Host         │ host@ctms.local      │ Host@123    │ Nguyễn Thị Ban Mai (Tất cả tour, ví 3.8M)│"
 		);
 		console.log(
 			"│ Porter       │ porter@ctms.local    │ Porter@123  │ Nguyễn Minh Sơn (chuyên gia Route) │"
 		);
 		console.log(
-			"│ Camper       │ camper@ctms.local    │ Camper@123  │ Camper Nguyễn Văn An               │"
+			"│ Camper       │ camper@ctms.local    │ Camper@123  │ Nguyễn Văn An               │"
 		);
 		console.log(
 			"└──────────────┴──────────────────────┴─────────────┴────────────────────────────────────┘"
@@ -6120,6 +9921,15 @@ export async function runMasterSeed(): Promise<void> {
 		console.log(
 			"   👉 Alert 4 (CANCELLED): e0500000-0000-4000-8000-000000000004 -> Camper đã hủy (CTMS-077)\n"
 		);
+		console.log("\n13. Báo cáo hiệu suất hoạt động (CTMS-101 Booking & Trip Performance Reports):");
+		console.log("   👉 Admin login: admin@ctms.local / Admin@123");
+		console.log(
+			"   👉 Trang báo cáo Admin: http://localhost:5173/admin/reports/performance (Toàn hệ thống)"
+		);
+		console.log("   👉 Host login: host@ctms.local / Host@123");
+		console.log(
+			"   👉 Trang báo cáo Host: http://localhost:5173/host/reports/performance (Phạm vi chuyến của bạn)\n"
+		);
 		console.log("==========================================================================\n");
 	} catch (error) {
 		console.error("\n❌ MASTER SEED ENCOUNTERED AN ERROR:", error);
@@ -6129,6 +9939,1622 @@ export async function runMasterSeed(): Promise<void> {
 			await dataSource.destroy();
 			console.log("🔌 Database connection closed cleanly.");
 		}
+	}
+}
+
+// ==========================================================================
+// WEATHER OPERATIONS & HOST WEATHER PENALTIES DEMO (CTMS-93/97/98/60/94/102/58/62)
+// Every time is relative to the moment the seed runs, so "Trip leaves in 20 hours" stays true.
+// Fixture ownership is stored in itinerary metadata; old prefixes remain lookup metadata.
+// ==========================================================================
+
+const WEATHER_DEMO_PREFIXES = ["[Demo thời tiết]%", "[Demo phạt]%"];
+
+const WEATHER_DEMO_HOSTS: SeedAccount[] = [
+	{
+		label: "host.blocked",
+		email: "host.blocked@ctms.local",
+		phone: "0900000091",
+		password: "Host@123",
+		role: "host",
+		fullName: "Host Bị Khoá Tạo Trip",
+	},
+	{
+		label: "host.suspended",
+		email: "host.suspended@ctms.local",
+		phone: "0900000092",
+		password: "Host@123",
+		role: "host",
+		fullName: "Host Bị Đình Chỉ",
+	},
+];
+
+type DemoRisk = "green" | "yellow" | "red";
+
+const DEMO_READINGS: Record<
+	DemoRisk,
+	{
+		rainfallMm: number;
+		windKph: number;
+		temperatureC: number;
+		visibilityM: number;
+		thunderstorm: boolean;
+	}
+> = {
+	green: {
+		rainfallMm: 1.2,
+		windKph: 14,
+		temperatureC: 27,
+		visibilityM: 20000,
+		thunderstorm: false,
+	},
+	yellow: { rainfallMm: 22, windKph: 46, temperatureC: 24, visibilityM: 4000, thunderstorm: false },
+	red: { rainfallMm: 68, windKph: 78, temperatureC: 21, visibilityM: 800, thunderstorm: true },
+};
+
+const DEMO_ADVICE: Record<DemoRisk, { text: string; actions: string[] }> = {
+	green: {
+		text: "Thời tiết ngày đi thuận lợi, chỉ có mưa nhỏ rải rác.",
+		actions: ["Mang áo mưa mỏng", "Uống đủ nước, đội mũ chống nắng"],
+	},
+	yellow: {
+		text: "Có mưa vừa và gió khá mạnh trên đỉnh, đường có thể trơn.",
+		actions: ["Mang giày chống trượt", "Theo dõi thông báo của Host trước giờ đi"],
+	},
+	red: {
+		text: "Mưa lớn, gió mạnh và có dông sét: đi trong điều kiện này rất nguy hiểm.",
+		actions: ["Cân nhắc dời hoặc huỷ chuyến", "Không lên đỉnh khi có dông sét"],
+	},
+};
+
+function demoCriteria(risk: DemoRisk) {
+	const r = DEMO_READINGS[risk];
+	const level = (red: boolean, yellow: boolean): DemoRisk =>
+		red ? "red" : yellow ? "yellow" : "green";
+	const score = (l: DemoRisk) => (l === "red" ? 2 : l === "yellow" ? 1 : 0);
+	const rainfall = level(r.rainfallMm >= 50, r.rainfallMm >= 10);
+	const wind = level(r.windKph >= 70, r.windKph >= 40);
+	const temperature: DemoRisk = "green";
+	const visibility = level(r.visibilityM <= 1000, r.visibilityM <= 5000);
+	const thunderstorm: DemoRisk = r.thunderstorm ? "red" : "green";
+	return {
+		rainfall: { value: r.rainfallMm, level: rainfall, weight: 0.3, score: score(rainfall) },
+		wind: { value: r.windKph, level: wind, weight: 0.25, score: score(wind) },
+		temperature: { value: r.temperatureC, level: temperature, weight: 0.15, score: 0 },
+		visibility: { value: r.visibilityM, level: visibility, weight: 0.15, score: score(visibility) },
+		thunderstorm: {
+			value: r.thunderstorm,
+			level: thunderstorm,
+			weight: 0.15,
+			score: score(thunderstorm),
+		},
+	};
+}
+
+const DEMO_COMPOSITE: Record<DemoRisk, number> = { green: 0.15, yellow: 0.95, red: 1.7 };
+
+async function removeWeatherDemoData(): Promise<void> {
+	const tripRows: Array<{ id: string }> = await dataSource.query(
+		`SELECT "id" FROM "trips" WHERE "title" LIKE ANY($1::text[])
+		 OR itinerary->>'seedFixture'='weather-operations'`,
+		[WEATHER_DEMO_PREFIXES]
+	);
+	const tripIds = tripRows.map((row) => row.id);
+	if (tripIds.length === 0) return;
+	const bookingIds = `SELECT "id" FROM "bookings" WHERE "trip_id" = ANY($1)`;
+	await dataSource.query(`DELETE FROM "payments" WHERE "booking_id" IN (${bookingIds})`, [tripIds]);
+	await dataSource.query(`DELETE FROM "booking_members" WHERE "booking_id" IN (${bookingIds})`, [
+		tripIds,
+	]);
+	await dataSource.query(`DELETE FROM "bookings" WHERE "trip_id" = ANY($1)`, [tripIds]);
+	await dataSource.query(`DELETE FROM "wallet_transactions" WHERE "trip_id" = ANY($1)`, [tripIds]);
+	await dataSource.query(`DELETE FROM "host_weather_penalties" WHERE "trip_id" = ANY($1)`, [
+		tripIds,
+	]);
+	await dataSource.query(`DELETE FROM "trip_weather_decision_alerts" WHERE "trip_id" = ANY($1)`, [
+		tripIds,
+	]);
+	await dataSource.query(`DELETE FROM "trip_weather_decisions" WHERE "trip_id" = ANY($1)`, [
+		tripIds,
+	]);
+	await dataSource.query(`DELETE FROM "trip_weather_change_notices" WHERE "trip_id" = ANY($1)`, [
+		tripIds,
+	]);
+	await dataSource.query(`DELETE FROM "trip_weather_forecasts" WHERE "trip_id" = ANY($1)`, [
+		tripIds,
+	]);
+	await dataSource.query(
+		`DELETE FROM "audit_logs" WHERE "target_type" = 'trip' AND "target_id" = ANY($1)`,
+		[tripIds]
+	);
+	await dataSource.query(`DELETE FROM "trips" WHERE "id" = ANY($1)`, [tripIds]);
+}
+
+/**
+ * Seeds one scenario per weather / penalty screen so each can be tested right after `pnpm seed`:
+ * forecasts for the Trip dates, change notices, near-departure decisions and reminders, Admin
+ * interventions and pause, a weather reschedule waiting for the Camper, and Host penalties in
+ * every state (with wallet debits/refunds). Accounts: admin/host/camper@ctms.local plus
+ * host.blocked@ / host.suspended@ctms.local (password Host@123).
+ */
+export async function seedWeatherOperationsDemo(): Promise<void> {
+	if (process.env.NODE_ENV === "production") {
+		throw new Error("[seed:weather-demo] Refusing to run with NODE_ENV=production.");
+	}
+	if (!dataSource.isInitialized) await dataSource.initialize();
+	console.log("[seed:weather-demo] Seeding weather decisions, notices and Host penalties...");
+
+	for (const account of WEATHER_DEMO_HOSTS) await seedAccount(account);
+	const userId = async (email: string): Promise<string> => {
+		const rows: Array<{ id: string }> = await dataSource.query(
+			`SELECT "id" FROM "users" WHERE "email" = $1`,
+			[email]
+		);
+		if (!rows[0]) throw new Error(`[seed:weather-demo] Missing seed account ${email}`);
+		return rows[0].id;
+	};
+	const adminId = await userId("admin@ctms.local");
+	const hostId = await userId("host@ctms.local");
+	const camperId = await userId("camper@ctms.local");
+	const blockedHostId = await userId("host.blocked@ctms.local");
+	const suspendedHostId = await userId("host.suspended@ctms.local");
+
+	const ruleRows: Array<{ id: string }> = await dataSource.query(
+		'SELECT "id" FROM "weather_risk_rules" ORDER BY "is_active" DESC, "created_at" DESC LIMIT 1'
+	);
+	if (!ruleRows[0])
+		throw new Error("[seed:weather-demo] No weather risk rule; run the weather step first");
+	const ruleId = ruleRows[0].id;
+	const routeRows: Array<{ id: string }> = await dataSource.query(
+		`SELECT "id" FROM "trekking_routes" WHERE "host_id" = $1 AND "status" = 'active' ORDER BY "created_at" LIMIT 1`,
+		[hostId]
+	);
+	if (!routeRows[0]) throw new Error("[seed:weather-demo] host@ctms.local has no active route");
+	const routeId = routeRows[0].id;
+
+	await removeWeatherDemoData();
+
+	const HOUR = 3600_000;
+	const now = Date.now();
+	const at = (hoursFromNow: number) => new Date(now + hoursFromNow * HOUR);
+
+	const createTrip = async (input: {
+		title: string;
+		host: string;
+		startsInHours: number;
+		status?: string;
+		pausedHoursAgo?: number;
+		price?: number;
+	}): Promise<{ id: string; title: string; startsAt: Date; endsAt: Date }> => {
+		const startsAt = at(input.startsInHours);
+		const endsAt = new Date(startsAt.getTime() + 9 * HOUR);
+		const rows: Array<{ id: string }> = await dataSource.query(
+			`INSERT INTO "trips" (
+				host_id, route_id, title, description, trip_type, duration_nights, starts_at, ends_at,
+				meeting_point, booking_deadline, capacity_min, capacity_max, seats_taken, price_per_person,
+				status, weather_paused_at, itinerary
+			) VALUES (
+				$1, $2, $3, 'Hành trình khám phá rừng và biển Đà Nẵng, theo dõi dự báo thời tiết trước giờ khởi hành.', 'day_trip', 0, $4, $5,
+				ST_GeogFromText('SRID=4326;POINT(108.2208 16.0471)'), $6, 1, 15, 0, $7, $8, $9,
+				'{"seedFixture":"weather-operations"}'::jsonb
+			) RETURNING "id"`,
+			[
+				input.host,
+				routeId,
+				input.title,
+				startsAt,
+				endsAt,
+				new Date(startsAt.getTime() - 12 * HOUR),
+				input.price ?? 1_000_000,
+				input.status ?? "published",
+				input.pausedHoursAgo === undefined ? null : at(-input.pausedHoursAgo),
+			]
+		);
+		return { id: rows[0].id, title: input.title, startsAt, endsAt };
+	};
+
+	const addForecast = async (
+		trip: { id: string; startsAt: Date; endsAt: Date },
+		risk: DemoRisk,
+		createdHoursAgo: number,
+		readingsOverride?: Partial<(typeof DEMO_READINGS)[DemoRisk]>
+	): Promise<string> => {
+		const createdAt = at(-createdHoursAgo);
+		const readings = { ...DEMO_READINGS[risk], ...readingsOverride };
+		const advice = DEMO_ADVICE[risk];
+		const rows: Array<{ id: string }> = await dataSource.query(
+			`INSERT INTO "trip_weather_forecasts" (
+				trip_id, route_id, status, trip_starts_at, trip_ends_at, forecast_from, forecast_to,
+				worst_reading, rule_version_id, risk_level, composite_score, criteria_scores,
+				advice_text, advice_actions, advice_generated_at, created_by, created_at, checked_at
+			) VALUES (
+				$1, $2, 'available', $3, $4, $3, $4, $5::jsonb, $6, $7, $8, $9::jsonb, $10, $11::jsonb,
+				$12, $13, $12, $14
+			) RETURNING "id"`,
+			[
+				trip.id,
+				routeId,
+				trip.startsAt,
+				trip.endsAt,
+				JSON.stringify({
+					...readings,
+					hoursCovered: Math.max(
+						1,
+						Math.round((trip.endsAt.getTime() - trip.startsAt.getTime()) / 3_600_000)
+					),
+					rainfallAt: trip.startsAt.toISOString(),
+					windAt: trip.startsAt.toISOString(),
+					temperatureAt: trip.startsAt.toISOString(),
+					visibilityAt: trip.startsAt.toISOString(),
+					thunderstormAt: readings.thunderstorm ? trip.startsAt.toISOString() : null,
+				}),
+				ruleId,
+				risk,
+				DEMO_COMPOSITE[risk],
+				JSON.stringify(demoCriteria(risk)),
+				advice.text,
+				JSON.stringify(advice.actions),
+				createdAt,
+				hostId,
+				at(-Math.min(createdHoursAgo, 1)),
+			]
+		);
+		return rows[0].id;
+	};
+
+	/** Hybrid risk: the AI's own opinion on a stored forecast (the official level is untouched). */
+	const addAiReview = async (
+		forecastId: string,
+		level: DemoRisk,
+		reason: string,
+		confidence: number,
+		reviewedHoursAgo: number
+	) => {
+		await dataSource.query(
+			`UPDATE "trip_weather_forecasts"
+			 SET "ai_risk_level" = $2, "ai_reason" = $3, "ai_confidence" = $4,
+			     "ai_model" = 'gpt-4o-mini (demo)', "ai_reviewed_at" = $5, "ai_review_attempts" = 1
+			 WHERE "id" = $1`,
+			[forecastId, level, reason, confidence, at(-reviewedHoursAgo)]
+		);
+	};
+
+	const addNotice = async (
+		recipientId: string,
+		trip: { id: string; title: string; startsAt: Date },
+		forecastId: string,
+		previous: DemoRisk,
+		risk: DemoRisk,
+		createdHoursAgo: number,
+		read = false
+	) =>
+		dataSource.query(
+			`INSERT INTO "trip_weather_change_notices" (
+				recipient_id, trip_id, forecast_id, trip_title, trip_starts_at, previous_risk_level, risk_level, read_at, created_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			[
+				recipientId,
+				trip.id,
+				forecastId,
+				trip.title,
+				trip.startsAt,
+				previous,
+				risk,
+				read ? at(-createdHoursAgo + 0.5) : null,
+				at(-createdHoursAgo),
+			]
+		);
+
+	const addAlert = async (
+		recipientId: string,
+		trip: { id: string; title: string; startsAt: Date },
+		forecastId: string,
+		milestone: string,
+		urgency: string,
+		createdHoursAgo: number
+	) =>
+		dataSource.query(
+			`INSERT INTO "trip_weather_decision_alerts" (
+				recipient_id, trip_id, milestone, urgency, trip_title, trip_starts_at, forecast_id, created_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			[
+				recipientId,
+				trip.id,
+				milestone,
+				urgency,
+				trip.title,
+				trip.startsAt,
+				forecastId,
+				at(-createdHoursAgo),
+			]
+		);
+
+	const addDecision = async (input: {
+		trip: { id: string; startsAt: Date };
+		forecastId: string | null;
+		by: string;
+		role: "host" | "admin";
+		decision: string;
+		reason: string;
+		safetyPlan?: string;
+		late?: boolean;
+		createdHoursAgo: number;
+	}): Promise<string> => {
+		const rows: Array<{ id: string }> = await dataSource.query(
+			`INSERT INTO "trip_weather_decisions" (
+				trip_id, forecast_id, risk_level, decided_by, decider_role, decision, reason, safety_plan, late, trip_starts_at, created_at
+			) VALUES ($1, $2, 'red', $3, $4, $5, $6, $7, $8, $9, $10) RETURNING "id"`,
+			[
+				input.trip.id,
+				input.forecastId,
+				input.by,
+				input.role,
+				input.decision,
+				input.reason,
+				input.safetyPlan ?? null,
+				input.late ?? false,
+				input.trip.startsAt,
+				at(-input.createdHoursAgo),
+			]
+		);
+		return rows[0].id;
+	};
+
+	const bookCamper = async (
+		trip: { id: string; startsAt: Date; endsAt: Date },
+		options: { status?: string; amount?: number; reconfirmBy?: Date } = {}
+	): Promise<string> => {
+		const amount = options.amount ?? 1_000_000;
+		const rows: Array<{ id: string }> = await dataSource.query(
+			`INSERT INTO "bookings" (
+				trip_id, user_id, num_people, base_price, total_amount, status, payment_status,
+				trip_starts_at_snapshot, trip_ends_at_snapshot, reconfirmation_deadline
+			) VALUES ($1, $2, 1, $3, $3, $4, 'paid', $5, $6, $7) RETURNING "id"`,
+			[
+				trip.id,
+				camperId,
+				amount,
+				options.status ?? "confirmed",
+				trip.startsAt,
+				trip.endsAt,
+				options.reconfirmBy ?? null,
+			]
+		);
+		const bookingId = rows[0].id;
+		await dataSource.query(
+			`INSERT INTO "booking_members" (booking_id, user_id, is_primary, member_status)
+			 VALUES ($1, $2, true, 'registered')`,
+			[bookingId, camperId]
+		);
+		await dataSource.query(
+			`INSERT INTO "payments" (booking_id, amount, type, status, idempotency_key, request_fingerprint)
+			 VALUES ($1, $2, 'charge', 'succeeded', $3, $4)`,
+			[bookingId, amount, `weather-demo-${bookingId}`, `weather-demo-${bookingId}`.slice(0, 64)]
+		);
+		await dataSource.query(`UPDATE "trips" SET "seats_taken" = "seats_taken" + 1 WHERE "id" = $1`, [
+			trip.id,
+		]);
+		return bookingId;
+	};
+
+	// --- Weather near departure (policy §2–§5) ---------------------------------------------
+	// 1. Green, 10 days ahead: Camper's forecast card ("Dự báo xa") and an improving notice.
+	const sunny = await createTrip({
+		title: "Sơn Trà – Đường mòn dưới tán rừng",
+		host: hostId,
+		startsInHours: 240,
+	});
+	const sunnyBefore = await addForecast(sunny, "yellow", 48);
+	const sunnyNow = await addForecast(sunny, "green", 3);
+	await bookCamper(sunny);
+	await addNotice(camperId, sunny, sunnyNow, "yellow", "green", 3, true);
+	await addNotice(hostId, sunny, sunnyNow, "yellow", "green", 3, true);
+	void sunnyBefore;
+
+	// 2. Red, 40 h ahead, Host has not decided: Host decision card + T-48h reminder.
+	const rainy = await createTrip({
+		title: "Bà Nà – Khám phá rừng nguyên sinh",
+		host: hostId,
+		startsInHours: 40,
+	});
+	await addForecast(rainy, "yellow", 30);
+	const rainyRed = await addForecast(rainy, "red", 6);
+	await bookCamper(rainy);
+	await addNotice(hostId, rainy, rainyRed, "yellow", "red", 6);
+	await addNotice(camperId, rainy, rainyRed, "yellow", "red", 6);
+	await addAlert(hostId, rainy, rainyRed, "host_t48", "normal", 2);
+
+	// 3. Red, 20 h ahead, no Host answer: Admin "Cần xử lý" (Host chưa trả lời).
+	const storm = await createTrip({
+		title: "Hải Vân – Dọc sườn núi ven biển",
+		host: hostId,
+		startsInHours: 20,
+		price: 2_000_000,
+	});
+	const stormRed = await addForecast(storm, "red", 30);
+	await bookCamper(storm, { amount: 2_000_000 });
+	await addNotice(camperId, storm, stormRed, "yellow", "red", 30);
+	await addAlert(hostId, storm, stormRed, "host_t48", "normal", 28);
+	await addAlert(adminId, storm, stormRed, "admin_t24", "normal", 4);
+	await addAiReview(
+		stormRed,
+		"red",
+		"Dông sét kèm gió 78 km/h và mưa 68 mm/h, tầm nhìn dưới 1 km: không nên khởi hành.",
+		0.93,
+		29
+	);
+
+	// 4. Red, 50 h ahead, Host keeps the Trip: Admin "Cần xử lý" (Host muốn giữ chuyến).
+	const windy = await createTrip({
+		title: "Ngũ Hành Sơn – Hành trình qua các hang động",
+		host: hostId,
+		startsInHours: 50,
+	});
+	const windyRed = await addForecast(windy, "red", 10);
+	await bookCamper(windy);
+	await addDecision({
+		trip: windy,
+		forecastId: windyRed,
+		by: hostId,
+		role: "host",
+		decision: "keep",
+		reason: "Đường đi chủ yếu trong rừng, tránh đỉnh trống.",
+		safetyPlan: "Đổi lộ trình xuống thấp, quay đầu trước 14h nếu gió vượt 60 km/h, mang bộ đàm.",
+		createdHoursAgo: 3,
+	});
+	await addAlert(adminId, windy, windyRed, "admin_kept", "normal", 3);
+
+	// 5. Red, 30 h ahead, paused by an Admin: locked Host card, bookings blocked.
+	const paused = await createTrip({
+		title: "Bãi Bắc – Dã ngoại bán đảo Sơn Trà",
+		host: hostId,
+		startsInHours: 30,
+		pausedHoursAgo: 2,
+	});
+	const pausedRed = await addForecast(paused, "red", 8);
+	await addDecision({
+		trip: paused,
+		forecastId: pausedRed,
+		by: adminId,
+		role: "admin",
+		decision: "pause",
+		reason: "Chờ bản tin bão chiều nay rồi quyết định tiếp.",
+		createdHoursAgo: 2,
+	});
+
+	// 6. Rescheduled for weather: the Camper keeps the new date or cancels with 100% refund.
+	const moved = await createTrip({
+		title: "Bà Nà – Hành trình qua suối và rừng",
+		host: hostId,
+		startsInHours: 9 * 24,
+	});
+	await addForecast(moved, "green", 5);
+	await addDecision({
+		trip: moved,
+		forecastId: null,
+		by: hostId,
+		role: "host",
+		decision: "reschedule",
+		reason: "Bão đổ bộ đúng ngày đi, dời sang tuần sau.",
+		createdHoursAgo: 5,
+	});
+	await bookCamper(moved, {
+		status: "pending_reconfirmation",
+		reconfirmBy: new Date(moved.startsAt.getTime() - 24 * HOUR),
+	});
+	await dataSource.query(
+		`INSERT INTO "audit_logs" ("actor_id", "action", "target_type", "target_id", "before", "after", "reason", "created_at")
+		 VALUES ($1, 'trip.rescheduled', 'trip', $2, NULL, NULL, 'weather_reschedule', $3)`,
+		[hostId, moved.id, at(-5)]
+	);
+
+	// 7. Hybrid risk (thresholds vs AI): Admin › Quản lý thời tiết › "Cần xem lại ngưỡng".
+	// Thresholds say Green (wind and visibility only reach Yellow), the AI says Red.
+	const gusty = await createTrip({
+		title: "Đỉnh Bàn Cờ – Đón gió biển",
+		host: hostId,
+		startsInHours: 72,
+	});
+	const gustyGreen = await addForecast(gusty, "green", 4, {
+		rainfallMm: 3,
+		windKph: 65,
+		temperatureC: 9,
+		visibilityM: 1500,
+		thunderstorm: false,
+	});
+	await addAiReview(
+		gustyGreen,
+		"red",
+		"Gió 65 km/h trên đỉnh trống, trời lạnh 9°C và tầm nhìn chỉ 1,5 km dễ gây lạc đường và hạ thân nhiệt.",
+		0.78,
+		3
+	);
+	// Thresholds say Yellow (one heavy-rain hour), the AI says Green.
+	const shower = await createTrip({
+		title: "Suối Lương – Dạo bước dưới tán cây",
+		host: hostId,
+		startsInHours: 60,
+	});
+	const showerYellow = await addForecast(shower, "yellow", 5, {
+		rainfallMm: 52,
+		windKph: 12,
+		temperatureC: 27,
+		visibilityM: 9000,
+		thunderstorm: false,
+	});
+	await addAiReview(
+		showerYellow,
+		"green",
+		"Chỉ có một cơn mưa rào khoảng 1 giờ, gió nhẹ, không dông và tầm nhìn tốt; đi bình thường, mang áo mưa.",
+		0.7,
+		4
+	);
+
+	// 8. T-6h auto-cancel (policy §5.4), all on host@ctms.local.
+	// 8a. Red, 10 h ahead, Host never answered: Admin "Cần xử lý" at the urgent (T-12h) level.
+	const urgent = await createTrip({
+		title: "Sơn Trà – Ngắm biển từ sườn phía tây",
+		host: hostId,
+		startsInHours: 10,
+	});
+	const urgentRed = await addForecast(urgent, "red", 20);
+	await bookCamper(urgent);
+	await addAlert(hostId, urgent, urgentRed, "host_t48", "normal", 38);
+	await addAlert(adminId, urgent, urgentRed, "admin_t24", "normal", 14);
+	await addAlert(adminId, urgent, urgentRed, "admin_t12", "urgent", 2);
+
+	// 8b. Red, 6.5 h ahead, still undecided: the cards show the auto-cancel time; with
+	// TRIP_WEATHER_DECISION_WORKER_ENABLED=true the system cancels it about 30 minutes after seeding.
+	const soon = await createTrip({
+		title: "Núi Chúa – Khám phá đường rừng Hòa Vang",
+		host: hostId,
+		startsInHours: 6.5,
+		price: 1_500_000,
+	});
+	const soonRed = await addForecast(soon, "red", 18);
+	await bookCamper(soon, { amount: 1_500_000 });
+	await addAlert(hostId, soon, soonRed, "host_t48", "normal", 41.5);
+	await addAlert(adminId, soon, soonRed, "admin_t24", "normal", 17.5);
+	await addAlert(adminId, soon, soonRed, "admin_t12", "urgent", 5.5);
+
+	// 8c. Already cancelled by the system at T-6h: "Hệ thống" in the decision log, notices to the
+	// Host and Admin, a pending 100% refund and the Host's open first penalty (still in the waiver
+	// window, already deducted from the wallet below).
+	const autoCancelled = await createTrip({
+		title: "Tiên Sa – Nghỉ dưỡng và dã ngoại ven biển",
+		host: hostId,
+		startsInHours: 3,
+		status: "cancelled",
+		price: 1_500_000,
+	});
+	const cancelledRed = await addForecast(autoCancelled, "red", 20);
+	const cancelledBooking = await bookCamper(autoCancelled, { amount: 1_500_000 });
+	await dataSource.query(
+		`UPDATE "trips" SET "cancelled_at" = $2, "cancellation_reason" = $3, "seats_taken" = 0 WHERE "id" = $1`,
+		[autoCancelled.id, at(-3), `Huỷ vì thời tiết: ${AUTO_CANCEL_WEATHER_REASON}`]
+	);
+	await dataSource.query(`UPDATE "bookings" SET "status" = 'cancelled' WHERE "id" = $1`, [
+		cancelledBooking,
+	]);
+	await dataSource.query(
+		`INSERT INTO "payments" (booking_id, amount, type, status, idempotency_key, request_fingerprint, parent_payment_id)
+		 SELECT $1, 1500000, 'refund', 'pending', $2, $3, charge."id"
+		 FROM "payments" charge WHERE charge."booking_id" = $1 AND charge."type" = 'charge' LIMIT 1`,
+		[
+			cancelledBooking,
+			`ctms-027:trip-cancel:${autoCancelled.id}:booking:${cancelledBooking}`,
+			`weather-auto-cancel-${cancelledBooking}`.slice(0, 64),
+		]
+	);
+	const systemDecision: Array<{ id: string }> = await dataSource.query(
+		`INSERT INTO "trip_weather_decisions" (
+			trip_id, forecast_id, risk_level, decided_by, decider_role, decision, reason, late, trip_starts_at, created_at
+		) VALUES ($1, $2, 'red', NULL, 'system', 'cancel', $3, false, $4, $5) RETURNING "id"`,
+		[autoCancelled.id, cancelledRed, AUTO_CANCEL_WEATHER_REASON, autoCancelled.startsAt, at(-3)]
+	);
+	await dataSource.query(
+		`INSERT INTO "audit_logs" ("actor_id", "action", "target_type", "target_id", "before", "after", "reason", "created_at")
+		 VALUES (NULL, 'trip.cancelled', 'trip', $1, NULL, NULL, $2, $3)`,
+		[autoCancelled.id, `Huỷ vì thời tiết: ${AUTO_CANCEL_WEATHER_REASON}`, at(-3)]
+	);
+	await addAlert(hostId, autoCancelled, cancelledRed, "host_t48", "normal", 45);
+	await addAlert(adminId, autoCancelled, cancelledRed, "admin_t24", "normal", 21);
+	await addAlert(adminId, autoCancelled, cancelledRed, "admin_t12", "urgent", 9);
+	await addAlert(hostId, autoCancelled, cancelledRed, "auto_cancelled", "critical", 3);
+	await addAlert(adminId, autoCancelled, cancelledRed, "auto_cancelled", "critical", 3);
+	await dataSource.query(
+		`INSERT INTO "host_weather_penalties" (
+			trip_id, host_id, trip_title, trip_starts_at, decision_id, violation_number, booking_value,
+			rate_basis_points, cap_amount, amount, deducted_amount, status, waiver_deadline, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, 1, 1500000, 500, 2000000, 75000, 75000, 'applied', $6, $7, now())`,
+		[
+			autoCancelled.id,
+			hostId,
+			autoCancelled.title,
+			autoCancelled.startsAt,
+			systemDecision[0].id,
+			new Date(autoCancelled.startsAt.getTime() + 48 * HOUR),
+			at(-3),
+		]
+	);
+
+	// --- Host weather penalties (policy §6) ----------------------------------------------------
+	const ensureWallet = async (host: string): Promise<{ id: string; balance: number }> => {
+		const rows: Array<{ id: string; balance: string }> = await dataSource.query(
+			`INSERT INTO "host_wallets" ("host_id", "balance") VALUES ($1, '0.00')
+			 ON CONFLICT ("host_id") DO UPDATE SET "updated_at" = now()
+			 RETURNING "id", "balance"`,
+			[host]
+		);
+		return { id: rows[0].id, balance: Number(rows[0].balance) };
+	};
+	const walletEntry = async (
+		wallet: { id: string; balance: number },
+		tripId: string,
+		type: "settlement_credit" | "penalty_debit" | "penalty_refund",
+		amount: number,
+		description: string,
+		createdHoursAgo: number
+	) => {
+		wallet.balance += type === "penalty_debit" ? -amount : amount;
+		await dataSource.query(
+			`INSERT INTO "wallet_transactions" (
+				wallet_id, trip_id, type, base_amount, fee_amount, net_amount, balance_after, description, created_at
+			) VALUES ($1, $2, $3, 0, 0, $4, $5, $6, $7)`,
+			[
+				wallet.id,
+				tripId,
+				type,
+				type === "penalty_debit" ? -amount : amount,
+				wallet.balance.toFixed(2),
+				description,
+				at(-createdHoursAgo),
+			]
+		);
+		await dataSource.query(
+			`UPDATE "host_wallets" SET "balance" = $2, "updated_at" = now() WHERE "id" = $1`,
+			[wallet.id, wallet.balance.toFixed(2)]
+		);
+	};
+
+	const tiers = [
+		{ rate: 500, cap: 2_000_000 },
+		{ rate: 1000, cap: 5_000_000 },
+		{ rate: 1500, cap: 10_000_000 },
+	];
+	const addPenalty = async (input: {
+		host: string;
+		title: string;
+		startedHoursAgo: number;
+		violation: 1 | 2 | 3;
+		bookingValue: number;
+		deducted: number;
+		status?: "applied" | "waived";
+		blockedDays?: number;
+		waiver?: {
+			reason: string;
+			requestedHoursAgo: number;
+			reviewDueInHours: number;
+			decision?: "approved" | "rejected";
+			note?: string;
+			reviewedHoursAgo?: number;
+		};
+	}): Promise<{ tripId: string; amount: number }> => {
+		const trip = await createTrip({
+			title: input.title,
+			host: input.host,
+			startsInHours: -input.startedHoursAgo,
+			status: "completed",
+		});
+		const decisionId = await addDecision({
+			trip,
+			forecastId: null,
+			by: adminId,
+			role: "admin",
+			decision: "keep",
+			reason: "Host không quyết định trước 24 tiếng, Admin giữ chuyến kèm điều kiện an toàn.",
+			createdHoursAgo: input.startedHoursAgo + 20,
+		});
+		const tier = tiers[input.violation - 1];
+		const amount = Math.min(Math.round((input.bookingValue * tier.rate) / 10_000), tier.cap);
+		const createdAt = at(-(input.startedHoursAgo + 20));
+		const waiver = input.waiver;
+		await dataSource.query(
+			`INSERT INTO "host_weather_penalties" (
+				trip_id, host_id, trip_title, trip_starts_at, decision_id, violation_number, booking_value,
+				rate_basis_points, cap_amount, amount, deducted_amount, status, hosting_blocked_until,
+				waiver_deadline, waiver_reason, waiver_evidence_urls, waiver_requested_at, waiver_review_due_at,
+				waiver_decision, waiver_reviewed_by, waiver_reviewed_at, waiver_review_note, created_at, updated_at
+			) VALUES (
+				$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18,
+				$19, $20, $21, $22, $23, now()
+			)`,
+			[
+				trip.id,
+				input.host,
+				trip.title,
+				trip.startsAt,
+				decisionId,
+				input.violation,
+				input.bookingValue,
+				tier.rate,
+				tier.cap,
+				amount,
+				input.status === "waived" ? 0 : input.deducted,
+				input.status ?? "applied",
+				input.blockedDays ? new Date(createdAt.getTime() + input.blockedDays * 24 * HOUR) : null,
+				new Date(trip.startsAt.getTime() + 48 * HOUR),
+				waiver?.reason ?? null,
+				JSON.stringify(
+					waiver
+						? ["https://res.cloudinary.com/demo/raw/upload/weather-penalty-waivers/giay-vien.pdf"]
+						: []
+				),
+				waiver ? at(-waiver.requestedHoursAgo) : null,
+				waiver ? at(waiver.reviewDueInHours) : null,
+				waiver?.decision ?? null,
+				waiver?.decision ? adminId : null,
+				waiver?.reviewedHoursAgo !== undefined ? at(-waiver.reviewedHoursAgo) : null,
+				waiver?.note ?? null,
+				createdAt,
+			]
+		);
+		return { tripId: trip.id, amount };
+	};
+
+	// host@ctms.local — one waived penalty (with refund) and one fresh penalty still open to a
+	// waiver request; never blocked, so this account can keep creating Trips.
+	const hostWallet = await ensureWallet(hostId);
+	const waivedOld = await addPenalty({
+		host: hostId,
+		title: "Hòa Bắc – Khám phá bản làng Cơ Tu",
+		startedHoursAgo: 60 * 24,
+		violation: 1,
+		bookingValue: 8_000_000,
+		deducted: 0,
+		status: "waived",
+		waiver: {
+			reason: "Host nhập viện cấp cứu đúng ngày phải quyết định.",
+			requestedHoursAgo: 59 * 24,
+			reviewDueInHours: -54 * 24,
+			decision: "approved",
+			note: "Giấy viện hợp lệ, miễn phạt.",
+			reviewedHoursAgo: 58 * 24,
+		},
+	});
+	await walletEntry(
+		hostWallet,
+		waivedOld.tripId,
+		"penalty_debit",
+		400_000,
+		"Trừ phạt thời tiết: Hòa Bắc",
+		59 * 24 + 12
+	);
+	await walletEntry(
+		hostWallet,
+		waivedOld.tripId,
+		"penalty_refund",
+		400_000,
+		"Hoàn phạt thời tiết (đã miễn): Hòa Bắc",
+		58 * 24
+	);
+	// host@'s open first penalty is the T-6h auto-cancel demo (8c): one applied penalty only, so
+	// host@ is never blocked by the seed.
+	await walletEntry(
+		hostWallet,
+		autoCancelled.id,
+		"penalty_debit",
+		75_000,
+		"Trừ phạt thời tiết: Tiên Sa",
+		2
+	);
+
+	// host.blocked@ctms.local — 2nd violation: blocked 14 days, waiver waiting for the Admin.
+	const blockedWallet = await ensureWallet(blockedHostId);
+	await addPenalty({
+		host: blockedHostId,
+		title: "Nam Ô – Đi bộ ven rạn đá",
+		startedHoursAgo: 40 * 24,
+		violation: 1,
+		bookingValue: 6_000_000,
+		deducted: 300_000,
+		waiver: {
+			reason: "Xe hỏng nên không kịp quyết định.",
+			requestedHoursAgo: 39 * 24,
+			reviewDueInHours: -34 * 24,
+			decision: "rejected",
+			note: "Không phải bất khả kháng, Host vẫn có thể báo qua ứng dụng.",
+			reviewedHoursAgo: 37 * 24,
+		},
+	});
+	const blockedPenalty = await addPenalty({
+		host: blockedHostId,
+		title: "Bà Nà – Cắm trại giữa rừng xanh",
+		startedHoursAgo: 3 * 24,
+		violation: 2,
+		bookingValue: 12_000_000,
+		deducted: 700_000,
+		blockedDays: 14,
+		waiver: {
+			reason: "Mất điện thoại trên núi, không nhận được nhắc nhở. Có xác nhận của công an xã.",
+			requestedHoursAgo: 20,
+			reviewDueInHours: 4 * 24,
+		},
+	});
+	// The penalty is taken from the Trip's own settlement, as settleTrip does.
+	await walletEntry(
+		blockedWallet,
+		blockedPenalty.tripId,
+		"settlement_credit",
+		2_000_000,
+		"Quyết toán doanh thu chuyến: Bà Nà",
+		2 * 24 + 1
+	);
+	await walletEntry(
+		blockedWallet,
+		blockedPenalty.tripId,
+		"penalty_debit",
+		700_000,
+		"Trừ phạt thời tiết: Bà Nà",
+		2 * 24
+	);
+
+	// host.suspended@ctms.local — 3 applied violations in 90 days: suspended; the last waiver is
+	// past its 5-working-day review deadline.
+	await ensureWallet(suspendedHostId);
+	await addPenalty({
+		host: suspendedHostId,
+		title: "Hồ Hòa Trung – Dã ngoại bên hồ",
+		startedHoursAgo: 70 * 24,
+		violation: 1,
+		bookingValue: 5_000_000,
+		deducted: 250_000,
+	});
+	await addPenalty({
+		host: suspendedHostId,
+		title: "Sông Cu Đê – Hành trình qua thung lũng",
+		startedHoursAgo: 45 * 24,
+		violation: 2,
+		bookingValue: 7_000_000,
+		deducted: 700_000,
+		blockedDays: 14,
+	});
+	await addPenalty({
+		host: suspendedHostId,
+		title: "Núi Thần Tài – Nghỉ chân bên suối",
+		startedHoursAgo: 12 * 24,
+		violation: 3,
+		bookingValue: 9_000_000,
+		deducted: 0,
+		waiver: {
+			reason: "Người thân mất đột ngột, có giấy báo tử.",
+			requestedHoursAgo: 10 * 24,
+			reviewDueInHours: -24,
+		},
+	});
+
+	console.log("[seed:weather-demo] Weather and penalty demo ready:");
+	console.log(
+		"  - Admin › Quản lý thời tiết: 4 Trip cần xử lý (1 Khẩn, 1 sắp tự huỷ), 2 yêu cầu miễn phạt (1 quá hạn), 2 Trip cần xem lại ngưỡng"
+	);
+	console.log(
+		"  - host@ctms.local: Trip đã bị hệ thống tự huỷ T-6h (phạt lần 1), Trip còn 6,5 giờ sẽ tự huỷ khi bật TRIP_WEATHER_DECISION_WORKER_ENABLED (thành phạt lần 2, khoá tạo Trip 14 ngày)"
+	);
+	console.log(
+		"  - host@ctms.local: thẻ quyết định thời tiết, chuông thông báo, ví có phạt/hoàn phạt"
+	);
+	console.log(
+		"  - camper@ctms.local: dự báo theo ngày đi, thông báo đổi dự báo, đơn chờ xác nhận lịch mới"
+	);
+	console.log(
+		"  - host.blocked@ctms.local / host.suspended@ctms.local (Host@123): bị khoá / đình chỉ tạo Trip"
+	);
+}
+
+/**
+ * Append-only, idempotent seed for CTMS-411 AI auto-moderation scenarios.
+ * Note: Confidence scores (0.79, 0.80, 0.88, 0.91, etc.) are simulated moderation
+ * outputs persisted directly so Host notification & Camper UI states can be verified
+ * without invoking live external AI calls. Re-runs never overwrite existing records.
+ */
+export async function seedAiAutoModerationScenarios(ds: DataSource): Promise<void> {
+	const accounts: Array<{ id: string; email: string }> = await ds.query(
+		"SELECT id, email FROM users WHERE email IN ('host@ctms.local', 'camper@ctms.local', 'admin@ctms.local')"
+	);
+	const host = accounts.find((a) => a.email === "host@ctms.local");
+	const camper = accounts.find((a) => a.email === "camper@ctms.local");
+	const admin = accounts.find((a) => a.email === "admin@ctms.local");
+	if (!host || !camper || !admin) {
+		console.warn("[seed:ai-auto-moderation] Core accounts missing; skipping.");
+		return;
+	}
+
+	const routes: Array<{ id: string }> = await ds.query(
+		`SELECT id FROM trekking_routes
+		 WHERE status = 'active'
+		 ORDER BY created_at ASC
+		 LIMIT 1`
+	);
+	const routeId = routes[0]?.id ?? null;
+
+	type SeedFlag = {
+		flagType:
+			| "profanity_or_insult"
+			| "personal_data_leak"
+			| "spam_or_irrelevant"
+			| "harassment"
+			| "inappropriate_image";
+		channel: "text" | "image";
+		confidence: number;
+		evidence: string;
+		quote: string | null;
+		targetImageIndex: number | null;
+	};
+
+	interface ModerationSeedScenario {
+		index: number;
+		tripTitle: string;
+		rating: number;
+		comment: string;
+		images: string[];
+		createdHoursAgo: number;
+		moderationStatus: "visible" | "hidden";
+		hiddenReason: SeedFlag["flagType"] | null;
+		hiddenSource: "ai" | "host" | "admin" | null;
+		firstHiddenHoursAgo: number | null;
+		imageStorageState: "live" | "quarantined";
+		verificationStatus: "verified" | "unverified";
+		runFailed?: boolean;
+		flags: SeedFlag[];
+		hostNotificationEvent:
+			| "trip.review.auto_hidden"
+			| "trip.review.moderation_flagged"
+			| "trip.review.moderation_unverified"
+			| null;
+		adminActionedReport?: boolean;
+	}
+
+	const scenarios: ModerationSeedScenario[] = [
+		// 1. Clean review (visible, no flags)
+		{
+			index: 1,
+			tripTitle: "Săn mây đỉnh Bàn Cờ buổi sớm",
+			rating: 5,
+			comment:
+				"Cung đường sạch đẹp, hướng dẫn viên chuẩn bị đồ ăn sáng nóng hổi và rất nhiệt tình.",
+			images: [],
+			createdHoursAgo: 6,
+			moderationStatus: "visible",
+			hiddenReason: null,
+			hiddenSource: null,
+			firstHiddenHoursAgo: null,
+			imageStorageState: "live",
+			verificationStatus: "verified",
+			flags: [],
+			hostNotificationEvent: null,
+		},
+		// 2. AI auto-hidden (simulated confidence 0.91 with quarantined image)
+		{
+			index: 2,
+			tripTitle: "Trekking thác Hòa Phú Thành cuối tuần",
+			rating: 2,
+			comment: "Chuyến đi đông người và ảnh chụp tại trạm nghỉ có chi tiết không phù hợp.",
+			images: ["/uploads/trip-reviews/suoi-hoa-review-01.jpg"],
+			createdHoursAgo: 5,
+			moderationStatus: "hidden",
+			hiddenReason: "inappropriate_image",
+			hiddenSource: "ai",
+			firstHiddenHoursAgo: 4,
+			imageStorageState: "quarantined",
+			verificationStatus: "verified",
+			flags: [
+				{
+					flagType: "inappropriate_image",
+					channel: "image",
+					confidence: 0.91,
+					evidence: "Hình ảnh đính kèm chứa nội dung không phù hợp với tiêu chuẩn cộng đồng.",
+					quote: null,
+					targetImageIndex: 0,
+				},
+			],
+			hostNotificationEvent: "trip.review.auto_hidden",
+		},
+		// 3. Exact 0.80 boundary routed to Host (visible + notification)
+		{
+			index: 3,
+			tripTitle: "Khám phá suối Mơ và rừng nguyên sinh",
+			rating: 2,
+			comment: "Lịch trình thay đổi đột ngột khiến cả nhóm bức xúc và trao đổi khá gay gắt.",
+			images: [],
+			createdHoursAgo: 4,
+			moderationStatus: "visible",
+			hiddenReason: null,
+			hiddenSource: null,
+			firstHiddenHoursAgo: null,
+			imageStorageState: "live",
+			verificationStatus: "verified",
+			flags: [
+				{
+					flagType: "profanity_or_insult",
+					channel: "text",
+					confidence: 0.8,
+					evidence: "Nội dung có cách diễn đạt gay gắt ở mức ngưỡng cần chủ chuyến xem xét.",
+					quote: "cả nhóm bức xúc và trao đổi khá gay gắt",
+					targetImageIndex: null,
+				},
+			],
+			hostNotificationEvent: "trip.review.moderation_flagged",
+		},
+		// 4. Below threshold 0.79 routed to Host (visible + notification)
+		{
+			index: 4,
+			tripTitle: "Cắm trại hồ Hòa Trung đón hoàng hôn",
+			rating: 3,
+			comment: "Cảnh hồ đẹp, tiện thể ai cần thuê lều giá rẻ cuối tuần cứ nhắn mình chỉ chỗ.",
+			images: [],
+			createdHoursAgo: 7,
+			moderationStatus: "visible",
+			hiddenReason: null,
+			hiddenSource: null,
+			firstHiddenHoursAgo: null,
+			imageStorageState: "live",
+			verificationStatus: "verified",
+			flags: [
+				{
+					flagType: "spam_or_irrelevant",
+					channel: "text",
+					confidence: 0.79,
+					evidence: "Nội dung có dấu hiệu giới thiệu dịch vụ ngoài chuyến đi.",
+					quote: "ai cần thuê lều giá rẻ cuối tuần cứ nhắn mình chỉ chỗ",
+					targetImageIndex: null,
+				},
+			],
+			hostNotificationEvent: "trip.review.moderation_flagged",
+		},
+		// 5. Multi-flag (simulated 0.75 + 0.88 -> auto-hidden with 0.88 reason)
+		{
+			index: 5,
+			tripTitle: "Vượt đèo Hải Vân ngắm vịnh Lăng Cô",
+			rating: 1,
+			comment:
+				"Tổ chức quá kém, tôi sẽ đăng bài kêu gọi mọi người tẩy chay và làm phiền trang này.",
+			images: [],
+			createdHoursAgo: 8,
+			moderationStatus: "hidden",
+			hiddenReason: "harassment",
+			hiddenSource: "ai",
+			firstHiddenHoursAgo: 7,
+			imageStorageState: "live",
+			verificationStatus: "verified",
+			flags: [
+				{
+					flagType: "spam_or_irrelevant",
+					channel: "text",
+					confidence: 0.75,
+					evidence: "Có nội dung kêu gọi không liên quan đến trải nghiệm tuyến đường.",
+					quote: "đăng bài kêu gọi mọi người tẩy chay",
+					targetImageIndex: null,
+				},
+				{
+					flagType: "harassment",
+					channel: "text",
+					confidence: 0.88,
+					evidence: "Nội dung mang tính đe dọa, quấy rối chủ chuyến.",
+					quote: "làm phiền trang này",
+					targetImageIndex: null,
+				},
+			],
+			hostNotificationEvent: "trip.review.auto_hidden",
+		},
+		// 6. AI scan failed > 15m -> unverified, routed to Host
+		{
+			index: 6,
+			tripTitle: "Đi bộ xuyên rừng dừa Bảy Mẫu và đồi chè",
+			rating: 4,
+			comment: "Hành trình dễ đi, phù hợp người mới, bữa trưa khá ổn định.",
+			images: [],
+			createdHoursAgo: 3,
+			moderationStatus: "visible",
+			hiddenReason: null,
+			hiddenSource: null,
+			firstHiddenHoursAgo: null,
+			imageStorageState: "live",
+			verificationStatus: "unverified",
+			runFailed: true,
+			flags: [],
+			hostNotificationEvent: "trip.review.moderation_unverified",
+		},
+		// 7. Admin actioned content report (must stay hidden even if Host restores)
+		{
+			index: 7,
+			tripTitle: "Chinh phục đỉnh Mang Đen mùa sương",
+			rating: 1,
+			comment: "Đánh giá có nội dung công kích cá nhân đã được quản trị viên xử lý vi phạm.",
+			images: [],
+			createdHoursAgo: 12,
+			moderationStatus: "hidden",
+			hiddenReason: "profanity_or_insult",
+			hiddenSource: "ai",
+			firstHiddenHoursAgo: 11,
+			imageStorageState: "live",
+			verificationStatus: "verified",
+			flags: [
+				{
+					flagType: "profanity_or_insult",
+					channel: "text",
+					confidence: 0.93,
+					evidence: "Ngôn từ công kích cá nhân vượt ngưỡng vi phạm.",
+					quote: "công kích cá nhân",
+					targetImageIndex: null,
+				},
+			],
+			hostNotificationEvent: "trip.review.auto_hidden",
+			adminActionedReport: true,
+		},
+		// 8. Hidden review past 24h supplementary edit window (first_hidden_at = 30h ago)
+		{
+			index: 8,
+			tripTitle: "Hành trình cắm trại bãi Rạng Sơn Trà",
+			rating: 2,
+			comment: "Bài đánh giá đã bị ẩn quá thời hạn 24 giờ chỉnh sửa bổ sung.",
+			images: [],
+			createdHoursAgo: 40,
+			moderationStatus: "hidden",
+			hiddenReason: "profanity_or_insult",
+			hiddenSource: "ai",
+			firstHiddenHoursAgo: 30,
+			imageStorageState: "live",
+			verificationStatus: "verified",
+			flags: [
+				{
+					flagType: "profanity_or_insult",
+					channel: "text",
+					confidence: 0.89,
+					evidence: "Ngôn từ không phù hợp tiêu chuẩn cộng đồng.",
+					quote: "quá thời hạn 24 giờ",
+					targetImageIndex: null,
+				},
+			],
+			hostNotificationEvent: "trip.review.auto_hidden",
+		},
+	];
+
+	await ds.transaction(async (manager) => {
+		for (const item of scenarios) {
+			const suffix = String(item.index).padStart(12, "0");
+			const tripId = `a4110000-0000-4000-8001-${suffix}`;
+			const bookingId = `a4110000-0000-4000-8002-${suffix}`;
+			const memberId = `a4110000-0000-4000-8003-${suffix}`;
+			const reviewId = `a4110000-0000-4000-8004-${suffix}`;
+			const runId = `a4110000-0000-4000-8005-${suffix}`;
+			const reportId = `a4110000-0000-4000-8006-${suffix}`;
+
+			await manager.query(
+				`INSERT INTO trips (
+					id, host_id, route_id, title, trip_type, duration_nights, starts_at, ends_at,
+					meeting_point, booking_deadline, capacity_min, capacity_max, seats_taken,
+					price_per_person, status
+				) VALUES (
+					$1, $2, $3, $4, 'day_trip', 0,
+					now() - interval '6 days',
+					now() - interval '4 days',
+					ST_GeogFromText('POINT(108.22 16.04)'),
+					now() - interval '7 days',
+					1, 12, 1, 1250000, 'completed'
+				) ON CONFLICT (id) DO NOTHING`,
+				[tripId, host.id, routeId, item.tripTitle]
+			);
+
+			await manager.query(
+				`INSERT INTO bookings (
+					id, trip_id, user_id, num_people, status, payment_status, completed_at
+				) VALUES (
+					$1, $2, $3, 1, 'completed', 'not_required',
+					now() - ($4::double precision * interval '1 hour') - interval '2 hours'
+				) ON CONFLICT (id) DO NOTHING`,
+				[bookingId, tripId, camper.id, item.createdHoursAgo]
+			);
+
+			await manager.query(
+				`INSERT INTO booking_members (
+					id, booking_id, user_id, is_primary, member_status, checked_in_at, no_show_at
+				) VALUES (
+					$1, $2, $3, true, 'joined'::booking_member_status,
+					now() - interval '5 days',
+					NULL
+				) ON CONFLICT (id) DO NOTHING`,
+				[memberId, bookingId, camper.id]
+			);
+
+			await manager.query(
+				`WITH inserted AS (
+					INSERT INTO trip_reviews (
+						id, booking_id, member_id, reviewer_id, trip_id, host_id, target, target_id,
+						rating, comment, images, revision,
+						moderation_status, hidden_at, first_hidden_at, hidden_reason, hidden_by,
+						hidden_source, hidden_revision, image_storage_state, moderation_verification_status,
+						created_at, updated_at
+					) VALUES (
+						$1, $2, $3, $4, $5, $6, 'trip', $5,
+						$7, $8, $9::jsonb, 1,
+						$10::varchar,
+						CASE WHEN $11::double precision IS NULL THEN NULL ELSE now() - ($11::double precision * interval '1 hour') END,
+						CASE WHEN $11::double precision IS NULL THEN NULL ELSE now() - ($11::double precision * interval '1 hour') END,
+						$12, NULL, $13,
+						CASE WHEN $10::varchar = 'hidden' THEN 1 ELSE NULL END,
+						$14, $15,
+						now() - ($16::double precision * interval '1 hour'),
+						now() - ($16::double precision * interval '1 hour')
+					) ON CONFLICT (id) DO NOTHING RETURNING *
+				)
+				INSERT INTO trip_review_revisions (review_id, revision, rating, comment, images, recorded_at)
+				SELECT id, revision, rating, comment, images, updated_at FROM inserted`,
+				[
+					reviewId,
+					bookingId,
+					memberId,
+					camper.id,
+					tripId,
+					host.id,
+					item.rating,
+					item.comment,
+					JSON.stringify(item.images),
+					item.moderationStatus,
+					item.firstHiddenHoursAgo,
+					item.hiddenReason,
+					item.hiddenSource,
+					item.imageStorageState,
+					item.verificationStatus,
+					item.createdHoursAgo,
+				]
+			);
+
+			const scanStatus = item.runFailed ? "failed" : "completed";
+			await manager.query(
+				`INSERT INTO trip_review_moderation_runs (
+					id, review_id, source_revision, provider, model, config_version, prompt_version,
+					text_scan_status, image_scan_status, aspects_status, incidents_status,
+					attempts, error_code, completed_at
+				) VALUES (
+					$1, $2, 1, 'gemini', 'gemini-3.1-flash-lite', 'gemini-v1', 'v1',
+					$3::varchar, $4::varchar, $3::varchar, $3::varchar,
+					$5, $6,
+					CASE WHEN $3::varchar = 'completed' THEN now() - ($7::double precision * interval '1 hour') ELSE NULL END
+				) ON CONFLICT DO NOTHING`,
+				[
+					runId,
+					reviewId,
+					scanStatus,
+					item.images.length > 0 ? scanStatus : "not_applicable",
+					item.runFailed ? 3 : 1,
+					item.runFailed ? "provider_timeout" : null,
+					item.createdHoursAgo,
+				]
+			);
+
+			for (const flag of item.flags) {
+				await manager.query(
+					`INSERT INTO trip_review_moderation_flags (
+						run_id, review_id, source_revision, channel, target_image_index,
+						flag_type, detection_source, confidence, evidence, quote, lifecycle_status, created_at
+					) VALUES (
+						$1, $2, 1, $3, $4, $5, 'model', $6, $7, $8, 'active',
+						now() - ($9::double precision * interval '1 hour')
+					) ON CONFLICT DO NOTHING`,
+					[
+						runId,
+						reviewId,
+						flag.channel,
+						flag.targetImageIndex,
+						flag.flagType,
+						flag.confidence,
+						flag.evidence,
+						flag.quote,
+						item.createdHoursAgo,
+					]
+				);
+			}
+
+			if (item.hostNotificationEvent) {
+				const sourcePrefix =
+					item.hostNotificationEvent === "trip.review.auto_hidden"
+						? "auto-hidden"
+						: item.hostNotificationEvent === "trip.review.moderation_unverified"
+							? "unverified"
+							: "flagged";
+				await manager.query(
+					`INSERT INTO in_app_notifications (
+						recipient_id, trip_id, review_id, event_type, source_key, occurred_at
+					) VALUES (
+						$1, $2, $3, $4, $5, now() - ($6::double precision * interval '1 hour')
+					) ON CONFLICT (source_key, recipient_id) DO NOTHING`,
+					[
+						host.id,
+						tripId,
+						reviewId,
+						item.hostNotificationEvent,
+						`review-moderation:${sourcePrefix}:${reviewId}:rev:1`,
+						item.createdHoursAgo,
+					]
+				);
+			}
+
+			if (item.adminActionedReport) {
+				await manager.query(
+					`INSERT INTO content_reports (
+						id, reporter_id, target_type, target_id, reason, status, created_at, updated_at
+					) VALUES (
+						$1, $2, 'trip_review', $3, 'Nội dung xúc phạm cá nhân đã được quản trị viên xác nhận vi phạm.',
+						'actioned', now() - interval '10 hours', now() - interval '9 hours'
+					) ON CONFLICT (id) DO NOTHING`,
+					[reportId, host.id, reviewId]
+				);
+			}
+		}
+	});
+}
+
+export async function seedHostAnalyticsHistoryScenarios(ds: DataSource): Promise<void> {
+	if (!ds.isInitialized) await ds.initialize();
+	console.log(
+		"[seed:host-analytics] Seeding 8 earlier months (2025-12..2026-07) for 12-month history..."
+	);
+
+	const [host] = (await ds.query("SELECT id FROM users WHERE email = 'host@ctms.local'")) as Array<{
+		id: string;
+	}>;
+	const [camper] = (await ds.query(
+		"SELECT id FROM users WHERE email = 'camper@ctms.local'"
+	)) as Array<{ id: string }>;
+	if (!host || !camper) {
+		console.warn("[seed:host-analytics] host@ctms.local or camper@ctms.local missing; skipped.");
+		return;
+	}
+
+	await ensureRoutes(ds, host.id);
+
+	const earlierTrips: Array<{
+		id: string;
+		bookingId: string;
+		cancelledBookingId?: string;
+		chargeId: string;
+		routeId: string;
+		title: string;
+		description: string;
+		areaCode: string;
+		tripType: "day_trip" | "overnight";
+		startsAt: string;
+		endsAt: string;
+		capacityMax: number | null;
+		numPeople: number;
+		pricePerPerson: number;
+		paidAt: string;
+		settledAt: string;
+	}> = [
+		{
+			id: "a4150000-0000-4000-8415-000000000001",
+			bookingId: "a4150000-0000-4000-8415-000000000101",
+			chargeId: "a4150000-0000-4000-8415-000000000201",
+			routeId: ROUTES[0].id,
+			title: "Đón gió đông trên đỉnh Ngũ Hành Sơn",
+			description:
+				"Hành trình leo bộ qua các bậc đá cổ và ngắm toàn cảnh biển Non Nước trong tiết trời se lạnh cuối năm.",
+			areaCode: "DNG-NGU-HANH-SON",
+			tripType: "day_trip",
+			startsAt: "2025-12-14T22:30:00Z",
+			endsAt: "2025-12-15T05:00:00Z",
+			capacityMax: 12,
+			numPeople: 9,
+			pricePerPerson: 650000,
+			paidAt: "2025-12-05T08:00:00Z",
+			settledAt: "2025-12-19T02:00:00Z",
+		},
+		{
+			id: "a4150000-0000-4000-8415-000000000002",
+			bookingId: "a4150000-0000-4000-8415-000000000102",
+			chargeId: "a4150000-0000-4000-8415-000000000202",
+			routeId: ROUTES[1].id,
+			title: "Dạo bộ đầu xuân ven sông Hàn",
+			description:
+				"Khám phá không khí đầu năm dọc bờ sông Hàn và thưởng thức ẩm thực địa phương buổi tối.",
+			areaCode: "DNG-HAI-CHAU",
+			tripType: "day_trip",
+			startsAt: "2026-01-18T11:00:00Z",
+			endsAt: "2026-01-18T14:30:00Z",
+			capacityMax: 10,
+			numPeople: 7,
+			pricePerPerson: 350000,
+			paidAt: "2026-01-10T09:30:00Z",
+			settledAt: "2026-01-22T02:00:00Z",
+		},
+		{
+			id: "a4150000-0000-4000-8415-000000000003",
+			bookingId: "a4150000-0000-4000-8415-000000000103",
+			cancelledBookingId: "a4150000-0000-4000-8415-000000000303",
+			chargeId: "a4150000-0000-4000-8415-000000000203",
+			routeId: ROUTES[0].id,
+			title: "Khám phá hang động Thủy Sơn đầu xuân",
+			description:
+				"Leo núi nhẹ buổi sáng, tham quan động Huyền Không và dừng chân uống trà thảo mộc.",
+			areaCode: "DNG-NGU-HANH-SON",
+			tripType: "day_trip",
+			startsAt: "2026-02-22T22:30:00Z",
+			endsAt: "2026-02-23T04:30:00Z",
+			capacityMax: 12,
+			numPeople: 8,
+			pricePerPerson: 650000,
+			paidAt: "2026-02-12T10:15:00Z",
+			settledAt: "2026-02-27T02:00:00Z",
+		},
+		{
+			id: "a4150000-0000-4000-8415-000000000004",
+			bookingId: "a4150000-0000-4000-8415-000000000104",
+			chargeId: "a4150000-0000-4000-8415-000000000204",
+			routeId: ROUTES[2].id,
+			title: "Bình minh làng chài Thanh Bình tháng Ba",
+			description:
+				"Đi bộ dọc bờ biển Thanh Bình lúc rạng sáng và trải nghiệm chợ hải sản sớm cùng ngư dân.",
+			areaCode: "DNG-THANH-KHE",
+			tripType: "day_trip",
+			startsAt: "2026-03-15T22:00:00Z",
+			endsAt: "2026-03-16T03:00:00Z",
+			capacityMax: 12,
+			numPeople: 10,
+			pricePerPerson: 450000,
+			paidAt: "2026-03-04T07:45:00Z",
+			settledAt: "2026-03-20T02:00:00Z",
+		},
+		{
+			id: "a4150000-0000-4000-8415-000000000005",
+			bookingId: "a4150000-0000-4000-8415-000000000105",
+			chargeId: "a4150000-0000-4000-8415-000000000205",
+			routeId: ROUTES[0].id,
+			title: "Chinh phục Ngũ Hành Sơn dịp nghỉ lễ",
+			description:
+				"Chuyến đi trong ngày nắng đẹp, kết hợp chụp ảnh bình minh và tìm hiểu làng đá mỹ nghệ Non Nước.",
+			areaCode: "DNG-NGU-HANH-SON",
+			tripType: "day_trip",
+			startsAt: "2026-04-29T22:30:00Z",
+			endsAt: "2026-04-30T05:00:00Z",
+			capacityMax: 12,
+			numPeople: 11,
+			pricePerPerson: 650000,
+			paidAt: "2026-04-15T11:00:00Z",
+			settledAt: "2026-05-04T02:00:00Z",
+		},
+		{
+			id: "a4150000-0000-4000-8415-000000000006",
+			bookingId: "a4150000-0000-4000-8415-000000000106",
+			chargeId: "a4150000-0000-4000-8415-000000000206",
+			routeId: ROUTES[1].id,
+			title: "Đi bộ hoàng hôn ven sông Hàn tháng Năm",
+			description:
+				"Hành trình nhẹ nhàng đón gió biển vào buổi chiều muộn và ngắm thành phố lên đèn.",
+			areaCode: "DNG-HAI-CHAU",
+			tripType: "day_trip",
+			startsAt: "2026-05-16T10:30:00Z",
+			endsAt: "2026-05-16T14:00:00Z",
+			capacityMax: 10,
+			numPeople: 8,
+			pricePerPerson: 350000,
+			paidAt: "2026-05-07T09:00:00Z",
+			settledAt: "2026-05-21T02:00:00Z",
+		},
+		{
+			id: "a4150000-0000-4000-8415-000000000007",
+			bookingId: "a4150000-0000-4000-8415-000000000107",
+			chargeId: "a4150000-0000-4000-8415-000000000207",
+			routeId: ROUTES[2].id,
+			title: "Đón nắng sớm bãi biển Thanh Bình",
+			description: "Dạo bộ ven biển, tham gia kéo lưới buổi sáng và nghỉ ngơi dưới hàng dừa mát.",
+			areaCode: "DNG-THANH-KHE",
+			tripType: "day_trip",
+			startsAt: "2026-06-20T22:00:00Z",
+			endsAt: "2026-06-21T03:00:00Z",
+			capacityMax: 12,
+			numPeople: 9,
+			pricePerPerson: 450000,
+			paidAt: "2026-06-11T08:30:00Z",
+			settledAt: "2026-06-25T02:00:00Z",
+		},
+		{
+			id: "a4150000-0000-4000-8415-000000000008",
+			bookingId: "a4150000-0000-4000-8415-000000000108",
+			chargeId: "a4150000-0000-4000-8415-000000000208",
+			routeId: ROUTES[0].id,
+			title: "Hành trình ngắm bình minh Ngũ Hành Sơn giữa hè",
+			description:
+				"Chuyến đi sáng sớm tránh nắng, thưởng ngoạn cảnh biển Non Nước từ đỉnh Vọng Hải Đài.",
+			areaCode: "DNG-NGU-HANH-SON",
+			tripType: "day_trip",
+			startsAt: "2026-07-18T22:30:00Z",
+			endsAt: "2026-07-19T05:00:00Z",
+			capacityMax: null,
+			numPeople: 6,
+			pricePerPerson: 650000,
+			paidAt: "2026-07-08T10:00:00Z",
+			settledAt: "2026-07-23T02:00:00Z",
+		},
+	];
+
+	for (const trip of earlierTrips) {
+		const firstPoint = ROUTES.find((r) => r.id === trip.routeId)?.path[0] ?? [108.2022, 16.0544];
+		const meetingPoint = JSON.stringify({ type: "Point", coordinates: firstPoint });
+		const durationNights = trip.tripType === "day_trip" ? 0 : 1;
+
+		const totalMinor = minorOf(trip.numPeople * trip.pricePerPerson);
+		const feeMinor = (totalMinor * COMMISSION_RATE_BPS) / 10000n;
+		const netMinor = totalMinor - feeMinor;
+
+		await ds.query(
+			`INSERT INTO "trips" ("id", "host_id", "route_id", "title", "description", "trip_type", "duration_nights",
+				"starts_at", "ends_at", "meeting_point", "meeting_at", "booking_deadline", "capacity_min", "capacity_max",
+				"seats_taken", "price_per_person", "status", "created_at",
+				"area_code", "area_name", "province_code", "province_name")
+			 SELECT $1::uuid, $2::uuid, $3::uuid, $4::varchar, $5::text, $12::trip_type, $13::int,
+				$6::timestamptz, $7::timestamptz,
+				ST_SetSRID(ST_GeomFromGeoJSON($8), 4326)::geography, $6::timestamptz - interval '30 minutes',
+				$6::timestamptz - interval '2 days', 4, $14::int, $9::int, $10::numeric, 'completed',
+				$6::timestamptz - interval '21 days',
+				ga."code", ga."name", ga."province_code", ga."province_name"
+			 FROM "geo_areas" ga WHERE ga."code" = $11
+			 ON CONFLICT ("id") DO NOTHING`,
+			[
+				trip.id,
+				host.id,
+				trip.routeId,
+				trip.title,
+				trip.description,
+				trip.startsAt,
+				trip.endsAt,
+				meetingPoint,
+				trip.numPeople,
+				trip.pricePerPerson,
+				trip.areaCode,
+				trip.tripType,
+				durationNights,
+				trip.capacityMax,
+			]
+		);
+
+		await ds.query(
+			`INSERT INTO "bookings" ("id", "trip_id", "user_id", "num_people", "status", "payment_status", "total_amount", "trip_starts_at_snapshot", "created_at")
+			 VALUES ($1, $2, $3, $4, 'completed', 'paid', $5, $7::timestamptz, $6::timestamptz - interval '10 minutes')
+			 ON CONFLICT ("id") DO NOTHING`,
+			[
+				trip.bookingId,
+				trip.id,
+				camper.id,
+				trip.numPeople,
+				money(totalMinor),
+				trip.paidAt,
+				trip.startsAt,
+			]
+		);
+
+		if (trip.cancelledBookingId) {
+			await ds.query(
+				`INSERT INTO "bookings" ("id", "trip_id", "user_id", "num_people", "status", "payment_status", "total_amount", "trip_starts_at_snapshot", "cancelled_at", "created_at")
+				 VALUES ($1, $2, $3, 2, 'cancelled', 'unpaid', 0, $4::timestamptz, $5::timestamptz, $5::timestamptz - interval '2 days')
+				 ON CONFLICT ("id") DO NOTHING`,
+				[trip.cancelledBookingId, trip.id, camper.id, trip.startsAt, trip.paidAt]
+			);
+		}
+
+		const chargeRef = providerRef("VNP", trip.paidAt);
+		await ds.query(
+			`INSERT INTO "payments" ("id", "booking_id", "amount", "type", "status", "provider_reference", "succeeded_at", "created_at", "updated_at")
+			 VALUES ($1, $2, $3, 'charge', 'succeeded', $4, $5, $5, $5)
+			 ON CONFLICT ("id") DO NOTHING`,
+			[trip.chargeId, trip.bookingId, money(totalMinor), chargeRef, trip.paidAt]
+		);
+
+		await ds.query(
+			`INSERT INTO "settlements" ("trip_id", "host_id", "settlement_base", "commission_rate", "platform_fee", "net_amount", "settled_at", "created_at", "updated_at")
+			 VALUES ($1, $2, $3, '0.0500', $4, $5, $6, $6, $6)
+			 ON CONFLICT ("trip_id") DO NOTHING`,
+			[trip.id, host.id, money(totalMinor), money(feeMinor), money(netMinor), trip.settledAt]
+		);
 	}
 }
 

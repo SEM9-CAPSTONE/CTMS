@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { ConfigService } from "@nestjs/config";
 import { DataSource } from "typeorm";
+import { PackageActivationService } from "../src/modules/offline-packages/package-activation.service";
+import { PackageArtifactBuilder } from "../src/modules/offline-packages/package-artifact.builder";
+import { LocalPackageArtifactStorage } from "../src/modules/offline-packages/package-artifact.storage";
+import { UnavailablePackageFreshnessSource } from "../src/modules/offline-packages/package-freshness.source";
 import { Trip, TripStatus } from "../src/modules/trips/entities/trip.entity";
 import { TripsRepository } from "../src/modules/trips/repositories/trips.repository";
 import { TripStatusScheduleService } from "../src/modules/trips/services/trip-status-schedule.service";
@@ -72,13 +76,32 @@ describe("Trip status follows the schedule (real Postgres)", () => {
 		return row.status;
 	}
 
-	function service(autoCancelEnabled: boolean) {
+	function service(autoCancelEnabled: boolean, gateEnabled = false) {
 		const config = {
 			get: (key: string) =>
-				key === "TRIP_AUTO_CANCEL_WORKER_ENABLED" ? String(autoCancelEnabled) : undefined,
+				key === "TRIP_AUTO_CANCEL_WORKER_ENABLED"
+					? String(autoCancelEnabled)
+					: key === "OFFLINE_PACKAGE_DEPARTURE_GATE_ENABLED"
+						? String(gateEnabled)
+						: undefined,
 		} as unknown as ConfigService;
-		return new TripStatusScheduleService(repository, config);
+		return new TripStatusScheduleService(
+			repository,
+			config,
+			new PackageActivationService(
+				dataSource,
+				new UnavailablePackageFreshnessSource(),
+				new LocalPackageArtifactStorage(),
+				new PackageArtifactBuilder()
+			)
+		);
 	}
+
+	it("legacy client without activation and Trip without a package requirement still starts with gate enabled", async () => {
+		const trip = await createTrip(TripStatus.PUBLISHED, -1, 5);
+		await service(false, true).advanceDueTrips(1000);
+		expect(await statusOf(trip)).toBe(TripStatus.ONGOING);
+	});
 
 	it("starts, finishes and leaves Trips alone according to their schedule", async () => {
 		const started = await createTrip(TripStatus.PUBLISHED, -1, 5);

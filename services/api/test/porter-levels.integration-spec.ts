@@ -235,6 +235,22 @@ describe("Porter manual level review (Postgres + HTTP)", () => {
 			.expect(200);
 		expect(other.body).toEqual([]);
 	});
+	it("filters qualification search and its total before pagination", async () => {
+		const match = await request(app.getHttpServer())
+			.get(`${root}/qualifications`)
+			.query({ search: "Review Route", page: 1, limit: 1 })
+			.set("Authorization", admin())
+			.expect(200);
+		expect(match.body.total).toBe(1);
+		expect(match.body.items[0].id).toBe(qualificationId);
+		const missing = await request(app.getHttpServer())
+			.get(`${root}/qualifications`)
+			.query({ search: "absent-route-filter" })
+			.set("Authorization", admin())
+			.expect(200);
+		expect(missing.body).toEqual({ items: [], total: 0 });
+	});
+
 	it("rejects without changing rank and requires approved certificate verification for approval", async () => {
 		await db.query(
 			"UPDATE porter_verifications SET status='pending_review',reviewed_at=null,updated_at=now() WHERE porter_id=$1",
@@ -249,9 +265,9 @@ describe("Porter manual level review (Postgres + HTTP)", () => {
 			.post(`${root}/qualifications/${qualificationId}/decisions`)
 			.set("Authorization", admin())
 			.send(await decision("expert", "rejected"))
-			.expect(409);
+			.expect(201);
 		const [row] = (await db.query(
-			"SELECT proficiency FROM porter_route_qualifications WHERE id=$1",
+			"SELECT proficiency,verified_by FROM porter_route_qualifications WHERE id=$1",
 			[qualificationId]
 		)) as Array<{ proficiency: string }>;
 		expect(row.proficiency).toBe("learning");

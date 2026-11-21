@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
+import { InAppNotificationsModule } from "../in-app-notifications/in-app-notifications.module";
 import { TripReviewAnalyticsHostController } from "./trip-review-analytics-host.controller";
 import { TripReviewAnalyticsHostService } from "./trip-review-analytics-host.service";
 import { TripReviewImageStorageService } from "./trip-review-image-storage.service";
@@ -10,7 +11,7 @@ import { TripReviewModerationProvider } from "./trip-review-moderation.provider"
 import { TripReviewModerationWorker } from "./trip-review-moderation.worker";
 
 @Module({
-	imports: [ConfigModule],
+	imports: [ConfigModule, InAppNotificationsModule],
 	controllers: [TripReviewModerationHostController, TripReviewAnalyticsHostController],
 	providers: [
 		TripReviewImageStorageService,

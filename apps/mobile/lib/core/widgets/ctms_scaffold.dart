@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
+import 'ctms_notification_bell_scope.dart';
 
 /// Standard page scaffold — the mobile adaptation of §2.2 AppHeader +
 /// §2.3 PageHeader (`docs/design/CTMS-DESIGN-SYSTEM.md`): the breadcrumb is
@@ -36,7 +37,7 @@ class CtmsScaffold extends StatelessWidget {
   final Widget body;
   final Widget? floatingActionButton;
   final PreferredSizeWidget? bottom;
-  final bool isConnected;
+  final bool? isConnected;
   final int unreadNotifications;
   final VoidCallback? onNotificationsTap;
   final Widget? leading;
@@ -127,16 +128,17 @@ class CtmsScaffold extends StatelessWidget {
               ),
         actions: [
           ...?actions,
-          Container(
-            width: 8,
-            height: 8,
-            margin: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-            decoration: BoxDecoration(
-              color: isConnected ? AppColors.statusSuccess : AppColors.statusNeutral,
-              shape: BoxShape.circle,
+          if (isConnected != null)
+            Container(
+              width: 8,
+              height: 8,
+              margin: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: isConnected == true ? AppColors.statusSuccess : AppColors.statusNeutral,
+                shape: BoxShape.circle,
+              ),
             ),
-          ),
-          _NotificationBell(count: unreadNotifications, onTap: onNotificationsTap),
+          _bell(context),
           const SizedBox(width: AppSpacing.xs),
         ],
         bottom: appBarBottom,
@@ -144,6 +146,19 @@ class CtmsScaffold extends StatelessWidget {
       body: body,
       floatingActionButton: floatingActionButton,
     );
+  }
+}
+
+extension on CtmsScaffold {
+  /// A screen's own bell wins; otherwise the role bell from [CtmsNotificationBellScope].
+  Widget _bell(BuildContext context) {
+    final scope = onNotificationsTap == null && unreadNotifications == 0
+        ? CtmsNotificationBellScope.maybeOf(context)
+        : null;
+    if (scope == null) {
+      return _NotificationBell(count: unreadNotifications, onTap: onNotificationsTap);
+    }
+    return _NotificationBell(count: scope.count, onTap: () => scope.onTap(context));
   }
 }
 
@@ -159,6 +174,7 @@ class _NotificationBell extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         IconButton(
+          tooltip: 'Thông báo',
           onPressed: onTap,
           icon: const Icon(Icons.notifications_none_rounded, color: AppColors.textPrimary),
         ),

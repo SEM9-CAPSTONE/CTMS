@@ -57,7 +57,7 @@ describe("CTMS-053 authenticated private transport (HTTP + production JWT and ro
 		generatedAt: new Date().toISOString(),
 		contentType: "application/zip",
 	};
-	const access = { downloadableTripStatus: jest.fn() };
+	const access = { downloadableTripStatus: jest.fn(), applicableVersion: jest.fn() };
 	const packages = { getReadyMetadata: jest.fn(), readArtifact: jest.fn() };
 	const users = { findOneWithRolesById: jest.fn(), getGrantedRoles: jest.fn() };
 	const secret = "ctms053-test-only-secret";

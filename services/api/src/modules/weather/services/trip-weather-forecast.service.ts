@@ -30,6 +30,7 @@ import {
 	WEATHER_PROVIDER,
 	type WeatherForecastHour,
 	type WeatherProvider,
+	WeatherProviderError,
 } from "../providers/weather-provider.interface";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import {
@@ -52,6 +53,8 @@ const HOUR_MS = 60 * 60 * 1000;
 const REUSE_WINDOW_MS = 10 * 60 * 1000;
 /** Newest history rows returned to clients. */
 const HISTORY_LIMIT = 50;
+/** Owning Host and Admin responses carry the AI opinion; traveller responses never do. */
+const HOST_ADMIN_VIEW = { includeAiReview: true } as const;
 /**
  * Raw provider responses are only kept while the Trip can still be submitted for approval, i.e. for
  * the forecast the Host may attach to the request (policy §4). Later checks keep the scored result.
@@ -91,7 +94,7 @@ export class TripWeatherForecastService {
 			);
 		}
 		const forecast = await this.computeForecast(trip, actor.userId, now);
-		return toTripWeatherForecastResponse(forecast, WEATHER_FORECAST_HORIZON_DAYS);
+		return toTripWeatherForecastResponse(forecast, WEATHER_FORECAST_HORIZON_DAYS, HOST_ADMIN_VIEW);
 	}
 
 	/**
@@ -128,7 +131,9 @@ export class TripWeatherForecastService {
 			return await this.computeForecast(trip, trip.hostId, now);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			this.logger.warn(`No trip-date forecast for trip ${tripId}: ${message}`);
+			if (!(error instanceof ServiceUnavailableException)) {
+				this.logger.warn(`No trip-date forecast for trip ${tripId}: ${message}`);
+			}
 			return null;
 		}
 	}
@@ -189,7 +194,7 @@ export class TripWeatherForecastService {
 		);
 		if (hours.length === 0) {
 			throw new ServiceUnavailableException(
-				"Weather provider returned no forecast for the Trip schedule. Please try again."
+				"Chưa có dự báo thời tiết cho thời gian diễn ra chuyến đi. Vui lòng thử lại sau."
 			);
 		}
 
@@ -266,7 +271,9 @@ export class TripWeatherForecastService {
 	): Promise<TripWeatherForecastResponseDto | null> {
 		await this.loadAuthorizedTrip(actor, tripId);
 		const latest = await this.forecastsRepository.findLatestForTrip(tripId);
-		return latest ? toTripWeatherForecastResponse(latest, WEATHER_FORECAST_HORIZON_DAYS) : null;
+		return latest
+			? toTripWeatherForecastResponse(latest, WEATHER_FORECAST_HORIZON_DAYS, HOST_ADMIN_VIEW)
+			: null;
 	}
 
 	/**
@@ -289,7 +296,13 @@ export class TripWeatherForecastService {
 					TRAVELLER_VISIBLE_TRIP_STATUSES.has(trip.status)));
 		if (!allowed) throw new NotFoundException("Trip not found");
 		const rows = await this.forecastsRepository.findHistory(tripId, HISTORY_LIMIT);
-		return rows.map((row) => toTripWeatherForecastResponse(row, WEATHER_FORECAST_HORIZON_DAYS));
+		// The AI opinion is an internal review aid; travellers only see the official level.
+		const view = {
+			includeAiReview: roles.includes(UserRole.ADMIN) || trip.hostId === actor.userId,
+		};
+		return rows.map((row) =>
+			toTripWeatherForecastResponse(row, WEATHER_FORECAST_HORIZON_DAYS, view)
+		);
 	}
 
 	/** The forecast that was attached to the Trip when it was submitted for approval. */
@@ -303,7 +316,9 @@ export class TripWeatherForecastService {
 			tripId,
 			trip.submittedWeatherForecastId
 		);
-		return forecast ? toTripWeatherForecastResponse(forecast, WEATHER_FORECAST_HORIZON_DAYS) : null;
+		return forecast
+			? toTripWeatherForecastResponse(forecast, WEATHER_FORECAST_HORIZON_DAYS, HOST_ADMIN_VIEW)
+			: null;
 	}
 
 	/** Explains the latest available forecast with the LLM; idempotent per forecast. */
@@ -323,7 +338,7 @@ export class TripWeatherForecastService {
 			throw new ConflictException("No weather forecast to explain for this Trip yet.");
 		}
 		if (latest.adviceText) {
-			return toTripWeatherForecastResponse(latest, WEATHER_FORECAST_HORIZON_DAYS);
+			return toTripWeatherForecastResponse(latest, WEATHER_FORECAST_HORIZON_DAYS, HOST_ADMIN_VIEW);
 		}
 
 		const criteria = latest.criteriaScores;
@@ -353,7 +368,11 @@ export class TripWeatherForecastService {
 			result.adviceText,
 			result.actions
 		);
-		return toTripWeatherForecastResponse(updated ?? latest, WEATHER_FORECAST_HORIZON_DAYS);
+		return toTripWeatherForecastResponse(
+			updated ?? latest,
+			WEATHER_FORECAST_HORIZON_DAYS,
+			HOST_ADMIN_VIEW
+		);
 	}
 
 	private async loadAuthorizedTrip(
@@ -400,10 +419,13 @@ export class TripWeatherForecastService {
 			);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : "Unknown weather provider error";
-			this.logger.error(`Trip weather forecast failed for trip ${tripId}: ${message}`);
+			// The provider logs an outage once; avoid one error per Trip on search/recommendations.
+			if (!(error instanceof WeatherProviderError) || error.retryable) {
+				this.logger.error(`Trip weather forecast failed for trip ${tripId}: ${message}`);
+			}
 			// BR-229: never fabricate a forecast; nothing is stored for a failed fetch.
 			throw new ServiceUnavailableException(
-				"Weather provider is currently unavailable. Please try again."
+				"Hiện chưa thể tải dự báo thời tiết. Vui lòng thử lại sau."
 			);
 		}
 	}
@@ -414,6 +436,7 @@ export class TripWeatherForecastService {
 			try {
 				return await operation();
 			} catch (error) {
+				if (error instanceof WeatherProviderError && !error.retryable) throw error;
 				lastError = error;
 				if (attempt < MAX_ATTEMPTS - 1) await sleep(BACKOFF_MS[attempt] ?? 1000);
 			}

@@ -87,6 +87,18 @@ export class Trip {
 	@Column({ name: "ends_at", type: "timestamptz" })
 	endsAt!: Date;
 
+	@Column({ name: "actual_started_at", type: "timestamptz", nullable: true })
+	actualStartedAt!: Date | null;
+
+	@Column({ name: "actual_ended_at", type: "timestamptz", nullable: true })
+	actualEndedAt!: Date | null;
+
+	@Column({ name: "started_by_id", type: "uuid", nullable: true })
+	startedById!: string | null;
+
+	@Column({ name: "ended_by_id", type: "uuid", nullable: true })
+	endedById!: string | null;
+
 	@Column({ name: "meeting_point", type: "geography", spatialFeatureType: "Point", srid: 4326 })
 	meetingPoint!: GeoPoint;
 
@@ -131,6 +143,19 @@ export class Trip {
 	 */
 	@Column({ name: "participation_evaluated_at", type: "timestamptz", nullable: true })
 	participationEvaluatedAt!: Date | null;
+
+	/** CTMS-110 / BR-319. Area snapshot copied from `geo_areas` while the Trip is a draft. */
+	@Column({ name: "province_code", type: "varchar", length: 16, nullable: true })
+	provinceCode!: string | null;
+
+	@Column({ name: "province_name", type: "varchar", length: 100, nullable: true })
+	provinceName!: string | null;
+
+	@Column({ name: "area_code", type: "varchar", length: 32, nullable: true })
+	areaCode!: string | null;
+
+	@Column({ name: "area_name", type: "varchar", length: 100, nullable: true })
+	areaName!: string | null;
 
 	@CreateDateColumn({ name: "created_at", type: "timestamptz" })
 	createdAt!: Date;

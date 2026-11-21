@@ -4,10 +4,23 @@ import sqlite3
 import tempfile
 import unittest
 from PIL import Image
-from build_osm_raster import BOUNDS, project, tile_range, validate, road_style
+from build_osm_raster import BOUNDS, project, tile_range, validate, road_style, preflight
 
 
 class RasterValidationTests(unittest.TestCase):
+    def test_preflight_rejects_large_invalid_and_excessive_tile_regions(self):
+        for bounds,reason in [((108,16,109,17),'REGION_TOO_LARGE'),
+                              ((108,16,108.35,16.35),'TILE_LIMIT_EXCEEDED'),
+                              ((108,16,float('nan'),17),'BOUNDS_INVALID'),
+                              ((108,84,109,86),'REGION_UNSUPPORTED')]:
+            with self.assertRaisesRegex(RuntimeError,reason): preflight(bounds)
+
+    def test_two_regions_have_independent_tile_coverage(self):
+        for bounds in [(108.26,16.09,108.30,16.13),(108.42,11.92,108.46,11.96)]:
+            counts=preflight(bounds)
+            self.assertEqual(set(counts),set(range(12,17)))
+            self.assertTrue(all(value>0 for value in counts.values()))
+
     def test_road_hierarchy_and_trail_pattern_are_distinct(self):
         self.assertGreater(road_style('primary',16)[2],road_style('residential',16)[2])
         self.assertTrue(road_style('path',16)[3])

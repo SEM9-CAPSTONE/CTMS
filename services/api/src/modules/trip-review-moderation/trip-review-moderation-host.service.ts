@@ -20,13 +20,18 @@ import {
 import type { ModerationDecisionResponseDto } from "./dtos/moderation-decision-response.dto";
 // biome-ignore lint/style/useImportType: Nest injection
 import { TripReviewImageStorageService } from "./trip-review-image-storage.service";
+import { MODERATION_NOTIFY_HOST_MIN_THRESHOLD_BPS } from "./trip-review-moderation.constants";
+import { confidenceToBasisPoints } from "./trip-review-moderation.policy";
 import type {
 	DetectionSource,
 	HostModerationDecision,
+	HostReviewModerationDetail,
 	ImageStorageState,
 	ModerationFlagType,
+	ModerationHiddenSource,
 	ModerationQueueItem,
 	ModerationStatus,
+	ModerationVerificationStatus,
 } from "./trip-review-moderation.types";
 
 interface ReviewRow {
@@ -43,6 +48,7 @@ interface ReviewRow {
 	moderationStatus: ModerationStatus;
 	imageStorageState: ImageStorageState;
 	hiddenReason: ModerationFlagType | null;
+	moderationVerificationStatus?: ModerationVerificationStatus;
 }
 
 interface FlagRow {
@@ -190,7 +196,8 @@ export class TripReviewModerationHostService {
 				        r.reviewer_id AS "reviewerId", t.host_id AS "hostId",
 				        r.rating, r.comment, r.images, r.revision,
 				        r.created_at AS "createdAt", r.moderation_status AS "moderationStatus",
-				        r.image_storage_state AS "imageStorageState", r.hidden_reason AS "hiddenReason"
+				        r.image_storage_state AS "imageStorageState", r.hidden_reason AS "hiddenReason",
+				        r.moderation_verification_status AS "moderationVerificationStatus"
 				 FROM trip_reviews r
 				 JOIN trips t ON t.id = r.trip_id
 				 WHERE r.id = $1
@@ -218,17 +225,46 @@ export class TripReviewModerationHostService {
 
 			// 4. Branch based on Host decision
 			if (dto.decision === ModerationDecisionAction.HIDE) {
-				// Require reason to match at least one active flag
-				const activeFlags: Array<{ flag_type: ModerationFlagType }> = await manager.query(
-					`SELECT flag_type FROM trip_review_moderation_flags 
-					 WHERE review_id = $1 AND lifecycle_status = 'active'`,
-					[reviewId]
-				);
+				const isUnverifiedFallback = review.moderationVerificationStatus === "unverified";
+				if (!isUnverifiedFallback) {
+					// Require reason to match at least one active flag with confidence >= 50% when AI scan completed
+					const activeFlags: Array<{
+						flag_type: ModerationFlagType;
+						detection_source?: DetectionSource;
+						confidence?: string | number | null;
+					}> = await manager.query(
+						`SELECT flag_type, detection_source, confidence FROM trip_review_moderation_flags
+						 WHERE review_id = $1 AND lifecycle_status = 'active'`,
+						[reviewId]
+					);
 
-				const matchingFlag = activeFlags.some((f) => f.flag_type === dto.reason);
-				if (!matchingFlag) {
+					const matchingFlags = activeFlags.filter((f) => f.flag_type === dto.reason);
+					if (matchingFlags.length === 0) {
+						throw new BadRequestException(
+							`Hidden reason '${dto.reason}' must match an active violation flag on this review`
+						);
+					}
+
+					const hasActionableConfidence = matchingFlags.some((f) => {
+						if (!f.detection_source && f.confidence === undefined) {
+							return true;
+						}
+						const rawConf =
+							f.confidence === null || f.confidence === undefined ? null : Number(f.confidence);
+						return (
+							confidenceToBasisPoints(rawConf, f.detection_source ?? "model") >=
+							MODERATION_NOTIFY_HOST_MIN_THRESHOLD_BPS
+						);
+					});
+
+					if (!hasActionableConfidence) {
+						throw new BadRequestException(
+							"Độ tin cậy vi phạm dưới 50%, không được phép ẩn đánh giá này"
+						);
+					}
+				} else if (!dto.reason) {
 					throw new BadRequestException(
-						`Hidden reason '${dto.reason}' must match an active violation flag on this review`
+						"Hidden reason is required when hiding an unverified review"
 					);
 				}
 
@@ -258,10 +294,13 @@ export class TripReviewModerationHostService {
 					`UPDATE trip_reviews
 					 SET moderation_status = 'hidden',
 					     hidden_at = clock_timestamp(),
+					     first_hidden_at = COALESCE(first_hidden_at, clock_timestamp()),
 					     hidden_reason = $1,
 					     hidden_by = $2,
+					     hidden_source = 'host',
 					     hidden_revision = $3,
-					     image_storage_state = $4
+					     image_storage_state = $4,
+					     moderation_verification_status = 'verified'
 					 WHERE id = $5`,
 					[dto.reason, hostId, review.revision, pendingImageState, reviewId]
 				);
@@ -300,6 +339,15 @@ export class TripReviewModerationHostService {
 					 RETURNING id, created_at`,
 					[reviewId, review.revision, hostId, dto.note ?? null]
 				);
+
+				if (review.moderationVerificationStatus === "unverified") {
+					await manager.query(
+						`UPDATE trip_reviews
+						 SET moderation_verification_status = 'verified'
+						 WHERE id = $1`,
+						[reviewId]
+					);
+				}
 
 				return {
 					decisionId: decisionResult[0].id,
@@ -357,7 +405,15 @@ export class TripReviewModerationHostService {
 					};
 				}
 
-				// If no Admin report actioned, restore review to visible
+				// Resolve active flags on this revision when Host restores
+				await manager.query(
+					`UPDATE trip_review_moderation_flags
+					 SET lifecycle_status = 'resolved', resolved_at = clock_timestamp(), resolved_by = $1
+					 WHERE review_id = $2 AND lifecycle_status = 'active'`,
+					[hostId, reviewId]
+				);
+
+				// If no Admin report actioned, restore review to visible (preserve first_hidden_at)
 				const hasImages = Array.isArray(review.images) && review.images.length > 0;
 				const pendingImageState: ImageStorageState = hasImages ? "restore_pending" : "live";
 
@@ -367,6 +423,7 @@ export class TripReviewModerationHostService {
 					     hidden_at = NULL,
 					     hidden_reason = NULL,
 					     hidden_by = NULL,
+					     hidden_source = NULL,
 					     hidden_revision = NULL,
 					     image_storage_state = $1
 					 WHERE id = $2`,
@@ -482,5 +539,137 @@ export class TripReviewModerationHostService {
 		});
 
 		return { filePath, filename };
+	}
+
+	/**
+	 * Fetch moderation detail for a single review owned by the authenticated host
+	 * (used for notification deep-link opening regardless of queue pagination).
+	 */
+	async getModerationDetail(hostId: string, reviewId: string): Promise<HostReviewModerationDetail> {
+		const rows: Array<
+			ReviewRow & {
+				reviewerName: string | null;
+				hiddenAt: Date | null;
+				firstHiddenAt: Date | null;
+				hiddenSource: ModerationHiddenSource | null;
+				moderationVerificationStatus: ModerationVerificationStatus;
+			}
+		> = await this.dataSource.query(
+			`SELECT r.id,
+			        r.trip_id AS "tripId",
+			        t.title AS "tripTitle",
+			        r.reviewer_id AS "reviewerId",
+			        u.full_name AS "reviewerName",
+			        r.host_id AS "hostId",
+			        r.rating,
+			        r.comment,
+			        r.images,
+			        r.revision,
+			        r.created_at AS "createdAt",
+			        r.moderation_status AS "moderationStatus",
+			        r.image_storage_state AS "imageStorageState",
+			        r.hidden_reason AS "hiddenReason",
+			        r.hidden_at AS "hiddenAt",
+			        r.first_hidden_at AS "firstHiddenAt",
+			        r.hidden_source AS "hiddenSource",
+			        r.moderation_verification_status AS "moderationVerificationStatus"
+			 FROM trip_reviews r
+			 INNER JOIN trips t ON t.id = r.trip_id
+			 LEFT JOIN users u ON u.id = r.reviewer_id
+			 WHERE r.id = $1`,
+			[reviewId]
+		);
+
+		if (!rows.length) {
+			throw new NotFoundException("Review not found");
+		}
+
+		const review = rows[0];
+		if (review.hostId !== hostId) {
+			throw new ForbiddenException("You are not authorized to moderate reviews for this trip");
+		}
+
+		const activeFlags: FlagRow[] = await this.dataSource.query(
+			`SELECT id,
+			        review_id AS "reviewId",
+			        flag_type AS "flagType",
+			        channel,
+			        detection_source AS "detectionSource",
+			        confidence,
+			        evidence,
+			        quote,
+			        target_image_index AS "targetImageIndex",
+			        created_at AS "createdAt"
+			 FROM trip_review_moderation_flags
+			 WHERE review_id = $1
+			   AND source_revision = $2
+			   AND lifecycle_status = 'active'
+			 ORDER BY confidence DESC NULLS FIRST, created_at ASC`,
+			[reviewId, review.revision]
+		);
+
+		const adminReports: Array<{ id: string }> = await this.dataSource.query(
+			`SELECT id
+			 FROM content_reports
+			 WHERE target_id = $1
+			   AND target_type IN ('trip_review', 'review')
+			   AND status = 'actioned'
+			 LIMIT 1`,
+			[reviewId]
+		);
+
+		const decisions: Array<{
+			id: string;
+			revision: number;
+			decision: HostModerationDecision;
+			reason: ModerationFlagType | null;
+			note: string | null;
+			createdAt: Date;
+		}> = await this.dataSource.query(
+			`SELECT id,
+			        revision,
+			        decision,
+			        reason,
+			        note,
+			        created_at AS "createdAt"
+			 FROM trip_review_moderation_decisions
+			 WHERE review_id = $1
+			 ORDER BY created_at DESC
+			 LIMIT 1`,
+			[reviewId]
+		);
+
+		return {
+			reviewId: review.id,
+			tripId: review.tripId,
+			tripTitle: review.tripTitle,
+			reviewerId: review.reviewerId,
+			reviewerName: review.reviewerName,
+			rating: review.rating,
+			comment: review.comment,
+			images: review.images ?? [],
+			sourceRevision: review.revision,
+			createdAt: review.createdAt,
+			moderationStatus: review.moderationStatus,
+			imageStorageState: review.imageStorageState,
+			hiddenReason: review.hiddenReason,
+			hiddenAt: review.hiddenAt,
+			firstHiddenAt: review.firstHiddenAt,
+			hiddenSource: review.hiddenSource,
+			moderationVerificationStatus: review.moderationVerificationStatus,
+			adminActioned: adminReports.length > 0,
+			latestDecision: decisions[0] ?? null,
+			activeFlags: activeFlags.map((flag) => ({
+				id: flag.id,
+				flagType: flag.flagType,
+				channel: flag.channel,
+				detectionSource: flag.detectionSource,
+				confidence: flag.confidence,
+				evidence: flag.evidence,
+				quote: flag.quote,
+				targetImageIndex: flag.targetImageIndex,
+				createdAt: flag.createdAt,
+			})),
+		};
 	}
 }

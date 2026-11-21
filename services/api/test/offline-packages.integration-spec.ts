@@ -1,8 +1,13 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { DataSource, type EntityManager } from "typeorm";
+import { CreateKnowledgeChunks1794100000000 } from "../src/migrations/1794100000000-CreateKnowledgeChunks";
 import { CreateOfflinePackages1794200000000 } from "../src/migrations/1794200000000-CreateOfflinePackages";
+import { CreatePackageActivationPolicy1795100000000 } from "../src/migrations/1795100000000-CreatePackageActivationPolicy";
+import { TrackOfflinePackageImpacts1796600000000 } from "../src/migrations/1796600000000-TrackOfflinePackageImpacts";
+import { ApproveSurvivalDocumentProcessing1796700000000 } from "../src/migrations/1796700000000-ApproveSurvivalDocumentProcessing";
+import { KnowledgeChunksRepository } from "../src/modules/knowledge-chunks/knowledge-chunks.repository";
 import { OfflinePackagesRepository } from "../src/modules/offline-packages/offline-packages.repository";
 import { OfflinePackagesService } from "../src/modules/offline-packages/offline-packages.service";
 import {
@@ -15,9 +20,11 @@ import {
 	type PackageSafetyInputs,
 } from "../src/modules/offline-packages/offline-packages.types";
 import { UnavailableOfflineSafetySources } from "../src/modules/offline-packages/offline-safety-sources";
+import { PackageActivationService } from "../src/modules/offline-packages/package-activation.service";
 import { PackageArtifactBuilder } from "../src/modules/offline-packages/package-artifact.builder";
 import { LocalPackageArtifactStorage } from "../src/modules/offline-packages/package-artifact.storage";
 import { PackageCoreReader } from "../src/modules/offline-packages/package-core.reader";
+import { UnavailablePackageFreshnessSource } from "../src/modules/offline-packages/package-freshness.source";
 import {
 	ApprovedGuidanceSelector,
 	EligibleHazardResolver,
@@ -65,7 +72,13 @@ describe("CTMS-052 PostgreSQL publication, fencing and immutable artifacts", () 
 			new ApprovedGuidanceSelector(),
 			new PackageEligibilityValidator(),
 			new PackageArtifactBuilder(),
-			storage
+			storage,
+			new PackageActivationService(
+				db,
+				new UnavailablePackageFreshnessSource(),
+				storage,
+				new PackageArtifactBuilder()
+			)
 		);
 	}
 	beforeAll(async () => {
@@ -80,6 +93,7 @@ describe("CTMS-052 PostgreSQL publication, fencing and immutable artifacts", () 
 		await assertSafeTestDatabase(db);
 		await db.query(`CREATE EXTENSION IF NOT EXISTS postgis; CREATE SCHEMA ${schema}`);
 		await db.query(`
+		 CREATE TABLE users(id uuid PRIMARY KEY);
 		 CREATE TABLE trekking_routes(id uuid PRIMARY KEY,route_geom geography(LineString,4326));
 		 CREATE TABLE trips(id uuid PRIMARY KEY,route_id uuid NOT NULL REFERENCES trekking_routes(id),status text NOT NULL,trip_type text NOT NULL,starts_at timestamptz NOT NULL,ends_at timestamptz NOT NULL);
 		 CREATE TABLE checkpoints(id uuid PRIMARY KEY,route_id uuid NOT NULL REFERENCES trekking_routes(id),name text,type text,location geography(Point,4326),radius_m integer,expected_arrival_offset integer,instructions text,route_position double precision);
@@ -89,6 +103,8 @@ describe("CTMS-052 PostgreSQL publication, fencing and immutable artifacts", () 
 		const runner = db.createQueryRunner();
 		try {
 			await new CreateOfflinePackages1794200000000().up(runner);
+			await new CreatePackageActivationPolicy1795100000000().up(runner);
+			await new TrackOfflinePackageImpacts1796600000000().up(runner);
 		} finally {
 			await runner.release();
 		}
@@ -153,10 +169,13 @@ describe("CTMS-052 PostgreSQL publication, fencing and immutable artifacts", () 
 		if (!job) throw new Error("Expected durable request");
 		return job;
 	}
-	async function updateSafety(change: (input: PackageSafetyInputs) => void): Promise<void> {
+	async function updateSafety(
+		change: (input: PackageSafetyInputs) => void,
+		manager = db.manager
+	): Promise<void> {
 		const input = fictionalPackageSafety();
 		change(input);
-		await db.query("UPDATE test_safety_revision SET inputs=$1::jsonb WHERE id=1", [
+		await manager.query("UPDATE test_safety_revision SET inputs=$1::jsonb WHERE id=1", [
 			JSON.stringify(input),
 		]);
 	}
@@ -177,9 +196,15 @@ describe("CTMS-052 PostgreSQL publication, fencing and immutable artifacts", () 
 		const runner = db.createQueryRunner();
 		try {
 			const migration = new CreateOfflinePackages1794200000000();
+			const impacts = new TrackOfflinePackageImpacts1796600000000();
+			const activation = new CreatePackageActivationPolicy1795100000000();
+			await impacts.down(runner);
+			await activation.down(runner);
 			await migration.down(runner);
 			await publish();
 			await migration.up(runner);
+			await activation.up(runner);
+			await impacts.up(runner);
 			expect((await claim()).trip_id).toBe(tripId);
 		} finally {
 			await runner.release();
@@ -253,7 +278,17 @@ describe("CTMS-052 PostgreSQL publication, fencing and immutable artifacts", () 
 		const impact = await service.requestImpact(tripId, "approved-guidance-2");
 		expect((await service.requestImpact(tripId, "approved-guidance-2")).id).toBe(impact.id);
 		await service.generate(await claim());
-		expect((await service.getReadyMetadata(tripId))?.packageVersion).toBe(2);
+		const replacement = await service.getReadyMetadata(tripId);
+		expect(replacement?.packageVersion).toBe(2);
+		expect(
+			await db.query(
+				`SELECT i.source_reference,r.package_id FROM offline_package_impacts i
+			 JOIN offline_package_jobs j ON j.id=i.job_id
+			 JOIN offline_package_requirements r ON r.trip_id=i.trip_id AND r.package_id=j.package_id
+			 WHERE i.trip_id=$1`,
+				[tripId]
+			)
+		).toEqual([{ source_reference: "approved-guidance-2", package_id: replacement?.id }]);
 		expect((await service.readArtifact(tripId, 1))?.equals(original as Buffer)).toBe(true);
 		await expect(
 			db.query("UPDATE offline_packages SET size_bytes=1 WHERE trip_id=$1", [tripId])
@@ -261,6 +296,191 @@ describe("CTMS-052 PostgreSQL publication, fencing and immutable artifacts", () 
 		await expect(
 			db.query("DELETE FROM offline_packages WHERE trip_id=$1", [tripId])
 		).rejects.toThrow("immutable");
+	});
+	it("captures committed core changes, ignores no-ops and reuses one job", async () => {
+		await publish();
+		await service.generate(await claim());
+		await db.query("UPDATE checkpoints SET instructions=instructions WHERE route_id=$1", [routeId]);
+		expect(await repo.pendingImpacts()).toEqual([]);
+		await expect(
+			db.transaction(async (m) => {
+				await m.query(
+					"UPDATE checkpoints SET instructions='Follow trail markers' WHERE route_id=$1",
+					[routeId]
+				);
+				throw new Error("rollback");
+			})
+		).rejects.toThrow("rollback");
+		expect(await repo.pendingImpacts()).toEqual([]);
+		await db.query("UPDATE checkpoints SET instructions='Follow trail markers' WHERE route_id=$1", [
+			routeId,
+		]);
+		expect(await repo.pendingImpacts()).toHaveLength(1);
+		await Promise.all([service.dispatchPendingImpacts(), service.dispatchPendingImpacts()]);
+		await service.generate(await claim());
+		expect(await repo.claim()).toBeNull();
+		expect((await service.getReadyMetadata(tripId))?.packageVersion).toBe(2);
+	});
+
+	it("leaves the old version intact when departure wins the publication race", async () => {
+		await publish();
+		await service.generate(await claim());
+		const original = await service.getReadyMetadata(tripId);
+		await db.query("UPDATE checkpoints SET instructions='Follow trail markers' WHERE route_id=$1", [
+			routeId,
+		]);
+		await service.dispatchPendingImpacts();
+		const replacementJob = await claim();
+		const put = storage.put.bind(storage);
+		jest.spyOn(storage, "put").mockImplementationOnce(async (key, bytes) => {
+			await put(key, bytes);
+			await db.query("UPDATE trips SET status='ongoing' WHERE id=$1", [tripId]);
+		});
+		await expect(service.generate(replacementJob)).rejects.toBeInstanceOf(PackageFailure);
+		expect(await service.getReadyMetadata(tripId)).toEqual(original);
+		expect(
+			await db.query("SELECT * FROM offline_package_requirements WHERE trip_id=$1", [tripId])
+		).toEqual([]);
+	});
+
+	it("defers chunk cleanup during package revalidation and preserves the published ZIP after cleanup", async () => {
+		// Use the real chunk schema and cleanup against the same private DB as the package worker.
+		await db.query(`
+			CREATE TABLE survival_documents(id uuid PRIMARY KEY, current_published_version_id uuid);
+			CREATE TABLE survival_document_versions(
+				id uuid PRIMARY KEY, document_id uuid NOT NULL REFERENCES survival_documents(id),
+				version_number integer NOT NULL, revision integer DEFAULT 1, status text NOT NULL,
+				metadata jsonb NOT NULL, rights jsonb NOT NULL,
+				file_ref text NOT NULL, original_filename text DEFAULT 'fixture.pdf',
+				checksum text NOT NULL, size integer DEFAULT 100, content_type text DEFAULT 'application/pdf',
+				original_version_id uuid, created_by text DEFAULT 'fixture-admin', created_at timestamptz DEFAULT now(),
+				reviewed_by text, reviewed_at timestamptz, published_by text DEFAULT 'fixture-admin',
+				published_at timestamptz DEFAULT now(), reason text, UNIQUE(document_id,id)
+			);
+			CREATE TABLE survival_document_outbox(
+				id uuid PRIMARY KEY,
+				event_type varchar(40) NOT NULL
+				  CHECK(event_type IN ('published_version_changed','source_unavailable','document_deleted'))
+			);
+		`);
+		const runner = db.createQueryRunner();
+		try {
+			await new CreateKnowledgeChunks1794100000000().up(runner);
+			await new ApproveSurvivalDocumentProcessing1796700000000().up(runner);
+		} finally {
+			await runner.release();
+		}
+		const documentId = randomUUID();
+		await db.query("INSERT INTO survival_documents(id) VALUES($1)", [documentId]);
+		async function activate(versionNumber: number) {
+			const versionId = randomUUID();
+			const setId = randomUUID();
+			const chunkId = randomUUID();
+			const input = fictionalPackageSafety();
+			const unit = input.guidance[0];
+			const source = { ...unit.source, id: versionId, documentId, versionNumber };
+			await db.transaction(async (manager) => {
+				await manager.query("SELECT id FROM survival_documents WHERE id=$1 FOR UPDATE", [
+					documentId,
+				]);
+				await manager.query(
+					"UPDATE survival_document_versions SET status='SUPERSEDED' WHERE document_id=$1",
+					[documentId]
+				);
+				await manager.query(
+					`
+					INSERT INTO survival_document_versions(id,document_id,version_number,status,metadata,rights,file_ref,checksum)
+					VALUES($1,$2,$3,'PUBLISHED',$4,$5,$6,$7)`,
+					[
+						versionId,
+						documentId,
+						versionNumber,
+						source.metadata,
+						source.rights,
+						source.fileRef,
+						source.checksum,
+					]
+				);
+				await manager.query(
+					`
+					INSERT INTO knowledge_chunk_sets(
+						id,document_id,document_version_id,source_version,checksum,locale,configuration,config_hash,status,chunk_count,completed_at
+					) VALUES($1,$2,$3,$4,$5,$6,'{}','fixture','READY',1,now()-interval '8 days')`,
+					[setId, documentId, versionId, versionNumber, source.checksum, source.metadata.locale]
+				);
+				await manager.query(
+					`
+					INSERT INTO knowledge_chunks(id,chunk_set_id,document_version_id,source_version,locale,chunk_index,content,embedding_text,metadata,embedding)
+					VALUES($1,$2,$3,$4,$5,0,$6,$6,'{}',ARRAY[1.0])`,
+					[chunkId, setId, versionId, versionNumber, source.metadata.locale, unit.content]
+				);
+				await manager.query(
+					"UPDATE survival_documents SET current_published_version_id=$2 WHERE id=$1",
+					[documentId, versionId]
+				);
+				await manager.query(
+					`
+					INSERT INTO knowledge_chunk_publications(document_id,chunk_set_id) VALUES($1,$2)
+					ON CONFLICT(document_id) DO UPDATE SET chunk_set_id=excluded.chunk_set_id`,
+					[documentId, setId]
+				);
+				await updateSafety((safety) => {
+					safety.revision = versionId;
+					safety.guidance[0] = {
+						...unit,
+						source,
+						currentPublishedVersionId: versionId,
+						currentChunkSetId: setId,
+						chunkSet: { ...unit.chunkSet, id: setId, documentVersionId: versionId },
+						chunkIds: [chunkId],
+						pageRefs: [{ ...unit.pageRefs[0], chunkId }],
+					};
+				}, manager);
+			});
+			return { setId, chunkId };
+		}
+		const knowledge = new KnowledgeChunksRepository(db);
+		const first = await activate(1);
+		await publish();
+		await service.generate(await claim());
+		const original = await service.readArtifact(tripId, 1);
+		const originalHash = (await service.getReadyMetadata(tripId, 1))?.sha256;
+		expect(original).toBeInstanceOf(Buffer);
+		const second = await activate(2);
+		class LockingSources extends FictionalDatabaseSources {
+			override async read(manager: EntityManager, core: PackageCore, lock: boolean) {
+				if (lock)
+					await manager.query("SELECT id FROM survival_documents WHERE id=$1 FOR SHARE", [
+						documentId,
+					]);
+				const inputs = await super.read(manager, core, lock);
+				const rows: Array<{ id: string }> = await manager.query(
+					"SELECT id FROM knowledge_chunks WHERE id=$1 AND chunk_set_id=$2",
+					[second.chunkId, second.setId]
+				);
+				expect(rows).toHaveLength(1);
+				if (lock)
+					expect(await knowledge.cleanupHistory(7)).toEqual({
+						deleted: 0,
+						retainedByDependency: 0,
+					});
+				return inputs;
+			}
+		}
+		await service.requestImpact(tripId, "new-survival-version");
+		await generator(new LockingSources()).generate(await claim());
+		expect((await service.getManifest(tripId, 2))?.guidance[0].chunkSetId).toBe(second.setId);
+		expect(await knowledge.cleanupHistory(7)).toEqual({ deleted: 1, retainedByDependency: 0 });
+		expect(await db.query("SELECT id FROM knowledge_chunks WHERE id=$1", [first.chunkId])).toEqual(
+			[]
+		);
+		const retained = await service.readArtifact(tripId, 1);
+		expect(retained).toEqual(original);
+		expect(
+			createHash("sha256")
+				.update(retained as Buffer)
+				.digest("hex")
+		).toBe(originalHash);
 	});
 	it("rejects source insert/withdrawal during artifact construction", async () => {
 		await publish();

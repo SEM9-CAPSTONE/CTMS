@@ -3,6 +3,7 @@ import type { PaymentStatus } from "../types";
 export interface RefundStateBadgeProps {
 	status: PaymentStatus | "blocked" | "awaiting_resolution";
 	className?: string;
+	reviewStatus?: "pending_review" | "approved" | "rejected" | null;
 }
 
 const BADGE_CONFIG = {
@@ -28,15 +29,19 @@ const BADGE_CONFIG = {
 	},
 } as const;
 
-export function RefundStateBadge({ status, className = "" }: RefundStateBadgeProps) {
+export function RefundStateBadge({ status, reviewStatus, className = "" }: RefundStateBadgeProps) {
 	const config = BADGE_CONFIG[status] ?? BADGE_CONFIG.pending;
+	let label: string = config.label;
+	if (status === "pending" && reviewStatus === "pending_review") label = "Chờ duyệt";
+	if (status === "pending" && reviewStatus === "approved") label = "Đã duyệt, chờ chuyển tiền";
+	if (reviewStatus === "rejected") label = "Đã từ chối";
 
 	return (
 		<span
 			data-testid={`refund-status-badge-${status}`}
 			className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${config.classes} ${className}`}
 		>
-			{config.label}
+			{label}
 		</span>
 	);
 }

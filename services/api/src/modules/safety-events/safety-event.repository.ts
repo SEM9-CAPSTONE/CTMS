@@ -55,6 +55,29 @@ export class SafetyEventRepository {
 		return rows[0] ?? null;
 	}
 
+	async lockedPackageId(tripId: string): Promise<string | null> {
+		const [row]: Array<{ package_id: string }> = await this.dataSource.query(
+			"SELECT package_id FROM offline_package_departures WHERE trip_id=$1 AND locked_at IS NOT NULL",
+			[tripId]
+		);
+		return row?.package_id ?? null;
+	}
+
+	async findPackageRoutes(tripId: string, versions: string[]) {
+		const rows: Array<{ packageVersion: string; routeId: string; routeVersion: string }> =
+			await this.dataSource.query(
+				`SELECT p.package_version::text AS "packageVersion",
+				        p.manifest #>> '{route,routeId}' AS "routeId",
+				        p.manifest #>> '{route,fingerprint}' AS "routeVersion"
+				 FROM offline_packages p
+				 LEFT JOIN offline_package_departures d ON d.trip_id=p.trip_id AND d.locked_at IS NOT NULL
+				 WHERE p.trip_id=$1 AND p.package_version::text=ANY($2::text[])
+				 AND (d.package_id IS NULL OR d.package_id=p.id)`,
+				[tripId, versions]
+			);
+		return new Map(rows.map((row) => [row.packageVersion, row]));
+	}
+
 	/**
 	 * Inserts all events and their audit entries in one statement and returns the ids
 	 * actually created. `ON CONFLICT DO NOTHING` makes a repeated or concurrent upload of

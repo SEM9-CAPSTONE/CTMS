@@ -21,13 +21,13 @@ Out of scope: PDF UI/processing/embedding, RAG/chatbot, government ingestion/cra
 | GOVERNMENT hazard | Normalized source ID/version/reference, original validFrom/validUntil, active lifecycle, source verification, spatial match and a complete available feed run | 010 / safety ingestion |
 | FIELD_VERIFIED hazard | Above provenance plus independent authorized Host decision, decision version/evidence/time and valid expiry; rejected/revoked/unverified excluded | Proposed verification + promotion tasks |
 | HOST_DEFINED / FIELD_OBSERVATION / RESOURCE / historical | Not eligible as verified package hazard; preview behavior retained | Existing Route Safety |
-| Guidance | Current PUBLISHED exact version with recorded OFFLINE rights, READY chunk set, complete steps/warnings and pages, approved applicability/taxonomy and complete coverage | 050/051 + proposed guidance approval task |
+| Guidance | Current PUBLISHED version (BR-227) that meets source eligibility (BR-484, BR-535 through BR-537) and offline source configuration (BR-546), active READY chunk set with matching checksum, complete steps/warnings and pages, approved applicability/taxonomy and complete coverage | 050/051 + proposed guidance approval task |
 
 Incident `resolved/closed` never implies Host verification. Official successful EMPTY means NO_ACTIVE_ALERT at checkedAt, not SAFE; unavailable/partial/stale is UNKNOWN/STALE and blocks a required source. No fetchedAt-derived renewal of provider expiry. Policy filters run before any optional retrieval/ranking. No AI similarity or PDF classification is approval. UNKNOWN context is explicit; proximity to water cannot establish river crossing. Baseline/condition/hazard coverage topics and mandatory evidence come from a versioned approved upstream policy, never guessed by the generator.
 
 ### Gates and state
 
-G01 published + valid associated route; G02 complete internally consistent monitored checkpoints and required waypoints; G03 required hazard feed availability/validity; G04 OFFLINE rights + approved applicability + complete guidance coverage; G05 no personal medical/reporting data in shared payload; G06 coherent source versions revalidated before commit; G07 complete artifact, schema and hashes verified in private storage before READY.
+G01 published + valid associated route; G02 complete internally consistent monitored checkpoints and required waypoints; G03 required hazard feed availability/validity; G04 eligible current source + active READY set + approved applicability + complete guidance coverage; G05 no personal medical/reporting data in shared payload; G06 coherent source versions revalidated before commit; G07 complete artifact, schema and hashes verified in private storage before READY.
 
 Job lifecycle: PENDING → GENERATING → READY or BLOCKED / RETRYABLE_FAILED / FAILED. Retryable technical/source-race failures use bounded attempts/backoff and fenced renewable leases; business blockers retain machine-readable reasons and await an upstream-approved retry/re-evaluation. No automatic source-impact watcher is included. An initial publication request is idempotent; 119 may request re-evaluation with a stable impact ID. Generation identity includes Trip/core/eligible-source/approval/coverage-policy fingerprints, excluding mutable collection times. Concurrent identical inputs yield at most one artifact version; differing inputs never mix. Failure cannot publish READY. READY artifacts cannot be updated/deleted in place.
 
@@ -47,7 +47,7 @@ Implemented schema: migration `1794200000000-CreateOfflinePackages` creates `off
 | --- | --- | --- |
 | 01–04 | Published complete Trip generates; draft/pending or missing/cross-route required data blocks | Unit + PostgreSQL integration |
 | 05–09 | Official checked EMPTY preserved; unavailable/partial/stale blocks; explicit valid field decision accepted; resolved/unverified/rejected/revoked/Host-defined excluded | Policy + source contracts |
-| 10–11 | Approved applicable complete guidance selected; forest does not imply diving/crossing; UNKNOWN, missing coverage, wrong rights/version/READY state blocks | Policy unit |
+| 10–11 | Approved applicable complete guidance selected. UNKNOWN, missing coverage, ineligible source, wrong version, or inactive/non-READY set blocks. Forest does not imply diving/crossing. | Policy unit |
 | 12–14 | Source change during build aborts; hash mismatch fails; vN+1 preserves vN; retries/concurrent publication create no duplicates | PostgreSQL transaction/concurrency + storage |
 | 15 | No medical data, raw reporter IDs or arbitrary Trip metadata in shared artifact; existing consent obligations retained | Privacy projection test |
 | 16 | Trigger rollback, restart/lease recovery, bounded retry, storage/commit failure, stable archive/manifest | Integration + focused regression checkpoint |
@@ -103,6 +103,7 @@ Required Route/Trip/safety sources must exist.
 | BR-230 | When sharing_consent is withdrawn, the server must immediately terminate access to medical data. Any downloaded Offline Safety Package containing medical data must be marked invalid/outdated for the sensitive portion; at the next sync/connectivity opportunity, the client must purge or lock that medical data and must no longer treat the local copy as authorized for use. |
 | BR-365 | An Offline Safety Package used for safety must contain all data needed for local detection within the enabled feature scope, including at minimum the applicable Route geometry, monitored Checkpoints, required hazard/safety metadata, and package metadata/version. The client must not depend on the server to read this data while offline.                                    |
 | BR-428 | Package generation must accurately snapshot or reference the versions of all required authoritative inputs. Storing only a generic package version is insufficient if it does not allow the exact Route, Checkpoint, and hazard state included in the package to be identified for audit.                                                                                           |
+| BR-546 | Offline guidance can use only sources with a configured exact HTTPS hostname or PDF SHA-256. |
 | BR-212 | Any change to a Business Rule, enum, state transition, or API contract must be reflected in the specification, test cases, and data documentation before the work is considered Done.                                                                                                                                                                                               |
 | BR-213 | Every Business Rule must have at least one valid-path test and one violation-path test. Concurrency, idempotency, and transaction rules require integration or E2E coverage.                                                                                                                                                                                                        |
 
@@ -149,6 +150,10 @@ Sensitive information cannot remain authorized merely because it was downloaded 
 
 ## 9. API / Integration Contract
 
+CTMS-119 reuses the existing worker and final integrity/source gates. For a traced material
+replacement, job completion and required-version promotion share the READY transaction.
+The initial publication trigger continues to enqueue the first version.
+
 TBD — Technical Design.
 
 ## 10. Error & Edge Cases
@@ -165,6 +170,7 @@ TBD — Technical Design.
 
 | Scenario | Expected |
 | --- | --- |
+| Configured and unlisted sources with matching READY knowledge and approved guidance (BR-546) | Eligible configured guidance can be packaged. Unlisted guidance is excluded. |
 | Published Trip | Package can be generated |
 | Non-published Trip | Rejected |
 | Inspect package | Required safety components present |

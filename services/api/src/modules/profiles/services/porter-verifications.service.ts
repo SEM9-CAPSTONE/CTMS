@@ -2,6 +2,7 @@ import {
 	BadRequestException,
 	ConflictException,
 	ForbiddenException,
+	Inject,
 	Injectable,
 	NotFoundException,
 	UnprocessableEntityException,
@@ -11,16 +12,18 @@ import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs runtime metadata
 import { UploadsService } from "../../uploads/uploads.service";
-import { UserRole, UserStatus } from "../../users/entities/user.entity";
+import { type User, UserRole, UserStatus } from "../../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs runtime metadata
 import { UsersRepository } from "../../users/users.repository";
 import type {
 	AdminPorterVerificationDetailDto,
+	ApprovePorterVerificationDto,
 	ListPorterVerificationsQueryDto,
 	PaginatedPorterVerificationsResponseDto,
 	RejectPorterVerificationDto,
 } from "../dto/admin-porter-verification.dto";
 import {
+	type GuideCardDto,
 	type PorterVerificationDocumentDto,
 	type PorterVerificationResponseDto,
 	defaultPorterVerificationResponse,
@@ -31,10 +34,15 @@ import {
 	type PorterVerification,
 	PorterVerificationStatus,
 } from "../entities/porter-verification.entity";
+import {
+	GUIDE_CARD_EXTRACTION_PROVIDER,
+	type GuideCardExtractionProvider,
+} from "../providers/guide-card-extraction.provider";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs runtime metadata
 import { PorterVerificationDocumentsRepository } from "../repositories/porter-verification-documents.repository";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs runtime metadata
 import { PorterVerificationsRepository } from "../repositories/porter-verifications.repository";
+import { autoRejectionReason, checkGuideCard, vietnamToday } from "../utils/guide-card-check";
 
 export const MAX_PORTER_VERIFICATION_DOCUMENTS = 5;
 export const PORTER_VERIFICATION_UPLOAD_FOLDER = "porter-verifications";
@@ -46,6 +54,10 @@ const DOCUMENT_REQUIRED = "At least one guide certificate document is required";
 const NOT_SUBMITTABLE =
 	"Verification can only be submitted while documents are pending or rejected";
 const NOT_REVIEWABLE = "Only verifications pending review can be approved or rejected";
+const GUIDE_CARD_REQUIRED = "Vui lòng nhập thông tin thẻ hướng dẫn viên trước khi gửi duyệt";
+const GUIDE_CARD_EXPIRED = "Thẻ hướng dẫn viên đã hết hạn";
+const REGISTRY_CHECK_REQUIRED =
+	"Vui lòng xác nhận đã đối chiếu thẻ trên huongdanvien.vn trước khi duyệt";
 
 const EDITABLE_STATUSES = new Set([
 	PorterVerificationStatus.PENDING_DOCUMENTS,
@@ -59,7 +71,9 @@ export class PorterVerificationsService {
 		private readonly documentsRepository: PorterVerificationDocumentsRepository,
 		private readonly usersRepository: UsersRepository,
 		private readonly uploadsService: UploadsService,
-		private readonly dataSource: DataSource
+		private readonly dataSource: DataSource,
+		@Inject(GUIDE_CARD_EXTRACTION_PROVIDER)
+		private readonly cardReader: GuideCardExtractionProvider
 	) {}
 
 	async getMine(porterId: string): Promise<PorterVerificationResponseDto> {
@@ -96,6 +110,8 @@ export class PorterVerificationsService {
 			file,
 			PORTER_VERIFICATION_UPLOAD_FOLDER
 		);
+		// Read the card photo now, while the bytes are in memory; PDFs and failures are just "not read".
+		const extraction = await this.cardReader.extract(file.buffer, file.mimetype);
 
 		return this.dataSource.transaction(async (manager) => {
 			const verifications = manager.withRepository(this.verificationsRepository);
@@ -115,6 +131,7 @@ export class PorterVerificationsService {
 					originalName: sanitizeFileName(file.originalname),
 					mimeType: file.mimetype,
 					sizeBytes: file.size,
+					extraction,
 				})
 			);
 			return toPorterVerificationDocumentDto(saved);
@@ -135,9 +152,45 @@ export class PorterVerificationsService {
 		});
 	}
 
-	async submit(porterId: string): Promise<PorterVerificationResponseDto> {
+	/** The Porter declares the tour-guide card (only while documents can still be edited). */
+	async updateGuideCard(
+		porterId: string,
+		dto: GuideCardDto
+	): Promise<PorterVerificationResponseDto> {
+		if (dto.expiresOn < vietnamToday()) throw new UnprocessableEntityException(GUIDE_CARD_EXPIRED);
 		return this.dataSource.transaction(async (manager) => {
 			await this.requireActivePorter(porterId, manager.withRepository(this.usersRepository), true);
+			const verifications = manager.withRepository(this.verificationsRepository);
+			await verifications.ensureExists(porterId);
+			const verification = await verifications.findByPorterIdForUpdate(porterId);
+			if (!verification) throw new NotFoundException("Porter verification not found");
+			this.assertEditable(verification);
+			const before = snapshot(verification);
+			verification.guideCardType = dto.cardType;
+			verification.guideCardNumber = dto.cardNumber;
+			verification.guideCardExpiresOn = dto.expiresOn;
+			verification.version += 1;
+			const saved = await verifications.save(verification);
+			await writeAudit(manager, {
+				actorId: porterId,
+				action: "porter_verification.card_updated",
+				porterId,
+				before,
+				after: snapshot(saved),
+				reason: null,
+			});
+			const files = await manager.withRepository(this.documentsRepository).findByPorterId(porterId);
+			return toPorterVerificationResponse(saved, files);
+		});
+	}
+
+	async submit(porterId: string): Promise<PorterVerificationResponseDto> {
+		return this.dataSource.transaction(async (manager) => {
+			const porter = await this.requireActivePorter(
+				porterId,
+				manager.withRepository(this.usersRepository),
+				true
+			);
 			const verifications = manager.withRepository(this.verificationsRepository);
 			const documents = manager.withRepository(this.documentsRepository);
 			const verification = await verifications.findByPorterIdForUpdate(porterId);
@@ -148,14 +201,43 @@ export class PorterVerificationsService {
 			if (!verification || files.length === 0) {
 				throw new UnprocessableEntityException(DOCUMENT_REQUIRED);
 			}
+			const { guideCardType, guideCardNumber, guideCardExpiresOn } = verification;
+			if (!guideCardType || !guideCardNumber || !guideCardExpiresOn) {
+				throw new UnprocessableEntityException(GUIDE_CARD_REQUIRED);
+			}
+			const today = vietnamToday();
+			if (guideCardExpiresOn < today) throw new UnprocessableEntityException(GUIDE_CARD_EXPIRED);
 
+			const check = checkGuideCard({
+				declaration: {
+					cardType: guideCardType,
+					cardNumber: guideCardNumber,
+					expiresOn: guideCardExpiresOn,
+				},
+				accountName: porter.fullName ?? null,
+				documents: files.map((file) => ({ id: file.id, extraction: file.extraction ?? null })),
+				today,
+			});
+			const now = await databaseNow(manager);
 			const before = snapshot(verification);
-			verification.status = PorterVerificationStatus.PENDING_REVIEW;
-			verification.submittedAt = await databaseNow(manager);
-			verification.reviewedBy = null;
-			verification.reviewedAt = null;
-			verification.rejectionReason = null;
+			verification.submittedAt = now;
+			verification.cardCheck = check;
+			verification.cardCheckedAt = now;
+			verification.registryCheckedBy = null;
+			verification.registryCheckedAt = null;
 			verification.version += 1;
+			if (check.autoRejected) {
+				// An expired or site-only card on the photo is rejected by the system itself.
+				verification.status = PorterVerificationStatus.REJECTED;
+				verification.reviewedBy = null;
+				verification.reviewedAt = now;
+				verification.rejectionReason = autoRejectionReason(check);
+			} else {
+				verification.status = PorterVerificationStatus.PENDING_REVIEW;
+				verification.reviewedBy = null;
+				verification.reviewedAt = null;
+				verification.rejectionReason = null;
+			}
 			const saved = await verifications.save(verification);
 			await writeAudit(manager, {
 				actorId: porterId,
@@ -165,6 +247,16 @@ export class PorterVerificationsService {
 				after: { ...snapshot(saved), documentCount: files.length },
 				reason: null,
 			});
+			if (check.autoRejected) {
+				await writeAudit(manager, {
+					actorId: null,
+					action: "porter_verification.auto_rejected",
+					porterId,
+					before: snapshot(saved),
+					after: { ...snapshot(saved), labels: check.labels },
+					reason: saved.rejectionReason,
+				});
+			}
 			return toPorterVerificationResponse(saved, files);
 		});
 	}
@@ -203,12 +295,23 @@ export class PorterVerificationsService {
 			email: contact.email,
 			phone: contact.phone,
 			reviewedBy: verification?.reviewedBy ?? null,
+			cardCheck: verification?.cardCheck ?? null,
+			cardCheckedAt: verification?.cardCheckedAt ?? null,
+			registryCheckedBy: verification?.registryCheckedBy ?? null,
+			registryCheckedAt: verification?.registryCheckedAt ?? null,
 			experienceYears: contact.experienceYears,
 			certifications: contact.certifications,
 		};
 	}
 
-	async approve(adminId: string, porterId: string): Promise<AdminPorterVerificationDetailDto> {
+	async approve(
+		adminId: string,
+		porterId: string,
+		dto: ApprovePorterVerificationDto
+	): Promise<AdminPorterVerificationDetailDto> {
+		if (dto.officialRegistryChecked !== true) {
+			throw new UnprocessableEntityException(REGISTRY_CHECK_REQUIRED);
+		}
 		await this.review(adminId, porterId, PorterVerificationStatus.APPROVED, null);
 		return this.getForAdmin(porterId);
 	}
@@ -237,9 +340,14 @@ export class PorterVerificationsService {
 			}
 
 			const before = snapshot(verification);
+			const now = await databaseNow(manager);
 			verification.status = status;
 			verification.reviewedBy = adminId;
-			verification.reviewedAt = await databaseNow(manager);
+			verification.reviewedAt = now;
+			if (status === PorterVerificationStatus.APPROVED) {
+				verification.registryCheckedBy = adminId;
+				verification.registryCheckedAt = now;
+			}
 			verification.rejectionReason = reason;
 			verification.version += 1;
 			const saved = await verifications.save(verification);
@@ -267,7 +375,7 @@ export class PorterVerificationsService {
 		porterId: string,
 		repository: UsersRepository,
 		lock = false
-	): Promise<void> {
+	): Promise<User> {
 		const user = lock
 			? await repository.findOneWithRolesByIdForUpdate(porterId)
 			: await repository.findOneWithRolesById(porterId);
@@ -278,6 +386,7 @@ export class PorterVerificationsService {
 		) {
 			throw new ForbiddenException(ACTIVE_PORTER_REQUIRED);
 		}
+		return user;
 	}
 }
 
@@ -289,13 +398,18 @@ function snapshot(verification: PorterVerification): Record<string, unknown> {
 		reviewedAt: verification.reviewedAt,
 		rejectionReason: verification.rejectionReason,
 		version: verification.version,
+		guideCardType: verification.guideCardType,
+		guideCardNumber: verification.guideCardNumber,
+		guideCardExpiresOn: verification.guideCardExpiresOn,
+		registryCheckedBy: verification.registryCheckedBy,
 	};
 }
 
 async function writeAudit(
 	manager: EntityManager,
 	input: {
-		actorId: string;
+		/** Null when the system acted on its own (auto-rejection). */
+		actorId: string | null;
 		action: string;
 		porterId: string;
 		before: Record<string, unknown>;

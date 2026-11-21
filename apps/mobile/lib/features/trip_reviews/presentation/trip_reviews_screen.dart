@@ -6,6 +6,7 @@ import '../../../core/api/api_exception.dart';
 import '../data/reviews_api.dart';
 import '../domain/review_models.dart';
 import 'review_form.dart';
+import '../../porter_reviews/presentation/porter_review_entry_button.dart';
 
 class TripReviewsScreen extends ConsumerStatefulWidget {
   const TripReviewsScreen({super.key, required this.booking});
@@ -23,6 +24,7 @@ class _TripReviewsScreenState extends ConsumerState<TripReviewsScreen>
   bool stale = false;
   final elapsed = Stopwatch();
   Timer? timer;
+  Timer? _moderationPollTimer;
   final generations = <ReviewTarget, int>{};
   @override
   void initState() {
@@ -37,8 +39,49 @@ class _TripReviewsScreenState extends ConsumerState<TripReviewsScreen>
   @override
   void dispose() {
     timer?.cancel();
+    _moderationPollTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  void _pollModerationResult(ReviewTarget target, String previousStatus) {
+    _moderationPollTimer?.cancel();
+    var attempts = 0;
+    _moderationPollTimer = Timer.periodic(const Duration(seconds: 3), (t) async {
+      attempts += 1;
+      if (!mounted || attempts > 5) {
+        t.cancel();
+        return;
+      }
+      try {
+        final next = await ref
+            .read(reviewsApiProvider)
+            .context(widget.booking.id);
+        if (!mounted) return;
+        final updated = next.review(target);
+        final nextStatus = updated?.moderationStatus ?? 'visible';
+        if (nextStatus != previousStatus) {
+          t.cancel();
+          setState(() {
+            data = next;
+            elapsed.reset();
+            elapsed.start();
+            generations[target] = (generations[target] ?? 0) + 1;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                nextStatus == 'hidden'
+                    ? 'Đánh giá của bạn đã bị hệ thống tự động ẩn do vi phạm tiêu chuẩn cộng đồng.'
+                    : 'Đánh giá của bạn đã đạt kiểm duyệt và hiển thị trở lại.',
+              ),
+            ),
+          );
+        }
+      } catch (_) {
+        // Silent background poll; user can still refresh manually.
+      }
+    });
   }
 
   @override
@@ -127,10 +170,12 @@ class _TripReviewsScreenState extends ConsumerState<TripReviewsScreen>
       final refreshed = await load();
       if (!mounted) return false;
       if (refreshed) {
+        final currentStatus = data?.review(target)?.moderationStatus ?? 'visible';
         setState(() => generations[target] = (generations[target] ?? 0) + 1);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Đánh giá đã được máy chủ xác nhận.')),
         );
+        _pollModerationResult(target, currentStatus);
       } else {
         setState(
           () => error =
@@ -173,6 +218,11 @@ class _TripReviewsScreenState extends ConsumerState<TripReviewsScreen>
                 const SizedBox(height: 8),
                 if (widget.booking.hostName != null)
                   Text('Host: ${widget.booking.hostName}'),
+                const SizedBox(height: 16),
+                PorterReviewEntryButton(
+                  bookingId: widget.booking.id,
+                  tripTitle: widget.booking.title,
+                ),
                 const SizedBox(height: 16),
                 if (loading) const LinearProgressIndicator(),
                 if (error != null)

@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { ReviewReputationDto } from "../../review-reputation/review-reputation.dto";
 import { TrekkingRouteDifficulty } from "../../trekking-routes/entities/trekking-route.entity";
 import { RiskLevel } from "../../weather/entities/weather-risk-assessment.entity";
 import type { WaypointType } from "../entities/trip-waypoint.entity";
@@ -218,12 +219,30 @@ export class TripRegistrationRiskResponseDto {
 	recommendations!: string[];
 }
 
+/** CTMS-110 / BR-319. Area snapshot stored on the Trip. */
+export class TripAreaDto {
+	@ApiProperty({ example: "DNG-SON-TRA" })
+	code!: string;
+
+	@ApiProperty({ example: "Sơn Trà" })
+	name!: string;
+
+	@ApiProperty({ example: "DNG" })
+	provinceCode!: string;
+
+	@ApiProperty({ example: "Đà Nẵng" })
+	provinceName!: string;
+}
+
 export class TripResponseDto {
 	@ApiProperty()
 	id!: string;
 
 	@ApiProperty()
 	hostId!: string;
+
+	@ApiPropertyOptional({ type: ReviewReputationDto })
+	hostReputation?: ReviewReputationDto;
 
 	@ApiPropertyOptional({ type: TripHostDto, nullable: true })
 	host?: TripHostDto | null;
@@ -296,6 +315,9 @@ export class TripResponseDto {
 
 	@ApiPropertyOptional({ nullable: true, description: "Set only when status is 'cancelled'" })
 	cancelledAt!: Date | null;
+
+	@ApiPropertyOptional({ type: TripAreaDto, nullable: true })
+	area?: TripAreaDto | null;
 
 	@ApiPropertyOptional({ enum: TrekkingRouteDifficulty, nullable: true })
 	difficulty?: TrekkingRouteDifficulty | null;

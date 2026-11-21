@@ -124,7 +124,7 @@ class OfflineMapController extends ChangeNotifier {
       await reloadPackage();
       if (_disposed) return;
       _startStaleTicker();
-      if (gps != null) {
+      if (gps != null && (gps!.isTracking || gps!.lastSample != null)) {
         _onGpsChanged();
       } else if (locationSource != null) {
         await refreshLocation();
@@ -258,6 +258,10 @@ class OfflineMapController extends ChangeNotifier {
   /// Lắng nghe cập nhật từ [GpsTrackingController] khi chuyến đi đang bật tracking.
   void _onGpsChanged() {
     if (_disposed || gps == null) return;
+    if (!gps!.isTracking && gps!.lastSample == null && locationSource != null) {
+      unawaited(refreshLocation());
+      return;
+    }
 
     final gpsStatus = gps!.status;
     switch (gpsStatus) {

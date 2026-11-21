@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import { Test } from "@nestjs/testing";
 import { DataSource } from "typeorm";
+import { InAppNotificationsService } from "../../in-app-notifications/in-app-notifications.service";
 import { EventsGateway } from "../../realtime/events.gateway";
 import { TripWeatherForecastService } from "../../weather/services/trip-weather-forecast.service";
 import { CheckpointVisitsRepository } from "../repositories/checkpoint-visits.repository";
@@ -17,6 +18,7 @@ describe("TripsService dependency injection", () => {
 			CheckpointVisitsRepository,
 			TripImagesService,
 			TripWeatherForecastService,
+			InAppNotificationsService,
 		]);
 		const module = await Test.createTestingModule({
 			providers: [
@@ -27,6 +29,7 @@ describe("TripsService dependency injection", () => {
 				{ provide: CheckpointVisitsRepository, useValue: {} },
 				{ provide: TripImagesService, useValue: {} },
 				{ provide: TripWeatherForecastService, useValue: {} },
+				{ provide: InAppNotificationsService, useValue: {} },
 			],
 		}).compile();
 		expect(module.get(TripsService)).toBeInstanceOf(TripsService);

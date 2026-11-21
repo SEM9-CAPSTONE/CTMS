@@ -9,6 +9,7 @@ import {
 	formatAgo,
 	formatClock,
 	formatCoordinates,
+	formatOffRouteLabel,
 	sortMembers,
 } from "../member-locations.utils";
 import type { MemberLocationsService } from "../services/member-locations.service";
@@ -75,7 +76,9 @@ function MemberRow({
 			{(left || offRoute || gpsWeak || behindView) && (
 				<div className="flex flex-wrap gap-1.5">
 					{left && <StatusBadge tone="neutral">Đã rời đoàn</StatusBadge>}
-					{offRoute && <StatusBadge tone="danger">Lệch tuyến</StatusBadge>}
+					{offRoute && (
+						<StatusBadge tone="danger">{formatOffRouteLabel(member.safety.route)}</StatusBadge>
+					)}
 					{gpsWeak && <StatusBadge tone="warning">GPS yếu</StatusBadge>}
 					{behindView && (
 						<StatusBadge tone={behindView.tone}>
@@ -140,7 +143,6 @@ export function MemberLastLocationsCard({
 	const query = useMemberLocations(tripId, service);
 	const current = useNow(now);
 	const data = query.data;
-	const minutes = data ? Math.max(1, Math.round(data.freshnessMaxAgeSeconds / 60)) : null;
 
 	return (
 		<section
@@ -149,13 +151,7 @@ export function MemberLastLocationsCard({
 			className="space-y-4 rounded-3xl border border-[#dfe8df] bg-white p-6 shadow-sm"
 		>
 			<div className="flex flex-wrap items-start justify-between gap-3">
-				<div>
-					<h3 className="font-extrabold text-[#10221b]">Vị trí đồng bộ gần nhất</h3>
-					<p className="mt-1 text-xs text-[#627769]">
-						Vị trí server đã nhận gần nhất, không phải vị trí trực tiếp.
-						{minutes ? ` "Mới" là vị trí ghi trong ${minutes} phút gần đây.` : ""}
-					</p>
-				</div>
+				<h3 className="font-extrabold text-[#10221b]">Vị trí đồng bộ gần nhất</h3>
 				<Button
 					size="sm"
 					variant="outline"
@@ -196,9 +192,7 @@ export function MemberLastLocationsCard({
 							/>
 						))}
 					</ul>
-					<p className="text-[11px] text-[#7b8c82]">
-						Cập nhật lúc {formatClock(data.generatedAt)} · tự làm mới mỗi phút
-					</p>
+					<p className="text-[11px] text-[#7b8c82]">Cập nhật lúc {formatClock(data.generatedAt)}</p>
 				</>
 			)}
 		</section>

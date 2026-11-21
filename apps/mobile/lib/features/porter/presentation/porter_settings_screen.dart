@@ -11,6 +11,8 @@ import '../../../core/widgets/ctms_status_badge.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/domain/auth_user.dart';
 import '../../auth/presentation/widgets/logout_actions.dart';
+import '../../push_notifications/presentation/push_notification_widgets.dart';
+import '../../notification_preferences/notification_preferences_card.dart';
 import '../../sync/presentation/device_sync_status_screen.dart';
 
 class PorterSettingsScreen extends ConsumerWidget {
@@ -113,6 +115,11 @@ class PorterSettingsScreen extends ConsumerWidget {
             const SizedBox(height: AppSpacing.xxl),
 
             // 3. Logout Section
+            // CTMS-090-T02: background push status and retry
+            const PushNotificationsSettingsCard(),
+            const SizedBox(height: AppSpacing.lg),
+            const NotificationPreferencesCard(),
+            const SizedBox(height: AppSpacing.xl),
             const LogoutActions(),
 
             const SizedBox(height: AppSpacing.xxl),

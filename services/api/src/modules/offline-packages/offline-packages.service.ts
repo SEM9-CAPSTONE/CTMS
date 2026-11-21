@@ -18,6 +18,8 @@ import {
 	type TripSafetyContext,
 } from "./offline-packages.types";
 // biome-ignore lint/style/useImportType: Nest injection
+import { PackageActivationService } from "./package-activation.service";
+// biome-ignore lint/style/useImportType: Nest injection
 import { PackageArtifactBuilder } from "./package-artifact.builder";
 // biome-ignore lint/style/useImportType: Nest injection
 import { PackageArtifactStorage } from "./package-artifact.storage";
@@ -48,7 +50,8 @@ export class OfflinePackagesService {
 		private readonly guidanceSelector: ApprovedGuidanceSelector,
 		private readonly validator: PackageEligibilityValidator,
 		private readonly builder: PackageArtifactBuilder,
-		private readonly storage: PackageArtifactStorage
+		private readonly storage: PackageArtifactStorage,
+		private readonly activation: PackageActivationService
 	) {}
 	requestInitial(tripId: string): Promise<PackageJob> {
 		return this.jobs.request(tripId, "initial");
@@ -56,7 +59,21 @@ export class OfflinePackagesService {
 	requestImpact(tripId: string, impactId: string): Promise<PackageJob> {
 		if (!impactId.trim() || impactId.length > 1000)
 			throw new Error("Stable impact identity required");
-		return this.jobs.request(tripId, `impact:${digest(impactId)}`);
+		return this.jobs.request(tripId, `impact:${digest(impactId)}`, impactId);
+	}
+
+	async dispatchPendingImpacts(): Promise<void> {
+		for (const impact of await this.jobs.pendingImpacts()) {
+			try {
+				await this.requestImpact(impact.trip_id, impact.source_reference);
+			} catch (error) {
+				if (
+					!(error instanceof PackageFailure) ||
+					!error.reasons.includes(PackageReason.TRIP_NOT_PUBLISHED)
+				)
+					throw error;
+			}
+		}
 	}
 	getJobStatus(tripId: string, jobId: string): Promise<PackageJob | null> {
 		return this.jobs.status(tripId, jobId);
@@ -169,12 +186,24 @@ export class OfflinePackagesService {
 			const currentSelection = this.selection({ ...snapshot, core, safety });
 			if (canonical(currentSelection) !== canonical(selected))
 				throw new PackageFailure([PackageReason.SOURCE_CHANGED], true);
-			const existing: PackageMetadata[] = await manager.query(
-				"SELECT * FROM offline_packages WHERE trip_id=$1 AND generation_key=$2",
-				[job.trip_id, identity]
+			const isImpact =
+				job.request_key.startsWith("impact:") && (await this.jobs.hasImpact(manager, job.id));
+			const [latest]: PackageMetadata[] = await manager.query(
+				"SELECT * FROM offline_packages WHERE trip_id=$1 ORDER BY package_version DESC LIMIT 1",
+				[job.trip_id]
 			);
-			if (existing[0]) {
-				const previous = existing[0];
+			const sameSnapshot =
+				latest?.manifest.snapshots?.core === snapshot.coreFingerprint &&
+				latest.manifest.snapshots.sources === snapshot.sourceFingerprint &&
+				latest.manifest.policy?.generator === artifact.manifest.policy.generator;
+			const [existing]: PackageMetadata[] = sameSnapshot
+				? [latest]
+				: await manager.query(
+						"SELECT * FROM offline_packages WHERE trip_id=$1 AND generation_key=$2",
+						[job.trip_id, identity]
+					);
+			if (existing && (!isImpact || sameSnapshot)) {
+				const previous = existing;
 				this.builder.verify(
 					await this.storage.read(previous.artifact_key, previous.sha256, previous.size_bytes),
 					previous.manifest
@@ -182,11 +211,7 @@ export class OfflinePackagesService {
 				await this.jobs.complete(manager, job, previous);
 				return;
 			}
-			const versions: { version: number }[] = await manager.query(
-				"SELECT COALESCE(max(package_version),0)+1 AS version FROM offline_packages WHERE trip_id=$1",
-				[job.trip_id]
-			);
-			if (versions[0].version !== snapshot.nextVersion)
+			if ((latest?.package_version ?? 0) + 1 !== snapshot.nextVersion)
 				throw new PackageFailure([PackageReason.VERSION_CONFLICT], true);
 			await manager.query(
 				"SELECT artifact_key FROM offline_package_artifact_cleanup WHERE artifact_key=$1 FOR UPDATE",
@@ -196,6 +221,11 @@ export class OfflinePackagesService {
 				await this.storage.read(key, artifact.sha256, artifact.bytes.length),
 				artifact.manifest
 			);
+			// A material reversal publishes a higher version even if its effective inputs match historic bytes.
+			const publicationIdentity =
+				existing && latest
+					? digest(canonical({ identity, previous: latest.generation_key }))
+					: identity;
 			const packages: PackageMetadata[] = await manager.query(
 				`INSERT INTO offline_packages
 			 (trip_id,package_version,generation_key,schema_version,manifest,provenance,sha256,size_bytes,artifact_key,generated_at)
@@ -203,7 +233,7 @@ export class OfflinePackagesService {
 				[
 					job.trip_id,
 					snapshot.nextVersion,
-					identity,
+					publicationIdentity,
 					PACKAGE_SCHEMA_VERSION,
 					canonical(artifact.manifest),
 					canonical(snapshot.safety),
@@ -213,6 +243,7 @@ export class OfflinePackagesService {
 					generatedAt,
 				]
 			);
+			if (isImpact) await this.activation.requirePackage(manager, job.trip_id, packages[0].id);
 			await this.jobs.complete(manager, job, packages[0]);
 			await manager.query("DELETE FROM offline_package_artifact_cleanup WHERE artifact_key=$1", [
 				key,

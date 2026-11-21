@@ -31,3 +31,6 @@
 /uploads
 /services/api/uploads
 **/.private-offline-packages
+**/.private-offline-basemaps
+**/.private-offline-basemap-work
+/artifacts

@@ -14,9 +14,13 @@ RUN pnpm --filter @ctms/api build
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+# The API and dedicated basemap worker use the same deployable image.
+RUN apk add --no-cache python3 py3-pillow font-dejavu
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/services/api/node_modules ./services/api/node_modules
 COPY --from=build /app/services/api/dist ./services/api/dist
 COPY services/api/package.json ./services/api/package.json
+COPY services/api/scripts ./services/api/scripts
+COPY scripts/build_osm_raster.py ./scripts/build_osm_raster.py
 EXPOSE 3000
 CMD ["node", "services/api/dist/main.js"]

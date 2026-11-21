@@ -1,24 +1,41 @@
-import { ConflictException, ForbiddenException, Injectable } from "@nestjs/common";
+import {
+	ConflictException,
+	ForbiddenException,
+	Injectable,
+	NotFoundException,
+} from "@nestjs/common";
 import type { EntityManager } from "typeorm";
 import { normalizeStringArray } from "../profiles/dto/normalized-string-array.validator";
-import type { PorterRouteProficiency } from "../profiles/entities/porter-route-qualification.entity";
+import { PorterRouteProficiency } from "../profiles/entities/porter-route-qualification.entity";
 import { PorterVerificationStatus } from "../profiles/entities/porter-verification.entity";
 import { UserRole } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: Nest injection metadata
 import { LevelNotificationsService } from "./level-notifications.service";
 import type { RequestEvidence } from "./level-requests.types";
-import { levelDossierHash } from "./porter-level-comparison";
+import {
+	computeLevelProgressPercent,
+	evaluateLevelCriteria,
+	getVietnamDateString,
+	levelDossierHash,
+} from "./porter-level-comparison";
 import type {
+	DecideGlobalPorterLevelDto,
 	DecidePorterLevelDto,
+	NotifyPorterLevelGapsDto,
 	SaveLevelEvidenceDto,
 	SaveLevelPolicyDto,
 } from "./porter-levels.dto";
 // biome-ignore lint/style/useImportType: Nest injection metadata
 import { PorterLevelsRepository } from "./porter-levels.repository";
 import {
+	type GlobalPorterLevelAlert,
+	type GlobalPorterLevelEvaluation,
+	type GlobalPorterLevelOverview,
+	type GlobalPorterSummaryItem,
 	type LevelDecision,
 	LevelDecisionOutcome,
 	type LevelDefinition,
+	type LevelDossier,
 	type LevelEvidence,
 	type LevelPolicy,
 } from "./porter-levels.types";
@@ -39,8 +56,8 @@ export class PorterLevelsService {
 	policies(): Promise<LevelPolicy[]> {
 		return this.repository.policies();
 	}
-	list(page: number, limit: number) {
-		return this.repository.list(page, limit);
+	list(page: number, limit: number, search?: string) {
+		return this.repository.list(page, limit, search);
 	}
 	mine(porterId: string) {
 		return this.repository.mine(porterId);
@@ -65,6 +82,9 @@ export class PorterLevelsService {
 				name: dto.name,
 				minExperienceYears: dto.minExperienceYears,
 				minTimesLed: dto.minTimesLed,
+				minCompletedTrips: dto.minCompletedTrips ?? dto.minTimesLed,
+				minTotalKm: dto.minTotalKm ?? null,
+				minAverageRating: dto.minAverageRating ?? null,
 				requiredSkills: normalizeStringArray(dto.requiredSkills),
 				requiredCertifications: normalizeStringArray(dto.requiredCertifications),
 				responsibilities: dto.responsibilities,
@@ -164,13 +184,11 @@ export class PorterLevelsService {
 		const qualification = await this.repository.qualification(manager, qualificationId);
 		if (!request) {
 			await this.repository.assertNoOpenRequest(manager, qualificationId);
-			if (dto.outcome !== LevelDecisionOutcome.APPROVED)
-				throw new ConflictException({
-					code: "INVALID_DIRECT_ACTION",
-					message:
-						"Xét cấp trực tiếp chỉ dùng để nâng, hạ hoặc công nhận cấp. Từ chối qua yêu cầu của Porter.",
-				});
-			if (qualification.verifiedBy && qualification.proficiency === dto.level)
+			if (
+				dto.outcome === LevelDecisionOutcome.APPROVED &&
+				qualification.verifiedBy &&
+				qualification.proficiency === dto.level
+			)
 				throw new ConflictException({
 					code: "NO_LEVEL_CHANGE",
 					message: "Cấp này đã được xác minh, không có thay đổi.",
@@ -227,10 +245,18 @@ export class PorterLevelsService {
 		)) as Array<{ id: string }>;
 		const rank = { learning: 0, proficient: 1, expert: 2 };
 		let action = "recognize";
-		if (rank[dto.level] > rank[qualification.proficiency]) action = "upgrade";
-		if (rank[dto.level] < rank[qualification.proficiency]) action = "downgrade";
+		if (
+			dto.outcome === LevelDecisionOutcome.APPROVED &&
+			rank[dto.level] > rank[qualification.proficiency]
+		)
+			action = "upgrade";
+		if (
+			dto.outcome === LevelDecisionOutcome.APPROVED &&
+			rank[dto.level] < rank[qualification.proficiency]
+		)
+			action = "downgrade";
 		await manager.query(
-			"UPDATE porter_level_decisions SET source=$2,request_id=$3,action=$4,from_verified=$5,to_verified=true,evidence_snapshot=$6::jsonb,porter_reason=$7 WHERE id=$1",
+			"UPDATE porter_level_decisions SET source=$2,request_id=$3,action=$4,from_verified=$5,to_verified=$8,evidence_snapshot=$6::jsonb,porter_reason=$7 WHERE id=$1",
 			[
 				inserted[0].id,
 				request ? "request" : "direct",
@@ -239,10 +265,12 @@ export class PorterLevelsService {
 				Boolean(qualification.verifiedBy),
 				JSON.stringify(request?.evidence ?? []),
 				request?.porterReason ?? null,
+				dto.outcome === LevelDecisionOutcome.APPROVED || Boolean(qualification.verifiedBy),
 			]
 		);
 		await this.notifications.enqueue(manager, identity.porterId, {
-			kind: request ? "approved" : action,
+			kind:
+				dto.outcome === LevelDecisionOutcome.REJECTED ? "rejected" : request ? "approved" : action,
 			requestId: request?.id,
 			qualificationId,
 			routeId: identity.routeId,
@@ -284,5 +312,272 @@ export class PorterLevelsService {
 			`${HISTORY_SELECT} WHERE porter_id=$1 ORDER BY decided_at DESC,id DESC LIMIT 100`,
 			[porterId]
 		);
+	}
+
+	async getGlobalOverview(
+		porterId: string,
+		now: Date = new Date()
+	): Promise<GlobalPorterLevelOverview> {
+		const [row, policies] = await Promise.all([
+			this.repository.getGlobalPorterRow(porterId),
+			this.repository.policies(),
+		]);
+
+		if (!row) {
+			throw new NotFoundException("Không tìm thấy hồ sơ người hỗ trợ");
+		}
+
+		const policyByLevel = new Map(policies.map((p) => [p.level, p]));
+		const orderedLevels: PorterRouteProficiency[] = [
+			PorterRouteProficiency.LEARNING,
+			PorterRouteProficiency.PROFICIENT,
+			PorterRouteProficiency.EXPERT,
+		];
+
+		const dossier: LevelDossier = {
+			porterId: row.porterId,
+			porterName: row.porterName,
+			profileVersion: row.profileVersion,
+			experienceYears: row.experienceYears,
+			certifications: row.certifications,
+			certificates: row.certificates,
+			skills: row.skills,
+			evidenceVersion: row.evidenceVersion,
+			verificationStatus: row.verificationStatus,
+			verificationUpdatedAt: row.verificationUpdatedAt,
+			timesLed: row.completedTrips,
+			completedTrips: row.completedTrips,
+			totalKmLed: row.totalKmLed,
+			averageRating: row.averageRating,
+			reviewCount: row.reviewCount,
+		};
+
+		const levels: GlobalPorterLevelEvaluation[] = orderedLevels.map((lvl) => {
+			const policy = policyByLevel.get(lvl) ?? null;
+			const comparison = policy ? evaluateLevelCriteria(dossier, policy.definition, now) : null;
+			const progressPercent =
+				policy && comparison
+					? computeLevelProgressPercent(dossier, policy.definition, comparison)
+					: 0;
+			return { level: lvl, policy, comparison, progressPercent };
+		});
+
+		const currentIdx = orderedLevels.indexOf(row.currentLevel);
+		const nextLevel =
+			currentIdx >= 0 && currentIdx < orderedLevels.length - 1
+				? orderedLevels[currentIdx + 1]
+				: null;
+		const nextLevelEvaluation = nextLevel
+			? (levels.find((l) => l.level === nextLevel) ?? null)
+			: null;
+
+		const todayStr = getVietnamDateString(now);
+		const in30DaysStr = getVietnamDateString(new Date(now.getTime() + 30 * 86_400_000));
+		const verifiedCertificatesCount = row.certificates.filter((c) => {
+			if (c.status !== "verified") return false;
+			if (!c.expiryDate) return true;
+			const exp =
+				typeof c.expiryDate === "string"
+					? c.expiryDate.slice(0, 10)
+					: getVietnamDateString(c.expiryDate);
+			return exp >= todayStr;
+		}).length;
+
+		const alerts: GlobalPorterLevelAlert[] = [];
+
+		// Certificate expiry warnings
+		for (const cert of row.certificates) {
+			if (cert.status !== "verified" || !cert.expiryDate) continue;
+			const exp =
+				typeof cert.expiryDate === "string"
+					? cert.expiryDate.slice(0, 10)
+					: getVietnamDateString(cert.expiryDate);
+			if (exp < todayStr) {
+				alerts.push({
+					type: "cert_expired",
+					severity: "warning",
+					title: `Chứng chỉ ${cert.name} đã hết hạn`,
+					message: "Vui lòng gia hạn và tải lên bản mới để đảm bảo điều kiện xét cấp bậc.",
+				});
+			} else if (exp <= in30DaysStr) {
+				alerts.push({
+					type: "cert_expiring",
+					severity: "warning",
+					title: `Chứng chỉ ${cert.name} sắp hết hạn (${exp})`,
+					message:
+						"Hãy chuẩn bị gia hạn chứng chỉ trong 30 ngày tới để không bị gián đoạn xét cấp.",
+				});
+			}
+		}
+
+		// Next level eligibility or missing criteria alert
+		if (nextLevelEvaluation?.comparison && nextLevelEvaluation.policy) {
+			const nextName = nextLevelEvaluation.policy.definition.name;
+			if (nextLevelEvaluation.comparison.allMet) {
+				alerts.push({
+					type: "eligible_upgrade",
+					severity: "success",
+					title: `Bạn đã đủ tiêu chí lên cấp ${nextName}`,
+					message:
+						"Toàn bộ điều kiện về số chuyến, quãng đường, điểm đánh giá và chứng chỉ đều đã đạt. Bạn có thể gửi yêu cầu để Quản trị viên xét duyệt.",
+				});
+			} else {
+				const missing = nextLevelEvaluation.comparison.missingItems ?? [];
+				if (missing.length > 0) {
+					alerts.push({
+						type: "missing_criteria",
+						severity: "info",
+						title: `Còn thiếu ${missing.length} tiêu chí để lên cấp ${nextName}`,
+						message: missing.map((m) => m.label).join(" · "),
+					});
+				}
+			}
+		}
+
+		return {
+			porterId: row.porterId,
+			porterName: row.porterName,
+			porterEmail: row.porterEmail,
+			currentLevel: row.currentLevel,
+			levelVerifiedAt: row.levelVerifiedAt ? new Date(row.levelVerifiedAt).toISOString() : null,
+			metrics: {
+				completedTrips: row.completedTrips,
+				totalKmLed: row.totalKmLed,
+				averageRating: row.averageRating,
+				reviewCount: row.reviewCount,
+				experienceYears: row.experienceYears,
+				verifiedCertificatesCount,
+				distinctRoutesCount: row.distinctRoutesCount,
+			},
+			certificates: row.certificates,
+			skills: row.skills,
+			nextLevel,
+			nextLevelEvaluation,
+			levels,
+			alerts,
+		};
+	}
+
+	async listGlobalPorters(
+		page: number,
+		limit: number,
+		search?: string
+	): Promise<{ items: GlobalPorterSummaryItem[]; total: number }> {
+		const { ids, total } = await this.repository.listGlobalPorterIds(page, limit, search);
+		const overviews = await Promise.all(ids.map((id) => this.getGlobalOverview(id)));
+
+		const items: GlobalPorterSummaryItem[] = overviews.map((ov) => ({
+			porterId: ov.porterId,
+			porterName: ov.porterName ?? "Chưa cập nhật tên",
+			porterEmail: ov.porterEmail ?? "",
+			currentLevel: ov.currentLevel,
+			levelVerifiedAt: ov.levelVerifiedAt,
+			completedTrips: ov.metrics.completedTrips,
+			totalKmLed: ov.metrics.totalKmLed,
+			averageRating: ov.metrics.averageRating,
+			reviewCount: ov.metrics.reviewCount,
+			experienceYears: ov.metrics.experienceYears,
+			verifiedCertificatesCount: ov.metrics.verifiedCertificatesCount,
+			nextLevel: ov.nextLevel,
+			nextLevelAllMet: ov.nextLevelEvaluation?.comparison?.allMet ?? false,
+			nextLevelProgressPercent: ov.nextLevelEvaluation?.progressPercent ?? 100,
+			missingItems: ov.nextLevelEvaluation?.comparison?.missingItems ?? [],
+		}));
+
+		return { items, total };
+	}
+
+	async decideGlobalLevel(
+		actorId: string,
+		porterId: string,
+		dto: DecideGlobalPorterLevelDto
+	): Promise<GlobalPorterLevelOverview> {
+		if (porterId === actorId) {
+			throw new ForbiddenException("Quản trị viên không thể tự xét cấp cho chính mình");
+		}
+
+		const beforeOverview = await this.getGlobalOverview(porterId);
+
+		await this.repository.dataSource.transaction(async (manager) => {
+			await this.repository.requireRole(manager, actorId, UserRole.ADMIN);
+
+			await manager.query(
+				`INSERT INTO porter_profiles (porter_id, porter_level, level_verified_by, level_verified_at)
+				 VALUES ($1, $2, $3, now())
+				 ON CONFLICT (porter_id) DO UPDATE
+				 SET porter_level = CASE WHEN $4 = 'approved' THEN EXCLUDED.porter_level ELSE porter_profiles.porter_level END,
+				     level_verified_by = CASE WHEN $4 = 'approved' THEN EXCLUDED.level_verified_by ELSE porter_profiles.level_verified_by END,
+				     level_verified_at = CASE WHEN $4 = 'approved' THEN now() ELSE porter_profiles.level_verified_at END,
+				     updated_at = now()`,
+				[porterId, dto.targetLevel, actorId, dto.outcome]
+			);
+
+			const rank: Record<PorterRouteProficiency, number> = {
+				[PorterRouteProficiency.LEARNING]: 0,
+				[PorterRouteProficiency.PROFICIENT]: 1,
+				[PorterRouteProficiency.EXPERT]: 2,
+			};
+			const action =
+				dto.outcome === LevelDecisionOutcome.REJECTED
+					? "rejected"
+					: rank[dto.targetLevel] > rank[beforeOverview.currentLevel]
+						? "upgrade"
+						: rank[dto.targetLevel] < rank[beforeOverview.currentLevel]
+							? "downgrade"
+							: "recognize";
+
+			await this.notifications.enqueue(manager, porterId, {
+				kind: action,
+				routeName: "Cấp bậc tổng quát",
+				level: dto.targetLevel,
+				reason: dto.reason,
+			});
+
+			await this.repository.audit(manager, actorId, "porter_level.global_decided", porterId, {
+				porterId,
+				fromLevel: beforeOverview.currentLevel,
+				toLevel: dto.targetLevel,
+				outcome: dto.outcome,
+				reason: dto.reason,
+			});
+		});
+
+		await this.notifications.dispatch().catch(() => undefined);
+		return this.getGlobalOverview(porterId);
+	}
+
+	async notifyPorterGaps(
+		actorId: string,
+		porterId: string,
+		dto: NotifyPorterLevelGapsDto
+	): Promise<{ sent: true; missingCount: number; message: string }> {
+		const overview = await this.getGlobalOverview(porterId);
+		const targetName = overview.nextLevelEvaluation?.policy?.definition.name ?? "cấp tiếp theo";
+		const missing = overview.nextLevelEvaluation?.comparison?.missingItems ?? [];
+
+		const summaryText =
+			missing.length > 0
+				? `Để đạt cấp ${targetName}, bạn còn thiếu: ${missing.map((m) => m.label).join("; ")}.${dto.customNote ? ` Ghi chú: ${dto.customNote}` : ""}`
+				: dto.customNote ||
+					`Bạn đã đủ toàn bộ tiêu chí để lên cấp ${targetName}. Hãy gửi yêu cầu xét duyệt!`;
+
+		await this.repository.dataSource.transaction(async (manager) => {
+			await this.repository.requireRole(manager, actorId, UserRole.ADMIN);
+			await this.notifications.enqueue(manager, porterId, {
+				kind: "needs_info",
+				routeName: "Cấp bậc tổng quát",
+				level: overview.nextLevel ?? overview.currentLevel,
+				reason: summaryText,
+			});
+			await this.repository.audit(manager, actorId, "porter_level.gaps_notified", porterId, {
+				porterId,
+				targetLevel: overview.nextLevel,
+				missingCount: missing.length,
+				message: summaryText,
+			});
+		});
+
+		await this.notifications.dispatch().catch(() => undefined);
+		return { sent: true, missingCount: missing.length, message: summaryText };
 	}
 }

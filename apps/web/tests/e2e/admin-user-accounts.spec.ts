@@ -88,27 +88,20 @@ test.describe("Admin user accounts", () => {
 
 		await expect(
 			page.getByRole("navigation", {
-				name: "Administration navigation",
+				name: "Điều hướng quản trị",
 			})
 		).toBeVisible();
 
 		await expect(
-			page.getByRole("button", {
+			page.getByRole("link", {
 				name: "Tài khoản người dùng",
 			})
 		).toHaveAttribute("aria-current", "page");
 
-		await expect(
-			page.getByRole("button", {
-				name: "Nhật ký hệ thống",
-			})
-		).toBeEnabled();
-
-		await expect(
-			page.getByRole("button", {
-				name: /Báo cáo nội dung/,
-			})
-		).toBeEnabled();
+		await page.getByRole("button", { name: "Hệ thống" }).click();
+		await expect(page.getByRole("link", { name: "Nhật ký hệ thống" })).toBeVisible();
+		await page.getByRole("button", { name: /^Kiểm duyệt/ }).click();
+		await expect(page.getByRole("link", { name: /^Báo cáo từ người dùng/ })).toBeVisible();
 
 		await expect(page.getByText("Nguyen Camper")).toBeVisible();
 

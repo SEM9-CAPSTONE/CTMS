@@ -35,3 +35,4 @@ export const AUDIT_LABELS: Record<string, string> = {
 	archive: "Ngừng sử dụng",
 	supersede: "Thay thế phiên bản",
 };
+export const CHUNK_STATUS_POLL_MS = 3000;

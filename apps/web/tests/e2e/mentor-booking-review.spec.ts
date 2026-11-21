@@ -26,7 +26,7 @@ function db<T>(action: string, payload: unknown): T {
 			[
 				path.join(API_ROOT, "node_modules/ts-node/dist/bin.js"),
 				"--transpile-only",
-				path.join(API_ROOT, "src/seeds/db-helper.ts"),
+				path.join(API_ROOT, "test/helpers/db-helper.ts"),
 				action,
 				Buffer.from(JSON.stringify(payload)).toString("base64"),
 			],
@@ -104,7 +104,7 @@ test.afterAll(() => {
 			[
 				path.join(API_ROOT, "node_modules/ts-node/dist/bin.js"),
 				"--transpile-only",
-				path.join(API_ROOT, "src/seeds/db-helper.ts"),
+				path.join(API_ROOT, "test/helpers/db-helper.ts"),
 				"clean-user",
 				email,
 			],
@@ -124,7 +124,7 @@ test("requires cancellation reason, notifies host/admin, persists read state and
 	expect(response.status()).toBe(201);
 	const booking = (await response.json()) as { id: string };
 	await page.goto(`/bookings/${booking.id}`, { waitUntil: "domcontentloaded" });
-	await page.getByRole("button", { name: "Yêu cầu hủy đơn" }).click();
+	await page.getByRole("button", { name: "Hủy đặt chỗ", exact: true }).click();
 	const dialog = page.getByRole("dialog");
 	await dialog.getByRole("button", { name: "Xác nhận hủy", exact: true }).click();
 	await expect(dialog.getByText("Vui lòng nhập lý do hủy chuyến.")).toBeVisible();

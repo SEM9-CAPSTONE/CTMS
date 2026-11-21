@@ -49,7 +49,7 @@ compose() {
 compose config --quiet
 
 start_production() {
-  compose up -d --no-build --wait postgres redis api ai ingestion web
+  compose up -d --no-build --wait postgres redis api basemap-worker ai ingestion web
   # Recreate Nginx to pick up bind-mounted configuration replaced by git checkout.
   compose up -d --no-build --wait --no-deps --force-recreate nginx
   compose exec -T nginx nginx -t

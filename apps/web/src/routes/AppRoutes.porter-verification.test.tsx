@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetPorterVerificationGateCache } from "../features/porter-verification/components/PorterVerificationGate";
 import { porterVerificationService } from "../features/porter-verification/services/porter-verification.service";
@@ -26,7 +26,14 @@ vi.mock("../features/role-landing/pages/RoleLandingPage", () => ({
 	RoleLandingPage: () => <p>Role dashboard</p>,
 }));
 vi.mock("../features/trips/pages/PorterRequestsPage", () => ({
-	PorterRequestsPage: () => <p>Porter requests</p>,
+	PorterRequestsPage: ({ onBackHome }: { onBackHome: () => void }) => (
+		<>
+			<p>Porter requests</p>
+			<button type="button" onClick={onBackHome}>
+				Về dashboard
+			</button>
+		</>
+	),
 }));
 vi.mock("../features/porter-verification/services/porter-verification.service", () => ({
 	porterVerificationService: {
@@ -59,6 +66,7 @@ function verification(status: "pending_documents" | "approved") {
 		reviewedAt: null,
 		rejectionReason: null,
 		version: 0,
+		guideCard: null,
 		documents: [],
 	};
 }
@@ -112,5 +120,18 @@ describe("Porter verification routing", () => {
 
 		expect(await screen.findByText("Role dashboard")).toBeInTheDocument();
 		expect(porterVerificationService.getMine).not.toHaveBeenCalled();
+	});
+
+	it("returns to the Porter dashboard for a user who also hosts trips", async () => {
+		signIn(["host", "porter"]);
+		vi.mocked(porterVerificationService.getMine).mockResolvedValue(verification("approved"));
+		window.history.replaceState({}, "", RoutePath.PORTER_REQUESTS);
+		await renderLazy(<AppRoutes />);
+
+		fireEvent.click(await screen.findByRole("button", { name: "Về dashboard" }));
+
+		expect(await screen.findByText("Role dashboard")).toBeInTheDocument();
+		expect(window.location.pathname).toBe(RoutePath.DASHBOARD);
+		expect(window.history.state).toMatchObject({ activeRole: "porter" });
 	});
 });

@@ -191,6 +191,19 @@ export class CreateTripDto {
 	@IsObject()
 	cancellationPolicy?: Record<string, unknown>;
 
+	@ApiPropertyOptional({
+		maxLength: 32,
+		example: "DNG-SON-TRA",
+		description:
+			"CTMS-110. Area from GET /geo-areas. Its names are stored on the Trip as the reporting snapshot. Omitted on update keeps the stored area.",
+	})
+	@IsOptional()
+	@Transform(({ value }) => trimmedString(value))
+	@IsString()
+	@IsNotEmpty()
+	@MaxLength(32)
+	areaCode?: string;
+
 	@ApiProperty({ type: CreateTripWaypointDto, isArray: true, minItems: 1 })
 	@IsArray()
 	@ArrayMinSize(1)

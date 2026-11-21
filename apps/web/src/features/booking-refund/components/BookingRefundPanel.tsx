@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "../../../shared/components/Toast";
 import type { BookingDetails } from "../../booking-details/types";
 import { useBookingRefund } from "../hooks/useBookingRefund";
 import type { RefundRequestFormData } from "../schema/booking-refund.schema";
@@ -49,6 +50,8 @@ export function BookingRefundPanel({ booking, onReload }: BookingRefundPanelProp
 	if (!isRelevant) {
 		return null;
 	}
+	if (booking.status === "confirmed" && !refundInfo.origin && refundInfo.refunds.length === 0)
+		return null;
 
 	const handleSubmitRefund = async (formData: RefundRequestFormData) => {
 		try {
@@ -61,6 +64,7 @@ export function BookingRefundPanel({ booking, onReload }: BookingRefundPanelProp
 				accountHolderName: formData.accountHolderName,
 			});
 			setDialogOpen(false);
+			toast.success("Đã gửi yêu cầu hoàn tiền. Vui lòng chờ xét duyệt.");
 			onReload?.();
 		} catch {
 			// Error is handled and surfaced by useBookingRefund
@@ -77,8 +81,9 @@ export function BookingRefundPanel({ booking, onReload }: BookingRefundPanelProp
 	};
 
 	return (
-		<div className="mt-6 space-y-4">
+		<div className="space-y-4">
 			<RefundStatusCard
+				bookingStatus={booking.status}
 				refundInfo={refundInfo}
 				onRequestRefund={() => setDialogOpen(true)}
 				onRetryObligation={handleRetryObligation}
@@ -86,6 +91,7 @@ export function BookingRefundPanel({ booking, onReload }: BookingRefundPanelProp
 			/>
 
 			<RefundRequestDialog
+				bookingStatus={booking.status}
 				open={dialogOpen}
 				isSubmitting={isSubmitting}
 				error={error}

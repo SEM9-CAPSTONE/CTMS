@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { StoredAuthUser } from "../../auth/utils/tokenStorage";
 import { camperProfileService } from "../../camper-profile/services/camper-profile.service";
@@ -52,6 +52,14 @@ function user(role: string, roles: string[]): StoredAuthUser {
 	};
 }
 
+function openAccountMenu() {
+	const button = screen.getByRole("button", { name: "Tài khoản" });
+	fireEvent.click(button);
+	const menu = document.getElementById(button.getAttribute("aria-controls") ?? "");
+	if (!menu) throw new Error("Missing sidebar account menu");
+	return within(menu);
+}
+
 describe("RoleLandingPage profile navigation", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -70,8 +78,9 @@ describe("RoleLandingPage profile navigation", () => {
 			/>
 		);
 
-		fireEvent.click(screen.getAllByRole("button", { name: "Người hỗ trợ" })[0]);
-		fireEvent.click(screen.getByRole("button", { name: "Hồ sơ & Năng lực" }));
+		fireEvent.click(openAccountMenu().getByRole("button", { name: "Người hỗ trợ" }));
+		expect(screen.queryByRole("button", { name: "Hồ sơ & Năng lực" })).not.toBeInTheDocument();
+		fireEvent.click(openAccountMenu().getByRole("button", { name: "Hồ sơ của tôi" }));
 
 		expect(window.location.pathname).toBe("/porter/profile");
 		expect(onOpenProfile).not.toHaveBeenCalled();
@@ -89,9 +98,9 @@ describe("RoleLandingPage profile navigation", () => {
 			/>
 		);
 
-		fireEvent.click(screen.getAllByRole("button", { name: "Người hỗ trợ" })[0]);
-		const profileButton = await screen.findByRole("button", { name: /Porter Test/ });
-		fireEvent.click(profileButton);
+		fireEvent.click(openAccountMenu().getByRole("button", { name: "Người hỗ trợ" }));
+		await screen.findByText("Porter Test");
+		fireEvent.click(openAccountMenu().getByRole("button", { name: "Hồ sơ của tôi" }));
 
 		await waitFor(() => expect(window.location.pathname).toBe("/porter/profile"));
 		expect(onOpenProfile).not.toHaveBeenCalled();
@@ -108,8 +117,8 @@ describe("RoleLandingPage profile navigation", () => {
 			/>
 		);
 
-		expect(screen.getByText("Porter Ops")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Hồ sơ & Năng lực" })).toBeInTheDocument();
+		expect(screen.getByText("Người hỗ trợ CTMS")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Yêu cầu Trip" })).toBeInTheDocument();
 	});
 
 	it("preserves Camper profile navigation", () => {

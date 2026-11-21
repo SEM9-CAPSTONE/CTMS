@@ -10,6 +10,7 @@ import type {
 	SourceDecision,
 	SourceFilters,
 	SourceMetadata,
+	SourceRights,
 	SourceVersion,
 } from "../types";
 import { useSurvivalDocuments } from "./useSurvivalDocuments";
@@ -17,6 +18,30 @@ type FormMode =
 	| { kind: "create" }
 	| { kind: "version"; document: DocumentDetail; version: SourceVersion }
 	| { kind: "edit"; version: SourceVersion };
+
+function publicationRights(metadata: SourceMetadata): SourceRights | undefined {
+	const { attribution, classification, licenseType, locale, originalLocale, permissionEvidence } =
+		metadata;
+	if (
+		!attribution ||
+		!licenseType ||
+		!permissionEvidence ||
+		classification === "FIRST_AID" ||
+		classification === "MEDICAL_REFERENCE" ||
+		(originalLocale && originalLocale !== locale)
+	)
+		return;
+	return {
+		rightsReviewStatus: "PERMITTED",
+		sourceReviewConfirmed: true,
+		internalRagUseAllowed: true,
+		offlineRedistributionAllowed: false,
+		translationAllowed: false,
+		medicalContentReviewStatus: "NOT_REVIEWED",
+		evidence: permissionEvidence,
+	};
+}
+
 export function useSourceWorkspace() {
 	const [filters, setFilters] = useState<SourceFilters>({
 		page: 1,
@@ -71,11 +96,19 @@ export function useSourceWorkspace() {
 	) {
 		setNotice("");
 		try {
+			const decision =
+				action === "publish"
+					? {
+							...payload,
+							confirmSource: true,
+							rights: publicationRights(version.metadata) ?? payload.rights,
+						}
+					: payload;
 			await state.action.mutateAsync({
 				documentId: version.documentId,
 				versionId: version.id,
 				action,
-				payload,
+				payload: decision,
 			});
 			if (action === "publish") {
 				openDocument(null);
@@ -140,8 +173,12 @@ export function useSourceWorkspace() {
 		const { sourceTitle, classification, locale, publisher } = mode.version.metadata;
 		formMetadata = { sourceTitle, classification, locale, publisher };
 	}
-	const formError =
+	const mutationError =
 		mode?.kind === "edit" ? state.edit.error : (state.upload.error ?? state.importUrl.error);
+	const formError =
+		mutationError instanceof HttpError && mutationError.status === 413
+			? new Error("Tệp PDF vượt quá dung lượng cho phép.")
+			: mutationError;
 	const duplicate =
 		formError instanceof HttpError && formError.status === 409
 			? duplicatePdfSchema.safeParse(formError.errorData)

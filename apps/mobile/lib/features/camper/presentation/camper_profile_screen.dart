@@ -14,14 +14,21 @@ import '../../../core/widgets/ctms_section_card.dart';
 import '../../../core/widgets/ctms_status_badge.dart';
 import '../../auth/application/auth_controller.dart';
 import '../../auth/presentation/widgets/logout_actions.dart';
+import '../../camper_bookings/presentation/bank_accounts_screen.dart';
+import '../../push_notifications/presentation/push_notification_widgets.dart';
+import '../../notification_preferences/notification_preferences_card.dart';
 import '../../sync/presentation/device_sync_status_screen.dart';
 import '../profile/application/camper_health_profile_controller.dart';
 import '../profile/application/camper_profile_controller.dart';
 import '../profile/domain/camper_profile.dart';
 import '../profile/domain/health_profile.dart';
+import '../profile/domain/activity_profile.dart';
+import 'widgets/activity_profile_editor.dart';
 
 class CamperProfileScreen extends ConsumerStatefulWidget {
-  const CamperProfileScreen({super.key});
+  const CamperProfileScreen({super.key, this.initialTab = 0});
+
+  final int initialTab;
 
   @override
   ConsumerState<CamperProfileScreen> createState() =>
@@ -32,7 +39,8 @@ class _CamperProfileScreenState extends ConsumerState<CamperProfileScreen> {
   final _personalFormKey = GlobalKey<FormState>();
   final _healthFormKey = GlobalKey<FormState>();
 
-  int _activeTab = 0; // 0: Personal & Emergency, 1: Health & Fitness
+  late int _activeTab =
+      widget.initialTab; // 0: Personal & Emergency, 1: Health & Fitness
 
   // Personal Profile fields
   final _accountEmail = TextEditingController();
@@ -64,6 +72,7 @@ class _CamperProfileScreenState extends ConsumerState<CamperProfileScreen> {
   bool _isConsentGranted = false;
   String? _loadedHealthProfileId;
   int _healthProfileVersion = 1;
+  ActivityProfile? _activityProfile;
   bool _isSavingHealth = false;
 
   @override
@@ -122,6 +131,7 @@ class _CamperProfileScreenState extends ConsumerState<CamperProfileScreen> {
     if (_loadedHealthProfileId == profile.id) return;
     _loadedHealthProfileId = profile.id;
     _healthProfileVersion = profile.version;
+    _activityProfile = profile.activityProfile;
     _dietaryRestrictions.text = profile.dietaryRestrictions;
     _emergencyNotes.text = profile.emergencyNotes;
     _bloodType = profile.bloodType;
@@ -254,6 +264,7 @@ class _CamperProfileScreenState extends ConsumerState<CamperProfileScreen> {
         .read(camperHealthProfileControllerProvider.notifier)
         .save(
           UpdateHealthProfileInput(
+            activityProfile: _activityProfile,
             bloodType: _bloodType,
             physicalFitnessLevel: _physicalFitnessLevel,
             dietaryRestrictions: _dietaryRestrictions.text.trim(),
@@ -286,162 +297,6 @@ class _CamperProfileScreenState extends ConsumerState<CamperProfileScreen> {
         _isConsentGranted = grant;
       }
     });
-  }
-
-  Widget _buildSeverityBadge(String severity) {
-    final (label, status) = switch (severity.toUpperCase()) {
-      'CRITICAL' => ('Nguy kịch', CtmsStatus.danger),
-      'HIGH' => ('Nghiêm trọng', CtmsStatus.danger),
-      'MEDIUM' => ('Trung bình', CtmsStatus.warning),
-      _ => ('Nhẹ', CtmsStatus.info),
-    };
-
-    return CtmsStatusBadge(
-      label: label,
-      status: status,
-      showDot: true,
-    );
-  }
-
-  void _showAddAllergyDialog() {
-    final nameCtrl = TextEditingController();
-    final reactionCtrl = TextEditingController();
-    String severity = 'LOW';
-
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: AppRadius.cardBorderRadius,
-                side: const BorderSide(color: AppColors.border),
-              ),
-              title: Text(
-                'Thêm dị ứng',
-                style: AppTypography.h3.copyWith(
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: nameCtrl,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                      ),
-                      decoration: const InputDecoration(
-                        labelText: 'Tên dị ứng / Chất gây dị ứng',
-                        prefixIcon: Icon(
-                          Icons.warning_amber_rounded,
-                          size: 20,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    DropdownButtonFormField<String>(
-                      initialValue: severity,
-                      decoration: const InputDecoration(
-                        labelText: 'Mức độ nghiêm trọng',
-                        prefixIcon: Icon(
-                          Icons.priority_high,
-                          size: 20,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'LOW',
-                          child: Text('Nhẹ (LOW)'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'MEDIUM',
-                          child: Text('Trung bình (MEDIUM)'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'HIGH',
-                          child: Text('Nghiêm trọng (HIGH)'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'CRITICAL',
-                          child: Text('Nguy kịch (CRITICAL)'),
-                        ),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) {
-                          setDialogState(() => severity = val);
-                        }
-                      },
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    TextField(
-                      controller: reactionCtrl,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                      ),
-                      decoration: const InputDecoration(
-                        labelText: 'Triệu chứng phản ứng (tùy chọn)',
-                        prefixIcon: Icon(
-                          Icons.info_outline,
-                          size: 20,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: Text(
-                    'Hủy',
-                    style: AppTypography.bodyStrong.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.brandPrimary,
-                    foregroundColor: Colors.white,
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: AppRadius.controlBorderRadius,
-                    ),
-                  ),
-                  onPressed: () {
-                    if (nameCtrl.text.trim().isNotEmpty) {
-                      setState(() {
-                        _allergies.add(
-                          AllergyItem(
-                            id: 'alg-${DateTime.now().millisecondsSinceEpoch}',
-                            name: nameCtrl.text.trim(),
-                            severity: severity,
-                            reaction: reactionCtrl.text.trim().isEmpty
-                                ? null
-                                : reactionCtrl.text.trim(),
-                          ),
-                        );
-                      });
-                      Navigator.pop(ctx);
-                    }
-                  },
-                  child: const Text('Thêm'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
   }
 
   void _showAddConditionDialog() {
@@ -568,9 +423,7 @@ class _CamperProfileScreenState extends ConsumerState<CamperProfileScreen> {
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(
-          bottom: BorderSide(color: AppColors.border, width: 1.0),
-        ),
+        border: Border(bottom: BorderSide(color: AppColors.border, width: 1.0)),
       ),
       child: Row(
         children: [
@@ -669,8 +522,9 @@ class _CamperProfileScreenState extends ConsumerState<CamperProfileScreen> {
 
   Widget _buildProfileHeroCard(CamperProfile profile) {
     final name = profile.fullName.trim();
-    final initial =
-        name.isNotEmpty ? name.split(' ').last[0].toUpperCase() : 'C';
+    final initial = name.isNotEmpty
+        ? name.split(' ').last[0].toUpperCase()
+        : 'C';
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.cardPadding),
@@ -813,8 +667,9 @@ class _CamperProfileScreenState extends ConsumerState<CamperProfileScreen> {
                     color: _isConsentGranted
                         ? AppColors.brandPrimary
                         : AppColors.textSecondary,
-                    fontWeight:
-                        _isConsentGranted ? FontWeight.w600 : FontWeight.w500,
+                    fontWeight: _isConsentGranted
+                        ? FontWeight.w600
+                        : FontWeight.w500,
                   ),
                 ),
               ],
@@ -959,7 +814,7 @@ class _CamperProfileScreenState extends ConsumerState<CamperProfileScreen> {
                       onChanged: _isSavingPersonal
                           ? null
                           : (value) =>
-                              setState(() => _gender = value ?? 'male'),
+                                setState(() => _gender = value ?? 'male'),
                     ),
                     const SizedBox(height: AppSpacing.md),
                     TextFormField(
@@ -1132,6 +987,21 @@ class _CamperProfileScreenState extends ConsumerState<CamperProfileScreen> {
 
               const SizedBox(height: AppSpacing.xl),
 
+              // Leader follow-up: receiving bank accounts for refunds
+              const CtmsSectionCard(
+                title: 'Thanh toán & Hoàn tiền',
+                child: BankAccountsEntryTile(),
+              ),
+
+              const SizedBox(height: AppSpacing.xl),
+
+              // CTMS-090-T02: background push status and retry
+              const PushNotificationsSettingsCard(),
+              const SizedBox(height: AppSpacing.lg),
+              const NotificationPreferencesCard(),
+
+              const SizedBox(height: AppSpacing.xl),
+
               // 6. Account & Logout Card
               CtmsSectionCard(
                 title: 'Tài khoản & Phiên đăng nhập',
@@ -1168,6 +1038,21 @@ class _CamperProfileScreenState extends ConsumerState<CamperProfileScreen> {
               _buildHealthSummaryCard(healthProfile),
 
               const SizedBox(height: AppSpacing.xl),
+              CtmsSectionCard(
+                title: 'Khả năng vận động để chọn chuyến',
+                child: ActivityProfileEditor(
+                  key: ValueKey('activity-${healthProfile.version}'),
+                  initial: healthProfile.activityProfile,
+                  enabled:
+                      !_isSavingHealth &&
+                      healthProfile.accountStatus == 'ACTIVE',
+                  onChanged: (profile) {
+                    _activityProfile = profile;
+                  },
+                ),
+              ),
+
+              const SizedBox(height: AppSpacing.xl),
 
               // 2. Health & Fitness Metrics
               CtmsSectionCard(
@@ -1201,7 +1086,7 @@ class _CamperProfileScreenState extends ConsumerState<CamperProfileScreen> {
                       onChanged: _isSavingHealth
                           ? null
                           : (val) =>
-                              setState(() => _bloodType = val ?? 'UNKNOWN'),
+                                setState(() => _bloodType = val ?? 'UNKNOWN'),
                     ),
                     const SizedBox(height: AppSpacing.md),
                     DropdownButtonFormField<String>(
@@ -1240,23 +1125,6 @@ class _CamperProfileScreenState extends ConsumerState<CamperProfileScreen> {
                     ),
                     const SizedBox(height: AppSpacing.md),
                     TextFormField(
-                      controller: _dietaryRestrictions,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                      ),
-                      decoration: const InputDecoration(
-                        labelText: 'Chế độ ăn kiêng / Dị ứng thực phẩm',
-                        prefixIcon: Icon(
-                          Icons.restaurant_outlined,
-                          size: 20,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    TextFormField(
                       controller: _emergencyNotes,
                       style: const TextStyle(
                         color: AppColors.textPrimary,
@@ -1271,120 +1139,6 @@ class _CamperProfileScreenState extends ConsumerState<CamperProfileScreen> {
                         ),
                       ),
                       maxLines: 3,
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: AppSpacing.xl),
-
-              // 3. Allergies List
-              CtmsSectionCard(
-                title: 'Danh sách dị ứng',
-                trailing: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.brandLight,
-                    borderRadius: AppRadius.pillBorderRadius,
-                    border: Border.all(color: AppColors.brandLightBorder),
-                  ),
-                  child: Text(
-                    '${_allergies.length} mục',
-                    style: AppTypography.caption.copyWith(
-                      color: AppColors.brandPrimary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (_allergies.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-                        alignment: Alignment.center,
-                        child: Text(
-                          'Chưa ghi nhận dị ứng nào.',
-                          style: AppTypography.body.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      )
-                    else
-                      ..._allergies.map((item) {
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.md,
-                            vertical: AppSpacing.sm,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.brandBg,
-                            borderRadius: AppRadius.controlBorderRadius,
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.warning_amber_rounded,
-                                size: 20,
-                                color: AppColors.statusWarning,
-                              ),
-                              const SizedBox(width: AppSpacing.sm),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Text(
-                                          item.name,
-                                          style: AppTypography.bodyStrong.copyWith(
-                                            color: AppColors.textPrimary,
-                                          ),
-                                        ),
-                                        const SizedBox(width: AppSpacing.sm),
-                                        _buildSeverityBadge(item.severity),
-                                      ],
-                                    ),
-                                    if (item.reaction != null &&
-                                        item.reaction!.isNotEmpty) ...[
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        'Phản ứng: ${item.reaction}',
-                                        style: AppTypography.caption.copyWith(
-                                          color: AppColors.textSecondary,
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(
-                                  Icons.delete_outline,
-                                  color: AppColors.statusDanger,
-                                  size: 20,
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    _allergies.remove(item);
-                                  });
-                                },
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
-                    const SizedBox(height: AppSpacing.md),
-                    CtmsButton(
-                      label: 'Thêm dị ứng',
-                      icon: Icons.add,
-                      variant: CtmsButtonVariant.secondary,
-                      onPressed: _showAddAllergyDialog,
                     ),
                   ],
                 ),
@@ -1418,7 +1172,9 @@ class _CamperProfileScreenState extends ConsumerState<CamperProfileScreen> {
                   children: [
                     if (_medicalConditions.isEmpty)
                       Container(
-                        padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AppSpacing.lg,
+                        ),
                         alignment: Alignment.center,
                         child: Text(
                           'Chưa ghi nhận bệnh lý nào.',
@@ -1526,7 +1282,7 @@ class _CamperProfileScreenState extends ConsumerState<CamperProfileScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'Cho phép Host & Porter của chuyến đi bạn đặt xem thông tin y tế để hỗ trợ sơ cứu kịp thời khi khẩn cấp.',
+                                'Cho phép người tổ chức và người dẫn đường trong chuyến đi xem thông tin y tế để hỗ trợ bạn. Hệ thống cũng dùng hồ sơ đã lưu để phân tích và gợi ý chuyến đi; thông tin sức khỏe không được gửi cho dịch vụ AI bên ngoài. Khi thu hồi quyền, hệ thống sẽ ngừng tạo gợi ý.',
                                 style: AppTypography.caption.copyWith(
                                   color: AppColors.textSecondary,
                                 ),
@@ -1684,10 +1440,7 @@ class _ContactFields extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           TextFormField(
             controller: name,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 14,
-            ),
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
             decoration: InputDecoration(
               labelText: 'Họ tên liên hệ $index',
               prefixIcon: const Icon(
@@ -1701,10 +1454,7 @@ class _ContactFields extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           TextFormField(
             controller: relationship,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 14,
-            ),
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
             decoration: const InputDecoration(
               labelText: 'Mối quan hệ',
               prefixIcon: Icon(
@@ -1718,10 +1468,7 @@ class _ContactFields extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           TextFormField(
             controller: phone,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 14,
-            ),
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
             decoration: const InputDecoration(
               labelText: 'Số điện thoại khẩn cấp',
               prefixIcon: Icon(
@@ -1736,10 +1483,7 @@ class _ContactFields extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           TextFormField(
             controller: email,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 14,
-            ),
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
             decoration: const InputDecoration(
               labelText: 'Email liên hệ',
               prefixIcon: Icon(

@@ -41,11 +41,6 @@ export class ApproveLevelRequestDto extends ReviewLevelRequestDto {
 	@ApiProperty() @IsString() @MinLength(64) @MaxLength(64) expectedDossierHash!: string;
 }
 export class ListLevelRequestsDto extends ListLevelQualificationsDto {
-	@ApiPropertyOptional({ description: "Search Porter or Route name" })
-	@IsOptional()
-	@IsString()
-	@MaxLength(100)
-	search?: string;
 	@ApiPropertyOptional({ enum: LevelRequestStatus })
 	@IsOptional()
 	@IsEnum(LevelRequestStatus)

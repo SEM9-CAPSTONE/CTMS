@@ -19,8 +19,10 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { UserRole } from "../users/entities/user.entity";
-import type { CreateModerationDecisionDto } from "./dtos/create-moderation-decision.dto";
-import type { GetHostModerationQueueQueryDto } from "./dtos/get-host-moderation-queue-query.dto";
+// biome-ignore lint/style/useImportType: runtime DTO validation
+import { CreateModerationDecisionDto } from "./dtos/create-moderation-decision.dto";
+// biome-ignore lint/style/useImportType: runtime DTO validation
+import { GetHostModerationQueueQueryDto } from "./dtos/get-host-moderation-queue-query.dto";
 import { ModerationDecisionResponseDto } from "./dtos/moderation-decision-response.dto";
 // biome-ignore lint/style/useImportType: Nest injection
 import { TripReviewModerationHostService } from "./trip-review-moderation-host.service";
@@ -44,6 +46,23 @@ export class TripReviewModerationHostController {
 	@ApiResponse({ status: 200, description: "Returns queue items with active violation flags" })
 	async getQueue(@Req() req: AuthenticatedRequest, @Query() query: GetHostModerationQueueQueryDto) {
 		return this.service.getQueue(req.user.userId, query);
+	}
+
+	@Get(":reviewId/moderation-detail")
+	@ApiOperation({
+		summary: "Get single-review moderation detail for notification deep-link handling",
+	})
+	@ApiResponse({
+		status: 200,
+		description: "Returns review moderation detail with flags, status, and latest decision",
+	})
+	@ApiResponse({ status: 403, description: "Host does not own this trip" })
+	@ApiResponse({ status: 404, description: "Review not found" })
+	async getModerationDetail(
+		@Req() req: AuthenticatedRequest,
+		@Param("reviewId", ID_PIPE) reviewId: string
+	) {
+		return this.service.getModerationDetail(req.user.userId, reviewId);
 	}
 
 	@Post(":reviewId/decisions")

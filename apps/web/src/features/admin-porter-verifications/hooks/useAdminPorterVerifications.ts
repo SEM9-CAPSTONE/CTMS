@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { HttpError } from "../../../core/api";
+import { useRefreshAdminModerationCounts } from "../../admin-layout/hooks/useAdminModerationCounts";
 import type { PorterVerificationStatus } from "../../porter-verification/types";
 import { adminPorterVerificationsService } from "../services/admin-porter-verifications.service";
 import type {
@@ -20,6 +21,7 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 export function useAdminPorterVerifications() {
+	const refreshModerationCounts = useRefreshAdminModerationCounts();
 	const [params, setParams] = useState<PorterVerificationListParams>(DEFAULT_PARAMS);
 	const [searchInput, setSearchInput] = useState("");
 	const [items, setItems] = useState<AdminPorterVerificationSummary[]>([]);
@@ -88,6 +90,7 @@ export function useAdminPorterVerifications() {
 					? await adminPorterVerificationsService.approve(detail.porterId)
 					: await adminPorterVerificationsService.reject(detail.porterId, reason ?? "");
 			setDetail(updated);
+			refreshModerationCounts();
 			const name = updated.fullName ?? updated.email ?? "Porter";
 			setSuccessMessage(
 				action === "approve" ? `Đã duyệt hồ sơ của ${name}.` : `Đã từ chối hồ sơ của ${name}.`

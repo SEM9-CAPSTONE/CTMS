@@ -1,9 +1,10 @@
-import { CalendarDays, Plus } from "lucide-react";
+import { CalendarDays, Plus, Route } from "lucide-react";
 
 export function HostDashboardHeader({
 	name,
 	onCreateTrip,
-}: { name: string; onCreateTrip?: () => void }) {
+	onViewTrekkingRoutes,
+}: { name: string; onCreateTrip?: () => void; onViewTrekkingRoutes?: () => void }) {
 	const date = new Intl.DateTimeFormat("vi-VN", {
 		timeZone: "Asia/Ho_Chi_Minh",
 		weekday: "long",
@@ -36,6 +37,16 @@ export function HostDashboardHeader({
 						>
 							<Plus aria-hidden="true" className="size-3.5" />
 							Tạo chuyến đi
+						</button>
+					)}
+					{onViewTrekkingRoutes && (
+						<button
+							type="button"
+							onClick={onViewTrekkingRoutes}
+							className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-white ring-1 ring-white/30 ring-inset transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+						>
+							<Route aria-hidden="true" className="size-3.5" />
+							Quản lí tuyến
 						</button>
 					)}
 				</div>

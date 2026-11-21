@@ -248,7 +248,7 @@ export function HostCampersPage({
 													{formatTripStatus(selectedTrip.status)}
 												</span>
 												<span className="text-xs font-semibold text-[#667a6d]">
-													Mã chuyến: {selectedTrip.id.slice(0, 8)}
+													{new Date(selectedTrip.startsAt).toLocaleDateString("vi-VN")}
 												</span>
 											</div>
 											<h2 className="mt-2 text-xl font-extrabold text-[#10221b] sm:text-2xl">
