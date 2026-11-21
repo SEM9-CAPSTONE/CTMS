@@ -413,7 +413,7 @@ export function CreateTripPage({
 					{onBackHome && (
 						<button
 							type="button"
-							aria-label="Quay về trang quản lý Host"
+							aria-label="Quay về trang quản lý"
 							onClick={() => void leave()}
 							disabled={leaving || creation.isSubmitting || imageBusy}
 							className="rounded-xl border p-2.5"
@@ -430,13 +430,9 @@ export function CreateTripPage({
 								? "Tiếp tục bản nháp"
 								: isEditMode
 									? "Thông tin chuyến đi"
-									: "Tạo chuyến đi cho Host"}
+									: "Tạo chuyến đi mới"}
 						</h1>
-						<p className="text-sm text-[#667a6d]">
-							{isEditMode
-								? "Cập nhật thông tin chuyến đi."
-								: "Tạo chuyến đi nháp từ tuyến trekking đã duyệt, điểm đầu/cuối được lấy theo tuyến có sẵn."}
-						</p>
+						{isEditMode && <p className="text-sm text-[#667a6d]">Cập nhật thông tin chuyến đi.</p>}
 					</div>
 				</div>
 			</header>

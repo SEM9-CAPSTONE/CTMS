@@ -782,15 +782,15 @@ export function computeSuggestedSchedule(
 	const origMinute = origStartVn.getUTCMinutes();
 
 	const origDurationMs = latestTrip.endsAt.getTime() - latestTrip.startsAt.getTime();
-	// Minimum realistic duration based on route length (~2.5 km/h conservative trekking pace, min 2h)
+	// Minimum realistic duration matching CreateTripForm validator (~1.2 km/h for long routes, min 2h)
 	const minRouteMs =
 		latestTrip.routeLengthMeters && latestTrip.routeLengthMeters > 0
-			? Math.max(2 * 3600 * 1000, Math.ceil((latestTrip.routeLengthMeters / 2500) * 3600 * 1000))
+			? Math.max(2 * 3600 * 1000, Math.ceil((latestTrip.routeLengthMeters / 1200) * 3600 * 1000))
 			: 2 * 3600 * 1000;
 	const maxDayTripDurationMs = 14 * 3600 * 1000;
 	const rawDurationMs = Math.max(origDurationMs > 0 ? origDurationMs : minRouteMs, minRouteMs);
 	const durationMs =
-		latestTrip.tripType === "day_trip"
+		latestTrip.tripType === "day_trip" && minRouteMs <= maxDayTripDurationMs
 			? Math.min(rawDurationMs, maxDayTripDurationMs)
 			: rawDurationMs;
 
@@ -812,8 +812,10 @@ export function computeSuggestedSchedule(
 		latestTrip.bookingDeadline.getTime() < latestTrip.startsAt.getTime()
 			? latestTrip.startsAt.getTime() - latestTrip.bookingDeadline.getTime()
 			: 2 * 86_400_000;
+	const roundedDeadlineOffsetMs =
+		Math.max(1, Math.round(origDeadlineOffsetMs / 3600_000)) * 3600_000;
 	const deadlineOffsetMs = Math.max(
-		Math.min(origDeadlineOffsetMs, 7 * 86_400_000),
+		Math.min(roundedDeadlineOffsetMs, 7 * 86_400_000),
 		meetingOffsetMs + 60 * 60 * 1000
 	);
 
@@ -901,9 +903,10 @@ export function computeSuggestedSchedule(
 			continue;
 		}
 
-		// day_trip must start and end on the same Vietnam calendar day
+		// day_trip must start and end on the same Vietnam calendar day (unless route length forces overnight)
 		if (
 			latestTrip.tripType === "day_trip" &&
+			durationMs <= maxDayTripDurationMs &&
 			vietnamDateKey(new Date(startsAtMs)) !== vietnamDateKey(new Date(endsAtMs))
 		) {
 			continue;

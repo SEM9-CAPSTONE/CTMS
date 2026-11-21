@@ -1,5 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, CalendarCheck2, CloudSun, RefreshCw, Sparkles } from "lucide-react";
+import {
+	ArrowRight,
+	ChevronUp,
+	CloudSun,
+	RefreshCw,
+	Sparkles,
+	Star,
+	TrendingUp,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { HttpError, queryKeys } from "../../../core/api";
 import { Button, StatusBadge } from "../../../shared/components";
@@ -38,10 +46,14 @@ function getMonthHolidayTag(monthKey: string): string | null {
 	return HOLIDAY_MONTH_SHORT_BADGE[monthNum] ?? null;
 }
 
-function buildUpcomingMonths(count = 6): string[] {
+function buildUpcomingMonths(count = 5): string[] {
 	const earliest = new Date(Date.now() + 14 * 86_400_000 + 7 * 3600_000);
 	let year = earliest.getUTCFullYear();
-	let month = earliest.getUTCMonth() + 1;
+	let month = earliest.getUTCMonth() + 2; // Skip the nearest month already covered by "Gần nhất"
+	if (month > 12) {
+		month -= 12;
+		year += 1;
+	}
 	const result: string[] = [];
 	for (let i = 0; i < count; i += 1) {
 		result.push(`${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}`);
@@ -54,6 +66,10 @@ function buildUpcomingMonths(count = 6): string[] {
 	return result;
 }
 
+function stripParens(text: string): string {
+	return text.replace(/\s*\([^)]*\)/g, "").trim();
+}
+
 function weatherBadgeTone(
 	weather: SuggestionWeatherSummary
 ): "success" | "warning" | "danger" | "neutral" {
@@ -63,49 +79,67 @@ function weatherBadgeTone(
 	return "success";
 }
 
-function weatherBadgeLabel(weather: SuggestionWeatherSummary): string {
-	if (weather.status === "beyond_horizon")
-		return "Ngày đi còn xa (chưa có dự báo thời tiết chi tiết)";
-	if (weather.status === "unavailable") return "Tạm thiếu dự báo thời tiết";
-	if (weather.riskLevel === "red") return "Thời tiết xấu (nên tránh)";
+function weatherBadgeLabel(weather: SuggestionWeatherSummary | null): string {
+	if (!weather || weather.status !== "available") return "Chưa có dự báo thời tiết";
+	if (weather.riskLevel === "red") return "Thời tiết xấu";
 	if (weather.riskLevel === "yellow") return "Thời tiết cần lưu ý";
 	return "Thời tiết thuận lợi";
 }
 
-function cleanWeatherDetail(weather: SuggestionWeatherSummary): string | null {
-	if (weather.status !== "available") return null;
-	return weather.summary.replace(/^[^:]+:\s*/, "").trim();
+interface HighlightMetricChip {
+	label: string;
+	badge?: string;
+	value: string;
+	tone: "emerald" | "amber" | "neutral";
 }
 
-function buildConflictAndWeatherMessage(
-	startsAtIso: string | null,
-	weather: SuggestionWeatherSummary | null
-): string | null {
-	if (!startsAtIso) return null;
-	const shortDate = formatShortDateVi(startsAtIso);
-	if (!shortDate) return null;
-	if (weather?.status === "available" && weather.riskLevel === "green") {
-		return `Ngày ${shortDate} bạn đang trống lịch và thời tiết thuận lợi`;
+function buildMetricHighlights(item: HostTripSuggestionItem): HighlightMetricChip[] {
+	const chips: HighlightMetricChip[] = [];
+
+	const rationale = item.rationaleLabels[0];
+	if (rationale) {
+		const lower = rationale.toLowerCase();
+		if (lower.includes("doanh thu")) {
+			chips.push({ label: "Doanh thu", value: "Top doanh thu", tone: "emerald" });
+		} else if (lower.includes("lấp đầy")) {
+			chips.push({ label: "Đặt chỗ", value: "Tỷ lệ đặt chỗ cao", tone: "emerald" });
+		} else if (lower.includes("nhu cầu") || lower.includes("đặt")) {
+			chips.push({ label: "Nhu cầu", value: "Nhu cầu đặt cao", tone: "emerald" });
+		} else {
+			chips.push({ label: "Hiệu quả", value: stripParens(rationale), tone: "neutral" });
+		}
 	}
-	return `Ngày ${shortDate} bạn đang trống lịch dẫn đoàn`;
+
+	if (
+		item.routeReviewSummary &&
+		item.routeReviewSummary.reviewCount > 0 &&
+		item.routeReviewSummary.averageRating !== null
+	) {
+		const avg = item.routeReviewSummary.averageRating;
+		const isLow = item.routeReviewSummary.hasSlipOrWeatherCaution || avg < 3.5;
+		chips.push({
+			label: "Đánh giá",
+			badge: `${Number(avg.toFixed(1))}★`,
+			value: isLow ? "Cần cải thiện" : "Đánh giá tốt",
+			tone: isLow ? "amber" : "emerald",
+		});
+	}
+
+	return chips;
 }
 
-/**
- * Integrated "Gợi ý tổ chức chuyến đi" workspace on CreateTripPage (create mode only).
- * Supports conflict-aware scheduling, holiday & long-weekend boost, route review & safety signals,
- * multi-date comparison per route card, and 1-click form prefill.
- */
 export function CreateTripSuggestionsPanel({
 	owner,
 	onApplySuggestion,
 }: CreateTripSuggestionsPanelProps) {
 	const queryClient = useQueryClient();
+	const [isExpanded, setIsExpanded] = useState(true);
 	const [busyId, setBusyId] = useState<string | null>(null);
 	const [selectedMonth, setSelectedMonth] = useState<string>("");
 	const [trackedJobId, setTrackedJobId] = useState<string | null>(null);
 	const [seenRouteIds, setSeenRouteIds] = useState<string[]>([]);
 	const [selectedDateIdxByCard, setSelectedDateIdxByCard] = useState<Record<string, number>>({});
-	const upcomingMonths = useMemo(() => buildUpcomingMonths(6), []);
+	const upcomingMonths = useMemo(() => buildUpcomingMonths(5), []);
 
 	const latestQuery = useQuery<HostSuggestionJobResponse | null>({
 		queryKey: queryKeys.hostAnalytics.latestSuggestion(owner),
@@ -222,316 +256,309 @@ export function CreateTripSuggestionsPanel({
 	const isGenerating = generateMutation.isPending || isPolling;
 
 	return (
-		<details
-			open
-			className="mb-5 rounded-2xl border border-[#dfe8df] bg-white p-4 shadow-xs sm:p-6"
-		>
-			<summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3">
-				<div className="flex flex-wrap items-center gap-2.5">
-					<Sparkles className="size-4 text-[#164027]" aria-hidden="true" />
-					<span className="text-lg font-bold tracking-tight text-[#10221b]">
-						Gợi ý tổ chức chuyến đi
+		<section className="mb-5 overflow-hidden rounded-2xl border border-[#dfe8df] bg-white shadow-xs">
+			{/* Thanh tiêu đề xanh rêu nổi bật có nút Xem gợi ý / Thu gọn */}
+			<div className="relative flex flex-wrap items-center justify-between gap-3 overflow-hidden bg-gradient-to-r from-[#164027] via-[#1b4d30] to-[#2c6644] px-5 py-4">
+				<div
+					aria-hidden="true"
+					className="pointer-events-none absolute -right-10 -top-10 size-40 rounded-full bg-white/8"
+				/>
+				<div
+					aria-hidden="true"
+					className="pointer-events-none absolute right-24 -bottom-12 size-32 rounded-full bg-white/6"
+				/>
+
+				<div className="relative z-10 flex items-center gap-3">
+					<span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white">
+						<Sparkles className="size-4" aria-hidden="true" />
 					</span>
-					<StatusBadge tone="info">Tham khảo</StatusBadge>
+					<h2 className="text-base font-bold tracking-tight text-white sm:text-lg">
+						Gợi ý tổ chức chuyến đi
+					</h2>
 				</div>
-				<span className="text-xs font-medium text-[#667a6d]">Bấm để thu gọn / mở rộng</span>
-			</summary>
 
-			<div className="mt-4 space-y-4 border-t border-[#edf2ed] pt-4">
-				{/* Hàng điều khiển: Chọn tháng gợi ý + Nút Đổi gợi ý khác */}
-				<div className="flex flex-wrap items-center justify-between gap-3">
-					<fieldset
-						className="flex flex-wrap items-center gap-1.5 border-0 p-0"
-						aria-label="Chọn tháng gợi ý"
-					>
-						<span className="mr-1 text-xs font-semibold text-[#53674d]">Tháng muốn mở:</span>
-						<button
-							type="button"
-							disabled={isGenerating}
-							onClick={() => handleSelectMonth("")}
-							className={`min-h-8 rounded-full px-3.5 py-1 text-xs font-semibold transition-colors duration-150 ${
-								selectedMonth === ""
-									? "bg-[#164027] text-white shadow-2xs"
-									: "border border-[#dfe8df] bg-white text-[#374151] hover:bg-[#edf4e8] hover:text-[#164027]"
-							}`}
+				<button
+					type="button"
+					onClick={() => setIsExpanded((prev) => !prev)}
+					aria-expanded={isExpanded}
+					className="relative z-10 inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-bold text-[#164027] shadow-xs transition hover:bg-[#edf5ef]"
+				>
+					{isExpanded ? (
+						<>
+							<ChevronUp className="size-3.5" aria-hidden="true" />
+							<span>Thu gọn</span>
+						</>
+					) : (
+						<>
+							<Sparkles className="size-3.5" aria-hidden="true" />
+							<span>Xem gợi ý</span>
+						</>
+					)}
+				</button>
+			</div>
+
+			{isExpanded && (
+				<div className="space-y-4 p-4 sm:p-6">
+					{/* Hàng điều khiển: Chọn tháng + Nút Đổi gợi ý khác */}
+					<div className="flex flex-wrap items-center justify-between gap-3">
+						<fieldset
+							className="flex flex-wrap items-center gap-1.5 border-0 p-0"
+							aria-label="Chọn tháng gợi ý"
 						>
-							Gần nhất (Có dự báo thời tiết)
-						</button>
-						{upcomingMonths.map((m) => {
-							const holidayTag = getMonthHolidayTag(m);
-							const isSelected = selectedMonth === m;
-							return (
-								<button
-									key={m}
-									type="button"
-									disabled={isGenerating}
-									onClick={() => handleSelectMonth(m)}
-									className={`inline-flex min-h-8 items-center gap-1.5 rounded-full px-3.5 py-1 text-xs font-semibold transition-colors duration-150 ${
-										isSelected
-											? "bg-[#164027] text-white shadow-2xs"
-											: "border border-[#dfe8df] bg-white text-[#374151] hover:bg-[#edf4e8] hover:text-[#164027]"
-									}`}
-								>
-									<span>{formatMonthVi(m)}</span>
-									{holidayTag && (
-										<span
-											className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-												isSelected ? "bg-white/20 text-white" : "bg-amber-100 text-amber-900"
-											}`}
-										>
-											{holidayTag}
-										</span>
-									)}
-								</button>
-							);
-						})}
-					</fieldset>
-
-					<Button
-						variant="primary"
-						size="sm"
-						disabled={isGenerating}
-						onClick={handleGenerateAlternative}
-						className="min-h-9 rounded-xl"
-					>
-						<RefreshCw
-							className={`size-3.5 ${isGenerating ? "animate-spin" : ""}`}
-							aria-hidden="true"
-						/>
-						<span>
-							{isGenerating
-								? "Đang tìm gợi ý mới..."
-								: topSuggestions.length > 0
-									? "Đổi gợi ý khác"
-									: "Gợi ý chuyến đi"}
-						</span>
-					</Button>
-				</div>
-
-				{/* Danh sách 3 thẻ gợi ý dàn ngang 3 cột (Impeccable Bento Grid) */}
-				{latestQuery.isPending ? (
-					<p className="py-6 text-center text-xs text-[#647468]">Đang tải gợi ý gần nhất...</p>
-				) : isGenerating ? (
-					<div
-						aria-live="polite"
-						className="rounded-xl bg-[#f4f8f4] px-4 py-6 text-center text-xs font-medium text-[#2c4234]"
-					>
-						Đang tổng hợp gợi ý tuyến, đối chiếu lịch trống của bạn và dự báo thời tiết cho{" "}
-						{selectedMonth ? formatMonthVi(selectedMonth) : "tháng gần nhất"}...
-					</div>
-				) : topSuggestions.length === 0 ? (
-					<div className="rounded-xl bg-[#f8faf8] px-4 py-6 text-center text-xs text-[#526357]">
-						Chưa có gợi ý nào. Bấm <strong>“Gợi ý chuyến đi”</strong> hoặc chọn một tháng ở trên để
-						nhận đề xuất kèm dự báo thời tiết.
-					</div>
-				) : (
-					<div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-						{topSuggestions.map((item) => {
-							const busy = busyId === item.id;
-							const dateOptions = item.dateOptions ?? [];
-							const selectedIdx = Math.min(
-								selectedDateIdxByCard[item.id] ?? 0,
-								Math.max(0, dateOptions.length - 1)
-							);
-							const activeOption: SuggestionDateOption | undefined = dateOptions[selectedIdx];
-							const activeStartsAt = activeOption?.startsAt ?? item.suggestedStartsAt;
-							const activeWeather = activeOption?.weatherSummary ?? item.weatherSummary;
-
-							const weatherDetail = activeWeather ? cleanWeatherDetail(activeWeather) : null;
-							const hasAiNarrative = Boolean(
-								item.aiSeasonNote || (item.aiRisks && item.aiRisks.length > 0)
-							);
-							const conflictAndWeatherText = buildConflictAndWeatherMessage(
-								activeStartsAt,
-								activeWeather
-							);
-
-							return (
-								<article
-									key={item.id}
-									className="flex h-full flex-col justify-between gap-4 rounded-2xl border border-[#dfe8df] bg-[#fbfcfb] p-5 transition-colors duration-150 hover:border-[#bdd0bf]"
-								>
-									<div className="flex flex-1 flex-col gap-3">
-										{/* Tầng 1: Tháng + Loại chuyến + Dịp lễ (nếu có) + Ngày đang chọn */}
-										<div className="flex min-h-6 flex-wrap items-center justify-between gap-1.5">
-											<div className="flex flex-wrap items-center gap-1.5">
-												<StatusBadge tone="success">{formatMonthVi(item.monthHint)}</StatusBadge>
-												<StatusBadge tone="neutral">{TRIP_TYPE_LABELS[item.tripType]}</StatusBadge>
-												{item.holidayHighlight && (
-													<StatusBadge tone="warning">{item.holidayHighlight.label}</StatusBadge>
-												)}
-											</div>
-											{activeStartsAt && (
-												<span className="text-xs font-bold text-[#164027]">
-													{formatShortDateVi(activeStartsAt)}
-												</span>
-											)}
-										</div>
-
-										{/* Tầng 2: Tên tuyến & Thông số lịch sử (cố định chiều cao đều nhau giữa 3 thẻ) */}
-										<div className="min-h-[84px]">
-											<h3
-												className="line-clamp-1 text-base font-bold tracking-tight text-[#10221b]"
-												title={item.routeName || "Tuyến trekking của bạn"}
-											>
-												{item.routeName || "Tuyến trekking của bạn"}
-											</h3>
-											<div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-[#53674d]">
-												<span>{item.areaName || "Chưa gắn khu vực"}</span>
-												<span>·</span>
-												<span className="font-bold text-[#10221b]">
-													{formatSuggestedPrice(item.suggestedPricePerPerson)}
-												</span>
-												{item.suggestedCapacityMin !== null && (
-													<>
-														<span>·</span>
-														<span>Từ {item.suggestedCapacityMin} khách</span>
-													</>
-												)}
-											</div>
-											{item.rationaleLabels[0] && (
-												<p
-													className="mt-1 line-clamp-1 text-xs text-[#667a6d]"
-													title={item.rationaleLabels[0]}
-												>
-													{item.rationaleLabels[0]}
-												</p>
-											)}
-											<p
-												className={`mt-1.5 line-clamp-1 text-xs font-medium ${
-													!item.routeReviewSummary
-														? "text-[#8a998e]"
-														: item.routeReviewSummary.hasSlipOrWeatherCaution
-															? "text-amber-800"
-															: "text-[#164027]"
+							<span className="mr-1 text-xs font-semibold text-[#53674d]">Tháng muốn mở:</span>
+							<button
+								type="button"
+								disabled={isGenerating}
+								onClick={() => handleSelectMonth("")}
+								className={`min-h-8 rounded-full px-3.5 py-1 text-xs font-semibold transition-colors duration-150 ${
+									selectedMonth === ""
+										? "bg-[#164027] text-white shadow-2xs"
+										: "border border-[#dfe8df] bg-white text-[#374151] hover:bg-[#edf4e8] hover:text-[#164027]"
+								}`}
+							>
+								Gần nhất
+							</button>
+							{upcomingMonths.map((m) => {
+								const holidayTag = getMonthHolidayTag(m);
+								const isSelected = selectedMonth === m;
+								return (
+									<button
+										key={m}
+										type="button"
+										disabled={isGenerating}
+										onClick={() => handleSelectMonth(m)}
+										className={`inline-flex min-h-8 items-center gap-1.5 rounded-full px-3.5 py-1 text-xs font-semibold transition-colors duration-150 ${
+											isSelected
+												? "bg-[#164027] text-white shadow-2xs"
+												: "border border-[#dfe8df] bg-white text-[#374151] hover:bg-[#edf4e8] hover:text-[#164027]"
+										}`}
+									>
+										<span>{formatMonthVi(m)}</span>
+										{holidayTag && (
+											<span
+												className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+													isSelected ? "bg-white/20 text-white" : "bg-amber-100 text-amber-900"
 												}`}
-												title={
-													item.routeReviewSummary?.highlightText ?? "Chưa có đánh giá cho tuyến này"
-												}
 											>
-												{item.routeReviewSummary?.highlightText ?? "Chưa có đánh giá cho tuyến này"}
-											</p>
-										</div>
-
-										{/* Tầng 3: So sánh & chọn nhanh giữa 2–3 khung ngày trống lịch trong tháng */}
-										<div className="min-h-[54px] space-y-1.5 border-t border-[#e8efe8] pt-2.5">
-											<span className="block text-[11px] font-semibold tracking-wide text-[#53674d]">
-												Chọn ngày khởi hành phù hợp:
+												{holidayTag}
 											</span>
-											<div className="flex flex-wrap gap-1.5">
-												{dateOptions.map((opt, idx) => {
-													const isSelected = idx === selectedIdx;
-													const isGreen =
-														opt.weatherSummary?.status === "available" &&
-														opt.weatherSummary.riskLevel === "green";
-													return (
-														<button
-															key={opt.startsAt}
-															type="button"
-															onClick={() =>
-																setSelectedDateIdxByCard((prev) => ({
-																	...prev,
-																	[item.id]: idx,
-																}))
-															}
-															className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors duration-150 ${
-																isSelected
-																	? "bg-[#164027] text-white shadow-2xs"
-																	: "border border-[#dfe8df] bg-white text-[#374151] hover:bg-[#edf4e8]"
+										)}
+									</button>
+								);
+							})}
+						</fieldset>
+
+						<Button
+							variant="primary"
+							size="sm"
+							disabled={isGenerating}
+							onClick={handleGenerateAlternative}
+							className="min-h-9 rounded-xl"
+						>
+							<RefreshCw
+								className={`size-3.5 ${isGenerating ? "animate-spin" : ""}`}
+								aria-hidden="true"
+							/>
+							<span>
+								{isGenerating
+									? "Đang tìm gợi ý mới..."
+									: topSuggestions.length > 0
+										? "Đổi gợi ý khác"
+										: "Gợi ý chuyến đi"}
+							</span>
+						</Button>
+					</div>
+
+					{/* Danh sách 3 thẻ gợi ý */}
+					{latestQuery.isPending ? (
+						<p className="py-6 text-center text-xs text-[#647468]">Đang tải gợi ý gần nhất...</p>
+					) : isGenerating ? (
+						<div
+							aria-live="polite"
+							className="rounded-xl bg-[#f4f8f4] px-4 py-6 text-center text-xs font-medium text-[#2c4234]"
+						>
+							Đang tổng hợp gợi ý tuyến cho{" "}
+							{selectedMonth ? formatMonthVi(selectedMonth) : "tháng gần nhất"}...
+						</div>
+					) : topSuggestions.length === 0 ? (
+						<div className="rounded-xl bg-[#f8faf8] px-4 py-6 text-center text-xs text-[#526357]">
+							Chưa có gợi ý nào. Bấm <strong>“Gợi ý chuyến đi”</strong> hoặc chọn tháng ở trên.
+						</div>
+					) : (
+						<div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+							{topSuggestions.map((item) => {
+								const busy = busyId === item.id;
+								const dateOptions = item.dateOptions ?? [];
+								const selectedIdx = Math.min(
+									selectedDateIdxByCard[item.id] ?? 0,
+									Math.max(0, dateOptions.length - 1)
+								);
+								const activeOption: SuggestionDateOption | undefined = dateOptions[selectedIdx];
+								const activeStartsAt = activeOption?.startsAt ?? item.suggestedStartsAt;
+								const activeWeather = activeOption?.weatherSummary ?? item.weatherSummary;
+
+								const weatherLabel = weatherBadgeLabel(activeWeather);
+								const weatherTone = activeWeather ? weatherBadgeTone(activeWeather) : "neutral";
+								const metricHighlights = buildMetricHighlights(item);
+								const hasAiNarrative = Boolean(
+									item.aiSeasonNote || (item.aiRisks && item.aiRisks.length > 0)
+								);
+								const shortDate = activeStartsAt ? formatShortDateVi(activeStartsAt) : null;
+
+								return (
+									<article
+										key={item.id}
+										className="flex h-full flex-col justify-between gap-4 rounded-2xl border border-[#dfe8df] bg-[#fbfcfb] p-5 transition-colors duration-150 hover:border-[#bdd0bf]"
+									>
+										<div className="flex flex-1 flex-col gap-3">
+											{/* Tầng 1: Tháng + Loại chuyến + Dịp lễ + Ngày chọn */}
+											<div className="flex min-h-6 flex-wrap items-center justify-between gap-1.5">
+												<div className="flex flex-wrap items-center gap-1.5">
+													<StatusBadge tone="success">{formatMonthVi(item.monthHint)}</StatusBadge>
+													<StatusBadge tone="neutral">
+														{TRIP_TYPE_LABELS[item.tripType]}
+													</StatusBadge>
+													{item.holidayHighlight && (
+														<StatusBadge tone="warning">{item.holidayHighlight.label}</StatusBadge>
+													)}
+												</div>
+												{shortDate && (
+													<span className="text-xs font-bold text-[#164027]">{shortDate}</span>
+												)}
+											</div>
+
+											{/* Tầng 2: Tên tuyến + Giá dự kiến mỗi người */}
+											<div>
+												<h3
+													className="line-clamp-1 text-base font-bold tracking-tight text-[#10221b]"
+													title={item.routeName || "Tuyến trekking của bạn"}
+												>
+													{item.routeName || "Tuyến trekking của bạn"}
+												</h3>
+												<p className="mt-1 text-xs font-bold text-[#10221b]">
+													{formatSuggestedPrice(item.suggestedPricePerPerson)}
+												</p>
+											</div>
+
+											{/* Tầng 2.5: Mini-cards thể hiện rõ Top doanh thu / Tỷ lệ lấp đầy / Đánh giá */}
+											{metricHighlights.length > 0 && (
+												<div className="flex flex-wrap items-stretch gap-2">
+													{metricHighlights.map((chip) => (
+														<div
+															key={chip.label}
+															className={`rounded-xl px-3 py-1.5 ${
+																chip.tone === "amber"
+																	? "border border-amber-200/80 bg-amber-50/90 text-amber-950"
+																	: chip.tone === "emerald"
+																		? "bg-[#edf5ef] text-[#164027]"
+																		: "bg-[#f3f6f3] text-[#374151]"
 															}`}
 														>
-															<span>{opt.label}</span>
-															{isGreen && (
-																<span
-																	className={`size-1.5 rounded-full ${
-																		isSelected ? "bg-emerald-300" : "bg-emerald-600"
+															<div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide">
+																<span className="flex items-center gap-1 opacity-80">
+																	{chip.label === "Đánh giá" ? (
+																		<Star className="size-3 shrink-0" aria-hidden="true" />
+																	) : (
+																		<TrendingUp className="size-3 shrink-0" aria-hidden="true" />
+																	)}
+																	<span>{chip.label}</span>
+																</span>
+																{chip.badge && (
+																	<span className="text-[11px] font-bold normal-case">
+																		{chip.badge}
+																	</span>
+																)}
+															</div>
+															<p className="mt-0.5 truncate text-xs font-bold" title={chip.value}>
+																{chip.value}
+															</p>
+														</div>
+													))}
+												</div>
+											)}
+
+											{/* Tầng 3: Chọn ngày khởi hành */}
+											{dateOptions.length > 0 && (
+												<div className="space-y-1.5 border-t border-[#e8efe8] pt-2.5">
+													<span className="block text-[11px] font-semibold text-[#53674d]">
+														Chọn ngày khởi hành:
+													</span>
+													<div className="flex flex-wrap gap-1.5">
+														{dateOptions.map((opt, idx) => {
+															const isSelected = idx === selectedIdx;
+															return (
+																<button
+																	key={opt.startsAt}
+																	type="button"
+																	onClick={() =>
+																		setSelectedDateIdxByCard((prev) => ({
+																			...prev,
+																			[item.id]: idx,
+																		}))
+																	}
+																	className={`inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors duration-150 ${
+																		isSelected
+																			? "bg-[#164027] text-white shadow-2xs"
+																			: "border border-[#dfe8df] bg-white text-[#374151] hover:bg-[#edf4e8]"
 																	}`}
-																	title="Thời tiết thuận lợi"
-																/>
-															)}
-														</button>
-													);
-												})}
-											</div>
-										</div>
-
-										{/* Tầng 4: Trạng thái lịch trống của Host & Dự báo thời tiết */}
-										<div className="space-y-1.5 border-t border-[#e8efe8] pt-2.5 text-xs">
-											{conflictAndWeatherText && (
-												<p className="flex items-center gap-1.5 font-semibold text-[#164027]">
-													<CalendarCheck2 className="size-3.5 shrink-0" aria-hidden="true" />
-													<span className="line-clamp-1">{conflictAndWeatherText}</span>
-												</p>
-											)}
-
-											{activeWeather && (
-												<div className="space-y-1">
-													<div className="flex flex-wrap items-center gap-1.5">
-														<CloudSun
-															className="size-3.5 shrink-0 text-[#164027]"
-															aria-hidden="true"
-														/>
-														<StatusBadge tone={weatherBadgeTone(activeWeather)}>
-															{weatherBadgeLabel(activeWeather)}
-														</StatusBadge>
+																>
+																	<span>{opt.label}</span>
+																</button>
+															);
+														})}
 													</div>
-													{weatherDetail && (
-														<p className="line-clamp-1 text-[#374151]" title={weatherDetail}>
-															{weatherDetail}
-														</p>
-													)}
 												</div>
 											)}
 
-											{item.holidayHighlight?.capacityBoostNote && (
-												<p className="line-clamp-2 text-[11px] leading-relaxed text-amber-900">
-													{item.holidayHighlight.capacityBoostNote}
-												</p>
+											{/* Tầng 4: Trạng thái dự báo thời tiết (đồng đều giữa 3 thẻ) */}
+											<div className="flex items-center gap-2 border-t border-[#e8efe8] pt-2.5 text-xs">
+												<CloudSun className="size-3.5 shrink-0 text-[#164027]" aria-hidden="true" />
+												<StatusBadge tone={weatherTone}>{weatherLabel}</StatusBadge>
+											</div>
+
+											{/* Tầng 5: Lưu ý thời tiết tháng */}
+											{hasAiNarrative && (
+												<details className="group pt-0.5 text-xs">
+													<summary className="cursor-pointer font-medium text-[#164027] hover:underline">
+														<span>Lưu ý thời tiết tháng này</span>
+													</summary>
+													<div className="mt-1.5 space-y-1 border-l-2 border-[#164027]/35 pl-2.5 text-[#374151]">
+														{item.aiSeasonNote && (
+															<p className="leading-relaxed">{stripParens(item.aiSeasonNote)}</p>
+														)}
+														{item.aiRisks && item.aiRisks.length > 0 && (
+															<p className="text-[11px] text-[#667a6d]">
+																Lưu ý: {item.aiRisks.map((r) => stripParens(r.note)).join(" · ")}
+															</p>
+														)}
+													</div>
+												</details>
 											)}
 										</div>
 
-										{/* Tầng 5: Đặc điểm thời tiết & lưu ý tháng từ AI (nằm ngay dưới trạng thái thời tiết) */}
-										{hasAiNarrative && (
-											<details className="group pt-0.5 text-xs">
-												<summary className="cursor-pointer font-medium text-[#164027] hover:underline">
-													<span>Đặc điểm thời tiết & lưu ý tháng này (AI gợi ý)</span>
-												</summary>
-												<div className="mt-1.5 space-y-1 border-l-2 border-[#164027]/35 pl-2.5 text-[#374151]">
-													{item.aiSeasonNote && (
-														<p className="leading-relaxed">{item.aiSeasonNote}</p>
-													)}
-													{item.aiRisks && item.aiRisks.length > 0 && (
-														<p className="text-[11px] text-[#667a6d]">
-															Lưu ý: {item.aiRisks.map((r) => r.note).join(" · ")}
-														</p>
-													)}
-												</div>
-											</details>
-										)}
-									</div>
-
-									<Button
-										variant="outline"
-										size="sm"
-										disabled={busy}
-										onClick={() => void handleUse(item, activeOption)}
-										className="min-h-9 w-full justify-between rounded-xl bg-white hover:bg-[#edf4e8]"
-									>
-										<span>
-											{busy
-												? "Đang điền..."
-												: activeOption
-													? `Dùng gợi ý (${activeOption.label})`
-													: "Dùng gợi ý này"}
-										</span>
-										<ArrowRight className="size-3.5" aria-hidden="true" />
-									</Button>
-								</article>
-							);
-						})}
-					</div>
-				)}
-			</div>
-		</details>
+										<Button
+											variant="outline"
+											size="sm"
+											disabled={busy}
+											onClick={() => void handleUse(item, activeOption)}
+											className="min-h-9 w-full justify-between rounded-xl bg-white hover:bg-[#edf4e8]"
+										>
+											<span>
+												{busy
+													? "Đang điền..."
+													: activeOption
+														? `Dùng gợi ý · ${activeOption.label}`
+														: "Dùng gợi ý này"}
+											</span>
+											<ArrowRight className="size-3.5" aria-hidden="true" />
+										</Button>
+									</article>
+								);
+							})}
+						</div>
+					)}
+				</div>
+			)}
+		</section>
 	);
 }
