@@ -163,8 +163,8 @@ export function sourceContentIssue(source: SourceVersion): string | null {
 		![RightsStatus.NOT_REVIEWED, RightsStatus.PERMITTED].includes(rights.rightsReviewStatus)
 	)
 		return "Nguồn PDF đang bị hạn chế sử dụng.";
-	if (medical && rights.medicalContentReviewStatus !== MedicalStatus.APPROVED)
-		return "Nguồn sơ cứu hoặc y tế cần được xác nhận chuyên môn.";
+	if (medical && rights.medicalContentReviewStatus === MedicalStatus.REJECTED)
+		return "Nội dung sơ cứu hoặc y tế đã bị từ chối sử dụng.";
 	if (isTranslation(metadata) && rights.translationAllowed !== true)
 		return "Phiên bản dịch chưa có xác nhận quyền dịch hoặc chuyển thể.";
 	try {
@@ -205,9 +205,9 @@ export function assertRights(
 		[Classification.FIRST_AID, Classification.MEDICAL_REFERENCE].includes(
 			metadata.classification
 		) &&
-		rights.medicalContentReviewStatus !== MedicalStatus.APPROVED
+		rights.medicalContentReviewStatus === MedicalStatus.REJECTED
 	)
-		throw invalidSource("Tài liệu y tế cần được xác nhận kiểm tra chuyên môn.");
+		throw invalidSource("Nội dung sơ cứu hoặc y tế đã bị từ chối sử dụng.");
 	if ((isTranslation(metadata) || use === "TRANSLATION") && rights.translationAllowed !== true)
 		throw invalidSource("Chưa xác minh quyền dịch hoặc chuyển thể.");
 	if (use === "OFFLINE" && rights.offlineRedistributionAllowed !== true)
