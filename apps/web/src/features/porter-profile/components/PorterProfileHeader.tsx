@@ -1,11 +1,13 @@
-import { CheckCircle2, Compass, Info, Star, User } from "lucide-react";
+import { CheckCircle2, Compass, Info, Mail, Phone, Star, User } from "lucide-react";
+import type { CamperProfileData } from "../../camper-profile/types";
 import type { PorterProfile } from "../types";
 
 interface PorterProfileHeaderProps {
 	profile: PorterProfile | null;
+	accountProfile?: CamperProfileData | null;
 }
 
-export function PorterProfileHeader({ profile }: PorterProfileHeaderProps) {
+export function PorterProfileHeader({ profile, accountProfile }: PorterProfileHeaderProps) {
 	const rating = profile ? Number(profile.ratingAvg).toFixed(1) : "0.0";
 	const completedTrips = profile ? profile.completedTrips : 0;
 	const isPersisted = profile && profile.version > 0;
@@ -15,20 +17,23 @@ export function PorterProfileHeader({ profile }: PorterProfileHeaderProps) {
 			<div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
 				{/* Identity and Meta */}
 				<div className="flex items-start gap-4">
-					<div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-[#e6f2f7] text-[#246b8e]">
-						<User size={28} />
-					</div>
+					{accountProfile?.avatarUrl ? (
+						<img
+							src={accountProfile.avatarUrl}
+							alt={accountProfile.fullName}
+							className="size-16 shrink-0 rounded-2xl border border-[#dfe8df] object-cover shadow-xs"
+						/>
+					) : (
+						<div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-[#e6f2f7] text-[#246b8e]">
+							<User size={28} />
+						</div>
+					)}
 					<div>
 						<div className="flex items-center gap-2.5">
 							<h1 className="text-2xl font-extrabold tracking-tight text-[#10221b] sm:text-3xl">
-								Hồ sơ người hỗ trợ
+								{accountProfile?.fullName || "Hồ sơ người hỗ trợ"}
 							</h1>
-							<span
-								data-testid="profile-persistence-badge"
-								className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-extrabold uppercase ${
-									isPersisted ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"
-								}`}
-							>
+							<span data-testid="profile-persistence-badge" className="sr-only">
 								{isPersisted ? (
 									<>
 										<CheckCircle2 size={12} />
@@ -42,9 +47,26 @@ export function PorterProfileHeader({ profile }: PorterProfileHeaderProps) {
 								)}
 							</span>
 						</div>
-						<p className="mt-1 text-sm text-[#627769]">
-							Quản lý kinh nghiệm, ngôn ngữ và trạng thái nhận ca.
-						</p>
+						{accountProfile ? (
+							<div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#53674d]">
+								{accountProfile.email && (
+									<span className="inline-flex items-center gap-1.5">
+										<Mail size={13} className="text-[#667a6d]" />
+										<span>{accountProfile.email}</span>
+									</span>
+								)}
+								{accountProfile.phone && (
+									<span className="inline-flex items-center gap-1.5">
+										<Phone size={13} className="text-[#667a6d]" />
+										<span>{accountProfile.phone}</span>
+									</span>
+								)}
+							</div>
+						) : (
+							<p className="mt-1 text-sm text-[#627769]">
+								Theo dõi cấp bậc, chứng chỉ chuyên môn và lịch sử dẫn đoàn.
+							</p>
+						)}
 					</div>
 				</div>
 

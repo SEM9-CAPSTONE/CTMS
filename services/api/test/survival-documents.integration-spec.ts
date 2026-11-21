@@ -580,7 +580,7 @@ describe("CTMS-050 PostgreSQL integration + real guarded HTTP", () => {
 			acquisition.mockRestore();
 		}
 	});
-	it("lets only Admin confirm a medical PDF while specialist review still gates processing", async () => {
+	it("lets only Admin confirm a medical PDF and queues automatic extraction without an extra review", async () => {
 		const draft = await create({
 			sourceTitle: fictionalMetadata.sourceTitle,
 			classification: Classification.FIRST_AID,
@@ -595,8 +595,8 @@ describe("CTMS-050 PostgreSQL integration + real guarded HTTP", () => {
 		const publication = await action(draft, "publish", { confirmSource: true });
 		expect(publication.body).toMatchObject({
 			currentPublishedVersionId: version.id,
-			processingSyncStatus: "NOT_PROCESSED",
-			processingBlockedReason: "Nguồn sơ cứu hoặc y tế cần được xác nhận chuyên môn.",
+			processingSyncStatus: "REGENERATION_NEEDED",
+			processingBlockedReason: null,
 			versions: [
 				{
 					status: DocumentStatus.PUBLISHED,
@@ -612,7 +612,7 @@ describe("CTMS-050 PostgreSQL integration + real guarded HTTP", () => {
 			"SELECT payload FROM survival_document_outbox WHERE version_id=$1",
 			[version.id]
 		);
-		expect(event.payload).toMatchObject({ regenerationNeeded: false });
+		expect(event.payload).toMatchObject({ regenerationNeeded: true });
 	});
 	it("rejects all three PDF conflicts through all ingestion routes without changing stored data", async () => {
 		const bytes = uniqueFictionalPdf();
@@ -884,14 +884,21 @@ describe("CTMS-050 PostgreSQL integration + real guarded HTTP", () => {
 			(await reader.resolvePublishedProvenance(archived.versions[0].id)).publicationStatus
 		).toBe(DocumentStatus.ARCHIVED);
 	});
-	it("requires separate medical and translation review and preserves independent offline rights", async () => {
+	it("honors explicit medical rejection and preserves independent translation and offline rights", async () => {
 		let medical = await create({ ...fictionalMetadata, classification: Classification.FIRST_AID });
-		await action(medical, "publish", { rights: fictionalRights }, 422);
+		await action(
+			medical,
+			"publish",
+			{
+				rights: { ...fictionalRights, medicalContentReviewStatus: MedicalStatus.REJECTED },
+			},
+			422
+		);
 		medical = (
 			await action(medical, "publish", {
 				rights: {
 					...fictionalRights,
-					medicalContentReviewStatus: MedicalStatus.APPROVED,
+					medicalContentReviewStatus: MedicalStatus.NOT_REVIEWED,
 					offlineRedistributionAllowed: true,
 				},
 			})

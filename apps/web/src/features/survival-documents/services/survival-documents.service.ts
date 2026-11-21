@@ -1,5 +1,6 @@
 import { API_ENDPOINTS } from "../../../core/api/endpoints";
 import { httpClient } from "../../../core/api/httpClient";
+import type { ContentVerification, VerificationSubmission } from "../content-verification.types";
 import type {
 	DocumentDetail,
 	DocumentListItem,
@@ -15,6 +16,13 @@ import type {
 } from "../types";
 const endpoints = API_ENDPOINTS.SURVIVAL_DOCUMENTS;
 export const survivalDocumentsService = {
+	verification: (id: string, versionId: string) =>
+		httpClient.get<ContentVerification>(endpoints.VERSION(id, versionId, "content-verification")),
+	verifyContent: (id: string, versionId: string, region: string, payload: VerificationSubmission) =>
+		httpClient.post<ContentVerification>(
+			`${endpoints.VERSION(id, versionId, "content-verification")}/${region}`,
+			payload
+		),
 	list: (filters: SourceFilters) =>
 		httpClient.get<{
 			items: DocumentListItem[];

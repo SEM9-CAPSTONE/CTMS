@@ -79,7 +79,8 @@ describe("RoleLandingPage profile navigation", () => {
 		);
 
 		fireEvent.click(openAccountMenu().getByRole("button", { name: "Người hỗ trợ" }));
-		fireEvent.click(screen.getByRole("button", { name: "Hồ sơ & Năng lực" }));
+		expect(screen.queryByRole("button", { name: "Hồ sơ & Năng lực" })).not.toBeInTheDocument();
+		fireEvent.click(openAccountMenu().getByRole("button", { name: "Hồ sơ của tôi" }));
 
 		expect(window.location.pathname).toBe("/porter/profile");
 		expect(onOpenProfile).not.toHaveBeenCalled();
@@ -117,7 +118,7 @@ describe("RoleLandingPage profile navigation", () => {
 		);
 
 		expect(screen.getByText("Người hỗ trợ CTMS")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Hồ sơ & Năng lực" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Yêu cầu Trip" })).toBeInTheDocument();
 	});
 
 	it("preserves Camper profile navigation", () => {

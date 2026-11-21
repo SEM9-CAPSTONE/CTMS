@@ -27,6 +27,7 @@ import { CreateHostSuggestionJobDto } from "./dto/create-host-suggestion-job.dto
 import { GetHostAnalyticsQueryDto } from "./dto/get-host-analytics-query.dto";
 import type {
 	HostAnalyticsResponseDto,
+	HostSuggestionHistoryItemDto,
 	HostSuggestionJobResponseDto,
 	QuickCreateContextResponseDto,
 } from "./dto/host-analytics-response.dto";
@@ -81,6 +82,14 @@ export class HostAnalyticsController {
 		@CurrentUser() user: AuthenticatedUser
 	): Promise<HostSuggestionJobResponseDto> {
 		return this.suggestionsService.getLatestJob(user);
+	}
+
+	@Get("suggestions/history")
+	@Header("Cache-Control", "no-store")
+	async getSuggestionHistory(
+		@CurrentUser() user: AuthenticatedUser
+	): Promise<HostSuggestionHistoryItemDto[]> {
+		return this.suggestionsService.getSuggestionHistory(user);
 	}
 
 	@Get("suggestions/:id")

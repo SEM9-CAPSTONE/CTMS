@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -8,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/core/api/api_client.dart';
+import 'package:mobile/core/api/api_exception.dart';
 import 'package:mobile/core/storage/token_storage.dart';
 import 'package:mobile/features/camper/application/ai_feedback_queue.dart';
 import 'package:mobile/features/camper/application/survival_chat_controller.dart';
@@ -494,7 +496,10 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Kiểm tra kết nối mạng rồi thử lại.'), findsOneWidget);
+      expect(
+        find.text('Không kết nối được với trợ lý. Bạn có thể thử lại.'),
+        findsOneWidget,
+      );
       await tester.tap(find.text('Thử lại'));
       await tester.pumpAndSettle();
       expect(transport.requests, hasLength(2));
@@ -503,6 +508,121 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text(question), findsOneWidget);
       expect(find.text(answerText), findsOneWidget);
+    },
+  );
+
+  test('does not diagnose network loss from an AI service failure', () {
+    final failure = SurvivalChatFailure.fromError(
+      ApiException(
+        '',
+        statusCode: 503,
+        kind: ApiExceptionKind.response,
+        errorData: {'code': 'AI_UNAVAILABLE'},
+      ),
+    );
+    expect(
+      failure.message,
+      'Trợ lý tạm thời gián đoạn. Bạn có thể thử lại sau.',
+    );
+    expect(failure.retryable, isTrue);
+    expect(failure.onlineAttemptUncertain, isTrue);
+  });
+
+  testWidgets(
+    'shows a service error while online without bypassing an uncertain server request',
+    (tester) async {
+      final model = _LocalModel();
+      await open(tester, model: model);
+      expect(network.online, isTrue);
+      final controller = container.read(
+        survivalChatControllerProvider.notifier,
+      );
+      expect(
+        controller.send('tôi sắp đi trekking, tôi cần chuẩn bị những gì'),
+        isTrue,
+      );
+      await tester.pumpAndSettle();
+      transport.reply(0, {'code': 'AI_UNAVAILABLE'}, status: 503);
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Trợ lý tạm thời gián đoạn. Bạn có thể thử lại sau.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Hãy kết nối mạng'), findsNothing);
+      expect(model.requests, 0);
+      final turn = container.read(survivalChatControllerProvider).single;
+      expect(turn.failure?.onlineAttemptUncertain, isTrue);
+      controller.retry(turn);
+      await tester.pumpAndSettle();
+      expect(transport.requests, hasLength(2));
+      expect(transport.requests[0].data, transport.requests[1].data);
+      transport.reply(1, answered);
+      await tester.pumpAndSettle();
+      expect(
+        container.read(survivalChatControllerProvider).single.answer?.id,
+        answered['answerId'],
+      );
+      expect(model.requests, 0);
+    },
+  );
+
+  testWidgets(
+    'uses the local model when an online connection is refused before the service receives the question',
+    (tester) async {
+      final model = _LocalModel();
+      await open(tester, model: model);
+      final controller = container.read(
+        survivalChatControllerProvider.notifier,
+      );
+      expect(
+        controller.send('tôi sắp đi trekking, tôi cần chuẩn bị những gì'),
+        isTrue,
+      );
+      await tester.pumpAndSettle();
+      transport.replies[0].completeError(
+        DioException(
+          type: DioExceptionType.connectionError,
+          requestOptions: transport.requests[0],
+          error: const SocketException(
+            'Connection refused',
+            osError: OSError('Connection refused', 10061),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(transport.requests, hasLength(1));
+      expect(model.requests, 1);
+      expect(
+        container.read(survivalChatControllerProvider).single.answer?.isLocal,
+        isTrue,
+      );
+    },
+  );
+
+  testWidgets(
+    'answers a general preparation question offline with an installed supported model and no API request',
+    (tester) async {
+      final model = _LocalModel();
+      await open(tester, model: model);
+      network.online = false;
+      final controller = container.read(
+        survivalChatControllerProvider.notifier,
+      );
+      expect(
+        controller.send('tôi sắp đi trekking, tôi cần chuẩn bị những gì'),
+        isTrue,
+      );
+      await tester.pumpAndSettle();
+      expect(model.requests, 1);
+      expect(transport.requests, isEmpty);
+      final answer = container
+          .read(survivalChatControllerProvider)
+          .single
+          .answer;
+      expect(answer?.isLocal, isTrue);
+      expect(answer?.localTrace?.path, 'PRETRAINED');
+      expect(answer?.sources, isEmpty);
+      expect(answer?.packageId, isNull);
     },
   );
 

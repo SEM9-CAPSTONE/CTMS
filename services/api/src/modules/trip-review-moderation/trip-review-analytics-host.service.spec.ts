@@ -20,10 +20,10 @@ describe("TripReviewAnalyticsHostService", () => {
 			const result = await service.getTripsFeedbackOverview("host-1", {});
 			expect(result.total).toBe(0);
 			expect(result.items).toEqual([]);
-			expect(result.sampleThreshold).toBe(5);
+			expect(result.sampleThreshold).toBe(1);
 		});
 
-		it("aggregates aspect sentiments and calculates netScore only when sample is sufficient (>= 5)", async () => {
+		it("aggregates aspect sentiments and calculates netScore whenever trip has at least 1 review", async () => {
 			// 1. Total count
 			mockDataSource.query.mockResolvedValueOnce([{ count: "2" }]);
 			// 2. Trips
@@ -34,13 +34,12 @@ describe("TripReviewAnalyticsHostService", () => {
 			// 3. Review counts
 			mockDataSource.query.mockResolvedValueOnce([
 				{ entityId: "trip-1", eligibleCount: "6", analyzedCount: "6", reportedCount: "1" },
-				{ entityId: "trip-2", eligibleCount: "3", analyzedCount: "3", reportedCount: "0" },
+				{ entityId: "trip-2", eligibleCount: "0", analyzedCount: "0", reportedCount: "0" },
 			]);
 			// 4. Aspect sentiments
 			mockDataSource.query.mockResolvedValueOnce([
 				{ tripId: "trip-1", aspect: "safety", sentiment: "positive", distinctReviews: "5" },
 				{ tripId: "trip-1", aspect: "safety", sentiment: "negative", distinctReviews: "1" },
-				{ tripId: "trip-2", aspect: "safety", sentiment: "positive", distinctReviews: "3" },
 			]);
 
 			const result = await service.getTripsFeedbackOverview("host-1", {});
@@ -48,7 +47,7 @@ describe("TripReviewAnalyticsHostService", () => {
 			expect(result.total).toBe(2);
 			expect(result.items.length).toBe(2);
 
-			// Trip 1 (totalReviews = 6 >= 5 -> hasSufficientSample = true)
+			// Trip 1 (totalReviews = 6 >= 1 -> hasSufficientSample = true)
 			const trip1 = result.items.find((t) => t.tripId === "trip-1");
 			expect(trip1).toBeDefined();
 			expect(trip1?.hasSufficientSample).toBe(true);
@@ -59,12 +58,12 @@ describe("TripReviewAnalyticsHostService", () => {
 			// 5 positive out of 6 mentions = 83%
 			expect(trip1?.aspects.safety.netScore).toBe(83);
 
-			// Trip 2 (totalReviews = 3 < 5 -> hasSufficientSample = false)
+			// Trip 2 (totalReviews = 0 < 1 -> hasSufficientSample = false)
 			const trip2 = result.items.find((t) => t.tripId === "trip-2");
 			expect(trip2).toBeDefined();
 			expect(trip2?.hasSufficientSample).toBe(false);
-			expect(trip2?.aspects.safety.positive).toBe(3);
-			// Sample insufficient -> netScore must be null
+			expect(trip2?.aspects.safety.positive).toBe(0);
+			// No reviews -> netScore must be null
 			expect(trip2?.aspects.safety.netScore).toBeNull();
 		});
 	});
@@ -76,7 +75,7 @@ describe("TripReviewAnalyticsHostService", () => {
 			const result = await service.getRoutesSafetyOverview("host-1", {});
 			expect(result.total).toBe(0);
 			expect(result.items).toEqual([]);
-			expect(result.sampleThreshold).toBe(10);
+			expect(result.sampleThreshold).toBe(1);
 			expect(result.categoryCountsCannotBeSummed).toBe(true);
 			expect(result.notSafetyHotspots).toBe(true);
 		});
@@ -125,12 +124,12 @@ describe("TripReviewAnalyticsHostService", () => {
 			expect(result.total).toBe(1);
 			expect(result.categoryCountsCannotBeSummed).toBe(true);
 			expect(result.notSafetyHotspots).toBe(true);
-			expect(result.sampleThreshold).toBe(10);
+			expect(result.sampleThreshold).toBe(1);
 
 			const route = result.items[0];
 			expect(route.routeId).toBe("route-1");
 			expect(route.totalReviews).toBe(12);
-			expect(route.hasSufficientSample).toBe(true); // 12 >= 10
+			expect(route.hasSufficientSample).toBe(true); // 12 >= 1
 			expect(route.reportedReviewsExcludedCount).toBe(2);
 
 			// Distinct reviews check: rev-1 has both fall_slip and injury, but distinct count is 1!

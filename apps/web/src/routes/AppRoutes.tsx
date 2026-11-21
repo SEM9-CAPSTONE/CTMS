@@ -33,9 +33,9 @@ const MyReportsPage = lazy(() =>
 	}))
 );
 
-const DemandInsightsPage = lazy(() =>
-	import("../features/demand-insights/DemandInsightsPage").then((module) => ({
-		default: module.DemandInsightsPage,
+const HostBusinessAnalyticsPage = lazy(() =>
+	import("../features/host-analytics/pages/HostBusinessAnalyticsPage").then((module) => ({
+		default: module.HostBusinessAnalyticsPage,
 	}))
 );
 
@@ -556,7 +556,7 @@ function AppRouteContent() {
 				onNavigateHome={() => navigateTo(RoutePath.HOME)}
 			>
 				<HostLayout allowMobile onLogout={handleLogout}>
-					<DemandInsightsPage actor={storedUser?.id ?? ""} />
+					<HostBusinessAnalyticsPage actor={storedUser?.id ?? ""} onNavigate={navigateTo} />
 				</HostLayout>
 			</AppRoleGuard>
 		);

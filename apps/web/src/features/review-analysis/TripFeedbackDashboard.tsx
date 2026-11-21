@@ -45,7 +45,6 @@ export function TripFeedbackDashboard({
 	const items = query.data?.items ?? [];
 	const total = query.data?.total ?? 0;
 	const totalPages = Math.max(1, Math.ceil(total / 6));
-	const threshold = query.data?.sampleThreshold ?? 5;
 
 	return (
 		<div className="space-y-4">
@@ -99,56 +98,63 @@ export function TripFeedbackDashboard({
 								className="overflow-hidden rounded-2xl border border-[#dfe8df] bg-white shadow-xs"
 							>
 								{/* Trip header */}
-								<header className="border-b border-[#dfe8df] bg-[#f9faf8] p-4 sm:p-5">
-									<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-										<div>
-											<h3 className="text-base font-bold text-[#10221b]">{trip.tripTitle}</h3>
-											<div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#53674d]">
-												<span>
-													Tổng đánh giá hợp lệ:{" "}
-													<strong className="text-[#10221b]">{trip.totalReviews}</strong>
-												</span>
-												<span>•</span>
-												<span>
-													Đã phân tích:{" "}
-													<strong className="text-[#10221b]">{trip.analyzedReviewsCount}</strong>
-												</span>
-												<span>•</span>
-												<span>
-													Độ bao phủ:{" "}
-													<strong className="text-[#10221b]">
-														{Math.round(trip.coverageRate * 100)}%
-													</strong>
-												</span>
-												{trip.reportedReviewsExcludedCount > 0 && (
-													<>
-														<span>•</span>
-														<span className="text-amber-700">
-															({trip.reportedReviewsExcludedCount} đánh giá bị báo cáo loại trừ)
+								{(!embedded ||
+									!trip.hasSufficientSample ||
+									trip.reportedReviewsExcludedCount > 0) && (
+									<header className="border-b border-[#dfe8df] bg-[#f9faf8] px-4 py-3.5 sm:px-5">
+										<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+											<div>
+												{!embedded && (
+													<h3 className="text-base font-bold text-[#10221b]">{trip.tripTitle}</h3>
+												)}
+												{!embedded && (
+													<div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#53674d]">
+														<span>
+															Tổng đánh giá hợp lệ:{" "}
+															<strong className="text-[#10221b]">{trip.totalReviews}</strong>
 														</span>
-													</>
+														<span>•</span>
+														<span>
+															Đã phân tích:{" "}
+															<strong className="text-[#10221b]">
+																{trip.analyzedReviewsCount}
+															</strong>
+														</span>
+														<span>•</span>
+														<span>
+															Độ bao phủ:{" "}
+															<strong className="text-[#10221b]">
+																{Math.round(trip.coverageRate * 100)}%
+															</strong>
+														</span>
+													</div>
+												)}
+												{trip.reportedReviewsExcludedCount > 0 && (
+													<p className="text-xs text-amber-800">
+														Đã loại trừ {trip.reportedReviewsExcludedCount} đánh giá đang bị báo cáo
+														vi phạm khỏi điểm tổng hợp.
+													</p>
 												)}
 											</div>
+
+											{!trip.hasSufficientSample && (
+												<span className="inline-flex items-center gap-1.5 self-start rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900 sm:self-auto">
+													<Info className="size-3.5" />
+													Chưa có đánh giá
+												</span>
+											)}
 										</div>
 
 										{!trip.hasSufficientSample && (
-											<span className="inline-flex items-center gap-1.5 self-start rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900 sm:self-auto">
-												<Info className="size-3.5" />
-												Chưa đạt ngưỡng mẫu ({threshold})
-											</span>
+											<p className="mt-2 rounded-lg bg-amber-50 p-2.5 text-xs text-amber-900">
+												Chuyến đi này chưa có đánh giá nào để phân tích khía cạnh trải nghiệm.
+											</p>
 										)}
-									</div>
-
-									{!trip.hasSufficientSample && (
-										<p className="mt-2 rounded-lg bg-amber-50 p-2.5 text-xs text-amber-900">
-											Cần tối thiểu {threshold} đánh giá hợp lệ để kích hoạt điểm số xếp hạng. Dữ
-											liệu dưới đây phản ánh số lượt ghi nhận thô.
-										</p>
-									)}
-								</header>
+									</header>
+								)}
 
 								{/* Aspect Cards Grid */}
-								<div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4 sm:p-5">
+								<div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4 sm:p-5">
 									{aspectKeys.map((key) => {
 										const aspect = trip.aspects[key];
 										const totalMentions = aspect.positive + aspect.neutral + aspect.negative;
@@ -157,45 +163,65 @@ export function TripFeedbackDashboard({
 											<div
 												key={key}
 												id={key === "safety" ? "aspect-card-safety" : undefined}
-												className="flex flex-col rounded-xl border border-[#dfe8df] bg-[#fcfdfb] p-3.5 transition-all duration-500"
+												className="flex flex-col rounded-xl border border-[#e3ebe3] bg-[#fcfdfb] p-4 transition-colors duration-200 hover:bg-[#f7faf6]"
 											>
-												<span className="text-xs font-bold uppercase tracking-wider text-[#53674d]">
-													{aspectLabels[key]}
-												</span>
+												<div className="flex items-start justify-between gap-2">
+													<span className="text-xs font-semibold tracking-wide text-[#53674d]">
+														{aspectLabels[key]}
+													</span>
+													<span className="rounded-md bg-[#edf4e8] px-2 py-0.5 text-xs font-bold text-[#164027]">
+														{totalMentions} lượt
+													</span>
+												</div>
 
-												<div className="my-2.5 flex items-baseline justify-between">
-													<span className="text-xs font-medium text-[#4b5563]">Lượt đề cập</span>
-													<span className="text-sm font-bold text-[#10221b]">{totalMentions}</span>
+												{/* Proportional Stacked Bar */}
+												<div className="my-3 flex h-2 w-full gap-0.5 overflow-hidden rounded-full bg-[#f0f3ed]">
+													{totalMentions > 0 && aspect.positive > 0 && (
+														<div
+															className="h-full bg-[#164027] transition-all"
+															style={{ width: `${(aspect.positive / totalMentions) * 100}%` }}
+														/>
+													)}
+													{totalMentions > 0 && aspect.neutral > 0 && (
+														<div
+															className="h-full bg-[#94a393] transition-all"
+															style={{ width: `${(aspect.neutral / totalMentions) * 100}%` }}
+														/>
+													)}
+													{totalMentions > 0 && aspect.negative > 0 && (
+														<div
+															className="h-full bg-[#c76d5e] transition-all"
+															style={{ width: `${(aspect.negative / totalMentions) * 100}%` }}
+														/>
+													)}
 												</div>
 
 												{/* Sentiment Counts Breakdown */}
 												<div className="mt-auto space-y-1.5 text-xs">
 													<div className="flex items-center justify-between">
-														<span className="flex items-center gap-1.5 text-emerald-800">
-															<span className="size-2 rounded-full bg-emerald-600" />
+														<span className="flex items-center gap-1.5 text-[#164027]">
+															<span className="size-2 rounded-full bg-[#164027]" />
 															Tích cực
 														</span>
-														<span className="font-semibold text-emerald-900">
-															{aspect.positive}
-														</span>
+														<span className="font-semibold text-[#164027]">{aspect.positive}</span>
 													</div>
 													<div className="flex items-center justify-between">
-														<span className="flex items-center gap-1.5 text-slate-700">
-															<span className="size-2 rounded-full bg-slate-500" />
+														<span className="flex items-center gap-1.5 text-[#556354]">
+															<span className="size-2 rounded-full bg-[#94a393]" />
 															Trung lập
 														</span>
-														<span className="font-semibold text-slate-800">{aspect.neutral}</span>
+														<span className="font-semibold text-[#3f4b3e]">{aspect.neutral}</span>
 													</div>
 													<div className="flex items-center justify-between">
-														<span className="flex items-center gap-1.5 text-rose-800">
-															<span className="size-2 rounded-full bg-rose-600" />
+														<span className="flex items-center gap-1.5 text-[#9c4538]">
+															<span className="size-2 rounded-full bg-[#c76d5e]" />
 															Tiêu cực
 														</span>
-														<span className="font-semibold text-rose-900">{aspect.negative}</span>
+														<span className="font-semibold text-[#8b3a2e]">{aspect.negative}</span>
 													</div>
 
 													{trip.hasSufficientSample && aspect.netScore !== null && (
-														<div className="mt-2 border-t border-[#dfe8df] pt-2 flex items-center justify-between">
+														<div className="mt-2.5 flex items-center justify-between border-t border-[#e3ebe3] pt-2">
 															<span className="text-[11px] font-medium text-[#53674d]">
 																Tỷ lệ tích cực
 															</span>

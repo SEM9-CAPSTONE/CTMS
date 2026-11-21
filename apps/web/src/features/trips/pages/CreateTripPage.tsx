@@ -2,17 +2,22 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CalendarPlus, CheckCircle2 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { HttpError, queryKeys } from "../../../core/api";
+import { ConfirmModal } from "../../../shared/components/ConfirmModal";
 import { toast } from "../../../shared/components/Toast";
+import { getStoredAuthUser } from "../../auth/utils/tokenStorage";
+import { formatMonthVi } from "../../host-analytics/constants";
 import { useGeoAreas } from "../../revenue-analytics/hooks/useRevenueAnalytics";
 import { useTrekkingRoutes } from "../../trekking-routes/hooks/useTrekkingRoutes";
 import { ConfigureTripWaypointsPanel } from "../components/ConfigureTripWaypointsPanel";
 import { CreateTripForm, type CreateTripFormHandle } from "../components/CreateTripForm";
+import { CreateTripSuggestionsPanel } from "../components/CreateTripSuggestionsPanel";
 import {
 	PendingTripImageEditor,
 	type PendingTripImages,
 } from "../components/PendingTripImageEditor";
 import { TripImageEditor } from "../components/TripImageEditor";
 import { useCreateTrip } from "../hooks/useCreateTrip";
+import { useQuickCreatePrefill } from "../hooks/useQuickCreatePrefill";
 import { useTripDetail } from "../hooks/useTripDetail";
 import { useTripDraftNavigation } from "../hooks/useTripDraftNavigation";
 import { useTripDraftSession } from "../hooks/useTripDraftSession";
@@ -57,6 +62,19 @@ export function CreateTripPage({
 	const isEditMode = Boolean(editTripId);
 	const session = useTripDraftSession(formDraftId, !isEditMode);
 	const formDraft = useTripFormDraft(session.remoteId);
+	const quickCreateOwner = getStoredAuthUser()?.id ?? "";
+	const hasExistingDraft = Boolean(session.restored?.values || formDraft.draft?.values);
+	const draftSettled = session.ready && !formDraft.isLoading;
+	const quickCreate = useQuickCreatePrefill({
+		owner: quickCreateOwner,
+		isEditMode,
+		draftSettled,
+		hasExistingDraft,
+	});
+	const prefillSignature = useMemo(
+		() => (quickCreate.appliedValues ? JSON.stringify(quickCreate.appliedValues) : null),
+		[quickCreate.appliedValues]
+	);
 	const linkedTripId =
 		creation.pendingTrip?.id ??
 		creation.createdTrip?.id ??
@@ -89,9 +107,11 @@ export function CreateTripPage({
 			const json = JSON.stringify(values);
 			if (signature.current?.json === json && signature.current.images === images) return;
 			signature.current = { json, images };
+			// Do not silently autosave an untouched quick-create prefill as a draft
+			if (prefillSignature && json === prefillSignature && images.length === 0) return;
 			autosave.schedule({ values, images });
 		},
-		[autosave.schedule]
+		[autosave.schedule, prefillSignature]
 	);
 	const activeRoutes = useMemo(
 		() => routes.items.filter((route) => route.status === "active"),
@@ -103,11 +123,18 @@ export function CreateTripPage({
 	);
 	const formDefaults = useMemo(
 		() =>
-			(pendingPreview ? toCreateTripFormValues(pendingPreview) : undefined) ??
-			session.restored?.values ??
-			formDraft.draft?.values ??
-			(editableTrip ? toCreateTripFormValues(editableTrip) : undefined),
-		[session.restored, formDraft.draft, editableTrip, pendingPreview]
+			isEditMode
+				? ((pendingPreview ? toCreateTripFormValues(pendingPreview) : undefined) ??
+					(editableTrip ? toCreateTripFormValues(editableTrip) : undefined))
+				: (quickCreate.appliedValues ?? session.restored?.values ?? formDraft.draft?.values),
+		[
+			isEditMode,
+			quickCreate.appliedValues,
+			session.restored,
+			formDraft.draft,
+			editableTrip,
+			pendingPreview,
+		]
 	);
 	const initialImages = session.restored?.images ?? formDraft.images;
 	const finishTrip = useCallback(
@@ -331,7 +358,7 @@ export function CreateTripPage({
 						</div>
 					</div>
 				</header>
-				<main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+				<main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
 					{draftError && (
 						<p role="alert" className="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">
 							{draftError}
@@ -381,12 +408,12 @@ export function CreateTripPage({
 
 	return (
 		<div className="min-h-screen bg-[#f4f7f2] text-[#10221b]">
-			<header className="border-b bg-white">
-				<div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-5 sm:px-6">
+			<header className="sticky top-[65px] z-20 bg-white lg:top-0">
+				<div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-5 sm:px-6">
 					{onBackHome && (
 						<button
 							type="button"
-							aria-label="Quay về trang quản lý Host"
+							aria-label="Quay về trang quản lý"
 							onClick={() => void leave()}
 							disabled={leaving || creation.isSubmitting || imageBusy}
 							className="rounded-xl border p-2.5"
@@ -403,17 +430,26 @@ export function CreateTripPage({
 								? "Tiếp tục bản nháp"
 								: isEditMode
 									? "Thông tin chuyến đi"
-									: "Tạo chuyến đi cho Host"}
+									: "Tạo chuyến đi mới"}
 						</h1>
-						<p className="text-sm text-[#667a6d]">
-							{isEditMode
-								? "Cập nhật thông tin chuyến đi."
-								: "Tạo chuyến đi nháp từ tuyến trekking đã duyệt, điểm đầu/cuối được lấy theo tuyến có sẵn."}
-						</p>
+						{isEditMode && <p className="text-sm text-[#667a6d]">Cập nhật thông tin chuyến đi.</p>}
 					</div>
 				</div>
 			</header>
-			<main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+			<main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+				{!isEditMode && quickCreateOwner && (
+					<CreateTripSuggestionsPanel
+						owner={quickCreateOwner}
+						onApplySuggestion={quickCreate.applyDirectPrefill}
+					/>
+				)}
+				{quickCreate.suggestedMonth && (
+					<div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-[#164027]">
+						<strong>Gợi ý, vui lòng kiểm tra:</strong> Thông tin đã được điền sẵn từ gợi ý (tháng đề
+						xuất: <strong>{formatMonthVi(quickCreate.suggestedMonth)}</strong>). Hãy rà soát lại
+						ngày giờ, sức chứa và giá trước khi lưu.
+					</div>
+				)}
 				{draftError && (
 					<p role="alert" className="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">
 						{draftError}
@@ -421,7 +457,7 @@ export function CreateTripPage({
 				)}
 				{!isEditMode && (
 					<output
-						className={`mb-4 block text-sm ${autosave.error ? "text-amber-700" : "text-[#667a6d]"}`}
+						className={autosave.error ? "mb-4 block text-sm text-amber-700" : "sr-only"}
 						aria-live="polite"
 					>
 						{autosave.saving
@@ -432,6 +468,7 @@ export function CreateTripPage({
 				)}
 
 				<CreateTripForm
+					key={isEditMode ? `edit-${editTripId}` : `create-prefill-${quickCreate.prefillVersion}`}
 					draftHandle={draftForm}
 					activeRoutes={activeRoutes}
 					areas={geoAreas.data ?? []}
@@ -476,6 +513,16 @@ export function CreateTripPage({
 					title={isEditMode ? "Thông tin chuyến đi" : undefined}
 				/>
 			</main>
+			<ConfirmModal
+				isOpen={quickCreate.needsConfirm}
+				variant="warning"
+				title="Áp dụng gợi ý chuyến đi mới?"
+				description="Bạn đang có một bản nháp chuyến đi chưa hoàn tất. Nếu áp dụng gợi ý mới, bản nháp cũ sẽ bị thay thế khi bạn bắt đầu chỉnh sửa."
+				confirmText="Áp dụng gợi ý mới"
+				cancelText="Giữ bản nháp cũ"
+				onConfirm={quickCreate.confirmReplaceDraft}
+				onClose={quickCreate.keepExistingDraft}
+			/>
 		</div>
 	);
 }

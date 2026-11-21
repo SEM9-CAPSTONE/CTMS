@@ -1,11 +1,11 @@
 import type { AspectType, IncidentType } from "./trip-review-moderation.types";
 
 /**
- * Operational sample size thresholds per CTMS-387 Decision C and Spec Section 14.
- * Below threshold, hasSufficientSample = false and ranking/scoring metrics remain unactivated.
+ * Minimum number of eligible reviews required to activate dashboard scores & safety signals.
+ * Any trip or route with at least 1 eligible review can be analyzed; 0 reviews stays unactivated.
  */
-export const DASHBOARD_TRIP_MIN_SAMPLE_SIZE = 5;
-export const DASHBOARD_SAFETY_MIN_SAMPLE_SIZE = 10;
+export const DASHBOARD_TRIP_MIN_SAMPLE_SIZE = 1;
+export const DASHBOARD_SAFETY_MIN_SAMPLE_SIZE = 1;
 
 export const ALL_ASPECT_TYPES: readonly AspectType[] = [
 	"safety",

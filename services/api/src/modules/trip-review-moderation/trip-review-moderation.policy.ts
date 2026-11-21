@@ -1,6 +1,7 @@
 import {
 	MODERATION_AUTO_HIDE_THRESHOLD_BPS,
 	MODERATION_BASIS_POINTS_SCALE,
+	MODERATION_NOTIFY_HOST_MIN_THRESHOLD_BPS,
 } from "./trip-review-moderation.constants";
 import type {
 	AutoModerationOutcome,
@@ -71,8 +72,15 @@ export function evaluateModerationPolicy(
 		};
 	}
 
+	if (bestBps >= MODERATION_NOTIFY_HOST_MIN_THRESHOLD_BPS) {
+		return {
+			action: "notify_host",
+			maxConfidenceBps: bestBps,
+		};
+	}
+
 	return {
-		action: "notify_host",
+		action: "clean",
 		maxConfidenceBps: bestBps,
 	};
 }

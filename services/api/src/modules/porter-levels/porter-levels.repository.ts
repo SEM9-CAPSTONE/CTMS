@@ -164,4 +164,154 @@ export class PorterLevelsRepository {
 			[actorId, action, targetId, JSON.stringify(after)]
 		);
 	}
+
+	async getGlobalPorterRow(porterId: string): Promise<{
+		porterId: string;
+		porterName: string;
+		porterEmail: string;
+		currentLevel: PorterRouteProficiency;
+		levelVerifiedAt: Date | null;
+		profileVersion: number;
+		experienceYears: number;
+		certifications: string[];
+		skills: string[];
+		evidenceVersion: number;
+		verificationStatus: string | null;
+		verificationUpdatedAt: Date | null;
+		completedTrips: number;
+		totalKmLed: number;
+		averageRating: number;
+		reviewCount: number;
+		distinctRoutesCount: number;
+		certificates: DossierCertificate[];
+	} | null> {
+		const rows = (await this.dataSource.query(
+			`SELECT
+				u.id AS "porterId",
+				u.full_name AS "porterName",
+				u.email AS "porterEmail",
+				COALESCE(p.porter_level, 'learning'::porter_route_proficiency) AS "currentLevel",
+				p.level_verified_at AS "levelVerifiedAt",
+				COALESCE(p.version, 0) AS "profileVersion",
+				COALESCE(p.experience_years, 0) AS "experienceYears",
+				COALESCE(p.certifications, ARRAY[]::text[]) AS certifications,
+				COALESCE(e.skills, ARRAY[]::text[]) AS skills,
+				COALESCE(e.version, 0) AS "evidenceVersion",
+				v.status AS "verificationStatus",
+				v.updated_at AS "verificationUpdatedAt",
+				GREATEST(COALESCE(p.completed_trips, 0), COALESCE(trip_stats.completed_trips, 0))::int AS "completedTrips",
+				CASE
+					WHEN COALESCE(trip_stats.total_km, 0) > 0 THEN COALESCE(trip_stats.total_km, 0)::float8
+					WHEN COALESCE(p.completed_trips, 0) > 0 THEN ROUND((p.completed_trips * 8.5)::numeric, 1)::float8
+					ELSE 0::float8
+				END AS "totalKmLed",
+				COALESCE(trip_stats.distinct_routes, 0)::int AS "distinctRoutesCount",
+				COALESCE(rev_stats.avg_rating, p.rating_avg, 0)::float8 AS "averageRating",
+				COALESCE(rev_stats.review_count, 0)::int AS "reviewCount"
+			 FROM users u
+			 LEFT JOIN porter_profiles p ON p.porter_id = u.id
+			 LEFT JOIN porter_level_evidence e ON e.porter_id = u.id
+			 LEFT JOIN porter_verifications v ON v.porter_id = u.id
+			 LEFT JOIN LATERAL (
+				SELECT
+					COUNT(DISTINCT t.id) AS completed_trips,
+					COALESCE(SUM(COALESCE(r.length_meters, 0)) / 1000.0, 0) AS total_km,
+					COUNT(DISTINCT t.route_id) AS distinct_routes
+				FROM trip_porters tp
+				JOIN trips t ON t.id = tp.trip_id AND t.status = 'completed'
+				LEFT JOIN trekking_routes r ON r.id = t.route_id
+				WHERE tp.porter_id = u.id
+				  AND tp.status = 'assigned'
+				  AND EXISTS (
+					SELECT 1 FROM porter_requests pr
+					WHERE pr.trip_id = tp.trip_id
+					  AND pr.porter_id = tp.porter_id
+					  AND pr.status = 'accepted'
+					  AND pr.requested_role = 'lead'
+				  )
+			 ) trip_stats ON true
+			 LEFT JOIN LATERAL (
+				SELECT
+					ROUND(AVG(pr.rating)::numeric, 2) AS avg_rating,
+					COUNT(pr.id) AS review_count
+				FROM porter_reviews pr
+				WHERE pr.porter_id = u.id
+			 ) rev_stats ON true
+			 WHERE u.id = $1`,
+			[porterId]
+		)) as Array<{
+			porterId: string;
+			porterName: string;
+			porterEmail: string;
+			currentLevel: PorterRouteProficiency;
+			levelVerifiedAt: Date | null;
+			profileVersion: number;
+			experienceYears: number;
+			certifications: string[];
+			skills: string[];
+			evidenceVersion: number;
+			verificationStatus: string | null;
+			verificationUpdatedAt: Date | null;
+			completedTrips: number;
+			totalKmLed: number;
+			averageRating: number;
+			reviewCount: number;
+			distinctRoutesCount: number;
+		}>;
+
+		if (!rows[0]) return null;
+
+		let certRows: DossierCertificate[] = [];
+		try {
+			certRows = (await this.dataSource.query(
+				`SELECT id, type, name, status, expiry_date AS "expiryDate", rejection_reason AS "rejectionReason"
+				 FROM porter_certificates
+				 WHERE porter_id = $1 AND deleted_at IS NULL
+				 ORDER BY created_at DESC`,
+				[porterId]
+			)) as DossierCertificate[];
+		} catch {
+			certRows = [];
+		}
+
+		return {
+			...rows[0],
+			totalKmLed: Number(Number(rows[0].totalKmLed ?? 0).toFixed(1)),
+			averageRating: Number(Number(rows[0].averageRating ?? 0).toFixed(1)),
+			certificates: certRows,
+		};
+	}
+
+	async listGlobalPorterIds(
+		page: number,
+		limit: number,
+		search = ""
+	): Promise<{ ids: string[]; total: number }> {
+		const filter = search.trim().toLocaleLowerCase();
+		const where = `
+			WHERE u.status = 'active'
+			  AND (u.role = 'porter' OR EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id AND ur.role = 'porter'))
+			  AND ($1 = '' OR position($1 in lower(u.full_name)) > 0 OR position($1 in lower(u.email)) > 0)
+		`;
+
+		const [rows, countRows] = await Promise.all([
+			this.dataSource.query(
+				`SELECT u.id
+				 FROM users u
+				 LEFT JOIN porter_profiles p ON p.porter_id = u.id
+				 ${where}
+				 ORDER BY COALESCE(p.completed_trips, 0) DESC, u.full_name ASC
+				 LIMIT $2 OFFSET $3`,
+				[filter, limit, (page - 1) * limit]
+			) as Promise<Array<{ id: string }>>,
+			this.dataSource.query(`SELECT count(*)::int AS total FROM users u ${where}`, [
+				filter,
+			]) as Promise<Array<{ total: number }>>,
+		]);
+
+		return {
+			ids: rows.map((r) => r.id),
+			total: countRows[0]?.total ?? 0,
+		};
+	}
 }

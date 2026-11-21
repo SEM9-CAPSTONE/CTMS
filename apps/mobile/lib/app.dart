@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/lifecycle/app_lifecycle_observer.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'features/camper_notifications/camper_notification_bell.dart';
 import 'features/incidents/application/incidents_controller.dart';
 import 'features/push_notifications/application/push_notifications_controller.dart';
 import 'features/push_notifications/presentation/push_notification_widgets.dart';
@@ -41,8 +42,10 @@ class CtmsApp extends ConsumerWidget {
         // being backgrounded and the OS reclaiming the process.
         restorationScopeId: 'ctms',
         // CTMS-090-T02: a push received while the app is open appears above every screen.
-        builder: (context, child) =>
-            PushNotificationOverlay(child: child ?? const SizedBox.shrink()),
+        // The Camper's top-right bell lists Host emergency alerts on every screen.
+        builder: (context, child) => PushNotificationOverlay(
+          child: CamperNotificationBellScope(child: child ?? const SizedBox.shrink()),
+        ),
       ),
     );
   }

@@ -217,7 +217,7 @@ describe("CreateTripPage automatic drafts", () => {
 	it("flushes the draft and ends its session before going back", async () => {
 		const back = vi.fn();
 		render(<CreateTripPage onBackHome={back} />);
-		fireEvent.click(screen.getByRole("button", { name: "Quay về trang quản lý Host" }));
+		fireEvent.click(screen.getByRole("button", { name: "Quay về trang quản lý" }));
 		await waitFor(() => expect(back).toHaveBeenCalledTimes(1));
 		expect(state.autosave.leave).toHaveBeenCalledTimes(1);
 	});
@@ -225,7 +225,7 @@ describe("CreateTripPage automatic drafts", () => {
 		state.autosave.leave.mockResolvedValue(false);
 		const back = vi.fn();
 		render(<CreateTripPage onBackHome={back} />);
-		fireEvent.click(screen.getByRole("button", { name: "Quay về trang quản lý Host" }));
+		fireEvent.click(screen.getByRole("button", { name: "Quay về trang quản lý" }));
 		await waitFor(() => expect(state.autosave.leave).toHaveBeenCalled());
 		expect(back).not.toHaveBeenCalled();
 	});

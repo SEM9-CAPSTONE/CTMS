@@ -112,11 +112,7 @@ export interface AdminNavLinkConfig {
 
 export type AdminNavigationItem = keyof typeof items;
 export const ADMIN_NAV_ITEMS: Record<AdminNavigationItem, AdminNavLinkConfig> = items;
-export const ADMIN_NAV_TOP_LEVEL = [
-	"dashboard",
-	"performance-reports",
-	"revenue-analytics",
-] as const;
+export const ADMIN_NAV_TOP_LEVEL = ["performance-reports", "revenue-analytics"] as const;
 
 export const ADMIN_NAV_GROUPS = [
 	{

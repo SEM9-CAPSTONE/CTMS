@@ -42,6 +42,14 @@ export const API_ENDPOINTS = {
 		REPORT: (month: string) => `/host/demand-insights/${month}`,
 		PLANNING: (month: string) => `/host/demand-insights/${month}/planning-suggestions`,
 	},
+	HOST_ANALYTICS: {
+		SUMMARY: "/host/analytics",
+		SUGGESTIONS: "/host/analytics/suggestions",
+		SUGGESTIONS_LATEST: "/host/analytics/suggestions/latest",
+		SUGGESTIONS_HISTORY: "/host/analytics/suggestions/history",
+		SUGGESTION_JOB: (id: string) => `/host/analytics/suggestions/${id}`,
+		QUICK_CREATE_CONTEXT: (id: string) => `/host/analytics/suggestions/${id}/quick-create-context`,
+	},
 	REVIEW_ANALYSIS: {
 		TRIPS: "/review-analysis/trips",
 		INSIGHTS: (id: string) => `/trips/${id}/review-analyses`,
@@ -312,8 +320,16 @@ export const API_ENDPOINTS = {
 		DECISIONS: (id: string) => `/admin/porter-levels/qualifications/${id}/decisions`,
 		HISTORY: (id: string) => `/admin/porter-levels/qualifications/${id}/history`,
 		MY_POLICIES: "/porter/level-review/policies",
+		MY_OVERVIEW: "/porter/level-review/overview",
 		MY_SKILLS: "/porter/level-review/skills",
 		MY_HISTORY: "/porter/level-review/history",
+		GLOBAL_PORTERS: "/admin/porter-levels/porters",
+		GLOBAL_PORTER_OVERVIEW: (porterId: string) =>
+			`/admin/porter-levels/porters/${porterId}/overview`,
+		GLOBAL_PORTER_DECISION: (porterId: string) =>
+			`/admin/porter-levels/porters/${porterId}/decision`,
+		GLOBAL_PORTER_NOTIFY_GAPS: (porterId: string) =>
+			`/admin/porter-levels/porters/${porterId}/notify-gaps`,
 	},
 	ADMIN_PORTER_VERIFICATIONS: {
 		LIST: "/admin/porter-verifications",

@@ -94,11 +94,9 @@ pnpm dev:api
 
 Lệnh này chạy container ở nền. Xem log bằng `docker compose logs -f api`; sau khi sửa code, chạy lại `pnpm dev:api` để build lại. Dừng API local bằng Ctrl+C trước khi chuyển sang API Docker để tránh trùng cổng 3000.
 
-Nếu chỉ muốn chạy API local ở chế độ watch:
+Chạy API local ở chế độ watch; lệnh tự bật PostgreSQL, Redis, Adminer, build và chờ AI/Ingestion sẵn sàng, đồng thời dừng API Docker để giải phóng cổng 3000:
 
 ```bash
-pnpm dev:infra
-docker compose stop api
 pnpm dev:api:local
 ```
 
@@ -235,7 +233,7 @@ pnpm test:all
 - `pnpm dev:quick` bật hạ tầng và AI trong Docker rồi chạy API và Web local ở chế độ watch.
 - `pnpm dev:infra`: bật PostgreSQL, Redis, Adminer và chờ sẵn sàng.
 - `pnpm dev:api`: build và chạy API Docker, kèm PostgreSQL, Redis và Adminer.
-- `pnpm dev:api:local`: chạy NestJS API local ở chế độ watch.
+- `pnpm dev:api:local`: tự bật hạ tầng, build và chờ AI/Ingestion sẵn sàng, dừng API Docker rồi chạy NestJS API local ở chế độ watch.
 - `pnpm dev:web`: build và chạy Web Docker, kèm API, PostgreSQL, Redis và Adminer.
 - `pnpm dev:web:local`: chạy React web dashboard local có hot reload.
 - `pnpm dev:mobile`: chạy Flutter mobile app (tương đương `cd apps/mobile && flutter run`).

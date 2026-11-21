@@ -21,13 +21,23 @@ export function LevelRequestFilters({
 		resolver: zodResolver(requestFilterSchema),
 		defaultValues: { search: filters.search ?? "" },
 	});
+	const statusOptions = admin
+		? [
+				{ value: "pending", label: REQUEST_STATUS_LABELS.pending },
+				{ value: "rejected", label: REQUEST_STATUS_LABELS.rejected },
+			]
+		: [
+				{ value: "", label: "Tất cả trạng thái" },
+				...Object.entries(REQUEST_STATUS_LABELS).map(([value, label]) => ({ value, label })),
+			];
+
 	return (
 		<div className="flex flex-wrap items-end gap-3">
 			<label className="block w-full text-sm font-semibold sm:w-48">
 				<span className="sr-only">Lọc trạng thái</span>
 				<SelectField
 					label="Lọc trạng thái"
-					value={filters.status ?? ""}
+					value={filters.status ?? (admin ? "pending" : "")}
 					onChange={(value) =>
 						onChange({
 							...filters,
@@ -35,10 +45,7 @@ export function LevelRequestFilters({
 							status: (value || undefined) as RequestStatus | undefined,
 						})
 					}
-					options={[
-						{ value: "", label: "Tất cả trạng thái" },
-						...Object.entries(REQUEST_STATUS_LABELS).map(([value, label]) => ({ value, label })),
-					]}
+					options={statusOptions}
 				/>
 			</label>
 			{admin && (
@@ -53,10 +60,10 @@ export function LevelRequestFilters({
 					)}
 				>
 					<label className="min-w-0 flex-1 text-sm font-semibold">
-						<span className="sr-only">Tìm người hỗ trợ hoặc tuyến</span>
+						<span className="sr-only">Tìm người hỗ trợ</span>
 						<input
 							className={LEVEL_INPUT_CLASS}
-							placeholder="Nhập tên người hỗ trợ hoặc tên tuyến"
+							placeholder="Tìm theo tên người hỗ trợ..."
 							{...register("search")}
 						/>
 						{errors.search && <span role="alert">{errors.search.message}</span>}
@@ -66,7 +73,7 @@ export function LevelRequestFilters({
 						variant="outline"
 						onClick={() => {
 							reset();
-							onChange({ page: 1 });
+							onChange({ page: 1, status: admin ? "pending" : undefined });
 						}}
 					>
 						<RotateCcw aria-hidden="true" className="mr-2 size-4" />

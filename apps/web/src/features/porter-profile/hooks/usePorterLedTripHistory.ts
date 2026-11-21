@@ -3,7 +3,7 @@ import { HttpError } from "../../../core/api";
 import { porterProfileService } from "../services/porter-profile.service";
 import type { PorterLedTripHistoryItem } from "../types";
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 4;
 
 function historyErrorMessage(error: unknown): string {
 	if (error instanceof HttpError) {

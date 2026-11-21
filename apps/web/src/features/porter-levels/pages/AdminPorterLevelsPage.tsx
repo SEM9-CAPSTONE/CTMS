@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Button } from "../../../shared/components";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
+import { useAdminModerationCounts } from "../../admin-layout/hooks/useAdminModerationCounts";
 import {
 	type LevelTab,
 	PorterManagementTabs,
 } from "../../admin-porter-verifications/components/PorterManagementTabs";
+import { AdminGlobalPorterLevelsPanel } from "../components/AdminGlobalPorterLevelsPanel";
 import { AdminLevelRequestsPanel } from "../components/AdminLevelRequestsPanel";
 import { LevelPolicyForm } from "../components/LevelPolicyForm";
 import { LEVEL_CODES, LEVEL_PANEL_CLASS, levelName, levelReviewError } from "../constants";
@@ -19,6 +21,15 @@ export function AdminPorterLevelsPage({
 		const view = new URLSearchParams(window.location.search).get("view");
 		return view === "policies" ? "policies" : "levels";
 	});
+	const [levelSubTab, setLevelSubTab] = useState<"global" | "requests">(() => {
+		const params = new URLSearchParams(window.location.search);
+		return params.get("request") || params.get("subtab") === "requests" ? "requests" : "global";
+	});
+	const [requestsTabSeen, setRequestsTabSeen] = useState(false);
+	const moderationCounts = useAdminModerationCounts();
+	const pendingRequestsBadge = requestsTabSeen
+		? 0
+		: (moderationCounts.data?.porterLevelRequests ?? 0);
 
 	const state = useAdminPorterLevels(1, null, level);
 	const policy = state.policies.data?.find((item) => item.level === level) ?? null;
@@ -40,10 +51,69 @@ export function AdminPorterLevelsPage({
 	return (
 		<AdminLayout activeItem="porter-levels" onLogout={onLogout}>
 			<div className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
-				<PorterManagementTabs active={tab} onSelect={handleTabSelect} />
+				<PorterManagementTabs
+					active={tab}
+					onSelect={handleTabSelect}
+					hideLevelBadge={requestsTabSeen}
+				/>
 
-				{/* TAB: XÉT CẤP ĐỘ (XÉT DUYỆT YÊU CẦU TỪ NGƯỜI HỖ TRỢ GỬI LÊN) */}
-				{tab === "levels" && <AdminLevelRequestsPanel />}
+				{/* TAB: XÉT CẤP ĐỘ (CHUYỂN ĐỔI GỌN GIỮA PHÂN CẤP TỔNG QUÁT VÀ YÊU CẦU NÂNG CẤP) */}
+				{tab === "levels" && (
+					<div className="space-y-4">
+						<div
+							role="tablist"
+							aria-label="Chế độ xem xét cấp độ"
+							className="inline-flex rounded-xl border border-[#dfe8df] bg-white p-1 shadow-xs"
+						>
+							<button
+								type="button"
+								role="tab"
+								aria-selected={levelSubTab === "global"}
+								onClick={() => setLevelSubTab("global")}
+								className={`rounded-lg px-4 py-2 text-xs font-semibold transition-colors ${
+									levelSubTab === "global"
+										? "bg-[#164027] text-white"
+										: "text-[#4a5e51] hover:bg-[#f4f7f2]"
+								}`}
+							>
+								Danh sách cấp bậc
+							</button>
+							<button
+								type="button"
+								role="tab"
+								aria-selected={levelSubTab === "requests"}
+								onClick={() => {
+									setLevelSubTab("requests");
+									setRequestsTabSeen(true);
+								}}
+								className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold transition-colors ${
+									levelSubTab === "requests"
+										? "bg-[#164027] text-white"
+										: "text-[#4a5e51] hover:bg-[#f4f7f2]"
+								}`}
+							>
+								<span>Yêu cầu nâng cấp</span>
+								{pendingRequestsBadge > 0 && (
+									<span
+										className={`inline-flex min-w-4.5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${
+											levelSubTab === "requests"
+												? "bg-white/25 text-white"
+												: "bg-rose-600 text-white"
+										}`}
+									>
+										{pendingRequestsBadge}
+									</span>
+								)}
+							</button>
+						</div>
+
+						{levelSubTab === "global" ? (
+							<AdminGlobalPorterLevelsPanel />
+						) : (
+							<AdminLevelRequestsPanel />
+						)}
+					</div>
+				)}
 
 				{/* TAB: TIÊU CHÍ CẤP ĐỘ */}
 				{tab === "policies" && (

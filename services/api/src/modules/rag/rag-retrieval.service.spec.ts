@@ -1,9 +1,14 @@
 import { ServiceUnavailableException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import {
+	NATURAL_PREPARATION_QUESTIONS,
+	TRIP_PLANNING_CHECKLIST,
+} from "../../../test/support/trip-planning-retrieval-fixture";
+import {
 	EMBEDDING_DIMENSIONS,
 	EMBEDDING_MODEL,
 	EMBEDDING_REVISION,
+	INGESTION_VERSION,
 } from "../knowledge-chunks/knowledge-chunks.types";
 import { Classification } from "../survival-documents/survival-documents.types";
 import { UserRole, UserStatus } from "../users/entities/user.entity";
@@ -36,7 +41,7 @@ function chunk(chunkId: string, content: string, score = 0.95, locale = "vi"): R
 			embeddingModel: EMBEDDING_MODEL,
 			embeddingRevision: EMBEDDING_REVISION,
 			embeddingDimensions: EMBEDDING_DIMENSIONS,
-			pipelineVersion: "ctms-hybrid-v1",
+			pipelineVersion: INGESTION_VERSION,
 			configHash: "b".repeat(64),
 		},
 	};
@@ -67,6 +72,32 @@ function setup(config: Record<string, string> = {}) {
 }
 
 describe("RagRetrievalService", () => {
+	it.each(NATURAL_PREPARATION_QUESTIONS)(
+		"retrieves an English planning checklist for natural Vietnamese: %s",
+		async (question) => {
+			const { service, search } = setup();
+			const checklist = chunk("checklist", TRIP_PLANNING_CHECKLIST, 0.82, "en");
+			checklist.headings = ["KNOW BEFORE YOU GO"];
+			checklist.source = { ...checklist.source, sourceTitle: "Trip planning guide" };
+			search.mockResolvedValue({
+				candidates: [
+					chunk("stub", "Consider the following:", 0.86, "en"),
+					{
+						...chunk("title-only", "National Park Service", 0.85, "en"),
+						headings: ["Prepare for trekking"],
+					},
+					chunk("unrelated", "Prepare the quarterly revenue report before the audit.", 0.84, "en"),
+					checklist,
+				],
+				candidateCount: 100,
+			});
+			expect(await service.retrieve(actor, { question, locale: "vi" })).toMatchObject({
+				status: "GROUNDED",
+				selectedChunks: [checklist],
+				sources: [{ sourceTitle: "Trip planning guide", locale: "en" }],
+			});
+		}
+	);
 	it.each(["", "   ", "x".repeat(2001), "\0"])(
 		"rejects invalid questions before embedding",
 		async (question) => {

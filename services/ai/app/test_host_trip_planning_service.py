@@ -130,3 +130,44 @@ def test_host_trip_planning_rejects_refusal_and_extra_fields():
     )
     with pytest.raises(InvalidReviewOutput):
         HostTripPlanningService(FakeClient(extra_field)).generate(sample_request())
+
+
+def test_host_trip_planning_v2_returns_season_note_and_risks():
+    completions = FakeCompletions(
+        json.dumps(
+            {
+                "selections": [
+                    {
+                        "candidateId": "cand-1",
+                        "monthHint": "2026-12",
+                        "rationaleCodes": ["high_fill_history"],
+                        "aiSeasonNote": "Tháng 12 thời tiết mát mẻ, ít nắng gắt.",
+                        "aiRisks": [{"code": "rain_risk", "note": "Có thể có mưa phùn nhẹ cuối năm."}],
+                        "confidence": "medium",
+                    }
+                ]
+            }
+        )
+    )
+    req = HostTripPlanningRequest(
+        model="gemini-3.1-flash-lite",
+        prompt_version="host-planning-v2",
+        candidates=[
+            HostPlanningCandidate(
+                candidateId="cand-1",
+                tripType="day_trip",
+                areaName="Bán đảo Sơn Trà",
+                priceBand="500k_1m",
+                capacityBand="small_1_6",
+                fillBand="high",
+                revenueRank=1,
+                allowedMonths=["2026-12", "2027-01"],
+                missingData=[],
+            )
+        ],
+    )
+    res = HostTripPlanningService(FakeClient(completions)).generate(req)
+    assert res.selections[0].aiSeasonNote == "Tháng 12 thời tiết mát mẻ, ít nắng gắt."
+    assert res.selections[0].aiRisks is not None
+    assert res.selections[0].aiRisks[0].code == "rain_risk"
+    assert res.selections[0].confidence == "medium"

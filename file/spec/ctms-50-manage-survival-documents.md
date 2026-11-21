@@ -47,7 +47,7 @@ In scope are PDF intake and safety checks, duplicate detection, draft and publis
 | BR-485 | After confirmation, an authorized Admin can permanently delete a whole Survival Document and all its versions. A stale document revision or a reference from another document blocks deletion. Preserve audit history under BR-191 and remove private PDF files after the transaction commits. |
 | BR-534 | Publishing an eligible version records its automatic ingestion event in the same transaction as publication. |
 | BR-535 | Knowledge processing excludes sources with a restricted or review-required rights status. |
-| BR-536 | Knowledge processing of first-aid or medical material requires recorded specialist review approval. |
+| BR-536 | Admin source confirmation for an uploaded first-aid or medical PDF establishes source/content eligibility for automatic extraction. An explicit rejected medical-content status remains blocking. Technical extraction validation applies before READY. |
 | BR-537 | Knowledge processing of a translated source requires a recorded translation grant. |
 | BR-538 | Distribution or translation of a private original PDF requires a recorded grant for the requested use. |
 | BR-172 | Access control must be enforced by the backend using role, ownership, and business scope. Hiding or disabling functionality in the UI is not a substitute for backend authorization. |
@@ -166,7 +166,7 @@ Each BR ID refers to its definition in Section 5. The scenarios below describe t
 | BR-484 | Admin confirms the exact source on publication, or publishes with a configured source or documented exact-version rights | Saving a draft or sending only the legacy `approveProcessing` flag leaves an unverified source unconfirmed | Policy unit, HTTP E2E, PostgreSQL integration, Web |
 | BR-534 | Successful eligible publication leaves a durable event for CTMS-051 | Rejected or rolled-back publication leaves no ingestion event | PostgreSQL integration, HTTP E2E |
 | BR-535 | Source with permitted use can be processed | Restricted or review-required source is excluded | PostgreSQL integration |
-| BR-536 | Recorded specialist approval permits an otherwise eligible medical source | Missing or rejected specialist review blocks ingestion | Policy unit, PostgreSQL integration |
+| BR-536 | Admin confirmation permits an otherwise eligible uploaded medical source | Explicit rejection or failed technical extraction blocks ingestion | Policy unit, PostgreSQL integration |
 | BR-537 | Translation with verified provenance and a grant can be processed | Missing translation grant blocks ingestion | Policy unit, PostgreSQL integration |
 | BR-538 | Private reader allows a granted use | An original PDF cannot be used for offline distribution or translation without a grant | Policy unit, PostgreSQL integration |
 | BR-485 | Confirmed deletion removes document, versions and PDFs, and retains audit | Stale revision or another document referencing a version | PostgreSQL integration, Chrome |
@@ -176,4 +176,4 @@ Each BR ID refers to its definition in Section 5. The scenarios below describe t
 
 ## 11. Source policy configuration
 
-The Admin web publication action sends `confirmSource: true` and records source confirmation on the published version. Configure comma-separated verified HTTPS hostnames with `SURVIVAL_KNOWLEDGE_APPROVED_HOSTS` and exact PDF digests with `SURVIVAL_KNOWLEDGE_APPROVED_SHA256` for sources verified by configuration. For URL imports, the hostname check uses the final download URL. The API also supports exact-version licence, attribution and use evidence. Medical and translated sources use their recorded specialist decision or grant. An older publication that relied solely on the retired approval flag needs independent source evidence. A verified source configuration can make that same version eligible without changing its history.
+The Admin web publication action sends `confirmSource: true` and records source confirmation on the published version. Configure comma-separated verified HTTPS hostnames with `SURVIVAL_KNOWLEDGE_APPROVED_HOSTS` and exact PDF digests with `SURVIVAL_KNOWLEDGE_APPROVED_SHA256` for sources verified by configuration. For URL imports, the hostname check uses the final download URL. The API also supports exact-version licence, attribution and use evidence. Admin-confirmed uploaded medical sources enter automatic extraction; an explicit medical rejection remains blocking. Translated sources require their recorded translation grant. An older publication that relied solely on the retired approval flag needs independent source evidence. A verified source configuration can make that same version eligible without changing its history.

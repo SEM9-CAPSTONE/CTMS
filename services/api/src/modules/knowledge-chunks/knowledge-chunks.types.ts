@@ -1,4 +1,4 @@
-export const INGESTION_VERSION = "ctms-hybrid-v1";
+export const INGESTION_VERSION = "ctms-content-integrity-v5";
 export const EMBEDDING_MODEL = "intfloat/multilingual-e5-small";
 export const EMBEDDING_REVISION = "614241f622f53c4eeff9890bdc4f31cfecc418b3";
 export const EMBEDDING_DIMENSIONS = 384;
@@ -24,6 +24,7 @@ export enum ChunkSetStatus {
 	OBSOLETE = "OBSOLETE",
 }
 export interface ChunkConfiguration {
+	verification_revision?: number;
 	pipeline_version: string;
 	embedding_model: string;
 	embedding_revision: string;
@@ -32,6 +33,7 @@ export interface ChunkConfiguration {
 }
 export function chunkConfiguration(): ChunkConfiguration {
 	return {
+		verification_revision: 0,
 		pipeline_version: INGESTION_VERSION,
 		embedding_model: EMBEDDING_MODEL,
 		embedding_revision: EMBEDDING_REVISION,
@@ -41,6 +43,8 @@ export function chunkConfiguration(): ChunkConfiguration {
 }
 
 export interface ChunkSet {
+	extraction_snapshot?: ExtractionSnapshot | null;
+	quality_report?: PreparedChunkOutput["quality"] | null;
 	id: string;
 	document_id: string;
 	document_version_id: string;
@@ -104,16 +108,69 @@ export interface GeneratedChunk extends PreparedChunk {
 	embedding: number[];
 }
 export interface PreparedChunkOutput {
+	extraction_snapshot?: ExtractionSnapshot | null;
 	document_version_id: string;
 	source_version: number;
 	checksum: string;
 	locale: string;
 	configuration: ChunkConfiguration;
-	quality: { status: "PASSED" | "NEEDS_REVIEW"; issues: string[]; page_count: number };
+	quality: {
+		integrity?: { revision: number; complete: boolean; regions: IntegrityRegion[] } | null;
+		status: "PASSED" | "NEEDS_REVIEW";
+		issues: string[];
+		page_count: number;
+		pages?: Array<{
+			page: number;
+			mode: "native" | "ocr" | "mixed" | "blank" | "unverified" | "manual";
+			ocr_words: number;
+			minimum_confidence: number | null;
+			text_coverage: number | null;
+			issues: string[];
+		}>;
+	};
 	chunks: PreparedChunk[];
 }
 export interface ChunkOutput extends PreparedChunkOutput {
 	chunks: GeneratedChunk[];
+}
+
+export interface IntegrityDecision {
+	action: "confirm" | "correct" | "describe" | "exclude";
+	text: string;
+	source_checked: boolean;
+	context_checked: boolean;
+	visual_checked: boolean;
+	reason?: string;
+	after_item_ref?: string;
+	block_texts?: Record<string, string>;
+}
+export interface IntegrityRegion {
+	id: string;
+	page: number;
+	bbox: ChunkLocation["bbox"];
+	item_refs: string[];
+	kind: string;
+	original_text: string;
+	recovery_text?: string;
+	empty_form?: boolean;
+	issues: string[];
+	related_figures: string[];
+	critical: boolean;
+	excludable: boolean;
+	assessment: string;
+	attempts: Array<{ method: string; outcome: string; input: string }>;
+	decision: IntegrityDecision | null;
+}
+export interface ExtractionSnapshot {
+	format: number;
+	document_version_id: string;
+	checksum: string;
+	configuration: ChunkConfiguration;
+	revision: number;
+	document: Record<string, unknown>;
+	regions: IntegrityRegion[];
+	prepared: PreparedChunk[];
+	[key: string]: unknown;
 }
 export const PDF_READ_ISSUES = [
 	"pdf_encrypted",

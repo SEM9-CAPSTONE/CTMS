@@ -152,6 +152,48 @@ export interface HostAnalyticsResponseDto {
 
 export type HostSuggestionJobStatus = "queued" | "running" | "succeeded" | "failed";
 
+export interface SuggestionWeatherSummaryDto {
+	status: "available" | "beyond_horizon" | "unavailable";
+	riskLevel: "green" | "yellow" | "red" | null;
+	summary: string;
+	checkedDate: string | null;
+	avoidedRedDates?: string[];
+}
+
+export type AiRiskCode =
+	| "rain_risk"
+	| "heat_risk"
+	| "cold_risk"
+	| "crowd_peak"
+	| "off_peak_demand"
+	| "short_lead_time";
+
+export interface AiRiskItemDto {
+	code: AiRiskCode;
+	note: string;
+}
+
+export interface SuggestionDateOptionDto {
+	startsAt: string;
+	endsAt: string;
+	meetingAt: string;
+	bookingDeadline: string;
+	label: string;
+	weatherSummary: SuggestionWeatherSummaryDto | null;
+}
+
+export interface SuggestionRouteReviewSummaryDto {
+	averageRating: number | null;
+	reviewCount: number;
+	highlightText: string;
+	hasSlipOrWeatherCaution: boolean;
+}
+
+export interface SuggestionHolidayHighlightDto {
+	label: string;
+	capacityBoostNote: string | null;
+}
+
 export interface HostTripSuggestionItemDto {
 	id: string;
 	routeId: string;
@@ -164,10 +206,20 @@ export interface HostTripSuggestionItemDto {
 	capacityBand: string | null;
 	suggestedPricePerPerson: number | null;
 	suggestedCapacityMin: number | null;
+	suggestedStartsAt: string | null;
+	weatherSummary: SuggestionWeatherSummaryDto | null;
+	aiSeasonNote: string | null;
+	aiRisks: AiRiskItemDto[] | null;
+	aiConfidence: "low" | "medium" | null;
 	rationaleCodes: HostAnalyticsRationaleCode[];
 	rationaleLabels: string[];
 	missingData: string[];
 	createdAt: string;
+	scheduleConflictFree?: boolean;
+	scheduleConflictNote?: string | null;
+	holidayHighlight?: SuggestionHolidayHighlightDto | null;
+	routeReviewSummary?: SuggestionRouteReviewSummaryDto | null;
+	dateOptions?: SuggestionDateOptionDto[];
 }
 
 export interface HostSuggestionJobResponseDto {
@@ -185,14 +237,27 @@ export interface HostSuggestionJobResponseDto {
 	suggestions: HostTripSuggestionItemDto[];
 }
 
+export interface HostSuggestionHistoryItemDto extends HostTripSuggestionItemDto {
+	jobId: string;
+	jobCreatedAt: string;
+}
+
 export interface QuickCreateContextResponseDto {
 	valid: true;
 	prefill: {
 		routeId: string;
+		title: string | null;
 		areaCode: string | null;
 		tripType: "day_trip" | "overnight";
 		pricePerPerson: number | null;
 		capacityMin: number | null;
+		capacityMax: number | null;
+		meetingLongitude: number | null;
+		meetingLatitude: number | null;
+		startsAt: string | null;
+		endsAt: string | null;
+		meetingAt: string | null;
+		bookingDeadline: string | null;
 		suggestedMonth: string;
 	};
 }

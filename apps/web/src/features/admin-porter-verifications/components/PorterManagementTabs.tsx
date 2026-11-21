@@ -1,6 +1,7 @@
-import type { MouseEvent } from "react";
+import { type MouseEvent, useState } from "react";
 import { guardedNavigation } from "../../../core/navigation-guard";
 import { RoutePath } from "../../../routes/routes.config";
+import { useAdminModerationCounts } from "../../admin-layout/hooks/useAdminModerationCounts";
 
 const tabs = [
 	{ key: "profiles", label: "Hồ sơ người hỗ trợ", path: RoutePath.ADMIN_PORTER_VERIFICATIONS },
@@ -23,7 +24,21 @@ export type LevelTab = "levels" | "policies" | "requests" | "direct";
 export function PorterManagementTabs({
 	active,
 	onSelect,
-}: { active: "profiles" | "certificates" | LevelTab; onSelect?: (tab: LevelTab) => void }) {
+	hideLevelBadge = false,
+}: {
+	active: "profiles" | "certificates" | LevelTab;
+	onSelect?: (tab: LevelTab) => void;
+	hideLevelBadge?: boolean;
+}) {
+	const counts = useAdminModerationCounts();
+	const [seenTabs, setSeenTabs] = useState<Record<string, boolean>>({});
+
+	const badgeForTab = (tabKey: string): number => {
+		if (seenTabs[tabKey]) return 0;
+		if (tabKey === "profiles") return counts.data?.porterVerifications ?? 0;
+		if (tabKey === "levels") return hideLevelBadge ? 0 : (counts.data?.porterLevelRequests ?? 0);
+		return 0;
+	};
 	const navigate = (event: MouseEvent<HTMLAnchorElement>, path: string) => {
 		if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
 			return;
@@ -48,9 +63,6 @@ export function PorterManagementTabs({
 				<h1 className="text-2xl font-extrabold tracking-tight text-foreground">
 					Quản lý người hỗ trợ
 				</h1>
-				<p className="mt-1 text-sm text-muted-foreground">
-					Xem hồ sơ, xét duyệt chứng chỉ và quản lý cấp độ người hỗ trợ.
-				</p>
 			</div>
 			<nav
 				aria-label="Quản lý người hỗ trợ"
@@ -58,11 +70,13 @@ export function PorterManagementTabs({
 			>
 				{tabs.map((tab) => {
 					const activeNow = isTabActive(tab.key);
+					const badgeCount = badgeForTab(tab.key);
 					return (
 						<a
 							key={tab.key}
 							href={tab.path}
 							onClick={(event) => {
+								setSeenTabs((prev) => ({ ...prev, [tab.key]: true }));
 								if (
 									onSelect &&
 									tab.key !== "profiles" &&
@@ -84,7 +98,12 @@ export function PorterManagementTabs({
 									: "border-transparent text-[#667a6d] hover:text-[#10221b]"
 							}`}
 						>
-							{tab.label}
+							<span>{tab.label}</span>
+							{badgeCount > 0 && (
+								<span className="inline-flex min-w-5 items-center justify-center rounded-full bg-rose-600 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white">
+									{badgeCount}
+								</span>
+							)}
 						</a>
 					);
 				})}

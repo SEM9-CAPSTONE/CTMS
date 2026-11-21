@@ -1,5 +1,11 @@
-import { AlertCircle, ArrowLeft, Briefcase, RefreshCw } from "lucide-react";
+import { AlertCircle, ArrowLeft, Briefcase, Edit3, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "../../../shared/components/Toast";
+import { camperProfileService } from "../../camper-profile/services/camper-profile.service";
+import type { CamperProfileData } from "../../camper-profile/types";
 import { PorterCertificatesSection } from "../../porter-certificates/components/PorterCertificatesSection";
+import { GlobalPorterLevelCard } from "../../porter-levels/components/GlobalPorterLevelCard";
+import { PorterAccountEditModal } from "../components/PorterAccountEditModal";
 import { PorterCompetencySection } from "../components/PorterCompetencySection";
 import { PorterLedTripHistory } from "../components/PorterLedTripHistory";
 import { PorterProfileHeader } from "../components/PorterProfileHeader";
@@ -17,15 +23,51 @@ export function PorterProfilePage({
 	onNavigateToTrips: _onNavigateToTrips,
 	onLogout: _onLogout,
 }: PorterProfilePageProps) {
-	// Profile Hook (read-only for header stats)
+	const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+	const [accountProfile, setAccountProfile] = useState<CamperProfileData | null>(null);
+
+	const loadAccountProfile = useCallback(async () => {
+		try {
+			const data = await camperProfileService.getProfile();
+			setAccountProfile(data);
+		} catch {
+			/* Optional account metadata; header falls back gracefully */
+		}
+	}, []);
+
+	useEffect(() => {
+		void loadAccountProfile();
+	}, [loadAccountProfile]);
+
 	const {
 		profile,
 		isLoading: isProfileLoading,
+		isSaving,
+		saveSuccessMessage,
 		errorMessage: profileError,
+		conflictMessage,
+		form,
+		isDirty,
 		reload: reloadProfile,
+		handleResetForm,
+		handleSubmit,
+		clearMessages,
 	} = usePorterProfile();
 
 	const ledTripHistory = usePorterLedTripHistory();
+
+	useEffect(() => {
+		if (saveSuccessMessage) {
+			toast.success(saveSuccessMessage);
+			setIsEditModalOpen(false);
+		}
+	}, [saveSuccessMessage]);
+
+	useEffect(() => {
+		if (conflictMessage) {
+			toast.error(conflictMessage);
+		}
+	}, [conflictMessage]);
 
 	if (isProfileLoading && !profile) {
 		return (
@@ -66,13 +108,21 @@ export function PorterProfilePage({
 							<h1 className="text-lg font-extrabold text-[#10221b]">
 								Hồ sơ & Kinh nghiệm người hỗ trợ
 							</h1>
-							<p className="text-xs text-[#627769]">
-								Cập nhật kinh nghiệm và theo dõi các chuyến đã dẫn
-							</p>
 						</div>
 					</div>
 
-					<div className="flex items-center gap-3">
+					<div className="flex items-center gap-2.5">
+						<button
+							type="button"
+							onClick={() => {
+								clearMessages();
+								setIsEditModalOpen(true);
+							}}
+							className="flex items-center gap-1.5 rounded-xl bg-[#164027] px-3.5 py-2 text-xs font-semibold text-white transition hover:bg-[#10221b]"
+						>
+							<Edit3 size={14} />
+							<span>Chỉnh sửa hồ sơ</span>
+						</button>
 						<button
 							type="button"
 							onClick={async () => {
@@ -101,7 +151,10 @@ export function PorterProfilePage({
 				)}
 
 				{/* Header Section with Read-only metrics */}
-				<PorterProfileHeader profile={profile} />
+				<PorterProfileHeader profile={profile} accountProfile={accountProfile} />
+
+				{/* Global Porter Level & Progression Tracker (Học việc / Thành thạo / Chuyên gia) */}
+				<GlobalPorterLevelCard />
 
 				{/* Certificates & Credentials Section (CTMS-138) */}
 				<PorterCertificatesSection />
@@ -119,6 +172,19 @@ export function PorterProfilePage({
 					onRetry={ledTripHistory.reload}
 				/>
 			</div>
+
+			{/* Edit Profile Modal (Thông tin cá nhân + Hồ sơ chuyên môn) */}
+			<PorterAccountEditModal
+				isOpen={isEditModalOpen}
+				onClose={() => setIsEditModalOpen(false)}
+				accountProfile={accountProfile}
+				onAccountUpdated={(updated) => setAccountProfile(updated)}
+				porterForm={form}
+				isPorterSaving={isSaving}
+				isPorterDirty={isDirty}
+				onPorterSubmit={handleSubmit}
+				onPorterReset={handleResetForm}
+			/>
 		</div>
 	);
 }

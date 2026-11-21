@@ -63,33 +63,48 @@ export function LevelRequestAdminActions({
 				}
 			})}
 		>
-			<fieldset disabled={pending} className="space-y-2">
-				<legend className="mb-2 text-sm font-semibold">Xử lý yêu cầu</legend>
-				<div className="flex flex-wrap gap-2">
+			<fieldset disabled={pending} className="space-y-2.5 border-t border-[#edf2ed] pt-4">
+				<legend className="text-xs font-semibold uppercase tracking-wide text-[#53674d]">
+					Xử lý yêu cầu
+				</legend>
+				<div className="flex flex-wrap gap-2.5">
 					{actions
 						.filter((item) => detail.request.status === "pending" || item.value === "reject")
-						.map((item) => (
-							<label
-								key={item.value}
-								className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold ${action === item.value ? "border-[#164027] bg-[#edf5ef] text-[#164027]" : "border-border text-muted-foreground hover:bg-muted"}`}
-							>
-								<input
-									type="radio"
-									value={item.value}
-									{...register("action")}
-									className="accent-[#164027]"
-								/>
-								{item.label}
-							</label>
-						))}
+						.map((item) => {
+							const isSelected = action === item.value;
+							const selectedStyle =
+								item.value === "reject"
+									? "border-rose-300 bg-rose-50 text-rose-800"
+									: item.value === "request-info"
+										? "border-amber-300 bg-amber-50 text-amber-900"
+										: "border-[#164027] bg-[#edf5ef] text-[#164027]";
+							return (
+								<label
+									key={item.value}
+									className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-xl border px-4 py-2 text-xs font-semibold transition-colors ${
+										isSelected
+											? selectedStyle
+											: "border-[#dfe8df] bg-white text-[#4a5e51] hover:bg-[#f8faf7]"
+									}`}
+								>
+									<input
+										type="radio"
+										value={item.value}
+										{...register("action")}
+										className="accent-[#164027]"
+									/>
+									<span>{item.label}</span>
+								</label>
+							);
+						})}
 				</div>
 			</fieldset>
-			<label className="block text-sm font-semibold">
+			<label className="block text-xs font-semibold text-[#10221b]">
 				{reasonLabel}
 				<textarea
 					rows={2}
 					maxLength={2000}
-					className={`${LEVEL_INPUT_CLASS} mt-2 resize-y`}
+					className={`${LEVEL_INPUT_CLASS} mt-1.5 resize-y`}
 					disabled={pending}
 					placeholder={
 						action === "reject"
@@ -114,7 +129,7 @@ export function LevelRequestAdminActions({
 					{levelReviewError(error)}
 				</p>
 			)}
-			<div className="sticky -bottom-5 -mx-5 flex justify-end border-t border-border bg-white px-5 py-4">
+			<div className="sticky -bottom-5 -mx-5 flex justify-end bg-white px-5 py-3">
 				<Button
 					type="submit"
 					disabled={pending || !action || (action === "approve" && !canApprove)}
