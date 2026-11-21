@@ -35,6 +35,38 @@ revision. Serving runs with Hugging Face/Transformers offline and telemetry off.
 The image fixes `HF_HUB_CACHE` to `/opt/ctms/huggingface/hub`; the existing Compose
 `HF_HOME` volume cannot hide prefetched artifacts on a clean deployment.
 
+### Production image size and build cache
+
+`app/knowledge_artifacts.py` owns the pinned model identities independently of
+the ingestion request/response schemas. E5 provisioning downloads only the
+Safetensors weights, tokenizer and SentenceTransformer configuration, including
+the pooling module. Duplicate pickle weights, ONNX/OpenVINO exports and model
+evaluation datasets are excluded. The model revision, 384 dimensions, tokenizer,
+normalization, OCR artifacts and quality gates are unchanged. A missing required
+E5 file fails the build. No existing stored embedding needs rebuilding for this
+packaging change.
+
+Embedding, layout and table artifacts occupy separate cached Docker layers.
+Application/schema-only changes do not invalidate model provisioning. Production
+defaults to the `runtime` target without pytest, test modules or fixture PDFs.
+The `test` target adds these to the same production base. For offline regression,
+build and run from the repository root:
+
+```bash
+docker build --target test -f infra/docker/ingestion.Dockerfile -t ctms-ingestion-tests .
+docker run --rm --network none -e RUN_KNOWLEDGE_MODEL_SMOKE=true ctms-ingestion-tests python -B -m pytest -q -p no:cacheprovider app/test_prefetch_knowledge_models.py
+```
+
+The dedicated OCR workflow uses this test target and also exercises real scanned,
+native and mixed PDFs with `--network none`. To measure the production image,
+build the default target separately and use `docker image inspect` and
+`docker history`; the test image includes additional files and is not the
+production size. The first deployment of the optimized model layers still needs
+to download those layers. Old images and interrupted downloads on the VPS are not
+removed by this source change. Retain the running release and a rollback release
+when reviewing images for cleanup; do not remove volumes or containerd files by
+hand.
+
 Local configuration, from the repository root, after installing Tesseract 5.5.0:
 
 ```powershell
@@ -48,6 +80,7 @@ $env:HF_HUB_DISABLE_XET='1'
 $env:OMP_THREAD_LIMIT='2'
 Push-Location services/ai
 ..\..\.venv-ingestion\Scripts\python.exe -m pip install -r requirements-ingestion.txt
+..\..\.venv-ingestion\Scripts\python.exe -m pip install pytest==8.3.4
 ..\..\.venv-ingestion\Scripts\python.exe -m app.ocr_artifacts
 ..\..\.venv-ingestion\Scripts\python.exe -m app.prefetch_knowledge_models
 Pop-Location

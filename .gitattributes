@@ -1,2 +1,5 @@
 # Linux deployment scripts must keep LF when checked out on Windows.
 *.sh text eol=lf
+# PDF offsets/checksums must survive Windows checkout unchanged, including
+# ASCII85-encoded fixture PDFs that Git's automatic text detection can misclassify.
+*.pdf binary

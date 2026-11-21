@@ -87,6 +87,19 @@ The dedicated ingestion worker runs `app.knowledge_api:app` on port 8001 with
 `requirements-ingestion.txt`, separate from the existing AI service. See
 [CTMS-051 implementation](../../docs/features/CTMS-051-Implementation.md) for setup,
 quality gates, version isolation and offline Recall@5 evaluation.
+
+Production ingestion defaults to the Docker `runtime` target. It packages only
+the pinned model files used by the runtime and excludes pytest, test modules and
+fixture PDFs. To run tests inside the image, build `--target test`; see
+[OCR packaging and offline regression](../../docs/features/CTMS-051-OCR.md#production-image-size-and-build-cache).
+Install `pytest==8.3.4` separately when testing in a local ingestion environment.
+
+The API Dockerfile uses a production-only dependency tree, including a Linux
+native-module check during build. The Production Packaging workflow validates
+that image when its Dockerfile or dependency manifests change. Production Compose
+rotates logs for CTMS services at 10 MB per file, retaining at most three files per
+container, without changing the shared VPS Docker daemon settings.
+
 ## Booking demand suggestions (CTMS-415)
 
 `POST /demand-insight` uses the same internal shared-token protection and configured
