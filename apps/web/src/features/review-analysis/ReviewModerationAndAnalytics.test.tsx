@@ -285,6 +285,29 @@ describe("Moderation & Analytics UI Components", () => {
 				await screen.findByText("Đánh giá vẫn đang bị ẩn theo trạng thái xử lý báo cáo hiện có.")
 			).toBeInTheDocument();
 		});
+
+		it("disables hiding when active flag confidence is below 50%", () => {
+			const lowConfidenceItem: ModerationQueueItem = {
+				...sampleQueueItem,
+				activeFlags: [
+					{
+						...sampleQueueItem.activeFlags[0],
+						confidence: 0.42,
+					},
+				],
+			};
+
+			render(
+				<ModerationDecisionDialog item={lowConfidenceItem} onClose={vi.fn()} onSuccess={vi.fn()} />
+			);
+
+			expect(
+				screen.getByText(
+					"Độ tin cậy vi phạm dưới 50% — theo quy định hệ thống, đánh giá này không được ẩn."
+				)
+			).toBeInTheDocument();
+			expect(screen.getByRole("button", { name: "Xác nhận giữ lại" })).toBeInTheDocument();
+		});
 	});
 
 	describe("TripFeedbackDashboard", () => {

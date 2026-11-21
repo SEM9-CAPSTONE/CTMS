@@ -80,7 +80,7 @@ export type AutoModerationOutcome =
 	  }
 	| {
 			action: "clean";
-			maxConfidenceBps: 0;
+			maxConfidenceBps: number;
 	  };
 
 export type ImageStorageState =

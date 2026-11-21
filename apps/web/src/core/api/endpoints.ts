@@ -42,6 +42,14 @@ export const API_ENDPOINTS = {
 		REPORT: (month: string) => `/host/demand-insights/${month}`,
 		PLANNING: (month: string) => `/host/demand-insights/${month}/planning-suggestions`,
 	},
+	HOST_ANALYTICS: {
+		SUMMARY: "/host/analytics",
+		SUGGESTIONS: "/host/analytics/suggestions",
+		SUGGESTIONS_LATEST: "/host/analytics/suggestions/latest",
+		SUGGESTIONS_HISTORY: "/host/analytics/suggestions/history",
+		SUGGESTION_JOB: (id: string) => `/host/analytics/suggestions/${id}`,
+		QUICK_CREATE_CONTEXT: (id: string) => `/host/analytics/suggestions/${id}/quick-create-context`,
+	},
 	REVIEW_ANALYSIS: {
 		TRIPS: "/review-analysis/trips",
 		INSIGHTS: (id: string) => `/trips/${id}/review-analyses`,

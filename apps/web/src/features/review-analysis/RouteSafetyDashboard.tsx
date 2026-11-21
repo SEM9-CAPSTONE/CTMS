@@ -158,27 +158,43 @@ export function RouteSafetyDashboard({
 							>
 								{/* Route Header */}
 								<header className="border-b border-[#dfe8df] bg-[#f9faf8] p-4 sm:p-5">
-									<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-										<div>
-											<h3 className="text-base font-bold text-[#10221b]">{route.routeName}</h3>
-											<div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#53674d]">
-												<span>
-													Tổng đánh giá hợp lệ:{" "}
-													<strong className="text-[#10221b]">{route.totalReviews}</strong>
+									<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+										<div className="space-y-1.5">
+											<div className="flex flex-wrap items-center gap-2">
+												<h3 className="text-base font-bold text-[#10221b]">{route.routeName}</h3>
+												<span className="inline-flex items-center gap-1.5 rounded-lg border border-[#dfe8df] bg-white px-2.5 py-0.5 text-xs font-medium text-[#374151]">
+													<strong className="font-bold text-[#10221b]">
+														{route.totalDistinctReviewsWithIncidents}
+													</strong>{" "}
+													đánh giá mô tả sự cố
 												</span>
-												<span>•</span>
-												<span>
-													Đã phân tích:{" "}
-													<strong className="text-[#10221b]">{route.analyzedReviewsCount}</strong>
-												</span>
-												<span>•</span>
-												<span>
-													Độ bao phủ:{" "}
-													<strong className="text-[#10221b]">
-														{Math.round(route.coverageRate * 100)}%
-													</strong>
+												<span className="inline-flex items-center gap-1.5 rounded-lg border border-[#dfe8df] bg-white px-2.5 py-0.5 text-xs font-medium text-[#374151]">
+													<strong className="font-bold text-[#10221b]">
+														{route.totalDistinctReviewsWithWarnings}
+													</strong>{" "}
+													đánh giá có cảnh báo phòng ngừa
 												</span>
 											</div>
+											{!embedded && (
+												<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#53674d]">
+													<span>
+														Tổng đánh giá hợp lệ:{" "}
+														<strong className="text-[#10221b]">{route.totalReviews}</strong>
+													</span>
+													<span>•</span>
+													<span>
+														Đã phân tích:{" "}
+														<strong className="text-[#10221b]">{route.analyzedReviewsCount}</strong>
+													</span>
+													<span>•</span>
+													<span>
+														Độ bao phủ:{" "}
+														<strong className="text-[#10221b]">
+															{Math.round(route.coverageRate * 100)}%
+														</strong>
+													</span>
+												</div>
+											)}
 										</div>
 
 										<div className="flex flex-wrap items-center gap-2">
@@ -205,22 +221,6 @@ export function RouteSafetyDashboard({
 												</button>
 											)}
 										</div>
-									</div>
-
-									{/* Distinct Reviews Metrics */}
-									<div className="mt-3 flex flex-wrap gap-2 pt-2 border-t border-[#dfe8df] text-xs">
-										<span className="inline-flex items-center gap-1.5 rounded-lg border border-[#dfe8df] bg-[#f9faf8] px-2.5 py-1 font-medium text-[#374151]">
-											<strong className="font-bold text-[#10221b]">
-												{route.totalDistinctReviewsWithIncidents}
-											</strong>{" "}
-											đánh giá mô tả sự cố
-										</span>
-										<span className="inline-flex items-center gap-1.5 rounded-lg border border-[#dfe8df] bg-[#f9faf8] px-2.5 py-1 font-medium text-[#374151]">
-											<strong className="font-bold text-[#10221b]">
-												{route.totalDistinctReviewsWithWarnings}
-											</strong>{" "}
-											đánh giá có cảnh báo phòng ngừa
-										</span>
 									</div>
 
 									{!route.hasSufficientSample && (

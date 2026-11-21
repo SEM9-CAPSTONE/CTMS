@@ -74,9 +74,23 @@ describe("HostAnalyticsSuggestionsService", () => {
 			getRouteStatusForHost: jest
 				.fn()
 				.mockResolvedValue({ hostId: "host-a", status: TrekkingRouteStatus.ACTIVE }),
+			getLatestCompletedTripForRoute: jest.fn().mockResolvedValue(null),
 		};
 		const aiProvider = {
 			generatePlanningSelections: jest.fn(),
+		};
+		const weatherService = {
+			evaluateWindow: jest.fn().mockResolvedValue({
+				status: "out_of_horizon",
+				riskLevel: null,
+				summary: "Chưa có dự báo cho thời điểm này",
+				forecastDate: null,
+				temperatureMinC: null,
+				temperatureMaxC: null,
+				precipitationMm: null,
+				windSpeedMaxKmh: null,
+				avoidedRedDates: [],
+			}),
 		};
 
 		const service = new HostAnalyticsSuggestionsService(
@@ -84,9 +98,10 @@ describe("HostAnalyticsSuggestionsService", () => {
 			configService as never,
 			revenueService as never,
 			repository as never,
-			aiProvider as never
+			aiProvider as never,
+			weatherService as never
 		);
-		return { service, dataSource, managerQuery, repository, aiProvider };
+		return { service, dataSource, managerQuery, repository, aiProvider, weatherService };
 	}
 
 	it("rejects createJob with 422 when host has no eligible active routes", async () => {
@@ -220,8 +235,16 @@ describe("HostAnalyticsSuggestionsService", () => {
 				routeId: "route-1",
 				areaCode: "DNG-SON-TRA",
 				tripType: "day_trip",
+				title: null,
 				pricePerPerson: null,
 				capacityMin: null,
+				capacityMax: null,
+				meetingLongitude: null,
+				meetingLatitude: null,
+				startsAt: null,
+				endsAt: null,
+				meetingAt: null,
+				bookingDeadline: null,
 				suggestedMonth: "2027-01",
 			},
 		});
@@ -412,5 +435,107 @@ describe("HostAnalyticsSuggestionsService", () => {
 			expect.stringContaining("daily_count = GREATEST(daily_count - 1, 0)"),
 			["host-a", "2026-11-20"]
 		);
+	});
+
+	it("shifts suggested departure away from RED weather dates during processNextJob", async () => {
+		const { service, managerQuery, repository, aiProvider, weatherService } = buildHarness();
+		const now = new Date("2026-11-20T02:00:00.000Z");
+		const claimedJob = {
+			id: "job-weather",
+			host_id: "host-a",
+			period_from: "2025-11-20T00:00:00.000Z",
+			period_to: "2026-11-20T00:00:00.000Z",
+			area_code: null,
+			status: "running",
+			source_hash: "h",
+			prompt_version: "host-planning-v2",
+			attempts: 1,
+			error_code: null,
+			lease_token: "lease",
+			created_at: now.toISOString(),
+			started_at: now.toISOString(),
+			finished_at: null,
+		};
+
+		repository.getLatestCompletedTripForRoute.mockResolvedValue({
+			id: "trip-1",
+			title: "Khám phá Sơn Trà",
+			routeId: "route-1",
+			tripType: "day_trip",
+			areaCode: "DNG-SON-TRA",
+			capacityMin: 6,
+			capacityMax: 12,
+			pricePerPerson: 650000,
+			// Saturday 2026-10-17 06:00 VN
+			startsAt: new Date("2026-10-16T23:00:00.000Z"),
+			endsAt: new Date("2026-10-17T06:00:00.000Z"),
+			meetingAt: new Date("2026-10-16T22:30:00.000Z"),
+			bookingDeadline: new Date("2026-10-14T23:00:00.000Z"),
+			meetingLongitude: 108.25,
+			meetingLatitude: 16.1,
+			routeLengthMeters: 6000,
+		});
+
+		weatherService.evaluateWindow
+			.mockResolvedValueOnce({
+				status: "available",
+				riskLevel: "red",
+				summary: "Mưa lớn nguy hiểm",
+				forecastDate: "2026-12-05",
+				temperatureMinC: 19,
+				temperatureMaxC: 24,
+				precipitationMm: 60,
+				windSpeedMaxKmh: 45,
+				avoidedRedDates: [],
+			})
+			.mockResolvedValueOnce({
+				status: "available",
+				riskLevel: "green",
+				summary: "Thời tiết thuận lợi",
+				forecastDate: "2026-12-12",
+				temperatureMinC: 20,
+				temperatureMaxC: 26,
+				precipitationMm: 0,
+				windSpeedMaxKmh: 10,
+				avoidedRedDates: [],
+			});
+
+		aiProvider.generatePlanningSelections.mockResolvedValueOnce({
+			selections: [
+				{
+					candidateId: "cand-1",
+					monthHint: "2026-12",
+					rationaleCodes: ["high_fill_history"],
+					aiSeasonNote: "Tháng 12 thời tiết mát mẻ, phù hợp đi bộ đường dài.",
+					aiRisks: [],
+					confidence: "medium",
+				},
+			],
+		});
+
+		managerQuery
+			.mockResolvedValueOnce([claimedJob]) // claim select
+			.mockResolvedValueOnce([claimedJob]) // claim update
+			.mockResolvedValueOnce([{ id: "job-weather" }]) // lock check
+			.mockResolvedValueOnce([]) // delete old suggestions
+			.mockResolvedValueOnce([]) // insert suggestion
+			.mockResolvedValueOnce([]); // mark succeeded
+
+		const processed = await service.processNextJob(now);
+		expect(processed).toBe(true);
+		expect(weatherService.evaluateWindow).toHaveBeenCalledTimes(2);
+		const insertCall = managerQuery.mock.calls.find(
+			(call) => typeof call[0] === "string" && call[0].includes("INSERT INTO host_trip_suggestions")
+		);
+		expect(insertCall).toBeDefined();
+		if (!insertCall) {
+			throw new Error("Expected insertCall to be defined");
+		}
+		const weatherArg = JSON.parse(insertCall[1][11] as string) as {
+			riskLevel: string;
+			avoidedRedDates: string[];
+		};
+		expect(weatherArg.riskLevel).toBe("green");
+		expect(weatherArg.avoidedRedDates).toEqual(["2026-12-04"]);
 	});
 });

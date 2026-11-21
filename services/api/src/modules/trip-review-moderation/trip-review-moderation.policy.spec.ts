@@ -22,6 +22,28 @@ describe("trip-review-moderation.policy", () => {
 			});
 		});
 
+		it("returns clean and does not hide or notify when confidence is strictly below 0.50 (49%)", () => {
+			expect(
+				evaluateModerationPolicy([
+					{ flagType: "profanity_or_insult", detectionSource: "model", confidence: 0.49 },
+				])
+			).toEqual({
+				action: "clean",
+				maxConfidenceBps: 4900,
+			});
+		});
+
+		it("routes exact 0.50 (50%) to host review queue without auto-hiding", () => {
+			expect(
+				evaluateModerationPolicy([
+					{ flagType: "profanity_or_insult", detectionSource: "model", confidence: 0.5 },
+				])
+			).toEqual({
+				action: "notify_host",
+				maxConfidenceBps: 5000,
+			});
+		});
+
 		it("routes 0.79 (79%) to host without auto-hiding", () => {
 			expect(
 				evaluateModerationPolicy([

@@ -6,7 +6,7 @@ import { EventsGateway } from "../realtime/events.gateway";
 // biome-ignore lint/style/useImportType: Nest injection metadata
 import { InAppNotificationsService } from "./in-app-notifications.service";
 
-const DELIVERY_INTERVAL_MS = 5_000;
+const DELIVERY_INTERVAL_MS = 1_000;
 const DELIVERY_BATCH_SIZE = 20;
 
 @Injectable()
