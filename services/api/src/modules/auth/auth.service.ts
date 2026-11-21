@@ -4,6 +4,7 @@ import {
 	Injectable,
 	Logger,
 	NotFoundException,
+	ServiceUnavailableException,
 	UnauthorizedException,
 } from "@nestjs/common";
 
@@ -31,6 +32,7 @@ import { UsersRepository } from "../users/users.repository";
 
 import type { ForgotPasswordResponseDto } from "./dto/forgot-password-response.dto";
 import type { ForgotPasswordDto } from "./dto/forgot-password.dto";
+import type { GoogleLoginDto } from "./dto/google-login.dto";
 import type { LoginResponseDto } from "./dto/login-response.dto";
 import type { LoginDto } from "./dto/login.dto";
 import type { LogoutResponseDto } from "./dto/logout-response.dto";
@@ -47,6 +49,8 @@ import { AuditLog } from "./entities/audit-log.entity";
 
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { OtpDeliveryService } from "./otp-delivery.service";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
+import { GoogleIdTokenVerifier, type GoogleIdentity } from "./providers/google-id-token.verifier";
 
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { RefreshTokenRepository } from "./refresh-token.repository";
@@ -67,6 +71,9 @@ const RESET_CREDENTIAL_INCORRECT_MESSAGE = "Incorrect reset credential";
 const INVALID_CREDENTIALS_MESSAGE = "Invalid credentials";
 const ACCOUNT_NOT_ACTIVE_MESSAGE = "Account is not active";
 const INVALID_REFRESH_TOKEN_MESSAGE = "Invalid refresh token";
+const INVALID_GOOGLE_TOKEN_MESSAGE = "Invalid Google sign-in";
+const GOOGLE_ACCOUNT_MISMATCH_MESSAGE = "This e-mail is linked to another Google account";
+const GOOGLE_SIGN_IN_DISABLED_MESSAGE = "Google sign-in is not configured";
 function generateOtpCode(): string {
 	return randomInt(100000, 1000000).toString();
 }
@@ -90,7 +97,8 @@ export class AuthService {
 		private readonly dataSource: DataSource,
 		private readonly configService: ConfigService,
 		private readonly otpDeliveryService: OtpDeliveryService,
-		private readonly jwtService: JwtService
+		private readonly jwtService: JwtService,
+		private readonly googleIdTokenVerifier: GoogleIdTokenVerifier
 	) {}
 
 	async register(dto: RegisterDto): Promise<UserProfileDto> {
@@ -335,6 +343,89 @@ export class AuthService {
 		}
 
 		// Only reached once the password is confirmed correct.
+		return this.issueSession(user, null);
+	}
+
+	/**
+	 * "Đăng nhập bằng Google": verifies the Google ID token, then signs in the account
+	 * linked to that Google account or, failing that, the account with the same
+	 * (Google-verified) e-mail. A pending account is activated (Google already proved the
+	 * e-mail); an unknown e-mail gets a new active Camper account. Suspended/deleted
+	 * accounts are refused exactly like the password login.
+	 */
+	async loginWithGoogle(dto: GoogleLoginDto): Promise<LoginResponseDto> {
+		if (!this.googleIdTokenVerifier.isEnabled()) {
+			throw new ServiceUnavailableException(GOOGLE_SIGN_IN_DISABLED_MESSAGE);
+		}
+		const identity = await this.googleIdTokenVerifier.verify(dto.idToken);
+		if (!identity || !identity.emailVerified) {
+			throw new UnauthorizedException(INVALID_GOOGLE_TOKEN_MESSAGE);
+		}
+
+		const user = await this.dataSource.transaction((manager) =>
+			this.findOrCreateGoogleUser(manager, identity)
+		);
+		return this.issueSession(user, "google");
+	}
+
+	private async findOrCreateGoogleUser(
+		manager: EntityManager,
+		identity: GoogleIdentity
+	): Promise<User> {
+		const users = manager.withRepository(this.usersRepository);
+		const email = normalizeEmail(identity.email);
+		const linked = await users.findOne({ where: { googleSub: identity.subject } });
+		const user = linked ?? (await users.findByEmailOrPhone(email, null));
+
+		if (!user) {
+			const passwordHash = await bcrypt.hash(randomBytes(32).toString("hex"), BCRYPT_COST_FACTOR);
+			let created: User;
+			try {
+				created = await users.createUser({
+					email,
+					phone: null,
+					passwordHash,
+					role: UserRole.CAMPER,
+					status: UserStatus.ACTIVE,
+					fullName: identity.name?.trim().slice(0, 50) || null,
+					avatarUrl: identity.picture?.slice(0, 1000) ?? null,
+					googleSub: identity.subject,
+				});
+			} catch (error) {
+				if (isUniqueViolation(error)) throw new ConflictException(DUPLICATE_CONTACT_MESSAGE);
+				throw error;
+			}
+			await manager.getRepository(AuditLog).save({
+				actorId: created.id,
+				action: "auth.register",
+				targetType: "user",
+				targetId: created.id,
+				before: null,
+				after: { method: "google", role: UserRole.CAMPER },
+				reason: null,
+			});
+			this.logger.log(`User registered with Google: ${created.id}`);
+			return created;
+		}
+
+		if (user.status === UserStatus.SUSPENDED || user.status === UserStatus.DELETED) {
+			throw new UnauthorizedException(ACCOUNT_NOT_ACTIVE_MESSAGE);
+		}
+		if (user.googleSub && user.googleSub !== identity.subject) {
+			throw new UnauthorizedException(GOOGLE_ACCOUNT_MISMATCH_MESSAGE);
+		}
+		const changes: Partial<User> = {};
+		if (!user.googleSub) changes.googleSub = identity.subject;
+		if (user.status === UserStatus.PENDING_VERIFICATION) changes.status = UserStatus.ACTIVE;
+		if (Object.keys(changes).length > 0) {
+			await users.update({ id: user.id }, changes);
+			Object.assign(user, changes);
+		}
+		return user;
+	}
+
+	/** Stores a refresh token, writes the `auth.login` audit row and signs the access token. */
+	private async issueSession(user: User, method: "google" | null): Promise<LoginResponseDto> {
 		const rawRefreshToken = randomBytes(32).toString("hex");
 		const tokenHash = createHash("sha256").update(rawRefreshToken).digest("hex");
 		// Cast: the duration string is runtime-configured (env), so it can't be
@@ -363,7 +454,7 @@ export class AuthService {
 				targetType: "user",
 				targetId: user.id,
 				before: null,
-				after: null,
+				after: method ? { method } : null,
 				reason: null,
 			});
 		});
@@ -373,7 +464,9 @@ export class AuthService {
 		const roles = await this.usersRepository.getGrantedRolesById(user.id);
 		const accessToken = this.jwtService.sign({ sub: user.id, roles });
 
-		this.logger.log(`User logged in: ${user.id}`);
+		this.logger.log(
+			method ? `User logged in with ${method}: ${user.id}` : `User logged in: ${user.id}`
+		);
 
 		return {
 			accessToken,

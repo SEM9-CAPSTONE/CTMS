@@ -11,7 +11,6 @@ export const AUTH_MESSAGES = {
 	SUBMIT_BUTTON: "Đăng nhập",
 	REGISTER_BUTTON: "Đăng ký tài khoản mới",
 	SOCIAL_DIVIDER: "Hoặc đăng nhập bằng",
-	GOOGLE_BUTTON: "Đăng nhập bằng Google",
 	NO_ACCOUNT_PROMPT: "Bạn chưa có tài khoản?",
 	REGISTER_NOW: "Đăng ký ngay",
 	BACK_TO_HOME: "Quay về trang chủ",

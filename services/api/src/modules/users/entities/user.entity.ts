@@ -64,6 +64,10 @@ export class User {
 	@Column({ name: "avatar_url", type: "varchar", length: 1000, nullable: true })
 	avatarUrl!: string | null;
 
+	/** Google account id linked by "Đăng nhập bằng Google" (migration 1798300000000). */
+	@Column({ name: "google_sub", type: "varchar", length: 255, nullable: true })
+	googleSub?: string | null;
+
 	@Column({ name: "date_of_birth", type: "date", nullable: true })
 	dateOfBirth!: string | null;
 

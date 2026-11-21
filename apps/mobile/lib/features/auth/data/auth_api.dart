@@ -81,6 +81,21 @@ class AuthApi {
     );
   }
 
+  /// "Đăng nhập bằng Google": same response shape as [login].
+  Future<LoginResult> loginWithGoogle(String idToken) async {
+    final response = await _client.post<Map<String, dynamic>>(
+      ApiEndpoints.auth.google,
+      data: {'idToken': idToken},
+    );
+    final data = response.data ?? const {};
+    final user = _withRoleFallback(AuthUser.fromJson(data['user'] as Map<String, dynamic>));
+    return LoginResult(
+      accessToken: data['accessToken'] as String,
+      refreshToken: data['refreshToken'] as String?,
+      user: user,
+    );
+  }
+
   Future<AuthUser> me() async {
     final response = await _client.get<Map<String, dynamic>>(
       ApiEndpoints.auth.me,

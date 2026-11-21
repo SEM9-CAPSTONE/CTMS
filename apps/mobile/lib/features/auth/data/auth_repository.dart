@@ -24,6 +24,16 @@ class AuthRepository {
     return result.user;
   }
 
+  Future<AuthUser> loginWithGoogle(String idToken) async {
+    final result = await _api.loginWithGoogle(idToken);
+    await _tokenStorage.saveSession(
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      user: result.user,
+    );
+    return result.user;
+  }
+
   Future<AuthUser?> tryRestoreSession() async {
     final token = await _tokenStorage.readAccessToken();
     if (token == null) return null;
