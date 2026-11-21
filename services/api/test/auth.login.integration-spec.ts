@@ -159,6 +159,37 @@ describe("POST /api/auth/login (integration, real Postgres)", () => {
 
 	// --- Wrong password (AC2, BR-010) -----------------------------------------
 
+	// Seed and older rows keep the local form (`09…`) instead of E.164 (`+849…`).
+	it("logs in by phone, local or E.164, when the account stores the local form", async () => {
+		const { userId, localPhone } = await registerAndActivateUser("login-legacy-phone");
+		await dataSource.query('UPDATE "users" SET "phone" = $2 WHERE "id" = $1', [userId, localPhone]);
+		cleanupPhones.push(localPhone);
+
+		for (const identifier of [localPhone, `+84${localPhone.slice(1)}`]) {
+			const response = await request(app.getHttpServer())
+				.post("/api/auth/login")
+				.send({ identifier, password: PASSWORD })
+				.expect(200);
+			expect(response.body.user.id).toBe(userId);
+		}
+	});
+
+	it("refuses to register the E.164 form of a phone stored in the local form", async () => {
+		const { userId, localPhone } = await registerAndActivateUser("register-legacy-phone");
+		await dataSource.query('UPDATE "users" SET "phone" = $2 WHERE "id" = $1', [userId, localPhone]);
+		cleanupPhones.push(localPhone);
+
+		await request(app.getHttpServer())
+			.post("/api/auth/register")
+			.send({
+				email: uniqueEmail("register-legacy-dup"),
+				phone: `+84${localPhone.slice(1)}`,
+				password: PASSWORD,
+				role: "camper",
+			})
+			.expect(409);
+	});
+
 	it("returns 401 and creates no refresh token when the password is wrong", async () => {
 		const { userId, email } = await registerAndActivateUser("login-wrong-password");
 

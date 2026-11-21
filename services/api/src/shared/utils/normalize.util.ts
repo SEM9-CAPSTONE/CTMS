@@ -5,6 +5,17 @@ export function normalizeEmail(value: string): string {
 	return value.trim().toLowerCase();
 }
 
+/**
+ * Every stored form one Vietnamese mobile number may have. Registration saves the
+ * E.164 form (`+849…`), but seed and older rows keep the local form (`09…`), so a
+ * lookup by phone has to match both or those accounts cannot sign in by phone.
+ */
+export function vietnamPhoneLookupForms(value: string): string[] {
+	const normalized = normalizeVietnamPhone(value);
+	if (!VN_MOBILE_E164_REGEX.test(normalized)) return [normalized];
+	return [normalized, `0${normalized.slice(3)}`];
+}
+
 export function normalizeVietnamPhone(value: string): string {
 	const trimmed = value.trim();
 

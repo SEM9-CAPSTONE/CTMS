@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { type FindOptionsWhere, Repository } from "typeorm";
+import { vietnamPhoneLookupForms } from "../../shared/utils/normalize.util";
 import { UserRoleAssignment } from "./entities/user-role.entity";
 import type { User, UserRole } from "./entities/user.entity";
 import type { PaginatedUsers, UserAccountFilters } from "./users.types";
@@ -53,7 +54,8 @@ export class UsersRepository extends Repository<User> {
 			where.push({ email });
 		}
 		if (phone) {
-			where.push({ phone });
+			// Match both `+849…` (registration) and `09…` (seed/older rows) of the same number.
+			for (const form of vietnamPhoneLookupForms(phone)) where.push({ phone: form });
 		}
 
 		if (where.length === 0) {
