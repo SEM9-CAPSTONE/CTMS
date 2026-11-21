@@ -1,0 +1,47 @@
+{
+	"description": "Literal source text and PDF-point line anchors from generate.py, independent of OCR output. Checksums bind this review fixture to the unchanged PDFs.",
+	"sources": {
+		"scan-vi.pdf": {
+			"sha256": "ca79bef3d214c29fd1c0ae9b01432195021745339cb165b1f303e8d135682876",
+			"vietnamese_page": 1
+		},
+		"scan-multipage.pdf": {
+			"sha256": "f9d3e4fd80caed6e5a9c1863c329a647748fa282023b346d3ab2e164626e7e1a",
+			"vietnamese_page": 1
+		},
+		"scan-blank.pdf": {
+			"sha256": "0ff541f62084c5d1ab4997530741f6f7beeaa74cfccb312b826d484c8fbdad15",
+			"vietnamese_page": 1
+		},
+		"mixed.pdf": {
+			"sha256": "59498f826433f0859d4fbdb107aaf012a4c336d4e80cf1498ecbcfebe7222be5",
+			"vietnamese_page": 2
+		}
+	},
+	"lines": [
+		{
+			"y": 71.666667,
+			"text": "Tài liệu thử nghiệm"
+		},
+		{
+			"y": 118.333333,
+			"text": "Nội dung tiếng Việt dùng để kiểm tra phần mềm."
+		},
+		{
+			"y": 146.666667,
+			"text": "Danh sách đồ dùng"
+		},
+		{
+			"y": 175.0,
+			"text": "1. Kiểm tra danh sách trước chuyến đi."
+		},
+		{
+			"y": 203.333333,
+			"text": "2. Ghi lại các mục còn thiếu."
+		},
+		{
+			"y": 231.666667,
+			"text": "3. Giữ nguyên thứ tự của các bước."
+		}
+	]
+}

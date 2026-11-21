@@ -354,3 +354,48 @@ Deploy matching v4 ingestion/API code before checking the new configuration's
 status. Reconciliation queues fresh v4 sets from stored originals and preserves
 historical v1/v2/v3 results; no manual status override or PDF re-upload is needed
 to apply the algorithm update.
+
+## Vietnamese scan review regression - 2026-11-21
+
+The reported Linux Docker run finished with 162 passed and four failures, all
+in the unconditional automatic-PASSED assertion for PDFs sharing the Vietnamese
+raster. Its minimum word confidence was approximately 0.715, below the unchanged
+0.75 threshold. The same source bytes on the provisioned Windows runtime returned
+approximately 0.833 and PASSED. An OSD warning also occurred in that successful
+run, so the warning alone does not establish a conversion failure.
+
+The production confidence gate and PDF bytes are unchanged. The integration test
+now requires either successful automatic validation or completion of the existing
+source-bound manual review workflow. Review is allowed only for the four known
+Vietnamese fixtures and an isolated `ocr_low_confidence` finding. Unexpected
+missing text, critical/numeric issues, tables or visuals still fail this test.
+The final result must still be PASSED and satisfy the original token, provenance,
+page, embedding and deterministic replay assertions.
+
+`fixtures/ocr/ground_truth.json` records literal text from the fixture generator,
+line positions and checksums of the original PDFs. Source coordinates select the
+reviewed text independently of the OCR result. A fixture test checks these values
+against the generator and unchanged source files. Review must retain the original
+version/checksum, leave unrelated structured items unchanged, use the cached
+extraction without reconversion or OCR, and preserve every literal character and
+its order in the resulting text (paragraph whitespace may be serialized).
+
+Four additional fault-injection cases use the actual Docling/Tesseract conversion
+and lower one recognition confidence in the Vietnamese body region. They exercise
+the blocked-before-review and corrected-after-review paths on every affected PDF
+even on a runtime that automatically accepts the unmodified fixture. Validation
+and chunking are not mocked; attempted embedding of unverified content fails the
+test. Fixture corrections are simulated reviewer input, not automatic production
+correction or permission to accept low-confidence content.
+
+Validation in this environment: fixture/integrity/OCR unit regression completed
+with 54 passed. The final complete `test_knowledge_ocr_integration.py` run completed
+with 14 passed, 33 warnings, no skipped cases, in 179.49 seconds on the provisioned
+Windows CPU runtime with offline model artifacts. That includes the four
+confidence-injection review cases and the unchanged unreadable/table/visual
+safety checks. Python syntax, JSON parsing and `git diff --check` passed.
+
+A broader attempt using the full CI file list did not complete in this environment
+and was stopped; no full-CI pass is claimed. Linux Docker execution is unavailable
+here because access to the Docker engine pipe is denied. The Linux-specific
+confidence behavior must still be checked in Docker/CI.
