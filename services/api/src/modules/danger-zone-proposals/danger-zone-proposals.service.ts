@@ -21,7 +21,6 @@ import {
 } from "./danger-zone-proposals.repository";
 import type {
 	ApproveDangerZoneProposalDto,
-	CreateDangerZoneProposalDto,
 	RejectDangerZoneProposalDto,
 } from "./dto/danger-zone-proposals.dto";
 
@@ -38,37 +37,6 @@ export class DangerZoneProposalsService {
 		private readonly repository: DangerZoneProposalsRepository,
 		private readonly dangerZones: RouteDangerZonesService
 	) {}
-
-	async createForHost(
-		hostId: string,
-		routeId: string,
-		dto: CreateDangerZoneProposalDto
-	): Promise<DangerZoneProposalRow> {
-		await this.assertRouteOwner(hostId, routeId);
-		const radiusMeters = dto.geometry.type === "Point" ? (dto.radiusMeters ?? null) : null;
-		const id = await this.repository.transaction(async (manager) => {
-			const proposalId = await this.repository.insertHostProposal(manager, {
-				routeId,
-				proposerId: hostId,
-				hazardType: dto.hazardType,
-				geometry: dto.geometry,
-				radiusMeters,
-				severity: dto.severity,
-				description: dto.description,
-			});
-			await manager.getRepository(AuditLog).save({
-				actorId: hostId,
-				action: "danger_zone_proposal.submitted",
-				targetType: PROPOSAL_TARGET,
-				targetId: proposalId,
-				before: null,
-				after: { routeId, hazardType: dto.hazardType, severity: dto.severity, radiusMeters },
-				reason: "host_proposed_danger_zone",
-			});
-			return proposalId;
-		});
-		return this.getById(id);
-	}
 
 	async listForHost(hostId: string, routeId: string): Promise<DangerZoneProposalRow[]> {
 		await this.assertRouteOwner(hostId, routeId);

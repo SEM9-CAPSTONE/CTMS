@@ -11,19 +11,11 @@ import {
 	MaxLength,
 	MinLength,
 } from "class-validator";
-import { CreateRouteDangerZoneDto } from "../../trekking-routes/dto/create-route-danger-zone.dto";
 import { RouteDangerZoneSeverity } from "../../trekking-routes/entities/route-danger-zone.entity";
-import { DangerZoneHazardType, DangerZoneProposalStatus } from "../danger-zone-proposals.enums";
+import { DangerZoneProposalStatus } from "../danger-zone-proposals.enums";
 
 function trimmed(value: unknown): unknown {
 	return typeof value === "string" ? value.trim() : value;
-}
-
-/** A Host proposal reuses the hazard-area geometry, radius, severity and description rules. */
-export class CreateDangerZoneProposalDto extends CreateRouteDangerZoneDto {
-	@ApiProperty({ enum: DangerZoneHazardType })
-	@IsEnum(DangerZoneHazardType)
-	hazardType!: DangerZoneHazardType;
 }
 
 /**

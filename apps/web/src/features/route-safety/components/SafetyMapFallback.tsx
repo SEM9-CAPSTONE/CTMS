@@ -3,8 +3,10 @@ import type { Position } from "../../trekking-routes/types";
 import {
 	featureColor,
 	featureMarkerPoint,
+	isBareSymbol,
 	isDisplayableFeature,
 	isMutedFeature,
+	markerFrameClass,
 } from "../map-symbols";
 import { safetyText } from "../messages";
 import type { SafetyCollection } from "../types";
@@ -98,12 +100,13 @@ export function SafetyMapFallback({
 							event.stopPropagation();
 							setSelectedId(feature.id);
 						}}
-						className={`pointer-events-auto absolute flex size-11 touch-manipulation -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white bg-white/95 p-1 shadow-sm ${feature.properties.sourceType === "HOST_DEFINED" || feature.properties.sourceType === "ADMIN_VERIFIED" ? "z-20" : "z-10"}`}
+						className={`pointer-events-auto absolute flex size-11 touch-manipulation -translate-x-1/2 -translate-y-1/2 items-center justify-center ${markerFrameClass(feature)} ${feature.properties.sourceType === "HOST_DEFINED" || feature.properties.sourceType === "ADMIN_VERIFIED" ? "z-20" : "z-10"}`}
 						style={{ left: `${x}%`, top: `${y}%`, opacity: isMutedFeature(feature) ? 0.45 : 1 }}
 					>
 						<SafetySymbol
 							kind={feature.properties.sourceType === "RESOURCE" ? "water" : "hazard"}
 							color={featureColor(feature)}
+							outlined={!isBareSymbol(feature)}
 						/>
 					</button>
 				);

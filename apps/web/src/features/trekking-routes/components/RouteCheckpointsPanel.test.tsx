@@ -1,7 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useCreateRouteCheckpoint } from "../hooks/useCreateRouteCheckpoint";
-import { useCreateRouteDangerZone } from "../hooks/useCreateRouteDangerZone";
 import { useRouteCheckpoints } from "../hooks/useRouteCheckpoints";
 import { useRouteDangerZones } from "../hooks/useRouteDangerZones";
 import { useUpdateRouteCheckpoint } from "../hooks/useUpdateRouteCheckpoint";
@@ -11,7 +10,6 @@ import { RouteCheckpointsPanel } from "./RouteCheckpointsPanel";
 vi.mock("../hooks/useRouteCheckpoints", () => ({ useRouteCheckpoints: vi.fn() }));
 vi.mock("../hooks/useCreateRouteCheckpoint", () => ({ useCreateRouteCheckpoint: vi.fn() }));
 vi.mock("../hooks/useRouteDangerZones", () => ({ useRouteDangerZones: vi.fn() }));
-vi.mock("../hooks/useCreateRouteDangerZone", () => ({ useCreateRouteDangerZone: vi.fn() }));
 vi.mock("../hooks/useUpdateRouteCheckpoint", () => ({ useUpdateRouteCheckpoint: vi.fn() }));
 vi.mock("./RouteCheckpointMap", () => ({
 	RouteCheckpointMap: ({
@@ -56,10 +54,8 @@ vi.mock("./CreateCheckpointForm", () => ({
 		onSubmit,
 		onCreated,
 		onCancel,
-		onSelectDangerArea,
 	}: {
 		disabled: boolean;
-		onSelectDangerArea?: () => void;
 		checkpoint?: RouteCheckpoint;
 		onSubmit: (payload: RouteCheckpoint) => Promise<RouteCheckpoint | null>;
 		onCreated: () => void;
@@ -82,9 +78,6 @@ vi.mock("./CreateCheckpointForm", () => ({
 					Hủy chỉnh điểm dừng
 				</button>
 			)}
-			<button type="button" onClick={onSelectDangerArea}>
-				Chọn khu vực nguy hiểm
-			</button>
 		</div>
 	),
 }));
@@ -160,11 +153,6 @@ describe("RouteCheckpointsPanel", () => {
 			isLoading: false,
 			error: "",
 			reload: vi.fn(),
-		});
-		vi.mocked(useCreateRouteDangerZone).mockReturnValue({
-			submit: vi.fn(),
-			isSubmitting: false,
-			error: "",
 		});
 	});
 
@@ -247,7 +235,7 @@ describe("RouteCheckpointsPanel", () => {
 		expect(screen.getByRole("button", { name: "Thêm điểm dừng" })).toBeInTheDocument();
 	});
 
-	it("switches explicit map modes and renders hazard loading/error/retry/success states", () => {
+	it("keeps the map in checkpoint mode and renders hazard loading/error/retry/success states", () => {
 		const reload = vi.fn();
 		vi.mocked(useRouteDangerZones).mockReturnValue({
 			items: [],
@@ -262,8 +250,7 @@ describe("RouteCheckpointsPanel", () => {
 		};
 		const { rerender } = render(<RouteCheckpointsPanel {...props} />);
 		expect(screen.getByText("Đang tải khu vực nguy hiểm...")).toBeInTheDocument();
-		fireEvent.click(screen.getByRole("button", { name: "Chọn khu vực nguy hiểm" }));
-		expect(screen.getByTestId("panel-map")).toHaveAttribute("data-mode", "hazard-polygon");
+		expect(screen.getByTestId("panel-map")).toHaveAttribute("data-mode", "checkpoint");
 
 		vi.mocked(useRouteDangerZones).mockReturnValue({
 			items: [],
@@ -297,7 +284,7 @@ describe("RouteCheckpointsPanel", () => {
 		expect(screen.getByText("Loose rock")).toBeInTheDocument();
 	});
 
-	it("switches to the danger area form from the Vị trí dropdown and back on cancel", () => {
+	it("does not offer creating danger areas on the route", () => {
 		render(
 			<RouteCheckpointsPanel
 				route={route("route-one", "draft")}
@@ -306,20 +293,7 @@ describe("RouteCheckpointsPanel", () => {
 			/>
 		);
 		expect(screen.queryByText("Thêm khu vực nguy hiểm")).not.toBeInTheDocument();
-		fireEvent.click(screen.getByRole("button", { name: "Chọn khu vực nguy hiểm" }));
-		expect(screen.queryByRole("button", { name: "Thêm điểm dừng" })).not.toBeInTheDocument();
-		expect(screen.getByLabelText("Vị trí")).toHaveValue("danger_area");
-		for (const index of [1, 2, 3]) {
-			fireEvent.click(screen.getByRole("button", { name: `Chọn điểm bản đồ ${index}` }));
-		}
-		expect(screen.getByText("3 đỉnh đã chọn")).toBeInTheDocument();
-		fireEvent.click(screen.getByRole("button", { name: "Hoàn tất khu vực" }));
-		fireEvent.click(screen.getByRole("button", { name: "Hoàn tác đỉnh" }));
-		expect(screen.getByText("2 đỉnh đã chọn")).toBeInTheDocument();
-		fireEvent.click(screen.getByRole("button", { name: "Xóa khu vực" }));
-		expect(screen.getByText("0 đỉnh đã chọn")).toBeInTheDocument();
-		fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
-		expect(screen.getByTestId("panel-map")).toHaveAttribute("data-mode", "checkpoint");
+		expect(screen.queryByRole("button", { name: "Hoàn tất khu vực" })).not.toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Thêm điểm dừng" })).toBeInTheDocument();
 	});
 

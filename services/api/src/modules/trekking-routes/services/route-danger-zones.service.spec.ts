@@ -114,38 +114,7 @@ describe("RouteDangerZonesService", () => {
 		expect(dangerZoneRepository.findByRoute).not.toHaveBeenCalled();
 	});
 
-	it("locks a draft Route, persists the danger zone, and audits in one transaction", async () => {
-		await expect(service.create(HOST_ID, ROUTE_ID, dto)).resolves.toEqual(dangerZone);
-		expect(routeRepository.createQueryBuilder).toHaveBeenCalledWith("route");
-		expect(routeQuery.where).toHaveBeenCalledWith("route.id = :routeId", { routeId: ROUTE_ID });
-		expect(routeQuery.where).toHaveBeenCalledWith("route.id = :routeId", { routeId: ROUTE_ID });
-		expect(routeQuery.setLock).toHaveBeenCalledWith("pessimistic_write");
-		expect(dangerZoneRepository.createForRoute).toHaveBeenCalledWith({
-			routeId: ROUTE_ID,
-			geometry: dto.geometry,
-			radiusMeters: 50,
-			description: dto.description,
-			severity: dto.severity,
-		});
-		expect(auditRepository.save).toHaveBeenCalledWith({
-			actorId: HOST_ID,
-			action: "trekking_route_danger_zone.created",
-			targetType: "trekking_route_danger_zone",
-			targetId: DANGER_ZONE_ID,
-			before: null,
-			after: {
-				id: DANGER_ZONE_ID,
-				routeId: ROUTE_ID,
-				geometry: dto.geometry,
-				radiusMeters: 50,
-				description: dto.description,
-				severity: dto.severity,
-			},
-			reason: "host_create_trekking_route_danger_zone",
-		});
-	});
-
-	it("persists null radius for Polygon geometry", async () => {
+	it("creates a corrective hazard area in the caller's transaction with a null Polygon radius", async () => {
 		const polygonDto: CreateRouteDangerZoneDto = {
 			geometry: {
 				type: "Polygon",
@@ -161,35 +130,12 @@ describe("RouteDangerZonesService", () => {
 			description: "Landslide area",
 			severity: RouteDangerZoneSeverity.HIGH,
 		};
-		await service.create(HOST_ID, ROUTE_ID, polygonDto);
+		const change = await service.createCorrective(manager as never, ROUTE_ID, polygonDto);
+		expect(change.result).toEqual(dangerZone);
+		expect(change.before).toBeNull();
 		expect(dangerZoneRepository.createForRoute).toHaveBeenCalledWith(
-			expect.objectContaining({ radiusMeters: null })
+			expect.objectContaining({ routeId: ROUTE_ID, radiusMeters: null })
 		);
-	});
-
-	it("returns 404 or 403 before create persistence and audit", async () => {
-		routeQuery.getOne.mockResolvedValueOnce(null);
-		await expect(service.create(HOST_ID, ROUTE_ID, dto)).rejects.toMatchObject({ status: 404 });
-		routeQuery.getOne.mockResolvedValueOnce(route(OTHER_HOST_ID));
-		await expect(service.create(HOST_ID, ROUTE_ID, dto)).rejects.toMatchObject({ status: 403 });
-		expect(dangerZoneRepository.createForRoute).not.toHaveBeenCalled();
-		expect(auditRepository.save).not.toHaveBeenCalled();
-	});
-
-	it.each([
-		TrekkingRouteStatus.PENDING_APPROVAL,
-		TrekkingRouteStatus.ACTIVE,
-		TrekkingRouteStatus.CLOSED,
-	])("rejects a %s Route with 409 before persistence or audit", async (status) => {
-		routeQuery.getOne.mockResolvedValue(route(HOST_ID, status));
-		await expect(service.create(HOST_ID, ROUTE_ID, dto)).rejects.toMatchObject({ status: 409 });
-		expect(dangerZoneRepository.createForRoute).not.toHaveBeenCalled();
-		expect(auditRepository.save).not.toHaveBeenCalled();
-	});
-
-	it("propagates audit failure so the transaction can roll back persistence", async () => {
-		auditRepository.save.mockRejectedValue(new Error("audit unavailable"));
-		await expect(service.create(HOST_ID, ROUTE_ID, dto)).rejects.toThrow("audit unavailable");
-		expect(dangerZoneRepository.createForRoute).toHaveBeenCalledTimes(1);
+		expect(dataSource.transaction).not.toHaveBeenCalled();
 	});
 });

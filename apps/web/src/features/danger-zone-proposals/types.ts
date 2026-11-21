@@ -1,11 +1,10 @@
 import type {
 	GeoJsonLineString,
-	GeoJsonPoint,
 	RouteDangerZoneGeometry,
 	RouteDangerZoneSeverity,
 } from "../trekking-routes/types";
 
-export type ProposalSource = "HOST" | "INCIDENT";
+export type ProposalSource = "HOST" | "INCIDENT" | "PORTER";
 export type ProposalStatus = "PENDING" | "APPROVED" | "REJECTED";
 export type ProposalStatusFilter = ProposalStatus | "ALL";
 export type ProposalHazardType =
@@ -38,19 +37,12 @@ export interface DangerZoneProposal {
 	reviewedAt: string | null;
 	reviewReason: string | null;
 	dangerZoneId: string | null;
+	/** Field photos from the reporter, in upload order. */
+	photos: Array<{ url: string }>;
 }
 
 export interface ApproveProposalPayload {
 	severity: RouteDangerZoneSeverity;
 	description: string;
 	radiusMeters?: number;
-	reason?: string;
-}
-
-export interface CreateProposalPayload {
-	hazardType: ProposalHazardType;
-	geometry: GeoJsonPoint;
-	radiusMeters: number;
-	severity: RouteDangerZoneSeverity;
-	description: string;
 }

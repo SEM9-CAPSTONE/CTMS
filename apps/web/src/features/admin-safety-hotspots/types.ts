@@ -26,6 +26,10 @@ export interface SafetyHotspot {
 	firstEventAt: string;
 	lastEventAt: string;
 	detectedAt: string;
+	/** Written by an Admin; null until the hotspot is edited. */
+	name: string | null;
+	description: string | null;
+	severity: HazardSeverity | null;
 }
 
 /** One deviation behind a hotspot; the API never sends which member it was. */
@@ -36,28 +40,6 @@ export interface HotspotEvidenceEvent {
 	startedAt: string;
 	endedAt: string;
 	maxDistanceMeters: number;
-}
-
-export interface CheckpointTarget {
-	id: string;
-	name: string;
-	routePosition: number;
-	instructions: string;
-}
-
-export interface HazardAreaTarget {
-	id: string;
-	description: string;
-	severity: HazardSeverity;
-	geometry:
-		| { type: "Point"; coordinates: [number, number] }
-		| { type: "Polygon"; coordinates: unknown };
-	radiusMeters: number | null;
-}
-
-export interface CorrectiveTargets {
-	checkpoints: CheckpointTarget[];
-	hazardAreas: HazardAreaTarget[];
 }
 
 export interface CorrectiveAction {
@@ -71,18 +53,10 @@ export interface CorrectiveAction {
 	createdAt: string;
 }
 
-export interface CreateCorrectiveActionPayload {
-	actionType: CorrectiveActionType;
-	reason: string;
-	checkpointId?: string;
-	instructions?: string;
-	hazardAreaId?: string;
-	hazardArea?: {
-		geometry: { type: "Point"; coordinates: [number, number] };
-		radiusMeters: number;
-		description: string;
-		severity: HazardSeverity;
-	};
+export interface UpdateHotspotPayload {
+	name: string;
+	description: string;
+	severity: HazardSeverity;
 }
 
 export type HotspotReviewTarget = "CONFIRMED" | "DISMISSED";

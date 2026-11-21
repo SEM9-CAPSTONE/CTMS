@@ -5,8 +5,10 @@ import {
 	createSafetySymbol,
 	featureColor,
 	featureMarkerPoint,
+	isBareSymbol,
 	isDisplayableFeature,
 	isMutedFeature,
+	markerFrameClass,
 } from "../map-symbols";
 import { safetyText } from "../messages";
 import type { SafetyCollection } from "../types";
@@ -43,13 +45,13 @@ export function useSafetyMapSymbols(
 				element.type = "button";
 				element.dataset.safetySymbol = kind;
 				element.dataset.safetyUi = "";
-				element.className = `flex size-11 touch-manipulation cursor-pointer items-center justify-center rounded-full border-2 border-white bg-white/95 p-1 shadow-sm hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${feature.properties.sourceType === "ADMIN_VERIFIED" ? "z-20" : "z-[11]"}`;
+				element.className = `flex size-11 touch-manipulation cursor-pointer items-center justify-center ${markerFrameClass(feature)} focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${feature.properties.sourceType === "ADMIN_VERIFIED" ? "z-20" : "z-[11]"}`;
 				element.style.opacity = isMutedFeature(feature) ? "0.45" : "1";
 				element.ariaLabel = feature.properties.description.split(" — ")[0].slice(0, 160);
 				if (feature.properties.sourceType === "ADMIN_VERIFIED")
 					element.ariaLabel = `${safetyText.verifiedZone.title}: ${element.ariaLabel}`;
 				element.title = element.ariaLabel;
-				element.append(createSafetySymbol(kind, featureColor(feature)));
+				element.append(createSafetySymbol(kind, featureColor(feature), !isBareSymbol(feature)));
 				element.addEventListener("mousedown", (event) => event.stopPropagation());
 				element.addEventListener("pointerdown", (event) => event.stopPropagation());
 				element.onclick = (event) => {

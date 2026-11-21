@@ -16,14 +16,13 @@ const DECISION_COPY: Record<
 > = {
 	CONFIRMED: {
 		title: "Xác nhận điểm nóng",
-		description:
-			"Điểm nóng được xác nhận là nguy hiểm thật. Sau đó bạn mới có thể cập nhật dữ liệu an toàn của tuyến.",
+		description: "Điểm nóng được ghi nhận là nguy hiểm thật trên tuyến.",
 		confirmText: "Xác nhận",
 		variant: "success",
 	},
 	DISMISSED: {
 		title: "Bác bỏ điểm nóng",
-		description: "Điểm nóng bị bác bỏ sẽ không được dùng để cập nhật dữ liệu an toàn.",
+		description: "Điểm nóng được ghi nhận là không nguy hiểm.",
 		confirmText: "Bác bỏ",
 		variant: "danger",
 	},

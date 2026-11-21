@@ -25,11 +25,7 @@ import { DangerZoneProposalsService } from "./danger-zone-proposals.service";
 import {
 	// biome-ignore lint/style/useImportType: ValidationPipe needs the DTO class at runtime
 	ApproveDangerZoneProposalDto,
-	// biome-ignore lint/style/useImportType: ValidationPipe needs the DTO class at runtime
-	CreateDangerZoneProposalDto,
-	// biome-ignore lint/style/useImportType: ValidationPipe needs the DTO class at runtime
 	ListDangerZoneProposalsQueryDto,
-	// biome-ignore lint/style/useImportType: ValidationPipe needs the DTO class at runtime
 	RejectDangerZoneProposalDto,
 } from "./dto/danger-zone-proposals.dto";
 
@@ -50,21 +46,7 @@ const uuidPipe = new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESSAB
 export class HostDangerZoneProposalsController {
 	constructor(private readonly proposals: DangerZoneProposalsService) {}
 
-	@Post()
-	@ApiOperation({
-		summary: "Propose a danger zone on an owned Route for Admin review",
-		description:
-			"Allowed in every Route status. Nothing is published until an Admin approves the proposal.",
-	})
-	@ApiResponse({ status: 422, description: "Invalid geometry, radius or hazard data" })
-	create(
-		@Req() request: AuthenticatedRequest,
-		@Param() params: RouteIdParamDto,
-		@Body() dto: CreateDangerZoneProposalDto
-	): Promise<DangerZoneProposalRow> {
-		return this.proposals.createForHost(request.user.userId, params.routeId, dto);
-	}
-
+	// Hosts no longer submit proposals; assigned Porters report from the Trip. History stays readable.
 	@Get()
 	@ApiOperation({ summary: "Danger-zone proposals on an owned Route, newest first" })
 	list(
@@ -86,7 +68,9 @@ export class AdminDangerZoneProposalsController {
 	constructor(private readonly proposals: DangerZoneProposalsService) {}
 
 	@Get()
-	@ApiOperation({ summary: "Danger-zone proposals from Hosts and field incidents, newest first" })
+	@ApiOperation({
+		summary: "Porter proposals, historical Host proposals and field incidents, newest first",
+	})
 	list(@Query() query: ListDangerZoneProposalsQueryDto): Promise<DangerZoneProposalRow[]> {
 		return this.proposals.listForAdmin(query.status);
 	}

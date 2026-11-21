@@ -41,6 +41,7 @@ const fromIncident: DangerZoneProposal = {
 	reviewedAt: null,
 	reviewReason: null,
 	dangerZoneId: null,
+	photos: [],
 };
 
 async function openDetail() {
@@ -58,6 +59,31 @@ describe("AdminDangerZoneProposalsPage", () => {
 		vi.spyOn(dangerZoneProposalsService, "list").mockResolvedValue([fromIncident]);
 		vi.spyOn(toast, "success").mockImplementation(() => undefined);
 		vi.spyOn(toast, "error").mockImplementation(() => undefined);
+	});
+	it("shows Porter source, trip and GPS accuracy in the review detail", async () => {
+		vi.mocked(dangerZoneProposalsService.list).mockResolvedValue([
+			{
+				...fromIncident,
+				source: "PORTER",
+				photos: [
+					{ url: "/uploads/danger-zone-proposals/first.jpg" },
+					{ url: "/uploads/danger-zone-proposals/second.jpg" },
+				],
+			},
+		]);
+		const dialog = await openDetail();
+		expect(dialog.getByText(/Porter báo cáo/)).toBeInTheDocument();
+		expect(dialog.getByText(/Sơn Trà bình minh/)).toBeInTheDocument();
+		expect(dialog.getByText(/sai số GPS 12 m/)).toBeInTheDocument();
+		const photos = dialog.getAllByRole("img", { name: /Ảnh hiện trường/ });
+		expect(photos).toHaveLength(2);
+		expect(photos[0].getAttribute("src")).toMatch(/\/uploads\/danger-zone-proposals\/first\.jpg$/);
+		expect(
+			dialog.getByRole("link", { name: "Mở ảnh hiện trường 1 ở kích thước gốc" })
+		).toHaveAttribute("target", "_blank");
+		expect(dialog.getByLabelText("Mô tả hiển thị trên bản đồ")).toHaveValue(
+			fromIncident.description
+		);
 	});
 	afterEach(() => {
 		vi.restoreAllMocks();
@@ -87,7 +113,7 @@ describe("AdminDangerZoneProposalsPage", () => {
 			dialog.getByLabelText("Mô tả hiển thị trên bản đồ"),
 			"Ngã ba dễ đi lạc, bám theo cọc tiêu đỏ"
 		);
-		const radius = dialog.getByLabelText("Bán kính ghi nhận (m)");
+		const radius = dialog.getByLabelText("Bán kính vùng nguy hiểm (m)");
 		await userEvent.clear(radius);
 		await userEvent.type(radius, "60");
 		await userEvent.click(dialog.getByRole("button", { name: "Duyệt và hiển thị" }));
@@ -98,7 +124,6 @@ describe("AdminDangerZoneProposalsPage", () => {
 				severity: "high",
 				description: "Ngã ba dễ đi lạc, bám theo cọc tiêu đỏ",
 				radiusMeters: 60,
-				reason: undefined,
 			})
 		);
 		expect(toast.success).toHaveBeenCalled();
@@ -109,16 +134,17 @@ describe("AdminDangerZoneProposalsPage", () => {
 			.spyOn(dangerZoneProposalsService, "reject")
 			.mockResolvedValue({ ...fromIncident, status: "REJECTED" });
 		const dialog = await openDetail();
+		expect(dialog.queryByLabelText("Lý do")).not.toBeInTheDocument();
 		await userEvent.click(dialog.getByRole("button", { name: "Từ chối" }));
-		expect(await dialog.findByText("Lý do cần tối thiểu 10 ký tự.")).toBeInTheDocument();
+		const confirm = within(screen.getByTestId("confirm-modal-overlay"));
+		await userEvent.click(confirm.getByRole("button", { name: "Từ chối" }));
+		expect(await confirm.findByText("Lý do cần tối thiểu 10 ký tự.")).toBeInTheDocument();
 		expect(reject).not.toHaveBeenCalled();
 
 		await userEvent.type(
-			dialog.getByLabelText("Lý do"),
+			confirm.getByLabelText("Lý do từ chối"),
 			"Thành viên đã được tìm thấy, khu vực không nguy hiểm."
 		);
-		await userEvent.click(dialog.getByRole("button", { name: "Từ chối" }));
-		const confirm = within(screen.getByTestId("confirm-modal-overlay"));
 		await userEvent.click(confirm.getByRole("button", { name: "Từ chối" }));
 		await waitFor(() =>
 			expect(reject).toHaveBeenCalledWith(

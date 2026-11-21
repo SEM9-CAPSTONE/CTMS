@@ -1,23 +1,4 @@
-import {
-	DANGER_ZONE_MAP_RADIUS_METERS,
-	pointHazardPolygon,
-} from "../../trekking-routes/utils/danger-zone-map";
-import type { MapSafetyBounds, SafetyCollection, SafetyFeature } from "../types";
-
-/** A compact map decoration retains the recorded radius unchanged in the feature's details. */
-export function publishedZoneShape(feature: SafetyFeature): SafetyFeature {
-	if (
-		feature.properties.sourceType !== "ADMIN_VERIFIED" ||
-		feature.geometry.type !== "Point" ||
-		!feature.properties.radiusMeters
-	)
-		return feature;
-	return {
-		...feature,
-		geometry: pointHazardPolygon(feature.geometry, DANGER_ZONE_MAP_RADIUS_METERS),
-		properties: { ...feature.properties, labelPoint: feature.geometry },
-	};
-}
+import type { MapSafetyBounds, SafetyCollection } from "../types";
 
 export function mapSafetyBounds(bounds: {
 	minLongitude: number;

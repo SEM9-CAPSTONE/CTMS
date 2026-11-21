@@ -1,10 +1,5 @@
 import { API_ENDPOINTS, httpClient } from "../../../core/api";
-import type {
-	ApproveProposalPayload,
-	CreateProposalPayload,
-	DangerZoneProposal,
-	ProposalStatusFilter,
-} from "../types";
+import type { ApproveProposalPayload, DangerZoneProposal, ProposalStatusFilter } from "../types";
 
 export const dangerZoneProposalsService = {
 	list: (status: ProposalStatusFilter): Promise<DangerZoneProposal[]> =>
@@ -20,9 +15,4 @@ export const dangerZoneProposalsService = {
 		}),
 	listForRoute: (routeId: string): Promise<DangerZoneProposal[]> =>
 		httpClient.get<DangerZoneProposal[]>(API_ENDPOINTS.DANGER_ZONE_PROPOSALS.FOR_ROUTE(routeId)),
-	create: (routeId: string, payload: CreateProposalPayload): Promise<DangerZoneProposal> =>
-		httpClient.post<DangerZoneProposal>(
-			API_ENDPOINTS.DANGER_ZONE_PROPOSALS.FOR_ROUTE(routeId),
-			payload
-		),
 };

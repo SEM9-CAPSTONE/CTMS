@@ -38,10 +38,6 @@ export const CORRECTIVE_ACTION_LABELS: Record<CorrectiveActionType, string> = {
 	OTHER: "Biện pháp khác",
 };
 
-export const CORRECTIVE_ACTION_OPTIONS = (
-	Object.keys(CORRECTIVE_ACTION_LABELS) as CorrectiveActionType[]
-).map((value) => ({ value, label: CORRECTIVE_ACTION_LABELS[value] }));
-
 export const HAZARD_SEVERITY_OPTIONS: Array<{ value: HazardSeverity; label: string }> = [
 	{ value: "high", label: "Cao" },
 	{ value: "medium", label: "Trung bình" },
@@ -49,6 +45,6 @@ export const HAZARD_SEVERITY_OPTIONS: Array<{ value: HazardSeverity; label: stri
 ];
 
 export const HOTSPOT_REVIEW_TOASTS: Record<HotspotReviewTarget, string> = {
-	CONFIRMED: "Đã xác nhận điểm nóng. Bạn có thể cập nhật dữ liệu an toàn của tuyến.",
+	CONFIRMED: "Đã xác nhận điểm nóng.",
 	DISMISSED: "Đã bác bỏ điểm nóng.",
 };

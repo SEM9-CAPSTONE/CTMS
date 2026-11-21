@@ -9,7 +9,6 @@ import { useSafetyMapLayers } from "../hooks/useSafetyMapLayers";
 import { useVerifiedDangerZones } from "../hooks/useVerifiedDangerZones";
 import { safetyText } from "../messages";
 import type { MapSafetyBounds } from "../types";
-import { publishedZoneShape } from "../utils/verified-zone-map";
 import { SafetyDetailsModal } from "./SafetyDetailsModal";
 import { SafetyMapFallback } from "./SafetyMapFallback";
 
@@ -45,10 +44,7 @@ function VerifiedDangerZonesLayerContent({
 	// Poll timestamps change independently of hazard facts; keep an open popup on unchanged data.
 	const features = query.data?.features;
 	const data = useMemo(
-		() =>
-			features
-				? { type: "FeatureCollection" as const, features: features.map(publishedZoneShape) }
-				: undefined,
+		() => (features ? { type: "FeatureCollection" as const, features } : undefined),
 		[features]
 	);
 	const ids =

@@ -25,8 +25,8 @@ export const API_ENDPOINTS = {
 	},
 	SAFETY_HOTSPOTS: {
 		LIST: "/admin/safety-hotspots",
+		DETAIL: (id: string) => `/admin/safety-hotspots/${id}`,
 		EVIDENCE: (id: string) => `/admin/safety-hotspots/${id}/evidence`,
-		TARGETS: (id: string) => `/admin/safety-hotspots/${id}/corrective-targets`,
 		ACTIONS: (id: string) => `/admin/safety-hotspots/${id}/corrective-actions`,
 		REVIEW: (id: string) => `/admin/safety-hotspots/${id}/review`,
 		REVIEWS: (id: string) => `/admin/safety-hotspots/${id}/reviews`,

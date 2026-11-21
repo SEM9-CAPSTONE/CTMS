@@ -55,6 +55,8 @@ describe("danger-zone map utilities", () => {
 		).toBeCloseTo(5, 2);
 		expect(point.radiusMeters).toBe(50);
 		expect(dangerZonePolygon(polygon)).toBe(polygonGeometry);
-		expect(dangerZoneFeatureCollection([point, polygon]).features).toHaveLength(2);
+		expect(
+			dangerZoneFeatureCollection([point, polygon]).features.map((feature) => feature.properties.id)
+		).toEqual(["polygon-id"]);
 	});
 });

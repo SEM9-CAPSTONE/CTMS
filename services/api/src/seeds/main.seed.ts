@@ -56,12 +56,21 @@ import { WalletTransactionType } from "../modules/bookings/entities/wallet-trans
 import { PaymentsRepository } from "../modules/bookings/payments.repository";
 import { RefundOrigin } from "../modules/bookings/refund-policy";
 import { RefundsService } from "../modules/bookings/refunds.service";
+import { PORTER_PROPOSAL_RADIUS_METERS } from "../modules/danger-zone-proposals/danger-zone-proposals.constants";
+import { DangerZoneProposalsRepository } from "../modules/danger-zone-proposals/danger-zone-proposals.repository";
+import { DangerZoneProposalsService } from "../modules/danger-zone-proposals/danger-zone-proposals.service";
 import { Booking } from "../modules/profiles/entities/booking.entity";
 import { ROUTE_DEVIATION_ANALYSIS_VERSION } from "../modules/route-deviation-analysis/route-deviation-analysis.constants";
 import { HotspotReviewService } from "../modules/safety-hotspots/hotspot-review.service";
 import { SafetyHotspotStatus } from "../modules/safety-hotspots/safety-hotspots.enums";
 import { SafetyHotspotsRepository } from "../modules/safety-hotspots/safety-hotspots.repository";
 import { SafetyHotspotsService } from "../modules/safety-hotspots/safety-hotspots.service";
+import {
+	RouteDangerZone,
+	RouteDangerZoneSeverity,
+} from "../modules/trekking-routes/entities/route-danger-zone.entity";
+import { RouteDangerZonesRepository } from "../modules/trekking-routes/repositories/route-danger-zones.repository";
+import { RouteDangerZonesService } from "../modules/trekking-routes/services/route-danger-zones.service";
 import { UserRole } from "../modules/users/entities/user.entity";
 
 // ==========================================================================
@@ -1421,21 +1430,21 @@ export async function seedRevenueAnalyticsScenarios(ds: DataSource): Promise<voi
 // ==========================================================================
 
 /**
- * CTMS-116/117/118 seed: route-deviation evidence on host@ctms.local's Sơn Trà route, the
- * hotspots the real CTMS-116 detector finds in it, and a review state for each, so the Admin
- * "Điểm nóng an toàn" page has new detections, pending reviews and confirmed evidence.
+ * CTMS-116/117/118 seed: route-deviation evidence on host@ctms.local's Routes, the hotspots the
+ * real CTMS-116 detector finds in it, and a review state for each, so the Admin
+ * "Điểm nóng an toàn" page has pending reviews and confirmed evidence on several Routes.
  *
  * Rules (AGENTS.md):
- * - Reuses host@ctms.local, admin@ctms.local and the members already booked on completed Trips;
- *   never creates accounts, Routes or Trips.
- * - Deviation events sit at separate places along the route and carry fixed GPS-log ids,
+ * - Reuses host@ctms.local, admin@ctms.local and the Campers already booked on completed Trips;
+ *   never creates accounts, Routes, Trips or bookings.
+ * - Deviation events sit at separate places along each Route and carry fixed GPS-log ids,
  *   so a re-run inserts nothing new.
  * - Hotspots come from SafetyHotspotsService.detect (BR-417 criteria), not hand-written rows.
+ *   A Route is skipped when its completed Trips cannot meet those criteria.
  * - Only newly detected fixtures receive their initial review through the real review service.
  *   Existing Admin decisions and notes are preserved on re-runs.
  */
 
-const ROUTE_NAME = "Bán Đảo Sơn Trà Discovery";
 const HOST_EMAIL = "host@ctms.local";
 const ADMIN_EMAIL = "admin@ctms.local";
 const METERS_PER_DEGREE_LAT = 111_320;
@@ -1443,57 +1452,92 @@ const METERS_PER_DEGREE_LAT = 111_320;
 interface Spot {
 	/** Fixed prefix of the GPS-log ids, keeps every event unique and re-runs idempotent. */
 	key: string;
-	lng: number;
-	lat: number;
+	/** Fixed position; when omitted the spot is placed on the Route line at `routeFraction`. */
+	lng?: number;
+	lat?: number;
 	routeFraction: number;
 	reviewStatus: "UNDER_REVIEW" | "CONFIRMED";
 	reviewNote?: string;
 }
 
-/** Separate places on the route where several groups left the trail in the last weeks. */
-const SPOTS: Spot[] = [
+interface HotspotRouteFixture {
+	routeName: string;
+	spots: Spot[];
+}
+
+/** Places on each Route where several groups left the trail in the last weeks. */
+const HOTSPOT_ROUTES: HotspotRouteFixture[] = [
 	{
-		key: "a1180000-0000-4000-8118-0000000001",
-		lng: 108.2899,
-		lat: 16.1154,
-		routeFraction: 0.74,
-		reviewStatus: "CONFIRMED",
-		reviewNote:
-			"Đối chiếu nhật ký của Host: sau mưa các đoàn tránh đoạn dốc trơn bằng lối mòn sát mép vực ở Dốc Vọng Cảnh. Xác nhận là điểm nguy hiểm cần cập nhật hướng dẫn.",
+		routeName: "Bán Đảo Sơn Trà Discovery",
+		spots: [
+			{
+				key: "a1180000-0000-4000-8118-0000000001",
+				lng: 108.2899,
+				lat: 16.1154,
+				routeFraction: 0.74,
+				reviewStatus: "CONFIRMED",
+				reviewNote:
+					"Đối chiếu nhật ký của Host: sau mưa các đoàn tránh đoạn dốc trơn bằng lối mòn sát mép vực ở Dốc Vọng Cảnh. Xác nhận là điểm nguy hiểm cần cập nhật hướng dẫn.",
+			},
+			{
+				key: "a1180000-0000-4000-8118-0000000002",
+				lng: 108.2803,
+				lat: 16.1207,
+				routeFraction: 0.5,
+				reviewStatus: "UNDER_REVIEW",
+				reviewNote:
+					"Đang hỏi Host về việc đoàn rẽ xuống suối lấy nước tại Trạm Suối Đá; cần xác minh lối xuống suối có an toàn không.",
+			},
+			{
+				key: "a1180000-0000-4000-8118-0000000003",
+				lng: 108.2678,
+				lat: 16.1147,
+				routeFraction: 0.2,
+				reviewStatus: "UNDER_REVIEW",
+				reviewNote:
+					"Các đoàn cùng rẽ vào lối mòn phía trên ngã ba. Đang đối chiếu với Host về biển chỉ hướng bị cây che khuất sau mưa.",
+			},
+			{
+				key: "a1180000-0000-4000-8118-0000000004",
+				lng: 108.2758,
+				lat: 16.1187,
+				routeFraction: 0.4,
+				reviewStatus: "UNDER_REVIEW",
+				reviewNote:
+					"Nhiều đoàn đi vòng qua đoạn đường có đá rơi. Đang xác minh độ ổn định của sườn dốc trước khi bổ sung cảnh báo.",
+			},
+			{
+				key: "a1180000-0000-4000-8118-0000000005",
+				lng: 108.2942,
+				lat: 16.1137,
+				routeFraction: 0.85,
+				reviewStatus: "UNDER_REVIEW",
+			},
+		],
 	},
 	{
-		key: "a1180000-0000-4000-8118-0000000002",
-		lng: 108.2803,
-		lat: 16.1207,
-		routeFraction: 0.5,
-		reviewStatus: "UNDER_REVIEW",
-		reviewNote:
-			"Đang hỏi Host về việc đoàn rẽ xuống suối lấy nước tại Trạm Suối Đá; cần xác minh lối xuống suối có an toàn không.",
-	},
-	{
-		key: "a1180000-0000-4000-8118-0000000003",
-		lng: 108.2678,
-		lat: 16.1147,
-		routeFraction: 0.2,
-		reviewStatus: "UNDER_REVIEW",
-		reviewNote:
-			"Các đoàn cùng rẽ vào lối mòn phía trên ngã ba. Đang đối chiếu với Host về biển chỉ hướng bị cây che khuất sau mưa.",
-	},
-	{
-		key: "a1180000-0000-4000-8118-0000000004",
-		lng: 108.2758,
-		lat: 16.1187,
-		routeFraction: 0.4,
-		reviewStatus: "UNDER_REVIEW",
-		reviewNote:
-			"Nhiều đoàn đi vòng qua đoạn đường có đá rơi. Đang xác minh độ ổn định của sườn dốc trước khi bổ sung cảnh báo.",
-	},
-	{
-		key: "a1180000-0000-4000-8118-0000000005",
-		lng: 108.2942,
-		lat: 16.1137,
-		routeFraction: 0.85,
-		reviewStatus: "UNDER_REVIEW",
+		routeName: "Cung đường đỉnh Núi Chúa – Bà Nà",
+		spots: [
+			{
+				key: "a1180000-0000-4000-8118-0000000011",
+				routeFraction: 0.18,
+				reviewStatus: "CONFIRMED",
+				reviewNote:
+					"Host xác nhận sau mưa các đoàn rời lối chính để tránh phiến đá trơn trước khe suối đầu tiên. Cần bổ sung cảnh báo trơn trượt và dây bám ở đoạn này.",
+			},
+			{
+				key: "a1180000-0000-4000-8118-0000000012",
+				routeFraction: 0.47,
+				reviewStatus: "UNDER_REVIEW",
+				reviewNote:
+					"Nhiều đoàn rẽ nhầm vào lối mòn của người đi rừng ở ngã ba lên đỉnh. Đang hỏi Host về biển chỉ hướng tại ngã ba.",
+			},
+			{
+				key: "a1180000-0000-4000-8118-0000000013",
+				routeFraction: 0.73,
+				reviewStatus: "UNDER_REVIEW",
+			},
+		],
 	},
 ];
 
@@ -1513,34 +1557,51 @@ interface Participant {
 	startsAt: Date;
 }
 
-export async function seedSafetyHotspotScenarios(ds: DataSource): Promise<void> {
+interface HotspotRouteContext {
+	fixture: HotspotRouteFixture;
+	routeId: string;
+	routeVersion: string;
+	spots: Array<Spot & { lng: number; lat: number }>;
+}
+
+/** Writes the deviation evidence for one Route; returns null when its Trips are not enough. */
+async function seedHotspotRouteEvidence(
+	ds: DataSource,
+	fixture: HotspotRouteFixture
+): Promise<HotspotRouteContext | null> {
 	const [route] = (await ds.query(
 		`SELECT r."id", md5(ST_AsBinary(r."route_geom")) AS "routeVersion"
 		 FROM "trekking_routes" r JOIN "users" u ON u."id" = r."host_id"
 		 WHERE u."email" = $1 AND r."name" = $2`,
-		[HOST_EMAIL, ROUTE_NAME]
+		[HOST_EMAIL, fixture.routeName]
 	)) as Array<{ id: string; routeVersion: string }>;
-	const [admin] = (await ds.query(`SELECT "id" FROM "users" WHERE "email" = $1`, [
-		ADMIN_EMAIL,
-	])) as Array<{
-		id: string;
-	}>;
-	if (!route || !admin) {
-		console.log(`   ⚠️  Bỏ qua: chưa có tuyến "${ROUTE_NAME}" hoặc tài khoản ${ADMIN_EMAIL}.`);
-		return;
+	if (!route) {
+		console.log(`   ⚠️  Bỏ qua: chưa có tuyến "${fixture.routeName}".`);
+		return null;
 	}
 
-	// Two members from each of the three completed Trips with the most joined members.
+	// Two Campers from each of the three completed Trips with the most joined Campers:
+	// named booking members and the Campers who made the booking themselves.
 	const participants = (await ds.query(
-		`WITH members AS (
-		   SELECT t."id" AS "tripId", bm."user_id" AS "userId", t."starts_at" AS "startsAt",
-		          row_number() OVER (PARTITION BY t."id" ORDER BY bm."user_id") AS rn,
-		          count(*) OVER (PARTITION BY t."id") AS total
+		`WITH joined AS (
+		   SELECT t."id" AS "tripId", bm."user_id" AS "userId", t."starts_at" AS "startsAt"
 		   FROM "trips" t
 		   JOIN "bookings" b ON b."trip_id" = t."id" AND b."status" IN ('completed', 'confirmed')
 		   JOIN "booking_members" bm ON bm."booking_id" = b."id" AND bm."user_id" IS NOT NULL
 		   WHERE t."route_id" = $1 AND t."status" = 'completed'
 		     AND t."starts_at" > now() - interval '28 days'
+		   UNION
+		   SELECT t."id", b."user_id", t."starts_at"
+		   FROM "trips" t
+		   JOIN "bookings" b ON b."trip_id" = t."id" AND b."status" IN ('completed', 'confirmed')
+		   JOIN "users" u ON u."id" = b."user_id" AND u."role" = 'camper'
+		   WHERE t."route_id" = $1 AND t."status" = 'completed'
+		     AND t."starts_at" > now() - interval '28 days'
+		 ), members AS (
+		   SELECT "tripId", "userId", "startsAt",
+		          row_number() OVER (PARTITION BY "tripId" ORDER BY "userId") AS rn,
+		          count(*) OVER (PARTITION BY "tripId") AS total
+		   FROM joined
 		 ), trips AS (
 		   SELECT "tripId" FROM members GROUP BY "tripId" ORDER BY max(total) DESC, "tripId" LIMIT 3
 		 )
@@ -1553,9 +1614,24 @@ export async function seedSafetyHotspotScenarios(ds: DataSource): Promise<void> 
 	const memberCount = new Set(participants.map((p) => p.userId)).size;
 	if (tripCount < 3 || memberCount < 3 || participants.length < 5) {
 		console.log(
-			"   ⚠️  Bỏ qua: tuyến Sơn Trà cần ít nhất 3 chuyến đã hoàn thành trong 28 ngày qua có thành viên tham gia."
+			`   ⚠️  Bỏ qua tuyến "${fixture.routeName}": cần ít nhất 3 chuyến đã hoàn thành trong 28 ngày qua có khách tham gia.`
 		);
-		return;
+		return null;
+	}
+
+	const spots: HotspotRouteContext["spots"] = [];
+	for (const spot of fixture.spots) {
+		if (spot.lng !== undefined && spot.lat !== undefined) {
+			spots.push({ ...spot, lng: spot.lng, lat: spot.lat });
+			continue;
+		}
+		const [point] = (await ds.query(
+			`SELECT ST_X(p) AS "lng", ST_Y(p) AS "lat"
+			 FROM (SELECT ST_LineInterpolatePoint(r."route_geom"::geometry, $2) AS p
+			       FROM "trekking_routes" r WHERE r."id" = $1) line`,
+			[route.id, spot.routeFraction]
+		)) as Array<{ lng: number; lat: number }>;
+		spots.push({ ...spot, lng: Number(point.lng), lat: Number(point.lat) });
 	}
 
 	await ds.transaction(async (manager) => {
@@ -1583,7 +1659,7 @@ export async function seedSafetyHotspotScenarios(ds: DataSource): Promise<void> 
 			analysisIds.set(tripId, row.id);
 		}
 
-		for (const spot of SPOTS) {
+		for (const spot of spots) {
 			for (const [index, participant] of participants.entries()) {
 				const [north, east] = OFFSETS[index % OFFSETS.length];
 				const lat = spot.lat + north / METERS_PER_DEGREE_LAT;
@@ -1628,6 +1704,26 @@ export async function seedSafetyHotspotScenarios(ds: DataSource): Promise<void> 
 			}
 		}
 	});
+	return { fixture, routeId: route.id, routeVersion: route.routeVersion, spots };
+}
+
+export async function seedSafetyHotspotScenarios(ds: DataSource): Promise<void> {
+	const [admin] = (await ds.query(`SELECT "id" FROM "users" WHERE "email" = $1`, [
+		ADMIN_EMAIL,
+	])) as Array<{
+		id: string;
+	}>;
+	if (!admin) {
+		console.log(`   ⚠️  Bỏ qua: chưa có tài khoản ${ADMIN_EMAIL}.`);
+		return;
+	}
+
+	const routes: HotspotRouteContext[] = [];
+	for (const fixture of HOTSPOT_ROUTES) {
+		const context = await seedHotspotRouteEvidence(ds, fixture);
+		if (context) routes.push(context);
+	}
+	if (routes.length === 0) return;
 
 	// Real CTMS-116 detection over the evidence; idempotent, it skips places already covered.
 	const detection = await new SafetyHotspotsService(new SafetyHotspotsRepository(ds)).detect(
@@ -1639,30 +1735,280 @@ export async function seedSafetyHotspotScenarios(ds: DataSource): Promise<void> 
 
 	// Initialize only candidates created in this run; never undo a user's review.
 	const reviews = new HotspotReviewService(ds);
-	for (const spot of SPOTS) {
-		if (spot.reviewStatus === "UNDER_REVIEW" || !spot.reviewNote) continue;
-		const candidates = (await ds.query(
-			`SELECT "id" FROM "potential_safety_hotspots"
-			 WHERE "route_id" = $1 AND "route_version" = $2 AND "status" = 'UNDER_REVIEW'
-			   AND "id" = ANY($5::uuid[])
-			   AND ST_DWithin("center", ST_SetSRID(ST_MakePoint($3, $4), 4326)::geography, 60)`,
-			[route.id, route.routeVersion, spot.lng, spot.lat, detection.createdHotspotIds]
-		)) as Array<{ id: string }>;
-		for (const { id } of candidates) {
-			await reviews.review(admin.id, id, {
-				status: SafetyHotspotStatus.CONFIRMED,
-				reason: spot.reviewNote,
+	for (const route of routes) {
+		for (const spot of route.spots) {
+			if (spot.reviewStatus === "UNDER_REVIEW" || !spot.reviewNote) continue;
+			const candidates = (await ds.query(
+				`SELECT "id" FROM "potential_safety_hotspots"
+				 WHERE "route_id" = $1 AND "route_version" = $2 AND "status" = 'UNDER_REVIEW'
+				   AND "id" = ANY($5::uuid[])
+				   AND ST_DWithin("center", ST_SetSRID(ST_MakePoint($3, $4), 4326)::geography, 60)`,
+				[route.routeId, route.routeVersion, spot.lng, spot.lat, detection.createdHotspotIds]
+			)) as Array<{ id: string }>;
+			for (const { id } of candidates) {
+				await reviews.review(admin.id, id, {
+					status: SafetyHotspotStatus.CONFIRMED,
+					reason: spot.reviewNote,
+				});
+			}
+		}
+
+		const summary = (await ds.query(
+			`SELECT "status", count(*)::int AS "count" FROM "potential_safety_hotspots"
+			 WHERE "route_id" = $1 GROUP BY "status" ORDER BY "status"`,
+			[route.routeId]
+		)) as Array<{ status: string; count: number }>;
+		console.log(
+			`   • Điểm nóng trên tuyến ${route.fixture.routeName}: ${summary.map((row) => `${row.status} ${row.count}`).join(", ")}`
+		);
+	}
+}
+
+// ==========================================================================
+// Porter danger-zone reports (CTMS-117 amendment)
+// ==========================================================================
+
+/**
+ * Field reports from porter@ctms.local on Trips they are already assigned to, so the Admin
+ * "Đề xuất điểm nguy hiểm" page has pending reports (with and without field photos) and
+ * decided ones.
+ *
+ * Rules (AGENTS.md):
+ * - Reuses porter@ctms.local and admin@ctms.local plus existing assigned Trips; creates no
+ *   accounts, Routes or Trips.
+ * - Fixed client request ids keep re-runs idempotent; existing rows are never rewritten.
+ * - Decisions go through DangerZoneProposalsService, and only for rows inserted in this run,
+ *   so an Admin's own approval or rejection is preserved.
+ * - Photo URLs reuse the public landscape images already used by the Trip seed.
+ */
+interface PorterDangerReportFixture {
+	clientRequestId: string;
+	hazardType: string;
+	severity: RouteDangerZoneSeverity;
+	description: string;
+	/** Position along the Trip's Route line (0–1), so reports sit on the trail. */
+	routeFraction: number;
+	accuracyMeters: number;
+	/** Minutes before the end of the observation window. */
+	minutesAgo: number;
+	photos: string[];
+	decision?:
+		| { kind: "approve"; description: string; reason?: string }
+		| { kind: "reject"; reason: string };
+}
+
+const PORTER_DANGER_REPORT_PHOTOS = {
+	forest:
+		"https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1200&q=80",
+	ridge:
+		"https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80",
+	valley:
+		"https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=80",
+} as const;
+
+const PORTER_DANGER_REPORTS: PorterDangerReportFixture[] = [
+	{
+		clientRequestId: "d2a50117-0000-4000-8117-000000000001",
+		hazardType: "SLIPPERY_OR_LANDSLIDE",
+		severity: RouteDangerZoneSeverity.HIGH,
+		description:
+			"Đoạn dốc đất đỏ sau cơn mưa đêm qua rất trơn, hai khách trượt chân khi xuống dốc. Nên bám theo rễ cây bên phải và đi từng người một.",
+		routeFraction: 0.32,
+		accuracyMeters: 6,
+		minutesAgo: 25,
+		photos: [PORTER_DANGER_REPORT_PHOTOS.forest, PORTER_DANGER_REPORT_PHOTOS.valley],
+	},
+	{
+		clientRequestId: "d2a50117-0000-4000-8117-000000000002",
+		hazardType: "ROUTE_OBSTRUCTION",
+		severity: RouteDangerZoneSeverity.MEDIUM,
+		description:
+			"Cây keo lớn đổ chắn ngang lối mòn sau trạm nghỉ thứ hai. Đoàn phải vòng qua bụi rậm khoảng 20 m, lối vòng chưa có dấu chỉ hướng.",
+		routeFraction: 0.55,
+		accuracyMeters: 9,
+		minutesAgo: 70,
+		photos: [PORTER_DANGER_REPORT_PHOTOS.forest],
+	},
+	{
+		clientRequestId: "d2a50117-0000-4000-8117-000000000003",
+		hazardType: "WILDLIFE",
+		severity: RouteDangerZoneSeverity.MEDIUM,
+		description:
+			"Đàn khỉ xuống sát lối đi gần bãi đá, một con đực giật túi đồ ăn của khách khi đoàn dừng chụp ảnh. Nên nhắc khách cất kín đồ ăn trước đoạn này.",
+		routeFraction: 0.68,
+		accuracyMeters: 12,
+		minutesAgo: 110,
+		photos: [],
+	},
+	{
+		clientRequestId: "d2a50117-0000-4000-8117-000000000004",
+		hazardType: "DAMAGED_BARRIER",
+		severity: RouteDangerZoneSeverity.HIGH,
+		description:
+			"Lan can gỗ ở điểm ngắm cảnh bị gãy hai thanh, mép vực phía dưới không còn rào chắn. Đoàn đã đứng lùi vào trong khi chụp ảnh.",
+		routeFraction: 0.82,
+		accuracyMeters: 5,
+		minutesAgo: 150,
+		photos: [PORTER_DANGER_REPORT_PHOTOS.ridge],
+		decision: {
+			kind: "approve",
+			description:
+				"Lan can gỗ tại điểm ngắm cảnh bị gãy, mép vực không có rào chắn. Đứng lùi vào trong khi chụp ảnh.",
+			reason: "Host đã xác nhận lan can gãy, chờ ban quản lý sửa chữa.",
+		},
+	},
+	{
+		clientRequestId: "d2a50117-0000-4000-8117-000000000005",
+		hazardType: "OTHER",
+		severity: RouteDangerZoneSeverity.LOW,
+		description:
+			"Tổ ong vò vẽ trên cành cây cạnh lối đi, chưa thấy ong bay ra nhưng nên đi nhanh qua đoạn này.",
+		routeFraction: 0.44,
+		accuracyMeters: 15,
+		minutesAgo: 190,
+		photos: [],
+		decision: {
+			kind: "reject",
+			reason: "Đội kiểm lâm đã di dời tổ ong vào sáng nay, lối đi đã an toàn trở lại.",
+		},
+	},
+];
+
+export async function seedPorterDangerZoneReports(ds: DataSource): Promise<void> {
+	if (!ds.isInitialized) await ds.initialize();
+	const [porter] = (await ds.query(
+		`SELECT "id" FROM "users" WHERE "email" = 'porter@ctms.local' AND "role" = 'porter'`
+	)) as Array<{ id: string }>;
+	const [admin] = (await ds.query(`SELECT "id" FROM "users" WHERE "email" = $1`, [
+		ADMIN_EMAIL,
+	])) as Array<{ id: string }>;
+	if (!porter || !admin) {
+		console.log("   ⚠️  Bỏ qua: cần tài khoản porter@ctms.local và admin@ctms.local.");
+		return;
+	}
+	// Trips the Porter is assigned to and has actually been out on (ongoing first).
+	const trips = (await ds.query(
+		`SELECT t."id", t."route_id" AS "routeId",
+		        COALESCE(t."actual_started_at", t."starts_at") AS "windowStart",
+		        CASE WHEN t."status" = 'ongoing' THEN now()
+		             ELSE COALESCE(t."actual_ended_at", t."ends_at") END AS "windowEnd"
+		 FROM "trips" t JOIN "trip_porters" tp ON tp."trip_id" = t."id"
+		 WHERE tp."porter_id" = $1 AND tp."status" = 'assigned'
+		   AND t."status" IN ('ongoing', 'completed')
+		   AND COALESCE(t."actual_started_at", t."starts_at") < now()
+		 ORDER BY (t."status" = 'ongoing') DESC, t."starts_at" DESC LIMIT 2`,
+		[porter.id]
+	)) as Array<{ id: string; routeId: string; windowStart: Date; windowEnd: Date }>;
+	if (trips.length === 0) {
+		console.log(
+			"   ⚠️  Bỏ qua: porter@ctms.local chưa được phân công chuyến đang diễn ra hoặc đã kết thúc."
+		);
+		return;
+	}
+
+	const inserted: Array<{ id: string; fixture: PorterDangerReportFixture }> = [];
+	await ds.transaction(async (manager) => {
+		for (const [index, fixture] of PORTER_DANGER_REPORTS.entries()) {
+			const trip = trips[index % trips.length];
+			const windowStart = new Date(trip.windowStart).getTime();
+			const windowEnd = new Date(trip.windowEnd).getTime();
+			const observedAt = new Date(
+				Math.max(windowStart + 60_000, windowEnd - fixture.minutesAgo * 60_000)
+			).toISOString();
+			const [point] = (await manager.query(
+				`SELECT ST_X(p) AS "longitude", ST_Y(p) AS "latitude"
+				 FROM (SELECT ST_LineInterpolatePoint(r."route_geom"::geometry, $2) AS p
+				       FROM "trekking_routes" r WHERE r."id" = $1) line`,
+				[trip.routeId, fixture.routeFraction]
+			)) as Array<{ longitude: number; latitude: number }>;
+			if (!point) continue;
+			const location = {
+				latitude: Number(point.latitude),
+				longitude: Number(point.longitude),
+				accuracyMeters: fixture.accuracyMeters,
+				capturedAt: observedAt,
+			};
+			const payload = {
+				tripId: trip.id,
+				clientRequestId: fixture.clientRequestId,
+				hazardType: fixture.hazardType,
+				severity: fixture.severity,
+				description: fixture.description,
+				observedAt,
+				location,
+			};
+			const rows = (await manager.query(
+				`INSERT INTO "danger_zone_proposals"
+				   ("source", "route_id", "trip_id", "proposer_id", "client_request_id", "request_payload",
+				    "hazard_type", "geom", "radius_m", "severity", "description", "location_accuracy_meters",
+				    "observed_at", "created_at")
+				 VALUES ('PORTER', $1, $2, $3, $4, $5::jsonb, $6,
+				   ST_SetSRID(ST_MakePoint($7, $8), 4326)::geography, $9, $10, $11, $12, $13,
+				   $13::timestamptz + interval '1 minute')
+				 ON CONFLICT ("proposer_id", "client_request_id") WHERE "source" = 'PORTER' DO NOTHING
+				 RETURNING "id"`,
+				[
+					trip.routeId,
+					trip.id,
+					porter.id,
+					fixture.clientRequestId,
+					JSON.stringify(payload),
+					fixture.hazardType,
+					location.longitude,
+					location.latitude,
+					PORTER_PROPOSAL_RADIUS_METERS,
+					fixture.severity,
+					fixture.description,
+					fixture.accuracyMeters,
+					observedAt,
+				]
+			)) as Array<{ id: string }>;
+			if (!rows[0]) continue;
+			inserted.push({ id: rows[0].id, fixture });
+			for (const [photoIndex, url] of fixture.photos.entries()) {
+				await manager.query(
+					`INSERT INTO "danger_zone_proposal_photos"
+					   ("proposal_id", "url", "content_type", "size_bytes", "sha256", "created_at")
+					 VALUES ($1, $2, 'image/jpeg', $3, $4, $5::timestamptz + make_interval(secs => $6))
+					 ON CONFLICT ("proposal_id", "sha256") DO NOTHING`,
+					[
+						rows[0].id,
+						url,
+						240_000 + photoIndex * 18_000,
+						createHash("sha256").update(url).digest("hex"),
+						observedAt,
+						90 + photoIndex * 5,
+					]
+				);
+			}
+		}
+	});
+
+	const proposals = new DangerZoneProposalsService(
+		new DangerZoneProposalsRepository(ds),
+		new RouteDangerZonesService(new RouteDangerZonesRepository(RouteDangerZone, ds.manager), ds)
+	);
+	for (const { id, fixture } of inserted) {
+		if (fixture.decision?.kind === "approve") {
+			await proposals.approve(admin.id, id, {
+				severity: fixture.severity,
+				description: fixture.decision.description,
+				radiusMeters: PORTER_PROPOSAL_RADIUS_METERS,
+				reason: fixture.decision.reason,
 			});
+		} else if (fixture.decision?.kind === "reject") {
+			await proposals.reject(admin.id, id, { reason: fixture.decision.reason });
 		}
 	}
 
 	const summary = (await ds.query(
-		`SELECT "status", count(*)::int AS "count" FROM "potential_safety_hotspots"
-		 WHERE "route_id" = $1 GROUP BY "status" ORDER BY "status"`,
-		[route.id]
+		`SELECT "status", count(*)::int AS "count" FROM "danger_zone_proposals"
+		 WHERE "source" = 'PORTER' GROUP BY "status" ORDER BY "status"`
 	)) as Array<{ status: string; count: number }>;
 	console.log(
-		`   • Điểm nóng trên tuyến ${ROUTE_NAME}: ${summary.map((row) => `${row.status} ${row.count}`).join(", ")}`
+		`   • Báo cáo điểm nguy hiểm của Porter: ${inserted.length} mới; ${summary
+			.map((row) => `${row.status} ${row.count}`)
+			.join(", ")}`
 	);
 }
 
@@ -9572,6 +9918,14 @@ export async function runMasterSeed(): Promise<void> {
 		}
 		return;
 	}
+	if (process.argv.includes("--danger-zone-reports-only")) {
+		try {
+			await seedPorterDangerZoneReports(dataSource);
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
 	if (process.argv.includes("--safety-hotspots-only")) {
 		try {
 			if (!dataSource.isInitialized) await dataSource.initialize();
@@ -9771,11 +10125,6 @@ export async function runMasterSeed(): Promise<void> {
 		await seedRevenueAnalyticsScenarios(dataSource);
 		console.log("✅ Step 15 completed.\n");
 
-		// Step 16: Safety hotspots on the Sơn Trà route (CTMS-116/117/118). Runs last so the
-		// completed Trips and their members already exist.
-		console.log("👉 [16/16] Seeding safety hotspots (CTMS-116/117/118)...");
-		await seedSafetyHotspotScenarios(dataSource);
-		console.log("✅ Step 16 completed.\n");
 		await refreshDaNangSeedData(dataSource);
 
 		// Run after accounts, routes and review sources; reruns preserve existing user changes.
@@ -9792,6 +10141,12 @@ export async function runMasterSeed(): Promise<void> {
 		console.log("✅ Step 19 completed.\n");
 		await seedPorterTripLifecycle(dataSource);
 		await seedMemberLocations(dataSource, false);
+		// Safety hotspots (CTMS-116/117/118) need three completed Sơn Trà Trips with members;
+		// the Porter lifecycle Trips above provide the third, so this must run after them.
+		console.log("👉 Seeding safety hotspots (CTMS-116/117/118)...");
+		await seedSafetyHotspotScenarios(dataSource);
+		// After the Porter lifecycle Trips exist, so field reports attach to assigned Trips.
+		await seedPorterDangerZoneReports(dataSource);
 
 		const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(2);
 

@@ -13,6 +13,7 @@ import type {
 
 /** What the Admin needs to decide. Raw member positions are never part of a proposal (BR-361). */
 export interface DangerZoneProposalRow {
+	clientRequestId: string | null;
 	id: string;
 	source: DangerZoneProposalSource;
 	status: DangerZoneProposalStatus;
@@ -34,6 +35,8 @@ export interface DangerZoneProposalRow {
 	reviewedAt: Date | null;
 	reviewReason: string | null;
 	dangerZoneId: string | null;
+	/** Field photos in upload order; served from the public upload prefix. */
+	photos: Array<{ url: string }>;
 }
 
 export interface LockedProposal {
@@ -46,18 +49,8 @@ export interface LockedProposal {
 	source: DangerZoneProposalSource;
 }
 
-export interface NewHostProposal {
-	routeId: string;
-	proposerId: string;
-	hazardType: DangerZoneHazardType;
-	geometry: RouteDangerZoneGeometry;
-	radiusMeters: number | null;
-	severity: RouteDangerZoneSeverity;
-	description: string;
-}
-
 const PROPOSAL_SELECT = `
-	SELECT p."id", p."source", p."status", p."hazard_type" AS "hazardType", p."severity",
+	SELECT p."id", p."client_request_id" AS "clientRequestId", p."source", p."status", p."hazard_type" AS "hazardType", p."severity",
 		p."description", ST_AsGeoJSON(p."geom"::geometry)::json AS "geometry",
 		p."radius_m" AS "radiusMeters", p."location_accuracy_meters" AS "locationAccuracyMeters",
 		p."observed_at" AS "observedAt", p."created_at" AS "createdAt",
@@ -66,12 +59,16 @@ const PROPOSAL_SELECT = `
 		proposer."full_name" AS "proposerName",
 		trip."title" AS "tripTitle", trip."starts_at" AS "tripStartsAt",
 		reviewer."full_name" AS "reviewerName", p."reviewed_at" AS "reviewedAt",
-		p."review_reason" AS "reviewReason", p."danger_zone_id" AS "dangerZoneId"
+		p."review_reason" AS "reviewReason", p."danger_zone_id" AS "dangerZoneId",
+		COALESCE((
+			SELECT json_agg(json_build_object('url', photo."url") ORDER BY photo."created_at", photo."id")
+			FROM "danger_zone_proposal_photos" photo WHERE photo."proposal_id" = p."id"
+		), '[]'::json) AS "photos"
 	FROM "danger_zone_proposals" p
 	JOIN "trekking_routes" route ON route."id" = p."route_id"
 	JOIN "users" proposer ON proposer."id" = p."proposer_id"
 	LEFT JOIN "trip_incidents" incident ON incident."id" = p."incident_id"
-	LEFT JOIN "trips" trip ON trip."id" = incident."trip_id"
+	LEFT JOIN "trips" trip ON trip."id" = COALESCE(p."trip_id", incident."trip_id")
 	LEFT JOIN "users" reviewer ON reviewer."id" = p."reviewer_id"`;
 
 type RawRow = Omit<DangerZoneProposalRow, "radiusMeters" | "locationAccuracyMeters"> & {
@@ -104,26 +101,6 @@ export class DangerZoneProposalsRepository {
 		return rows[0]?.hostId ?? null;
 	}
 
-	async insertHostProposal(manager: EntityManager, input: NewHostProposal): Promise<string> {
-		const rows = (await manager.query(
-			`INSERT INTO "danger_zone_proposals"
-				("source", "route_id", "proposer_id", "hazard_type", "geom", "radius_m", "severity",
-				 "description", "observed_at")
-			 VALUES ('HOST', $1, $2, $3, ST_SetSRID(ST_GeomFromGeoJSON($4), 4326)::geography, $5, $6, $7, now())
-			 RETURNING "id"`,
-			[
-				input.routeId,
-				input.proposerId,
-				input.hazardType,
-				JSON.stringify(input.geometry),
-				input.radiusMeters,
-				input.severity,
-				input.description,
-			]
-		)) as Array<{ id: string }>;
-		return rows[0].id;
-	}
-
 	async findById(id: string): Promise<DangerZoneProposalRow | null> {
 		const rows = (await this.dataSource.query(`${PROPOSAL_SELECT} WHERE p."id" = $1`, [
 			id,
@@ -132,12 +109,22 @@ export class DangerZoneProposalsRepository {
 	}
 
 	async list(filter: {
+		tripId?: string;
+		proposerId?: string;
 		status?: DangerZoneProposalStatus;
 		routeId?: string;
 		limit: number;
 	}): Promise<DangerZoneProposalRow[]> {
 		const params: unknown[] = [];
 		const conditions: string[] = [];
+		if (filter.tripId) {
+			params.push(filter.tripId);
+			conditions.push(`p."trip_id" = $${params.length}`);
+		}
+		if (filter.proposerId) {
+			params.push(filter.proposerId);
+			conditions.push(`p."proposer_id" = $${params.length}`);
+		}
 		if (filter.status) {
 			params.push(filter.status);
 			conditions.push(`p."status" = $${params.length}`);

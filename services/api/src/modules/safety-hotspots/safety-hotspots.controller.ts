@@ -1,11 +1,13 @@
 import {
 	Body,
 	Controller,
+	Delete,
 	Get,
 	HttpCode,
 	HttpStatus,
 	Param,
 	ParseUUIDPipe,
+	Patch,
 	Post,
 	Query,
 	Req,
@@ -18,17 +20,16 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { UserRole } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: ValidationPipe needs the DTO class at runtime to validate the body
-import { CreateCorrectiveActionDto } from "./dto/corrective-action.dto";
-// biome-ignore lint/style/useImportType: ValidationPipe needs the DTO class at runtime to validate the body
 import { ReviewSafetyHotspotDto } from "./dto/review-safety-hotspot.dto";
 // biome-ignore lint/style/useImportType: ValidationPipe needs the DTO class at runtime to validate the query
 import { ListSafetyHotspotsQueryDto } from "./dto/safety-hotspots.dto";
-import type {
-	CorrectiveActionRow,
-	RouteSafetyTargets,
-} from "./hotspot-corrective-actions.repository";
+// biome-ignore lint/style/useImportType: ValidationPipe needs the DTO class at runtime to validate the body
+import { UpdateSafetyHotspotDto } from "./dto/update-safety-hotspot.dto";
+import type { CorrectiveActionRow } from "./hotspot-corrective-actions.repository";
 // biome-ignore lint/style/useImportType: Nest runtime DI metadata
 import { HotspotCorrectiveActionsService } from "./hotspot-corrective-actions.service";
+// biome-ignore lint/style/useImportType: Nest runtime DI metadata
+import { HotspotDetailsService } from "./hotspot-details.service";
 // biome-ignore lint/style/useImportType: Nest runtime DI metadata
 import { type HotspotReviewRow, HotspotReviewService } from "./hotspot-review.service";
 import type { HotspotEvidenceEvent, SafetyHotspotRow } from "./safety-hotspots.repository";
@@ -54,7 +55,8 @@ export class SafetyHotspotsController {
 	constructor(
 		private readonly hotspots: SafetyHotspotsService,
 		private readonly correctiveActions: HotspotCorrectiveActionsService,
-		private readonly reviews: HotspotReviewService
+		private readonly reviews: HotspotReviewService,
+		private readonly details: HotspotDetailsService
 	) {}
 
 	@Post(":id/review")
@@ -127,17 +129,38 @@ export class SafetyHotspotsController {
 		return this.hotspots.evidence(id);
 	}
 
-	@Get(":id/corrective-targets")
+	@Patch(":id")
 	@ApiOperation({
-		summary: "Checkpoints and hazard areas of the hotspot's Route that a correction may change",
+		summary: "Edit the Admin-written name, description and severity of a hotspot",
+		description: "Position, radius and evidence stay as detected. Audited.",
 	})
 	@ApiResponse({ status: 404, description: "Hotspot not found" })
-	async correctiveTargets(
+	@ApiResponse({ status: 422, description: "Invalid name, description or severity" })
+	async update(
+		@Req() request: AuthenticatedRequest,
+		@Param("id", new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }))
+		id: string,
+		@Body() dto: UpdateSafetyHotspotDto
+	): Promise<SafetyHotspotRow> {
+		await this.details.update(request.user.userId, id, dto);
+		return this.hotspots.getById(id);
+	}
+
+	@Delete(":id")
+	@HttpCode(HttpStatus.NO_CONTENT)
+	@ApiOperation({
+		summary: "Permanently delete a hotspot and its review history",
+		description:
+			"Refused with 409 when the hotspot already changed Route safety data. A later detection may find the place again from its evidence. Audited.",
+	})
+	@ApiResponse({ status: 404, description: "Hotspot not found" })
+	@ApiResponse({ status: 409, description: "Hotspot already changed Route safety data" })
+	async remove(
+		@Req() request: AuthenticatedRequest,
 		@Param("id", new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }))
 		id: string
-	): Promise<RouteSafetyTargets> {
-		const hotspot = await this.hotspots.getById(id);
-		return this.correctiveActions.targets(hotspot.routeId);
+	): Promise<void> {
+		await this.details.remove(request.user.userId, id);
 	}
 
 	@Get(":id/corrective-actions")
@@ -149,28 +172,5 @@ export class SafetyHotspotsController {
 	): Promise<CorrectiveActionRow[]> {
 		await this.hotspots.getById(id);
 		return this.correctiveActions.listByHotspot(id);
-	}
-
-	@Post(":id/corrective-actions")
-	@HttpCode(HttpStatus.CREATED)
-	@ApiOperation({
-		summary:
-			"Apply a corrective action to authoritative Route safety data from a CONFIRMED hotspot",
-		description:
-			"Only CONFIRMED hotspots qualify (BR-358). Targets are resolved on the hotspot's own Route. The change, audit entry and hotspot evidence link are written together (BR-191, BR-419); a package-affecting change requests a new Offline Safety Package version for published Trips (BR-359).",
-	})
-	@ApiResponse({
-		status: 404,
-		description: "Hotspot, checkpoint or hazard area not found on this Route",
-	})
-	@ApiResponse({ status: 409, description: "Hotspot not CONFIRMED or Route closed" })
-	@ApiResponse({ status: 422, description: "Invalid corrective action" })
-	createCorrectiveAction(
-		@Req() request: AuthenticatedRequest,
-		@Param("id", new ParseUUIDPipe({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }))
-		id: string,
-		@Body() dto: CreateCorrectiveActionDto
-	): Promise<CorrectiveActionRow> {
-		return this.correctiveActions.create(request.user.userId, id, dto);
 	}
 }
