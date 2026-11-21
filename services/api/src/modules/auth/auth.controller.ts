@@ -12,6 +12,8 @@ import { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { LoginResponseDto } from "./dto/login-response.dto";
 
 // biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
+import { GoogleLoginDto } from "./dto/google-login.dto";
+// biome-ignore lint/style/useImportType: used as a @Body() parameter type, needs design:paramtypes metadata for NestJS's validation/transform pipeline
 import { LoginDto } from "./dto/login.dto";
 
 import { LogoutResponseDto } from "./dto/logout-response.dto";
@@ -170,6 +172,24 @@ export class AuthController {
 	})
 	login(@Body() dto: LoginDto): Promise<LoginResponseDto> {
 		return this.authService.login(dto);
+	}
+
+	@Post("google")
+	@HttpCode(HttpStatus.OK)
+	@ApiOperation({
+		summary: "Log in with a Google account",
+		description:
+			"Verifies a Google Sign-In ID token. Signs in the linked account or the account with the same verified e-mail (activating a pending one); an unknown e-mail gets a new active Camper account.",
+	})
+	@ApiResponse({ status: 200, description: "Login successful", type: LoginResponseDto })
+	@ApiResponse({
+		status: 401,
+		description: "Invalid Google token, unverified e-mail, or account is not active",
+	})
+	@ApiResponse({ status: 422, description: "Invalid input" })
+	@ApiResponse({ status: 503, description: "Google sign-in is not configured (GOOGLE_CLIENT_IDS)" })
+	loginWithGoogle(@Body() dto: GoogleLoginDto): Promise<LoginResponseDto> {
+		return this.authService.loginWithGoogle(dto);
 	}
 
 	@Post("refresh")

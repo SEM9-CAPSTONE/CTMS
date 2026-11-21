@@ -31,6 +31,15 @@ class LoginStrings {
   static const createAccount = 'Đăng ký tài khoản mới';
   static const orSignInWith = 'Hoặc đăng nhập bằng';
   static const google = 'Google';
+  static const googleSignIn = 'Đăng nhập bằng Google';
+  static const googleInvalid = 'Không xác minh được tài khoản Google. Vui lòng thử lại.';
+  static const googleAccountBlocked =
+      'Tài khoản của bạn đang bị khoá hoặc đã bị xoá nên không thể đăng nhập.';
+  static const googleOtherAccount =
+      'Email này đã liên kết với một tài khoản Google khác. Vui lòng dùng đúng tài khoản Google đã liên kết hoặc đăng nhập bằng mật khẩu.';
+  static const googleDisabled =
+      'Đăng nhập bằng Google hiện chưa được bật. Vui lòng đăng nhập bằng email hoặc số điện thoại.';
+  static const googleFailed = 'Đăng nhập bằng Google thất bại. Vui lòng thử lại.';
   static const lark = 'Lark';
   static const noAccountYet = 'Bạn chưa có tài khoản?';
   static const registerNow = 'Đăng ký ngay';

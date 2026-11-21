@@ -4,9 +4,8 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 
-/// One of the two social sign-in buttons in §A.2 (Google / Lark). Neither
-/// provider is wired up yet — [onPressed] is expected to surface a
-/// "coming soon" message, same treatment as the register screen.
+/// Outlined social sign-in button (used by "Đăng nhập bằng Google").
+/// [onPressed] `null` disables it, e.g. while a sign-in is in progress.
 class SocialLoginButton extends StatelessWidget {
   const SocialLoginButton({
     super.key,
@@ -17,7 +16,7 @@ class SocialLoginButton extends StatelessWidget {
 
   final String label;
   final IconData icon;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {

@@ -106,6 +106,7 @@ export const API_ENDPOINTS = {
 	},
 	AUTH: {
 		LOGIN: "/auth/login",
+		GOOGLE: "/auth/google",
 		REGISTER: "/auth/register",
 		VERIFY: "/auth/verify",
 		SEND_OTP: "/auth/send-otp",
