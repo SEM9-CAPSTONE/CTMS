@@ -1,5 +1,6 @@
 import {
 	comparePorterLevel,
+	computeLevelProgressPercent,
 	evaluateLevelCriteria,
 	levelDossierHash,
 } from "./porter-level-comparison";
@@ -127,5 +128,42 @@ describe("Porter level comparison (Pure function & criteria evaluation)", () => 
 			{ ...dossier, timesLed: 4 },
 		])
 			expect(levelDossierHash(changed)).not.toBe(fingerprint);
+	});
+
+	it("evaluates global trips, total km, average rating, certificates, and lists exact missing items", () => {
+		const globalDossier: LevelDossier = {
+			...dossier,
+			completedTrips: 6,
+			totalKmLed: 62.5,
+			averageRating: 4.1,
+			certificates: [],
+		};
+		const proficientPolicy: LevelDefinition = {
+			name: "Thành thạo",
+			minExperienceYears: 1,
+			minTimesLed: null,
+			minCompletedTrips: 10,
+			minTotalKm: 100,
+			minAverageRating: 4.2,
+			requiredSkills: [],
+			requiredCertifications: ["wfa"],
+			responsibilities: "Dẫn đoàn chính",
+		};
+
+		const result = evaluateLevelCriteria(globalDossier, proficientPolicy, "2026-11-21");
+		expect(result.allMet).toBe(false);
+		expect(result.completedTrips).toBe(false);
+		expect(result.totalKm).toBe(false);
+		expect(result.averageRating).toBe(false);
+		expect(result.missingItems?.map((i) => i.code)).toEqual([
+			"missing_trips",
+			"missing_km",
+			"low_rating",
+			"missing_cert",
+		]);
+
+		const pct = computeLevelProgressPercent(globalDossier, proficientPolicy, result);
+		expect(pct).toBeGreaterThan(50);
+		expect(pct).toBeLessThan(100);
 	});
 });

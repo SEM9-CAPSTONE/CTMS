@@ -16,7 +16,6 @@ import {
 	ShieldAlert,
 	ShieldCheck,
 	TentTree,
-	User,
 	Users,
 	Wallet,
 	Warehouse,
@@ -178,7 +177,6 @@ export const dashboards: Record<DashboardConfig["role"], DashboardConfig> = {
 		soft: "#e6f2f7",
 		navItems: [
 			{ key: "overview", label: "Tổng quan", icon: LayoutDashboard },
-			{ key: "profile", label: "Hồ sơ & Năng lực", icon: User },
 			{ key: "requests", label: "Yêu cầu Trip", icon: Bell },
 			{ key: "assignments", label: "Phân công", icon: ClipboardList },
 			{ key: "routes", label: "Bản đồ tuyến", icon: MapPinned },

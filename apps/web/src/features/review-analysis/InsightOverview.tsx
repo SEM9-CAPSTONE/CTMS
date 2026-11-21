@@ -1,5 +1,4 @@
 import {
-	mutedTextClass,
 	panelClass,
 	sentimentLabels,
 	sentimentStyles,
@@ -45,37 +44,24 @@ export function InsightOverview({ data }: { data: InsightResponse }) {
 					/>
 				</div>
 
-				<div className="mt-4 space-y-3">
-					<div className={`flex flex-wrap gap-2 text-xs ${mutedTextClass}`}>
-						<span className="rounded-lg bg-[#f6f8f5] px-2.5 py-1">{c.pending} đang chờ / chạy</span>
-						<span className="rounded-lg bg-[#f6f8f5] px-2.5 py-1">{c.failed} chưa thành công</span>
-						<span className="rounded-lg bg-[#f6f8f5] px-2.5 py-1">{c.stale} cần cập nhật</span>
-						<span className="rounded-lg bg-[#f6f8f5] px-2.5 py-1">
-							{c.unprocessed} chưa phân tích
-						</span>
-						<span className="rounded-lg bg-[#f6f8f5] px-2.5 py-1">
-							{c.excluded} ngoài phạm vi đủ điều kiện
-						</span>
-					</div>
-					{(data.freshness.configurationChanged > 0 || data.freshness.restricted > 0) && (
-						<div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-xs leading-5 text-amber-900">
-							<p className="font-semibold text-amber-950">
-								Các kết quả không còn phù hợp được loại khỏi tổng hợp:
+				{(data.freshness.configurationChanged > 0 || data.freshness.restricted > 0) && (
+					<div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-xs leading-5 text-amber-900">
+						<p className="font-semibold text-amber-950">
+							Các kết quả không còn phù hợp được loại khỏi tổng hợp:
+						</p>
+						{data.freshness.configurationChanged > 0 && (
+							<p>
+								• {data.freshness.configurationChanged} đánh giá cần phân tích theo cấu hình mới.
 							</p>
-							{data.freshness.configurationChanged > 0 && (
-								<p>
-									• {data.freshness.configurationChanged} đánh giá cần phân tích theo cấu hình mới.
-								</p>
-							)}
-							{data.freshness.restricted > 0 && (
-								<p>
-									• {data.freshness.restricted} đánh giá đang bị giới hạn điều kiện phân tích, có
-									thể liên quan kiểm duyệt.
-								</p>
-							)}
-						</div>
-					)}
-				</div>
+						)}
+						{data.freshness.restricted > 0 && (
+							<p>
+								• {data.freshness.restricted} đánh giá đang bị giới hạn điều kiện phân tích, có thể
+								liên quan kiểm duyệt.
+							</p>
+						)}
+					</div>
+				)}
 			</section>
 
 			<section className={panelClass}>

@@ -18,10 +18,12 @@ import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { UserRole } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: request DTO validation metadata
 import {
+	DecideGlobalPorterLevelDto,
 	DecidePorterLevelDto,
 	LevelComparisonParamDto,
 	LevelParamDto,
 	ListLevelQualificationsDto,
+	NotifyPorterLevelGapsDto,
 	SaveLevelEvidenceDto,
 	SaveLevelPolicyDto,
 } from "./porter-levels.dto";
@@ -90,6 +92,38 @@ export class AdminPorterLevelsController {
 	history(@Param("id", UUID) id: string) {
 		return this.levels.history(id);
 	}
+
+	@Get("porters")
+	@ApiOperation({ summary: "List all Porters with global level, trips, km, rating, and gaps" })
+	listGlobalPorters(@Query() dto: ListLevelQualificationsDto) {
+		return this.levels.listGlobalPorters(dto.page, dto.limit, dto.search);
+	}
+
+	@Get("porters/:porterId/overview")
+	@ApiOperation({ summary: "Get full global level overview and criteria evaluation for a Porter" })
+	globalPorterOverview(@Param("porterId", UUID) porterId: string) {
+		return this.levels.getGlobalOverview(porterId);
+	}
+
+	@Post("porters/:porterId/decision")
+	@ApiOperation({ summary: "Approve or adjust a Porter's global level and notify the Porter" })
+	decideGlobalLevel(
+		@Req() req: AuthenticatedRequest,
+		@Param("porterId", UUID) porterId: string,
+		@Body() dto: DecideGlobalPorterLevelDto
+	) {
+		return this.levels.decideGlobalLevel(req.user.userId, porterId, dto);
+	}
+
+	@Post("porters/:porterId/notify-gaps")
+	@ApiOperation({ summary: "Notify a Porter about missing trips, km, rating, or certificates" })
+	notifyPorterGaps(
+		@Req() req: AuthenticatedRequest,
+		@Param("porterId", UUID) porterId: string,
+		@Body() dto: NotifyPorterLevelGapsDto
+	) {
+		return this.levels.notifyPorterGaps(req.user.userId, porterId, dto);
+	}
 }
 
 @ApiTags("porter-levels")
@@ -104,6 +138,14 @@ export class PorterLevelReviewController {
 	@ApiOperation({ summary: "Read the Admin-defined level criteria" })
 	policies() {
 		return this.levels.policies();
+	}
+
+	@Get("overview")
+	@ApiOperation({
+		summary: "Get the authenticated Porter's global level, metrics, progress, and missing criteria",
+	})
+	overview(@Req() req: AuthenticatedRequest) {
+		return this.levels.getGlobalOverview(req.user.userId);
 	}
 
 	@Get("skills")

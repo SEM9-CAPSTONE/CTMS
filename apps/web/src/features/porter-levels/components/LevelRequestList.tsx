@@ -28,9 +28,11 @@ export function LevelRequestList({
 			? [
 					{
 						key: "porter",
-						header: "người hỗ trợ",
+						header: "Người hỗ trợ",
 						render: (item: RequestRow) => (
-							<span className="font-semibold">{item.porterName ?? "người hỗ trợ"}</span>
+							<span className="font-semibold text-[#10221b]">
+								{item.porterName ?? "Người hỗ trợ"}
+							</span>
 						),
 					},
 				]
@@ -45,7 +47,15 @@ export function LevelRequestList({
 				</>
 			),
 		},
-		{ key: "route", header: "Tuyến minh chứng", render: (item) => item.routeName },
+		{
+			key: "reason",
+			header: "Lý do đề nghị",
+			render: (item) => (
+				<span className="block max-w-xs truncate text-xs text-[#4a5e51]" title={item.reason}>
+					{item.reason}
+				</span>
+			),
+		},
 		{
 			key: "status",
 			header: "Trạng thái",

@@ -41,9 +41,6 @@ export function PorterLedTripHistory({
 			<div className="flex items-center justify-between gap-3 border-b border-[#e7eee7] pb-5">
 				<div>
 					<h2 className="text-lg font-extrabold text-[#10221b]">Lịch sử chuyến đi đã dẫn</h2>
-					<p className="mt-0.5 text-xs text-[#627769]">
-						Các chuyến đã hoàn thành với vai trò Trưởng nhóm được ghi nhận từ phân công chính thức.
-					</p>
 				</div>
 				<button
 					type="button"

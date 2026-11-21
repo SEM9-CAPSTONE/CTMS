@@ -324,19 +324,20 @@ describe("Moderation & Analytics UI Components", () => {
 			expect(screen.getByText("63%")).toBeInTheDocument();
 		});
 
-		it("displays caution notice and suppresses rankings when sample size is insufficient", async () => {
+		it("displays caution notice and suppresses rankings when trip has no reviews", async () => {
 			mockService.tripFeedbackOverview.mockResolvedValue({
 				...sampleTripFeedbackResponse,
+				sampleThreshold: 1,
 				items: [
 					{
 						...sampleTripFeedbackResponse.items[0],
-						totalReviews: 2,
+						totalReviews: 0,
 						hasSufficientSample: false,
 						aspects: {
-							safety: { positive: 1, neutral: 1, negative: 0, netScore: null },
-							guide_support: { positive: 2, neutral: 0, negative: 0, netScore: null },
-							equipment: { positive: 1, neutral: 0, negative: 0, netScore: null },
-							value: { positive: 2, neutral: 0, negative: 0, netScore: null },
+							safety: { positive: 0, neutral: 0, negative: 0, netScore: null },
+							guide_support: { positive: 0, neutral: 0, negative: 0, netScore: null },
+							equipment: { positive: 0, neutral: 0, negative: 0, netScore: null },
+							value: { positive: 0, neutral: 0, negative: 0, netScore: null },
 						},
 					},
 				],
@@ -344,7 +345,7 @@ describe("Moderation & Analytics UI Components", () => {
 
 			render(<TripFeedbackDashboard actor="host-1" />);
 
-			expect(await screen.findByText("Chưa đạt ngưỡng mẫu (5)")).toBeInTheDocument();
+			expect(await screen.findByText("Chưa có đánh giá")).toBeInTheDocument();
 			expect(screen.queryByText("Tỷ lệ tích cực")).toBeNull();
 		});
 	});

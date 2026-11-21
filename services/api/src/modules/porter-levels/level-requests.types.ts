@@ -52,8 +52,8 @@ export interface LevelNotification {
 	payload: {
 		kind: string;
 		requestId?: string;
-		qualificationId: string;
-		routeId: string;
+		qualificationId?: string;
+		routeId?: string;
 		routeName?: string;
 		level: string;
 		reason: string;

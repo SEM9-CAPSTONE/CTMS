@@ -1,19 +1,30 @@
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { queryKeys } from "../../../core/api";
 import { Button, Modal } from "../../../shared/components";
-import { levelReviewError } from "../constants";
+import { LEVEL_QUERY_STALE_TIME, levelReviewError } from "../constants";
 import { useLevelRequests } from "../hooks/useLevelRequests";
 import type { RequestFilters } from "../request-types";
+import { porterLevelsService } from "../services/porter-levels.service";
 import { LevelRequestAdminActions } from "./LevelRequestAdminActions";
 import { LevelRequestDetailView } from "./LevelRequestDetailView";
 import { LevelRequestFilters } from "./LevelRequestFilters";
 import { LevelRequestList } from "./LevelRequestList";
 export function AdminLevelRequestsPanel() {
-	const [filters, setFilters] = useState<RequestFilters>({ page: 1 });
+	const [filters, setFilters] = useState<RequestFilters>({ page: 1, status: "pending" });
 	const [id, setId] = useState<string | null>(() =>
 		new URLSearchParams(window.location.search).get("request")
 	);
 	const state = useLevelRequests(true, filters, id);
 	const detail = state.detail.data;
+	const porterId = detail?.request.porterId ?? null;
+	const globalOverviewQuery = useQuery({
+		queryKey: queryKeys.porterLevels.globalPorterOverview(porterId),
+		enabled: Boolean(porterId),
+		staleTime: LEVEL_QUERY_STALE_TIME,
+		refetchOnWindowFocus: false,
+		queryFn: () => porterLevelsService.globalPorterOverview(porterId as string),
+	});
 	const pending = state.review.isPending || state.download.isPending;
 	return (
 		<section className="space-y-4 rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm">
@@ -58,6 +69,7 @@ export function AdminLevelRequestsPanel() {
 						<>
 							<LevelRequestDetailView
 								detail={detail}
+								globalOverview={globalOverviewQuery.data}
 								pending={pending}
 								onDownload={(file) => state.download.mutate(file)}
 							/>

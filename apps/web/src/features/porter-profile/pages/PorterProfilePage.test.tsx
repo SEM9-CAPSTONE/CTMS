@@ -4,8 +4,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { porterProfileService } from "../services/porter-profile.service";
 import { PorterProfilePage } from "./PorterProfilePage";
 
-vi.mock("../../porter-levels/components/PorterLevelRequestsPanel", () => ({
-	PorterLevelRequestsPanel: () => <div data-testid="mock-level-requests-panel" />,
+vi.mock("../../porter-levels/components/GlobalPorterLevelCard", () => ({
+	GlobalPorterLevelCard: () => <div data-testid="mock-global-level-card" />,
+}));
+
+vi.mock("../../porter-levels/components/GlobalLevelRequestPanel", () => ({
+	GlobalLevelRequestPanel: () => <div data-testid="mock-level-requests-panel" />,
 }));
 
 vi.mock("../../porter-certificates/components/PorterCertificatesSection", () => ({

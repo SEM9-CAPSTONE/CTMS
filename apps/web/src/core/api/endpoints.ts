@@ -320,8 +320,16 @@ export const API_ENDPOINTS = {
 		DECISIONS: (id: string) => `/admin/porter-levels/qualifications/${id}/decisions`,
 		HISTORY: (id: string) => `/admin/porter-levels/qualifications/${id}/history`,
 		MY_POLICIES: "/porter/level-review/policies",
+		MY_OVERVIEW: "/porter/level-review/overview",
 		MY_SKILLS: "/porter/level-review/skills",
 		MY_HISTORY: "/porter/level-review/history",
+		GLOBAL_PORTERS: "/admin/porter-levels/porters",
+		GLOBAL_PORTER_OVERVIEW: (porterId: string) =>
+			`/admin/porter-levels/porters/${porterId}/overview`,
+		GLOBAL_PORTER_DECISION: (porterId: string) =>
+			`/admin/porter-levels/porters/${porterId}/decision`,
+		GLOBAL_PORTER_NOTIFY_GAPS: (porterId: string) =>
+			`/admin/porter-levels/porters/${porterId}/notify-gaps`,
 	},
 	ADMIN_PORTER_VERIFICATIONS: {
 		LIST: "/admin/porter-verifications",

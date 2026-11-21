@@ -5,6 +5,9 @@ export interface LevelDefinition {
 	name: string;
 	minExperienceYears: number | null;
 	minTimesLed: number | null;
+	minCompletedTrips?: number | null;
+	minTotalKm?: number | null;
+	minAverageRating?: number | null;
 	requiredSkills: string[];
 	requiredCertifications: string[];
 	responsibilities: string;
@@ -43,11 +46,111 @@ export interface LevelDossier {
 	verificationUpdatedAt: string | null;
 	timesLed: number;
 }
+export interface LevelGapItem {
+	code:
+		| "missing_trips"
+		| "missing_km"
+		| "missing_experience"
+		| "low_rating"
+		| "missing_cert"
+		| "expired_cert"
+		| "pending_cert"
+		| "rejected_cert"
+		| "missing_skill";
+	label: string;
+	detail: string;
+	actionType: "upload_cert" | "complete_trips" | "improve_rating" | "update_skills";
+}
+
+export interface CertificateEvaluationItem {
+	reqCode: string;
+	name: string;
+	status: "verified" | "expired" | "pending" | "rejected" | "missing";
+	expiryDate?: string | null;
+	rejectionReason?: string | null;
+	met: boolean;
+}
+
 export interface LevelComparison {
 	experience: boolean | null;
 	timesLed: boolean | null;
+	completedTrips?: boolean | null;
+	totalKm?: boolean | null;
+	averageRating?: boolean | null;
 	missingSkills: string[];
 	missingCertifications: string[];
+	expiredCertifications?: string[];
+	certificateDetails?: CertificateEvaluationItem[];
+	missingItems?: LevelGapItem[];
+	allMet?: boolean;
+}
+
+export interface GlobalPorterLevelAlert {
+	type: "missing_criteria" | "cert_expiring" | "cert_expired" | "eligible_upgrade";
+	severity: "info" | "warning" | "success";
+	title: string;
+	message: string;
+}
+
+export interface GlobalPorterLevelEvaluation {
+	level: PorterLevel;
+	policy: LevelPolicy | null;
+	comparison: LevelComparison | null;
+	progressPercent: number;
+}
+
+export interface GlobalPorterLevelOverview {
+	porterId: string;
+	porterName: string | null;
+	porterEmail?: string | null;
+	currentLevel: PorterLevel;
+	levelVerifiedAt: string | null;
+	metrics: {
+		completedTrips: number;
+		totalKmLed: number;
+		averageRating: number;
+		reviewCount: number;
+		experienceYears: number;
+		verifiedCertificatesCount: number;
+		distinctRoutesCount: number;
+	};
+	certificates: Array<{
+		id?: string;
+		type: string;
+		name: string;
+		status: string;
+		expiryDate: string;
+		rejectionReason?: string | null;
+	}>;
+	skills: string[];
+	nextLevel: PorterLevel | null;
+	nextLevelEvaluation: GlobalPorterLevelEvaluation | null;
+	levels: GlobalPorterLevelEvaluation[];
+	alerts: GlobalPorterLevelAlert[];
+}
+
+export interface GlobalPorterSummaryItem {
+	porterId: string;
+	porterName: string;
+	porterEmail: string;
+	currentLevel: PorterLevel;
+	levelVerifiedAt: string | null;
+	completedTrips: number;
+	totalKmLed: number;
+	averageRating: number;
+	reviewCount: number;
+	experienceYears: number;
+	verifiedCertificatesCount: number;
+	nextLevel: PorterLevel | null;
+	nextLevelAllMet: boolean;
+	nextLevelProgressPercent: number;
+	missingItems: LevelGapItem[];
+}
+
+export interface DecideGlobalLevelInput {
+	targetLevel: PorterLevel;
+	outcome: "approved" | "rejected";
+	reason: string;
 }
 export interface ReviewContext {
 	openRequestId?: string | null;

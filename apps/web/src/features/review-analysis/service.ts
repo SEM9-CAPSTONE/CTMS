@@ -16,7 +16,7 @@ import type {
 } from "./types";
 export const analysisService = {
 	trips: (page: number, signal?: AbortSignal) =>
-		httpClient.get<TripList>(API_ENDPOINTS.REVIEW_ANALYSIS.TRIPS, { page, limit: 12 }, { signal }),
+		httpClient.get<TripList>(API_ENDPOINTS.REVIEW_ANALYSIS.TRIPS, { page, limit: 50 }, { signal }),
 	insights: (id: string, page: number, signal?: AbortSignal, sentiment: SentimentFilter = "all") =>
 		httpClient.get<InsightResponse>(
 			API_ENDPOINTS.REVIEW_ANALYSIS.INSIGHTS(id),

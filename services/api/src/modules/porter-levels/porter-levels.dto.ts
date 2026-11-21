@@ -4,6 +4,7 @@ import {
 	IsDefined,
 	IsEnum,
 	IsInt,
+	IsNumber,
 	IsOptional,
 	IsString,
 	IsUUID,
@@ -60,6 +61,28 @@ export class SaveLevelPolicyDto {
 	@IsInt()
 	@Min(0)
 	minTimesLed!: number | null;
+
+	@ApiPropertyOptional({ type: Number, nullable: true })
+	@IsOptional()
+	@ValidateIf((_dto: SaveLevelPolicyDto, value: unknown) => value !== null && value !== undefined)
+	@IsInt()
+	@Min(0)
+	minCompletedTrips?: number | null;
+
+	@ApiPropertyOptional({ type: Number, nullable: true })
+	@IsOptional()
+	@ValidateIf((_dto: SaveLevelPolicyDto, value: unknown) => value !== null && value !== undefined)
+	@IsNumber()
+	@Min(0)
+	minTotalKm?: number | null;
+
+	@ApiPropertyOptional({ type: Number, nullable: true })
+	@IsOptional()
+	@ValidateIf((_dto: SaveLevelPolicyDto, value: unknown) => value !== null && value !== undefined)
+	@IsNumber()
+	@Min(0)
+	@Max(5)
+	minAverageRating?: number | null;
 
 	@ApiProperty({ type: [String], maxItems: 20 })
 	@IsNormalizedStringArray()
@@ -142,4 +165,30 @@ export class ListLevelQualificationsDto {
 	@Min(1)
 	@Max(100)
 	limit = 20;
+}
+
+export class DecideGlobalPorterLevelDto {
+	@ApiProperty({ enum: PorterRouteProficiency })
+	@IsEnum(PorterRouteProficiency)
+	targetLevel!: PorterRouteProficiency;
+
+	@ApiProperty({ enum: LevelDecisionOutcome })
+	@IsEnum(LevelDecisionOutcome)
+	outcome!: LevelDecisionOutcome;
+
+	@ApiProperty()
+	@Transform(({ value }: { value: unknown }) => (typeof value === "string" ? value.trim() : value))
+	@IsString()
+	@MinLength(1)
+	@MaxLength(2000)
+	reason!: string;
+}
+
+export class NotifyPorterLevelGapsDto {
+	@ApiPropertyOptional({ maxLength: 1000 })
+	@IsOptional()
+	@Transform(({ value }: { value: unknown }) => (typeof value === "string" ? value.trim() : value))
+	@IsString()
+	@MaxLength(1000)
+	customNote?: string;
 }
