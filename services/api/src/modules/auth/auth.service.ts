@@ -61,6 +61,7 @@ import { VerificationOtpRepository } from "./verification-otp.repository";
 export const BCRYPT_COST_FACTOR = 10;
 const DUPLICATE_CONTACT_MESSAGE = "Email or phone already registered";
 const RESEND_LIMIT_MESSAGE = "OTP resend limit reached, try again later";
+const OTP_DELIVERY_FAILED_MESSAGE = "OTP delivery failed";
 const OTP_NOT_FOUND_MESSAGE = "No pending OTP found for this account";
 const OTP_EXPIRED_MESSAGE = "OTP has expired";
 const OTP_INCORRECT_MESSAGE = "Incorrect OTP";
@@ -310,11 +311,26 @@ export class AuthService {
 
 			const plan = await this.planOtp(transactionalOtpRepository, dto.userId);
 
-			await this.otpDeliveryService.send(
-				dto.channel,
-				{ email: user.email, phone: user.phone },
-				plan.code
-			);
+			try {
+				await this.otpDeliveryService.send(
+					dto.channel,
+					{ email: user.email, phone: user.phone },
+					plan.code
+				);
+			} catch (error) {
+				// The provider (SMTP/Twilio) failed: nothing is stored (the transaction rolls
+				// back) and the client gets a clear, channel-specific 503 instead of a bare 500.
+				this.logger.warn(
+					`OTP delivery failed for user ${dto.userId} via ${dto.channel}: ${(error as Error).message}`
+				);
+				throw new ServiceUnavailableException({
+					statusCode: 503,
+					error: "Service Unavailable",
+					message: OTP_DELIVERY_FAILED_MESSAGE,
+					code: "OTP_DELIVERY_FAILED",
+					channel: dto.channel,
+				});
+			}
 
 			await this.persistOtp(transactionalOtpRepository, dto.userId, plan);
 		});

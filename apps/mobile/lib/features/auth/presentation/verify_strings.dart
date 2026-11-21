@@ -23,6 +23,7 @@ class VerifyStrings {
   static const channelEmailLabel = 'Xác minh qua Email';
   static const chooseChannelHint = 'Chọn phương thức nhận mã OTP, sau đó bấm "Gửi mã OTP"';
   static const sentCodeToPrefix = 'Mã OTP đã được gửi tới ';
+  static const checkSpamHint = 'Không thấy thư? Kiểm tra cả mục Spam hoặc Quảng cáo.';
 
   static const verifySuccessTitle = 'Xác thực thành công!';
   static const verifySuccessMessage =

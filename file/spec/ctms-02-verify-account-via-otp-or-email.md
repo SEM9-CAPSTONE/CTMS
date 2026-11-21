@@ -161,3 +161,16 @@ Email-link token generation, storage and transport remain TBD in Technical Desig
 
 - Unit (`auth.service.spec.ts`): row lock on verify; correct code still accepted after three failures; incorrect code increments the counter without activating; fourth failure reports the limit; fifth attempt rejected without comparing the code; limit read from `OTP_VERIFY_MAX_ATTEMPTS`; resend boundary moved to four.
 - Integration (real Postgres): `auth.verify-otp.integration-spec.ts` — counter stored, four failures then correct code still rejected, eight concurrent wrong attempts store exactly four failures, new OTP resets the counter; `auth.resend-otp.integration-spec.ts` — fifth send rejected and never reaches the provider.
+
+## Addendum – OTP delivery feedback (2026-11-21, no Jira key)
+
+Team report: registering, then no verification code arrived. Findings: e-mail delivery works (Gmail SMTP verified locally); SMS goes through a **Twilio trial** account with no verified numbers, so SMS codes never arrive; the verify page did not pre-select a channel and a provider failure surfaced as a bare 500 with English text.
+
+| Change | Behaviour |
+| --- | --- |
+| API `POST /auth/send-otp` and `/auth/resend` | A provider failure returns **503** `{ code: "OTP_DELIVERY_FAILED", channel }` (was 500); nothing is stored, so the attempt is not counted (BR-007 unchanged). Forgot-password keeps its always-accepted answer (no account enumeration). |
+| Web/mobile verify page | E-mail is pre-selected when the account has one (still sent only on the user's click). SMS option hidden unless `VITE_OTP_SMS_ENABLED=true` (web) / `--dart-define=OTP_SMS_ENABLED=true` (mobile). After an e-mail send: "Không thấy thư? Kiểm tra cả mục Spam hoặc Quảng cáo." |
+| Error copy | Vietnamese for delivery failure (per channel), resend limit (409), network errors and, on mobile, wrong/expired/too-many OTP; backend English is no longer shown. |
+
+Operational follow-ups (not code): upgrade Twilio (or verify test numbers) before enabling SMS; production must have the same working `SMTP_*` values as local.
+
