@@ -1,5 +1,4 @@
 import { Card, StatusBadge } from "../../../shared/components";
-import { formatVnd } from "../constants";
 import type { HostAnalyticsResponse } from "../types";
 
 export interface HostAnalyticsKpiGroupsProps {
@@ -7,110 +6,77 @@ export interface HostAnalyticsKpiGroupsProps {
 }
 
 export function HostAnalyticsKpiGroups({ data }: HostAnalyticsKpiGroupsProps) {
-	const { financial, operations, leadTime, smallSample, profitStatus } = data;
-	const kpis = financial.kpis;
+	const { operations, leadTime, smallSample } = data;
 
 	return (
-		<div className="space-y-4">
+		<div className="flex flex-col gap-3">
 			{smallSample && (
-				<div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-2 text-xs text-amber-900">
+				<div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/70 px-3.5 py-2 text-xs text-amber-900">
 					<StatusBadge tone="warning">Mẫu dữ liệu nhỏ</StatusBadge>
-					<span>Ít hơn 5 chuyến hoặc 20 đơn — chỉ mang tính tham khảo.</span>
+					<span>Số liệu dưới 5 chuyến hoặc 20 đơn chỉ mang tính tham khảo.</span>
 				</div>
 			)}
 
-			<Card className="space-y-4 p-5">
-				<div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#e8efe8] pb-2.5">
-					<h2 className="text-base font-semibold text-[#10221b]">Hiệu quả tài chính</h2>
-					<span className="text-xs text-[#647468]">Theo ngày thanh toán & quyết toán</span>
-				</div>
-
-				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-					<div className="space-y-1">
-						<p className="text-xs font-medium text-[#526357]">Doanh thu gộp</p>
-						<p className="text-2xl font-bold tracking-tight text-[#10221b]">
-							{formatVnd(kpis.grossRevenue)}
-						</p>
-						<p className="text-xs text-[#647468]">Hoàn: {formatVnd(kpis.refundAmount)}</p>
-					</div>
-
-					<div className="space-y-1">
-						<p className="text-xs font-medium text-[#526357]">Phần Host thực nhận</p>
-						<p className="text-2xl font-bold tracking-tight text-[#164027]">
-							{formatVnd(kpis.netRevenue)}
-						</p>
-						<p className="text-xs text-[#647468]">Phí: {formatVnd(kpis.platformFee)}</p>
-					</div>
-
-					<div className="space-y-1">
-						<p className="text-xs font-medium text-[#526357]">Đã chi trả về ví</p>
-						<p className="text-2xl font-bold tracking-tight text-[#10221b]">
-							{kpis.payout === null ? "Không tách theo khu vực" : formatVnd(kpis.payout)}
-						</p>
-						<p className="text-xs text-[#647468]">Tạm giữ: {formatVnd(kpis.heldFunds)}</p>
-					</div>
-
-					<div className="space-y-1">
-						<p className="text-xs font-medium text-[#526357]">Lợi nhuận</p>
-						<p className="text-base font-semibold text-[#526357]">
-							{profitStatus === "insufficient_data" ? "Chưa đủ dữ liệu chi phí" : "—"}
-						</p>
-					</div>
-				</div>
-			</Card>
-
-			<Card className="space-y-4 p-5">
-				<div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#e8efe8] pb-2.5">
-					<h2 className="text-base font-semibold text-[#10221b]">Hiệu quả vận hành</h2>
+			<section aria-labelledby="host-operations-kpis" className="flex flex-col gap-2.5">
+				<div className="flex flex-wrap items-baseline justify-between gap-2">
+					<h2 id="host-operations-kpis" className="text-sm font-bold text-gray-900">
+						Hiệu quả vận hành
+					</h2>
 					<span className="text-xs text-[#647468]">
 						{operations.completedTripCount} chuyến hoàn thành · theo ngày khởi hành
 					</span>
 				</div>
 
-				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-					<div className="space-y-1">
-						<p className="text-xs font-medium text-[#526357]">Tỷ lệ lấp đầy</p>
-						<p className="text-2xl font-bold tracking-tight text-[#10221b]">
-							{operations.fillRate === null ? "Chưa có dữ liệu" : `${operations.fillRate}%`}
-						</p>
-						<p className="text-xs text-[#647468]">
-							{operations.includedFillTripCount} chuyến đủ sức chứa
-						</p>
-					</div>
+				<div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+					<Card className="flex min-h-[96px] flex-col justify-between p-4">
+						<div className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+							Tỷ lệ kín chỗ
+						</div>
+						<div className="mt-2 text-2xl font-bold text-gray-900">
+							{operations.fillRate === null ? "—" : `${Math.round(operations.fillRate)}%`}
+						</div>
+					</Card>
 
-					<div className="space-y-1">
-						<p className="text-xs font-medium text-[#526357]">Tổng lượt khách</p>
-						<p className="text-2xl font-bold tracking-tight text-[#10221b]">
-							{operations.totalGuests === null
-								? "Chưa có dữ liệu"
-								: `${operations.totalGuests.toLocaleString("vi-VN")} khách`}
-						</p>
-						<p className="text-xs text-[#647468]">Đơn đã xác nhận & hoàn thành</p>
-					</div>
+					<Card className="flex min-h-[96px] flex-col justify-between p-4">
+						<div className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+							Tổng lượt khách
+						</div>
+						<div className="mt-2 flex items-baseline gap-1.5">
+							<span className="text-2xl font-bold text-gray-900">
+								{operations.totalGuests === null
+									? "—"
+									: operations.totalGuests.toLocaleString("vi-VN")}
+							</span>
+							{operations.totalGuests !== null && (
+								<span className="text-xs text-gray-500">khách</span>
+							)}
+						</div>
+					</Card>
 
-					<div className="space-y-1">
-						<p className="text-xs font-medium text-[#526357]">Tỷ lệ hủy đặt chỗ</p>
-						<p className="text-2xl font-bold tracking-tight text-[#10221b]">
+					<Card className="flex min-h-[96px] flex-col justify-between p-4">
+						<div className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+							Tỷ lệ hủy đơn
+						</div>
+						<div className="mt-2 text-2xl font-bold text-gray-900">
 							{operations.cancellationRate === null
-								? "Chưa có dữ liệu"
-								: `${operations.cancellationRate}%`}
-						</p>
-						<p className="text-xs text-[#647468]">Hủy chuyến: {operations.cancelledTrips.count}</p>
-					</div>
+								? "—"
+								: `${Math.round(operations.cancellationRate)}%`}
+						</div>
+					</Card>
 
-					<div className="space-y-1">
-						<p className="text-xs font-medium text-[#526357]">Đặt trước trung vị</p>
-						<p className="text-2xl font-bold tracking-tight text-[#10221b]">
-							{leadTime.medianDays === null ? "Chưa có dữ liệu" : `${leadTime.medianDays} ngày`}
-						</p>
-						<p className="text-xs text-[#647468]">
-							{leadTime.averageDays !== null
-								? `TB ${leadTime.averageDays} ngày · ${leadTime.sampleSize} đơn`
-								: "Chưa đủ mẫu"}
-						</p>
-					</div>
+					<Card className="flex min-h-[96px] flex-col justify-between p-4">
+						<div className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+							Khách đặt trước
+						</div>
+						<div className="mt-2 flex items-baseline gap-1.5">
+							<span className="text-2xl font-bold text-gray-900">
+								{leadTime.medianDays === null ? "—" : `~${Math.round(leadTime.medianDays)}`}
+							</span>
+							{leadTime.medianDays !== null && <span className="text-xs text-gray-500">ngày</span>}
+						</div>
+					</Card>
 				</div>
-			</Card>
+			</section>
 		</div>
 	);
 }

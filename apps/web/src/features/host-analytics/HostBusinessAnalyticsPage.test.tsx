@@ -140,6 +140,16 @@ const sampleStaleJob: HostSuggestionJobResponse = {
 			capacityBand: "small_1_6",
 			suggestedPricePerPerson: 650000,
 			suggestedCapacityMin: 6,
+			suggestedStartsAt: "2027-01-09T00:00:00.000Z",
+			weatherSummary: {
+				status: "beyond_horizon",
+				riskLevel: null,
+				summary: "Chưa có dự báo cho thời điểm này",
+				checkedDate: "2027-01-09",
+			},
+			aiSeasonNote: "Tháng 1 thời tiết mát mẻ, phù hợp đi bộ đường dài.",
+			aiRisks: [{ code: "cold_risk", note: "Sáng sớm có sương và gió nhẹ." }],
+			aiConfidence: "medium",
 			rationaleCodes: ["high_fill_history"],
 			rationaleLabels: ["Tuyến có tỷ lệ lấp đầy lịch sử cao"],
 			missingData: [],
@@ -179,11 +189,12 @@ describe("HostBusinessAnalyticsPage (CTMS-416)", () => {
 		const getLatestSpy = vi
 			.spyOn(hostAnalyticsService, "getLatestSuggestionJob")
 			.mockResolvedValue(sampleStaleJob);
+		vi.spyOn(hostAnalyticsService, "getSuggestionHistory").mockResolvedValue([]);
 		const postSpy = vi.spyOn(hostAnalyticsService, "createSuggestionJob");
 
 		renderPage();
 
-		expect(await screen.findByText("Phân tích kinh doanh & Gợi ý chuyến đi")).toBeVisible();
+		expect(await screen.findByText("Hiệu quả & Gợi ý mở chuyến")).toBeVisible();
 		expect(getAnalyticsSpy).toHaveBeenCalledTimes(1);
 		expect(getLatestSpy).toHaveBeenCalledTimes(1);
 		expect(postSpy).not.toHaveBeenCalled();
@@ -191,16 +202,16 @@ describe("HostBusinessAnalyticsPage (CTMS-416)", () => {
 		// Market tab must NOT be mounted until selected
 		expect(screen.queryByTestId("market-demand-tab")).toBeNull();
 
-		// Separated KPI groups & null/insufficient_history/smallSample/stale handling
-		expect(await screen.findByText("Hiệu quả tài chính")).toBeVisible();
-		expect(screen.getByText("Hiệu quả vận hành")).toBeVisible();
-		expect(screen.getByText("Không tách theo khu vực")).toBeVisible();
-		expect(screen.getByText("Chưa đủ dữ liệu chi phí")).toBeVisible();
+		// Operational KPIs & smallSample/insufficient_history/stale handling (financial KPIs removed to avoid duplicating Revenue report)
+		expect(await screen.findByText("Hiệu quả vận hành")).toBeVisible();
 		expect(screen.getByText("Mẫu dữ liệu nhỏ")).toBeVisible();
 		expect(screen.getByText("Cần thêm 5 tháng lịch sử")).toBeVisible();
 		expect(screen.getByText("Dữ liệu đã thay đổi")).toBeVisible();
 		expect(screen.getByText(/khoảng 650\.000 đ\/người/)).toBeVisible();
 		expect(screen.getByText("Tuyến có tỷ lệ lấp đầy lịch sử cao")).toBeVisible();
+		expect(screen.getByText("Từ dữ liệu của bạn")).toBeVisible();
+		expect(screen.getByText("Góc nhìn mùa vụ từ AI (tham khảo)")).toBeVisible();
+		expect(screen.getByText("Chưa có dự báo cho thời điểm này")).toBeVisible();
 		// Must NOT display raw band codes
 		expect(screen.queryByText("500k_1m")).toBeNull();
 		expect(screen.queryByText("small_1_6")).toBeNull();
@@ -211,6 +222,7 @@ describe("HostBusinessAnalyticsPage (CTMS-416)", () => {
 		vi.spyOn(hostAnalyticsService, "getLatestSuggestionJob").mockRejectedValue(
 			new HttpError("Not found", 404, {})
 		);
+		vi.spyOn(hostAnalyticsService, "getSuggestionHistory").mockResolvedValue([]);
 		const createSpy = vi
 			.spyOn(hostAnalyticsService, "createSuggestionJob")
 			.mockRejectedValueOnce(

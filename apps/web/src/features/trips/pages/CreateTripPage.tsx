@@ -10,6 +10,7 @@ import { useGeoAreas } from "../../revenue-analytics/hooks/useRevenueAnalytics";
 import { useTrekkingRoutes } from "../../trekking-routes/hooks/useTrekkingRoutes";
 import { ConfigureTripWaypointsPanel } from "../components/ConfigureTripWaypointsPanel";
 import { CreateTripForm, type CreateTripFormHandle } from "../components/CreateTripForm";
+import { CreateTripSuggestionsPanel } from "../components/CreateTripSuggestionsPanel";
 import {
 	PendingTripImageEditor,
 	type PendingTripImages,
@@ -357,7 +358,7 @@ export function CreateTripPage({
 						</div>
 					</div>
 				</header>
-				<main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+				<main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
 					{draftError && (
 						<p role="alert" className="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">
 							{draftError}
@@ -407,8 +408,8 @@ export function CreateTripPage({
 
 	return (
 		<div className="min-h-screen bg-[#f4f7f2] text-[#10221b]">
-			<header className="sticky top-[65px] z-20 border-b bg-white lg:top-0">
-				<div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-5 sm:px-6">
+			<header className="sticky top-[65px] z-20 bg-white lg:top-0">
+				<div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-5 sm:px-6">
 					{onBackHome && (
 						<button
 							type="button"
@@ -439,12 +440,18 @@ export function CreateTripPage({
 					</div>
 				</div>
 			</header>
-			<main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+			<main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+				{!isEditMode && quickCreateOwner && (
+					<CreateTripSuggestionsPanel
+						owner={quickCreateOwner}
+						onApplySuggestion={quickCreate.applyDirectPrefill}
+					/>
+				)}
 				{quickCreate.suggestedMonth && (
 					<div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-[#164027]">
-						Đã điền sẵn thông tin từ gợi ý chuyến đi (tháng đề xuất:{" "}
-						<strong>{formatMonthVi(quickCreate.suggestedMonth)}</strong>). Vui lòng chọn ngày khởi
-						hành, thời gian kết thúc và hạn đặt chỗ cụ thể.
+						<strong>Gợi ý, vui lòng kiểm tra:</strong> Thông tin đã được điền sẵn từ gợi ý (tháng đề
+						xuất: <strong>{formatMonthVi(quickCreate.suggestedMonth)}</strong>). Hãy rà soát lại
+						ngày giờ, sức chứa và giá trước khi lưu.
 					</div>
 				)}
 				{draftError && (
@@ -454,7 +461,7 @@ export function CreateTripPage({
 				)}
 				{!isEditMode && (
 					<output
-						className={`mb-4 block text-sm ${autosave.error ? "text-amber-700" : "text-[#667a6d]"}`}
+						className={autosave.error ? "mb-4 block text-sm text-amber-700" : "sr-only"}
 						aria-live="polite"
 					>
 						{autosave.saving
@@ -465,6 +472,7 @@ export function CreateTripPage({
 				)}
 
 				<CreateTripForm
+					key={isEditMode ? `edit-${editTripId}` : `create-prefill-${quickCreate.prefillVersion}`}
 					draftHandle={draftForm}
 					activeRoutes={activeRoutes}
 					areas={geoAreas.data ?? []}

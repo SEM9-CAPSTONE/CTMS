@@ -14,9 +14,10 @@ import {
 	MODERATION_HOST_SLA_MS,
 	MODERATION_LEASE_DURATION_MS,
 	MODERATION_MAX_ATTEMPTS,
+	MODERATION_NOTIFY_HOST_MIN_THRESHOLD_BPS,
 	MODERATION_UNVERIFIED_TIMEOUT_MS,
 } from "./trip-review-moderation.constants";
-import { evaluateModerationPolicy } from "./trip-review-moderation.policy";
+import { confidenceToBasisPoints, evaluateModerationPolicy } from "./trip-review-moderation.policy";
 import {
 	ModerationProviderError,
 	// biome-ignore lint/style/useImportType: Nest injection
@@ -61,7 +62,7 @@ export class TripReviewModerationWorker implements OnModuleInit, OnModuleDestroy
 		if (enabled !== "true") return;
 		this.timer = setInterval(() => {
 			void this.tick();
-		}, 3000);
+		}, 1000);
 		this.timer.unref();
 	}
 
@@ -286,6 +287,9 @@ export class TripReviewModerationWorker implements OnModuleInit, OnModuleDestroy
 				);
 
 				if (img.has_violation === true && img.flag_type) {
+					const imgBps = confidenceToBasisPoints(img.confidence ?? null, "model");
+					const effectiveImgLifecycle =
+						imgBps >= MODERATION_NOTIFY_HOST_MIN_THRESHOLD_BPS ? flagLifecycleStatus : "resolved";
 					await manager.query(
 						`INSERT INTO trip_review_moderation_flags (
 							run_id, review_id, source_revision, channel, target_image_index,
@@ -300,7 +304,7 @@ export class TripReviewModerationWorker implements OnModuleInit, OnModuleDestroy
 							img.flag_type,
 							img.confidence ?? null,
 							img.evidence ?? "Hình ảnh không phù hợp với tiêu chuẩn cộng đồng",
-							flagLifecycleStatus,
+							effectiveImgLifecycle,
 						]
 					);
 					evaluableFlags.push({
@@ -341,6 +345,9 @@ export class TripReviewModerationWorker implements OnModuleInit, OnModuleDestroy
 				if (flag.flag_type === "personal_data_leak") {
 					continue;
 				}
+				const textBps = confidenceToBasisPoints(flag.confidence, "model");
+				const effectiveTextLifecycle =
+					textBps >= MODERATION_NOTIFY_HOST_MIN_THRESHOLD_BPS ? flagLifecycleStatus : "resolved";
 				await manager.query(
 					`INSERT INTO trip_review_moderation_flags (
 						run_id, review_id, source_revision, channel, target_image_index,
@@ -355,7 +362,7 @@ export class TripReviewModerationWorker implements OnModuleInit, OnModuleDestroy
 						flag.confidence,
 						flag.evidence,
 						flag.quote,
-						flagLifecycleStatus,
+						effectiveTextLifecycle,
 					]
 				);
 				evaluableFlags.push({

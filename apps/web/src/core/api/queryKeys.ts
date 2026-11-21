@@ -48,6 +48,8 @@ export const queryKeys = {
 			["host-analytics", actor, "summary", from, to, areaCode] as const,
 		latestSuggestion: (actor: string) =>
 			["host-analytics", actor, "suggestions", "latest"] as const,
+		suggestionHistory: (actor: string) =>
+			["host-analytics", actor, "suggestions", "history"] as const,
 		suggestionJob: (actor: string, jobId: string) =>
 			["host-analytics", actor, "suggestions", "job", jobId] as const,
 	},

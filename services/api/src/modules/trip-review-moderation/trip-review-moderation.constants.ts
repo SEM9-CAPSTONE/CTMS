@@ -12,5 +12,7 @@ export const MODERATION_POLICY_VERSION = "ctms-411-v1";
 /** Basis points scale: 0.80 === 8000. Auto-hide triggers strictly when score > 8000 (> 80%). */
 export const MODERATION_BASIS_POINTS_SCALE = 10_000;
 export const MODERATION_AUTO_HIDE_THRESHOLD_BPS = 8_000;
+/** Minimum confidence in basis points (50% === 5000) to notify Host or allow hiding a model-flagged review. */
+export const MODERATION_NOTIFY_HOST_MIN_THRESHOLD_BPS = 5_000;
 export const MODERATION_UNVERIFIED_TIMEOUT_MS = 15 * 60 * 1000;
 export const MODERATION_HOST_SLA_MS = 7 * 24 * 60 * 60 * 1000;

@@ -5,8 +5,10 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { UserRole } from "../users/entities/user.entity";
-import type { GetRouteSafetyOverviewQueryDto } from "./dtos/get-route-safety-overview-query.dto";
-import type { GetTripFeedbackOverviewQueryDto } from "./dtos/get-trip-feedback-overview-query.dto";
+// biome-ignore lint/style/useImportType: ValidationPipe requires runtime class metadata
+import { GetRouteSafetyOverviewQueryDto } from "./dtos/get-route-safety-overview-query.dto";
+// biome-ignore lint/style/useImportType: ValidationPipe requires runtime class metadata
+import { GetTripFeedbackOverviewQueryDto } from "./dtos/get-trip-feedback-overview-query.dto";
 import { RouteSafetyOverviewResponseDto } from "./dtos/route-safety-overview-response.dto";
 import { TripFeedbackOverviewResponseDto } from "./dtos/trip-feedback-overview-response.dto";
 // biome-ignore lint/style/useImportType: Nest injection

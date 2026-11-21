@@ -10,10 +10,18 @@ import {
 describe("quick-create-prefill & useQuickCreatePrefill", () => {
 	const samplePrefill = {
 		routeId: "11111111-1111-4111-8111-111111111111",
+		title: "Leo núi Sơn Trà (Tháng 1/2027)",
 		areaCode: "DNG-SON-TRA",
 		tripType: "day_trip" as const,
 		pricePerPerson: 650000,
 		capacityMin: 6,
+		capacityMax: 12,
+		meetingLongitude: 108.25,
+		meetingLatitude: 16.1,
+		startsAt: null,
+		endsAt: null,
+		meetingAt: null,
+		bookingDeadline: null,
 		suggestedMonth: "2027-01",
 	};
 

@@ -18,74 +18,58 @@ export function HostSeasonalityChart({ seasonality }: HostSeasonalityChartProps)
 	}));
 
 	return (
-		<Card className="space-y-4 p-5">
-			<div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#e8efe8] pb-3">
-				<div>
-					<h2 className="text-base font-semibold text-[#10221b]">
-						Xu hướng hoạt động theo tháng khởi hành
-					</h2>
-					<p className="mt-0.5 text-xs text-[#526357]">Toàn bộ lịch sử chuyến hoàn thành.</p>
+		<Card className="flex h-full flex-col justify-between space-y-4 p-5">
+			<div className="space-y-1.5 border-b border-[#e8efe8] pb-3">
+				<div className="flex flex-wrap items-center justify-between gap-2">
+					<h2 className="text-base font-bold text-gray-900">Xu hướng chuyến theo tháng</h2>
+					<StatusBadge tone={seasonality.status === "ok" ? "success" : "neutral"}>
+						{seasonality.status === "ok"
+							? `${seasonality.historySpanMonths} tháng lịch sử`
+							: `Cần thêm ${missingMonths} tháng lịch sử`}
+					</StatusBadge>
 				</div>
-				<StatusBadge tone={seasonality.status === "ok" ? "success" : "neutral"}>
-					{seasonality.status === "ok"
-						? `Đủ ${seasonality.historySpanMonths} tháng lịch sử`
-						: `Cần thêm ${missingMonths} tháng lịch sử`}
-				</StatusBadge>
+				<p className="text-xs text-gray-500">Số chuyến đã hoàn thành theo tháng khởi hành</p>
 			</div>
 
-			{seasonality.status === "insufficient_history" && (
-				<p className="rounded-lg bg-[#f6f9f6] px-3.5 py-2.5 text-xs text-[#435649]">
-					Hệ thống hiện ghi nhận khoảng thời gian lịch sử {seasonality.historySpanMonths} tháng. Cần
-					thêm {missingMonths} tháng nữa (đủ ít nhất 12 tháng từ chuyến đầu tiên đến chuyến gần
-					nhất) để xác định các tháng cao điểm và thấp điểm.
-				</p>
-			)}
-
 			{chartData.length === 0 ? (
-				<p className="py-8 text-center text-sm text-[#647468]">
-					Chưa có chuyến đã hoàn thành để hiển thị biểu đồ xu hướng theo tháng.
+				<p className="py-12 text-center text-sm text-gray-500">
+					Chưa có chuyến hoàn thành để hiển thị biểu đồ.
 				</p>
 			) : (
-				<div className="h-64 w-full">
+				<div className="h-56 w-full">
 					<ResponsiveContainer width="100%" height="100%">
-						<BarChart data={chartData} margin={{ top: 8, right: 12, left: -12, bottom: 0 }}>
-							<CartesianGrid strokeDasharray="3 3" stroke="#e5ede5" />
-							<XAxis dataKey="label" tick={{ fontSize: 12, fill: "#526357" }} />
-							<YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#526357" }} />
+						<BarChart data={chartData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+							<CartesianGrid strokeDasharray="3 3" stroke="#e5ede5" vertical={false} />
+							<XAxis dataKey="label" tick={{ fontSize: 11, fill: "#526357" }} />
+							<YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#526357" }} />
 							<Tooltip
-								formatter={(value, name) => {
-									if (name === "tripCount")
-										return [`${String(value)} chuyến`, "Số chuyến hoàn thành"];
-									return [`${String(value)} khách`, "Tổng lượt khách"];
-								}}
+								formatter={(value) => [`${String(value)} chuyến`, "Chuyến hoàn thành"]}
 								labelFormatter={(label) => `Tháng ${String(label)}`}
 							/>
-							<Bar dataKey="tripCount" fill="#164027" radius={[4, 4, 0, 0]} maxBarSize={36} />
+							<Bar dataKey="tripCount" fill="#164027" radius={[6, 6, 0, 0]} maxBarSize={32} />
 						</BarChart>
 					</ResponsiveContainer>
 				</div>
 			)}
 
 			{seasonality.status === "ok" && (
-				<div className="grid grid-cols-1 gap-3 border-t border-[#e8efe8] pt-3 sm:grid-cols-2">
-					<div>
-						<p className="text-xs font-medium text-[#526357]">
-							Tháng hoạt động cao nhất trong lịch sử
-						</p>
-						<p className="mt-1 text-sm font-semibold text-[#164027]">
-							{seasonality.highestMonths && seasonality.highestMonths.length > 0
-								? seasonality.highestMonths.map(formatMonthVi).join(", ")
-								: "Chưa xác định"}
-						</p>
-					</div>
-					<div>
-						<p className="text-xs font-medium text-[#526357]">Tháng ít chuyến nhất trong lịch sử</p>
-						<p className="mt-1 text-sm font-semibold text-[#435649]">
-							{seasonality.lowestMonths && seasonality.lowestMonths.length > 0
-								? seasonality.lowestMonths.map(formatMonthVi).join(", ")
-								: "Chưa xác định"}
-						</p>
-					</div>
+				<div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#e8efe8] pt-3 text-xs text-gray-600">
+					{seasonality.highestMonths && seasonality.highestMonths.length > 0 && (
+						<span>
+							Cao điểm:{" "}
+							<strong className="font-semibold text-[#164027]">
+								{seasonality.highestMonths.map(formatMonthVi).join(", ")}
+							</strong>
+						</span>
+					)}
+					{seasonality.lowestMonths && seasonality.lowestMonths.length > 0 && (
+						<span>
+							Thấp điểm:{" "}
+							<strong className="font-semibold text-gray-800">
+								{seasonality.lowestMonths.map(formatMonthVi).join(", ")}
+							</strong>
+						</span>
+					)}
 				</div>
 			)}
 		</Card>

@@ -4,7 +4,6 @@ import { useGeoAreas } from "../../revenue-analytics/hooks/useRevenueAnalytics";
 import { HostAnalyticsFilterBar } from "../components/HostAnalyticsFilterBar";
 import { HostAnalyticsKpiGroups } from "../components/HostAnalyticsKpiGroups";
 import { HostOperationsBreakdown } from "../components/HostOperationsBreakdown";
-import { HostSeasonalityChart } from "../components/HostSeasonalityChart";
 import { HostSuggestionsSection } from "../components/HostSuggestionsSection";
 import { resolveVietnamPresetRange, vietnamDateToIsoBoundary } from "../constants";
 import { useHostAnalytics } from "../hooks/useHostAnalytics";
@@ -54,12 +53,12 @@ export function HostBusinessAnalyticsPage({ actor, onNavigate }: HostBusinessAna
 			<header className="sticky top-[65px] z-20 border-b border-[#dfe8df] bg-white lg:top-0">
 				<div className="mx-auto flex min-h-16 max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
 					<h1 className="text-xl font-bold tracking-tight text-[#10221b] sm:text-2xl">
-						Phân tích kinh doanh & Gợi ý chuyến đi
+						Hiệu quả & Gợi ý mở chuyến
 					</h1>
 				</div>
 			</header>
 
-			<div className="mx-auto max-w-7xl space-y-5 px-4 py-5 sm:px-6">
+			<div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6">
 				<HostAnalyticsFilterBar
 					preset={preset}
 					fromDate={fromDate}
@@ -78,8 +77,8 @@ export function HostBusinessAnalyticsPage({ actor, onNavigate }: HostBusinessAna
 				{analyticsQuery.isPending ? (
 					<PageSkeleton />
 				) : analyticsQuery.isError ? (
-					<div className="rounded-xl border border-red-200 bg-white p-6 text-center">
-						<p className="text-sm font-medium text-red-700">
+					<div className="rounded-xl border border-rose-200 bg-rose-50/70 p-6 text-center">
+						<p className="text-sm font-medium text-rose-700">
 							Không tải được dữ liệu phân tích lúc này.
 						</p>
 						<Button
@@ -92,11 +91,16 @@ export function HostBusinessAnalyticsPage({ actor, onNavigate }: HostBusinessAna
 						</Button>
 					</div>
 				) : analyticsQuery.data ? (
-					<>
+					<div
+						className={`flex flex-col gap-6 ${analyticsQuery.isFetching ? "opacity-80" : ""}`}
+						aria-busy={analyticsQuery.isFetching}
+					>
 						<HostAnalyticsKpiGroups data={analyticsQuery.data} />
-						<HostSeasonalityChart seasonality={analyticsQuery.data.seasonality} />
+
 						<HostSuggestionsSection
 							job={suggestions.job}
+							history={suggestions.history}
+							leadTimeMedianDays={analyticsQuery.data.leadTime.medianDays}
 							isLoading={suggestions.isLoading}
 							isPolling={suggestions.isPolling}
 							isCreating={suggestions.isCreating}
@@ -107,11 +111,13 @@ export function HostBusinessAnalyticsPage({ actor, onNavigate }: HostBusinessAna
 							onInspectConflictJob={suggestions.inspectConflictJob}
 							onQuickCreate={(id) => void suggestions.openQuickCreate(id)}
 						/>
+
 						<HostOperationsBreakdown
 							operations={analyticsQuery.data.operations}
 							upcoming={analyticsQuery.data.upcoming}
+							seasonality={analyticsQuery.data.seasonality}
 						/>
-					</>
+					</div>
 				) : null}
 			</div>
 		</div>

@@ -154,6 +154,40 @@ export interface HostAnalyticsResponse {
 
 export type HostSuggestionJobStatus = "queued" | "running" | "succeeded" | "failed";
 
+export interface SuggestionWeatherSummary {
+	status: "available" | "beyond_horizon" | "unavailable";
+	riskLevel: "green" | "yellow" | "red" | null;
+	summary: string;
+	checkedDate: string | null;
+	avoidedRedDates?: string[];
+}
+
+export interface AiRiskItem {
+	code: string;
+	note: string;
+}
+
+export interface SuggestionDateOption {
+	startsAt: string;
+	endsAt: string;
+	meetingAt: string;
+	bookingDeadline: string;
+	label: string;
+	weatherSummary: SuggestionWeatherSummary | null;
+}
+
+export interface SuggestionRouteReviewSummary {
+	averageRating: number | null;
+	reviewCount: number;
+	highlightText: string;
+	hasSlipOrWeatherCaution: boolean;
+}
+
+export interface SuggestionHolidayHighlight {
+	label: string;
+	capacityBoostNote: string | null;
+}
+
 export interface HostTripSuggestionItem {
 	id: string;
 	routeId: string;
@@ -166,10 +200,25 @@ export interface HostTripSuggestionItem {
 	capacityBand: string | null;
 	suggestedPricePerPerson: number | null;
 	suggestedCapacityMin: number | null;
+	suggestedStartsAt: string | null;
+	weatherSummary: SuggestionWeatherSummary | null;
+	aiSeasonNote: string | null;
+	aiRisks: AiRiskItem[] | null;
+	aiConfidence: "low" | "medium" | null;
 	rationaleCodes: HostAnalyticsRationaleCode[];
 	rationaleLabels: string[];
 	missingData: string[];
 	createdAt: string;
+	scheduleConflictFree?: boolean;
+	scheduleConflictNote?: string | null;
+	holidayHighlight?: SuggestionHolidayHighlight | null;
+	routeReviewSummary?: SuggestionRouteReviewSummary | null;
+	dateOptions?: SuggestionDateOption[];
+}
+
+export interface HostSuggestionHistoryItem extends HostTripSuggestionItem {
+	jobId: string;
+	jobCreatedAt: string;
 }
 
 export interface HostSuggestionJobResponse {
@@ -199,10 +248,18 @@ export interface QuickCreateContextResponse {
 	valid: true;
 	prefill: {
 		routeId: string;
+		title: string | null;
 		areaCode: string | null;
 		tripType: "day_trip" | "overnight";
 		pricePerPerson: number | null;
 		capacityMin: number | null;
+		capacityMax: number | null;
+		meetingLongitude: number | null;
+		meetingLatitude: number | null;
+		startsAt: string | null;
+		endsAt: string | null;
+		meetingAt: string | null;
+		bookingDeadline: string | null;
 		suggestedMonth: string;
 	};
 }
@@ -211,4 +268,7 @@ export interface HostAnalyticsFilterParams {
 	from: string;
 	to: string;
 	areaCode?: string;
+	monthHint?: string;
+	excludeRouteIds?: string[];
+	refresh?: boolean;
 }

@@ -20,6 +20,8 @@ import {
 import type { ModerationDecisionResponseDto } from "./dtos/moderation-decision-response.dto";
 // biome-ignore lint/style/useImportType: Nest injection
 import { TripReviewImageStorageService } from "./trip-review-image-storage.service";
+import { MODERATION_NOTIFY_HOST_MIN_THRESHOLD_BPS } from "./trip-review-moderation.constants";
+import { confidenceToBasisPoints } from "./trip-review-moderation.policy";
 import type {
 	DetectionSource,
 	HostModerationDecision,
@@ -225,17 +227,39 @@ export class TripReviewModerationHostService {
 			if (dto.decision === ModerationDecisionAction.HIDE) {
 				const isUnverifiedFallback = review.moderationVerificationStatus === "unverified";
 				if (!isUnverifiedFallback) {
-					// Require reason to match at least one active flag when AI scan completed
-					const activeFlags: Array<{ flag_type: ModerationFlagType }> = await manager.query(
-						`SELECT flag_type FROM trip_review_moderation_flags
+					// Require reason to match at least one active flag with confidence >= 50% when AI scan completed
+					const activeFlags: Array<{
+						flag_type: ModerationFlagType;
+						detection_source?: DetectionSource;
+						confidence?: string | number | null;
+					}> = await manager.query(
+						`SELECT flag_type, detection_source, confidence FROM trip_review_moderation_flags
 						 WHERE review_id = $1 AND lifecycle_status = 'active'`,
 						[reviewId]
 					);
 
-					const matchingFlag = activeFlags.some((f) => f.flag_type === dto.reason);
-					if (!matchingFlag) {
+					const matchingFlags = activeFlags.filter((f) => f.flag_type === dto.reason);
+					if (matchingFlags.length === 0) {
 						throw new BadRequestException(
 							`Hidden reason '${dto.reason}' must match an active violation flag on this review`
+						);
+					}
+
+					const hasActionableConfidence = matchingFlags.some((f) => {
+						if (!f.detection_source && f.confidence === undefined) {
+							return true;
+						}
+						const rawConf =
+							f.confidence === null || f.confidence === undefined ? null : Number(f.confidence);
+						return (
+							confidenceToBasisPoints(rawConf, f.detection_source ?? "model") >=
+							MODERATION_NOTIFY_HOST_MIN_THRESHOLD_BPS
+						);
+					});
+
+					if (!hasActionableConfidence) {
+						throw new BadRequestException(
+							"Độ tin cậy vi phạm dưới 50%, không được phép ẩn đánh giá này"
 						);
 					}
 				} else if (!dto.reason) {

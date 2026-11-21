@@ -9,6 +9,7 @@ import { hostAnalyticsService } from "../services/host-analytics.service";
 import type {
 	ActiveSuggestionJobConflict,
 	HostAnalyticsFilterParams,
+	HostSuggestionHistoryItem,
 	HostSuggestionJobResponse,
 } from "../types";
 
@@ -115,11 +116,21 @@ export function useHostSuggestions(actor: string, onNavigateCreateTrip: (path: s
 		},
 	});
 
+	const historyQuery = useQuery<HostSuggestionHistoryItem[]>({
+		queryKey: queryKeys.hostAnalytics.suggestionHistory(actor),
+		queryFn: () => hostAnalyticsService.getSuggestionHistory(),
+		enabled: Boolean(actor),
+		retry: false,
+	});
+
 	// Sync completed tracked job back into latest cache
 	useEffect(() => {
 		if (!trackedQuery.data) return;
 		if (trackedQuery.data.status === "succeeded" || trackedQuery.data.status === "failed") {
 			queryClient.setQueryData(queryKeys.hostAnalytics.latestSuggestion(actor), trackedQuery.data);
+			void queryClient.invalidateQueries({
+				queryKey: queryKeys.hostAnalytics.suggestionHistory(actor),
+			});
 			setTrackedJobId(null);
 			setActiveConflict(null);
 		}
@@ -191,6 +202,7 @@ export function useHostSuggestions(actor: string, onNavigateCreateTrip: (path: s
 
 	return {
 		job: activeJob,
+		history: historyQuery.data ?? [],
 		isLoading: latestQuery.isPending,
 		isPolling: activeJob?.status === "queued" || activeJob?.status === "running",
 		isCreating: createMutation.isPending,

@@ -23,7 +23,7 @@ export class HostAnalyticsSuggestionsWorker implements OnModuleInit, OnModuleDes
 
 		this.timer = setInterval(() => {
 			void this.tick();
-		}, 2000);
+		}, 1000);
 		this.timer.unref?.();
 	}
 

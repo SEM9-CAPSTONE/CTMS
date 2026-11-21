@@ -1,12 +1,17 @@
 import {
+	buildAllowedFutureMonths,
 	buildLeadTime,
 	buildOperationsMetrics,
 	buildRouteCandidates,
 	buildSeasonality,
+	buildSuggestedTripTitle,
 	computeSourceHash,
+	computeSuggestedSchedule,
 	monthKeyInVietnam,
 	roundToTenThousandVnd,
+	sanitizeAiNarrativeText,
 	validateAiPlanningSelection,
+	vietnamDateKey,
 } from "./host-analytics.policy";
 
 describe("host-analytics.policy", () => {
@@ -188,8 +193,71 @@ describe("host-analytics.policy", () => {
 			{ candidateId: "cand-1", monthHint: "2030-01", rationaleCodes: ["high_fill_history"] },
 		]);
 		expect(selected).toEqual([
-			{ candidateId: "cand-1", monthHint: "2026-12", rationaleCodes: ["high_fill_history"] },
+			{
+				candidateId: "cand-1",
+				monthHint: "2026-12",
+				rationaleCodes: ["high_fill_history"],
+				aiSeasonNote: null,
+				aiRisks: null,
+				aiConfidence: null,
+			},
 		]);
+	});
+
+	it("computes valid suggested schedule with 14-day buffer, avoids RED dates, and sanitizes URLs/invented numbers from AI notes", () => {
+		const now = new Date("2026-11-20T02:00:00.000Z"); // 2026-11-20 09:00 VN; +14d = 2026-12-04
+		expect(buildAllowedFutureMonths(now, 3)).toEqual(["2026-12", "2027-01", "2027-02"]);
+		expect(buildSuggestedTripTitle("Leo núi Sơn Trà", "2026-12")).toBe(
+			"Leo núi Sơn Trà (Tháng 12/2026)"
+		);
+
+		const latestTrip = {
+			id: "t-old",
+			title: "Leo núi Sơn Trà",
+			routeId: "r-1",
+			tripType: "day_trip" as const,
+			areaCode: "DNG-SON-TRA",
+			capacityMin: 4,
+			capacityMax: 12,
+			pricePerPerson: 650000,
+			// Saturday 2026-10-17 06:00 VN == 2026-10-16T23:00:00Z
+			startsAt: new Date("2026-10-16T23:00:00.000Z"),
+			endsAt: new Date("2026-10-17T06:00:00.000Z"),
+			meetingAt: new Date("2026-10-16T22:30:00.000Z"),
+			bookingDeadline: new Date("2026-10-14T23:00:00.000Z"),
+			meetingLongitude: 108.25,
+			meetingLatitude: 16.1,
+			routeLengthMeters: 6000,
+		};
+
+		const sched = computeSuggestedSchedule(latestTrip, "2026-12", now);
+		expect(sched).not.toBeNull();
+		if (!sched) {
+			throw new Error("Expected sched not to be null");
+		}
+		expect(sched.bookingDeadline.getTime()).toBeGreaterThan(now.getTime());
+		expect(sched.meetingAt.getTime()).toBeGreaterThan(sched.bookingDeadline.getTime());
+		expect(sched.startsAt.getTime()).toBeGreaterThan(sched.meetingAt.getTime());
+		expect(sched.endsAt.getTime()).toBeGreaterThan(sched.startsAt.getTime());
+
+		// Avoid the first picked Saturday -> shifts to next valid date (Vietnam local date key)
+		const firstDate = vietnamDateKey(sched.startsAt);
+		const shifted = computeSuggestedSchedule(latestTrip, "2026-12", now, new Set([firstDate]));
+		expect(shifted).not.toBeNull();
+		if (!shifted) {
+			throw new Error("Expected shifted not to be null");
+		}
+		expect(vietnamDateKey(shifted.startsAt)).not.toBe(firstDate);
+
+		// Post-validation rejects URLs and invented numbers
+		const allowed = new Set(["12", "2026"]);
+		expect(
+			sanitizeAiNarrativeText("Tháng 12 mát mẻ, xem https://example.com", 280, allowed)
+		).toBeNull();
+		expect(sanitizeAiNarrativeText("Tháng 12 có 999 khách đặt mỗi tuần", 280, allowed)).toBeNull();
+		expect(
+			sanitizeAiNarrativeText("Tháng 12 thời tiết mát, thuận lợi đi bộ đường dài.", 280, allowed)
+		).toBe("Tháng 12 thời tiết mát, thuận lợi đi bộ đường dài.");
 	});
 
 	it("changes source_hash when underlying trip or financial totals change", () => {

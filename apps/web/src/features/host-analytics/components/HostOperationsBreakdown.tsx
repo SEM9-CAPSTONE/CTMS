@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, DataTable, type DataTableColumn, StatusBadge } from "../../../shared/components";
-import { EXCLUDED_TRIP_REASON_LABELS, formatShortDateVi } from "../constants";
+import { formatMonthVi, formatShortDateVi } from "../constants";
 import type {
 	HostOperationsMetrics,
+	HostSeasonality,
 	HostUpcomingBlock,
 	OperationsAreaBreakdown,
 	OperationsRouteBreakdown,
@@ -10,11 +12,12 @@ import type {
 	UpcomingTripSummary,
 } from "../types";
 
-type BreakdownTab = "route" | "area" | "trip";
+type BreakdownTab = "seasonality" | "route" | "area" | "trip" | "upcoming";
 
 export interface HostOperationsBreakdownProps {
 	operations: HostOperationsMetrics;
 	upcoming: HostUpcomingBlock;
+	seasonality: HostSeasonality;
 }
 
 const routeColumns: DataTableColumn<OperationsRouteBreakdown>[] = [
@@ -28,7 +31,7 @@ const routeColumns: DataTableColumn<OperationsRouteBreakdown>[] = [
 	},
 	{
 		key: "fillRate",
-		header: "Tỷ lệ lấp đầy",
+		header: "Tỷ lệ kín chỗ",
 		align: "right",
 		render: (r) => (r.fillRate === null ? "Chưa có dữ liệu" : `${r.fillRate}%`),
 	},
@@ -51,7 +54,7 @@ const areaColumns: DataTableColumn<OperationsAreaBreakdown>[] = [
 	},
 	{
 		key: "fillRate",
-		header: "Tỷ lệ lấp đầy",
+		header: "Tỷ lệ kín chỗ",
 		align: "right",
 		render: (a) => (a.fillRate === null ? "Chưa có dữ liệu" : `${a.fillRate}%`),
 	},
@@ -75,7 +78,7 @@ const tripColumns: DataTableColumn<OperationsTripBreakdown>[] = [
 	},
 	{
 		key: "fillRate",
-		header: "Lấp đầy",
+		header: "Kín chỗ",
 		align: "right",
 		render: (t) => (t.fillRate === null ? "Chưa có dữ liệu" : `${t.fillRate}%`),
 	},
@@ -111,118 +114,175 @@ const upcomingColumns: DataTableColumn<UpcomingTripSummary>[] = [
 	},
 ];
 
-export function HostOperationsBreakdown({ operations, upcoming }: HostOperationsBreakdownProps) {
-	const [tab, setTab] = useState<BreakdownTab>("route");
+export function HostOperationsBreakdown({
+	operations,
+	upcoming,
+	seasonality,
+}: HostOperationsBreakdownProps) {
+	const [tab, setTab] = useState<BreakdownTab>("seasonality");
+	const [showAll, setShowAll] = useState(false);
+
+	const missingMonths = Math.max(0, 12 - seasonality.historySpanMonths);
+	const chartData = seasonality.trend.map((point) => ({
+		month: point.month,
+		label: `${point.month.slice(5)}/${point.month.slice(2, 4)}`,
+		tripCount: point.tripCount,
+		totalGuests: point.totalGuests,
+		fillRate: point.fillRate,
+	}));
+
+	const activeCount =
+		tab === "seasonality"
+			? 0
+			: tab === "route"
+				? operations.byRoute.length
+				: tab === "area"
+					? operations.byArea.length
+					: tab === "trip"
+						? operations.byTrip.length
+						: upcoming.trips.length;
 
 	return (
-		<div className="space-y-4">
-			<Card className="space-y-4 p-5">
-				<div className="flex flex-wrap items-center justify-between gap-3">
-					<h2 className="text-base font-semibold text-[#10221b]">
-						Chi tiết vận hành (chuyến đã hoàn thành)
-					</h2>
-					<div className="flex items-center gap-1.5" role="tablist" aria-label="Phân nhóm vận hành">
-						{(
-							[
-								{ key: "route", label: "Theo tuyến" },
-								{ key: "area", label: "Theo khu vực" },
-								{ key: "trip", label: "Theo chuyến" },
-							] as const
-						).map((item) => (
-							<button
-								key={item.key}
-								type="button"
-								role="tab"
-								aria-selected={tab === item.key}
-								onClick={() => setTab(item.key)}
-								className={
-									tab === item.key
-										? "rounded-full bg-[#164027] px-3 py-1 text-xs font-semibold text-white"
-										: "rounded-full border border-[#d6e2d6] bg-white px-3 py-1 text-xs font-medium text-[#2c4234] hover:bg-[#f2f7f2]"
-								}
-							>
-								{item.label}
-							</button>
-						))}
-					</div>
+		<Card className="space-y-4 p-5">
+			<div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e8efe8] pb-3.5">
+				<div className="flex flex-wrap items-center gap-2">
+					<h2 className="text-base font-bold text-gray-900">Xu hướng & Phân tích chi tiết</h2>
+					<StatusBadge tone={seasonality.status === "ok" ? "success" : "neutral"}>
+						{seasonality.status === "ok"
+							? `${seasonality.historySpanMonths} tháng lịch sử`
+							: `Cần thêm ${missingMonths} tháng lịch sử`}
+					</StatusBadge>
 				</div>
 
-				{tab === "route" && (
-					<DataTable
-						columns={routeColumns}
-						rows={operations.byRoute}
-						getRowKey={(r) => r.routeId}
-						ariaLabel="Chi tiết vận hành theo tuyến"
-						emptyMessage="Chưa có chuyến hoàn thành trong kỳ này."
-					/>
-				)}
-				{tab === "area" && (
-					<DataTable
-						columns={areaColumns}
-						rows={operations.byArea}
-						getRowKey={(a) => a.areaCode ?? "unknown"}
-						ariaLabel="Chi tiết vận hành theo khu vực"
-						emptyMessage="Chưa có chuyến hoàn thành trong kỳ này."
-					/>
-				)}
-				{tab === "trip" && (
-					<DataTable
-						columns={tripColumns}
-						rows={operations.byTrip}
-						getRowKey={(t) => t.tripId}
-						ariaLabel="Chi tiết vận hành theo chuyến"
-						emptyMessage="Chưa có chuyến hoàn thành trong kỳ này."
-					/>
-				)}
+				<div
+					className="flex flex-wrap items-center gap-1.5"
+					role="tablist"
+					aria-label="Phân nhóm vận hành"
+				>
+					{(
+						[
+							{ key: "seasonality", label: "Biểu đồ xu hướng" },
+							{ key: "route", label: `Theo tuyến (${operations.byRoute.length})` },
+							{ key: "area", label: `Theo khu vực (${operations.byArea.length})` },
+							{ key: "trip", label: `Theo chuyến (${operations.byTrip.length})` },
+							{ key: "upcoming", label: `Sắp tới (${upcoming.tripCount})` },
+						] as const
+					).map((item) => (
+						<button
+							key={item.key}
+							type="button"
+							role="tab"
+							aria-selected={tab === item.key}
+							onClick={() => {
+								setTab(item.key);
+								setShowAll(false);
+							}}
+							className={`min-h-8 rounded-xl px-3 py-1 text-xs font-bold transition-all ${
+								tab === item.key
+									? "bg-[#164027] text-white shadow-xs"
+									: "border border-[#dfe8df] bg-white text-[#55685a] hover:bg-[#f4f7f2] hover:text-[#164027]"
+							}`}
+						>
+							{item.label}
+						</button>
+					))}
+				</div>
+			</div>
 
-				<div className="grid grid-cols-1 gap-3 border-t border-[#e8efe8] pt-3 text-xs text-[#435649] sm:grid-cols-2">
-					<div>
-						<span className="font-semibold text-[#10221b]">Chuyến đã hủy trong kỳ: </span>
-						{operations.cancelledTrips.count} chuyến
-						{operations.cancelledTrips.tripCancellationRate !== null
-							? ` (tỷ lệ hủy chuyến: ${operations.cancelledTrips.tripCancellationRate}%)`
-							: ""}
-						{" · "}
-						{operations.cancelledTrips.bookingsOnCancelledTrips} đơn bị hủy thuộc các chuyến này.
-					</div>
-					{operations.excludedTrips.length > 0 && (
-						<div>
-							<span className="font-semibold text-[#10221b]">
-								Chuyến không đưa vào tỷ lệ ({operations.excludedTrips.length}):{" "}
-							</span>
-							{operations.excludedTrips
-								.map((ex) => `${ex.title} (${EXCLUDED_TRIP_REASON_LABELS[ex.reason]})`)
-								.join("; ")}
+			{tab === "seasonality" && (
+				<div className="space-y-3">
+					{chartData.length === 0 ? (
+						<p className="py-10 text-center text-sm text-gray-500">
+							Chưa có chuyến hoàn thành để hiển thị biểu đồ.
+						</p>
+					) : (
+						<div className="h-60 w-full">
+							<ResponsiveContainer width="100%" height="100%">
+								<BarChart data={chartData} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
+									<CartesianGrid strokeDasharray="3 3" stroke="#e5ede5" vertical={false} />
+									<XAxis dataKey="label" tick={{ fontSize: 12, fill: "#526357" }} />
+									<YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#526357" }} />
+									<Tooltip
+										formatter={(value) => [`${String(value)} chuyến`, "Chuyến hoàn thành"]}
+										labelFormatter={(label) => `Tháng ${String(label)}`}
+									/>
+									<Bar dataKey="tripCount" fill="#164027" radius={[6, 6, 0, 0]} maxBarSize={40} />
+								</BarChart>
+							</ResponsiveContainer>
+						</div>
+					)}
+
+					{seasonality.status === "ok" && (
+						<div className="flex flex-wrap items-center gap-6 border-t border-[#e8efe8] pt-2.5 text-xs text-gray-600">
+							{seasonality.highestMonths && seasonality.highestMonths.length > 0 && (
+								<span>
+									Tháng cao điểm:{" "}
+									<strong className="font-semibold text-[#164027]">
+										{seasonality.highestMonths.map(formatMonthVi).join(", ")}
+									</strong>
+								</span>
+							)}
+							{seasonality.lowestMonths && seasonality.lowestMonths.length > 0 && (
+								<span>
+									Tháng thấp điểm:{" "}
+									<strong className="font-semibold text-gray-800">
+										{seasonality.lowestMonths.map(formatMonthVi).join(", ")}
+									</strong>
+								</span>
+							)}
 						</div>
 					)}
 				</div>
-			</Card>
+			)}
 
-			<Card className="space-y-4 p-5">
-				<div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-[#e8efe8] pb-3">
-					<div>
-						<h2 className="text-base font-semibold text-[#10221b]">
-							Chuyến sắp tới & đang diễn ra ({upcoming.tripCount})
-						</h2>
-						<p className="mt-0.5 text-xs text-[#526357]">
-							Hiển thị tách biệt khỏi chỉ số hiệu quả. Số chỗ đã lấy bao gồm cả chỗ đang giữ chờ
-							thanh toán.
-						</p>
-					</div>
-					<span className="text-xs font-medium text-[#2c4234]">
-						Tổng chỗ đã giữ: {upcoming.totalSeatsTaken}
-						{upcoming.totalCapacityMax !== null ? ` / ${upcoming.totalCapacityMax}` : ""}
-					</span>
-				</div>
-
+			{tab === "route" && (
+				<DataTable
+					columns={routeColumns}
+					rows={showAll ? operations.byRoute : operations.byRoute.slice(0, 5)}
+					getRowKey={(r) => r.routeId}
+					ariaLabel="Chi tiết vận hành theo tuyến"
+					emptyMessage="Chưa có chuyến hoàn thành trong kỳ này."
+				/>
+			)}
+			{tab === "area" && (
+				<DataTable
+					columns={areaColumns}
+					rows={showAll ? operations.byArea : operations.byArea.slice(0, 5)}
+					getRowKey={(a) => a.areaCode ?? "unknown"}
+					ariaLabel="Chi tiết vận hành theo khu vực"
+					emptyMessage="Chưa có chuyến hoàn thành trong kỳ này."
+				/>
+			)}
+			{tab === "trip" && (
+				<DataTable
+					columns={tripColumns}
+					rows={showAll ? operations.byTrip : operations.byTrip.slice(0, 5)}
+					getRowKey={(t) => t.tripId}
+					ariaLabel="Chi tiết vận hành theo chuyến"
+					emptyMessage="Chưa có chuyến hoàn thành trong kỳ này."
+				/>
+			)}
+			{tab === "upcoming" && (
 				<DataTable
 					columns={upcomingColumns}
-					rows={upcoming.trips}
+					rows={showAll ? upcoming.trips : upcoming.trips.slice(0, 5)}
 					getRowKey={(t) => t.tripId}
 					ariaLabel="Danh sách chuyến sắp tới và đang diễn ra"
 					emptyMessage="Hiện không có chuyến sắp khởi hành hoặc đang diễn ra."
 				/>
-			</Card>
-		</div>
+			)}
+
+			{activeCount > 5 && (
+				<div className="flex justify-center border-t border-[#e8efe8] pt-2.5">
+					<button
+						type="button"
+						onClick={() => setShowAll((prev) => !prev)}
+						className="text-xs font-semibold text-[#164027] hover:underline"
+					>
+						{showAll ? "Thu gọn danh sách" : `Xem tất cả (${activeCount})`}
+					</button>
+				</div>
+			)}
+		</Card>
 	);
 }
