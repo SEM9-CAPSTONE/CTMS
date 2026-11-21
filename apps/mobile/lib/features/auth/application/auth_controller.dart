@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/lifecycle/session_hooks.dart';
 import '../data/auth_repository.dart';
+import '../data/google_id_token_source.dart';
 import '../domain/auth_user.dart';
 
 class AuthController extends AsyncNotifier<AuthUser?> {
@@ -21,6 +22,22 @@ class AuthController extends AsyncNotifier<AuthUser?> {
     state = await AsyncValue.guard(
       () => ref.read(authRepositoryProvider).login(identifier: identifier, password: password),
     );
+
+    _isLoggingIn = false;
+  }
+
+  /// "Đăng nhập bằng Google": the Google sheet, then `POST /auth/google`.
+  /// Closing the sheet leaves the user signed out without an error.
+  Future<void> loginWithGoogle() async {
+    if (_isLoggingIn) return;
+    _isLoggingIn = true;
+
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final idToken = await ref.read(googleIdTokenSourceProvider).signIn();
+      if (idToken == null) return null;
+      return ref.read(authRepositoryProvider).loginWithGoogle(idToken);
+    });
 
     _isLoggingIn = false;
   }

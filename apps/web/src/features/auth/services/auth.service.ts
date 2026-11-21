@@ -25,8 +25,9 @@ export const authService = {
 		return httpClient.post<LoginApiResponse>(API_ENDPOINTS.AUTH.LOGIN, payload);
 	},
 
-	loginWithGoogle: async (): Promise<{ success: boolean }> => {
-		return Promise.resolve({ success: true });
+	/** Exchanges a Google Identity Services credential (ID token) for a CTMS session. */
+	loginWithGoogle: async (idToken: string): Promise<LoginApiResponse> => {
+		return httpClient.post<LoginApiResponse>(API_ENDPOINTS.AUTH.GOOGLE, { idToken });
 	},
 
 	register: async (payload: RegisterApiPayload): Promise<RegisterApiResponse> => {

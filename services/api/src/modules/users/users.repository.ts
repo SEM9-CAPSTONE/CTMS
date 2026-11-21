@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { type FindOptionsWhere, Repository } from "typeorm";
 import { UserRoleAssignment } from "./entities/user-role.entity";
-import type { User, UserRole } from "./entities/user.entity";
+import type { User, UserRole, UserStatus } from "./entities/user.entity";
 import type { PaginatedUsers, UserAccountFilters } from "./users.types";
 
 interface CreateUserInput {
@@ -10,6 +10,9 @@ interface CreateUserInput {
 	passwordHash: string;
 	role: UserRole;
 	fullName?: string | null;
+	status?: UserStatus;
+	avatarUrl?: string | null;
+	googleSub?: string | null;
 }
 
 /**

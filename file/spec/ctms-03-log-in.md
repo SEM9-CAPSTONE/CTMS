@@ -134,3 +134,22 @@ TBD — Technical Design.
 ## 12. Open Decisions
 
 None.
+
+## 13. Extension – Đăng nhập bằng Google (2026-11-21, no Jira key)
+
+Requested by the team (the web "Đăng nhập bằng Google" button existed but did nothing). Decisions made with the user: an unknown Google e-mail creates a **Camper** account; web **and** mobile.
+
+| Item | Behaviour |
+| --- | --- |
+| API | `POST /api/auth/google` `{ idToken }` → same body as `/auth/login` (accessToken, refreshToken, user). |
+| Token check | `google-auth-library` verifies signature, expiry, issuer and audience against `GOOGLE_CLIENT_IDS` (comma-separated; the web OAuth client id). Unverified Google e-mail → 401. Not configured → 503. |
+| Matching | Account linked to the Google `sub` (`users.google_sub`, migration `1798300000000`), else the account with the same e-mail. First Google sign-in links the `sub`. An e-mail already linked to a different Google account → 401. |
+| Status | `active` → signed in; `pending_verification` → activated (Google proved the e-mail); `suspended`/`deleted` → 401 "Account is not active", no session. |
+| New e-mail | Active **Camper** account: name and avatar from Google, phone empty (added later in the profile), random password (use "Quên mật khẩu" to set one). Porter keeps the normal registration (certificate verification). |
+| Audit | `auth.register` `{ method: "google", role: "camper" }` for a new account; every sign-in writes `auth.login` `{ method: "google" }`. |
+| Web | Google Identity Services button (`VITE_GOOGLE_CLIENT_ID`); hidden when empty. Errors in Vietnamese on the login form. |
+| Mobile | `google_sign_in` 7.x, ID token requested for the web client (`--dart-define=GOOGLE_SERVER_CLIENT_ID=…`); button hidden when empty; closing the Google sheet is not an error. Android needs an OAuth **Android** client (package `com.ctms.mobile` + SHA-1) in the same Google Cloud project. |
+
+**Configuration (never commit real values):** `GOOGLE_CLIENT_IDS` (API), `VITE_GOOGLE_CLIENT_ID` (web build arg, also in `docker-compose.yml` / `infra/docker/web.Dockerfile`), `GOOGLE_SERVER_CLIENT_ID` (mobile dart-define). The production workflow must pass `VITE_GOOGLE_CLIENT_ID` as a web build arg and `GOOGLE_CLIENT_IDS` to the API container.
+
+**Tests:** `test/auth.google.integration-spec.ts` (9, Google verifier faked: new Camper, link existing, linked after e-mail change, activate pending, suspended, other Google account, invalid/unverified token, 503, 422); web `LoginPage.google.test.tsx` (3); mobile `test/features/auth/google_login_test.dart` (5).

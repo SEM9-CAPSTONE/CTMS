@@ -17,6 +17,7 @@ class AuthEndpoints {
   const AuthEndpoints();
 
   String get login => '/auth/login';
+  String get google => '/auth/google';
   String get register => '/auth/register';
   String get sendOtp => '/auth/send-otp';
   String get resendOtp => '/auth/resend';
