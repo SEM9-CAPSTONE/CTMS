@@ -6,7 +6,10 @@ import {
 	AdminReviewFilters,
 } from "../../../shared/components/AdminReviewFilters";
 import { AdminLayout } from "../../admin-layout/components/AdminLayout";
-import { useRefreshAdminModerationCounts } from "../../admin-layout/hooks/useAdminModerationCounts";
+import {
+	useAdminModerationCounts,
+	useRefreshAdminModerationCounts,
+} from "../../admin-layout/hooks/useAdminModerationCounts";
 import { AdminRouteReviewContent } from "../components/AdminRouteReviewContent";
 import { RouteReviewDecisionDialog } from "../components/RouteReviewDecisionDialog";
 import { useAdminRouteReviews, useReviewTrekkingRoute } from "../hooks/useAdminRouteReviews";
@@ -29,6 +32,8 @@ export function AdminTrekkingRoutesPage({ onLogout }: AdminTrekkingRoutesPagePro
 	const [page, setPage] = useState(1);
 	const list = useAdminRouteReviews(reviewOutcome, page);
 	const review = useReviewTrekkingRoute();
+	const moderationCounts = useAdminModerationCounts();
+	const pendingRoutesCount = moderationCounts.data?.trekkingRoutes ?? 0;
 	const refreshModerationCounts = useRefreshAdminModerationCounts();
 	const [selectedId, setSelectedId] = useState<string>();
 	const [dialogOpen, setDialogOpen] = useState(false);
@@ -66,9 +71,14 @@ export function AdminTrekkingRoutesPage({ onLogout }: AdminTrekkingRoutesPagePro
 		<AdminLayout activeItem="route-review" onLogout={onLogout}>
 			<main className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6 lg:px-8">
 				<header>
-					<h1 className="flex items-center gap-3 text-2xl font-extrabold">
+					<h1 className="flex flex-wrap items-center gap-3 text-2xl font-extrabold">
 						<Route className="size-7 text-[#164027]" />
-						Phê duyệt tuyến trekking
+						<span>Phê duyệt tuyến trekking</span>
+						{pendingRoutesCount > 0 && (
+							<span className="inline-flex items-center rounded-full bg-rose-600 px-2.5 py-0.5 text-xs font-bold text-white">
+								{pendingRoutesCount} chờ duyệt
+							</span>
+						)}
 					</h1>
 					<p className="mt-1 text-sm text-[#667a6d]">
 						Kiểm tra hình học, độ khó và checkpoint trước khi đưa tuyến vào vận hành.

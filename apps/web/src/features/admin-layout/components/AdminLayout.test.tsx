@@ -145,10 +145,11 @@ describe("AdminLayout", () => {
 			</AdminLayout>
 		);
 		await user.click(screen.getByRole("button", { name: "Thu gọn thanh điều hướng" }));
-		await user.click(screen.getByRole("link", { name: "Tổng quan" }));
-		expect(window.location.pathname).toBe("/dashboard");
-		expect(window.history.state).toMatchObject({ activeRole: "admin" });
+		expect(screen.queryByRole("link", { name: "Tổng quan" })).not.toBeInTheDocument();
+		await user.click(screen.getByRole("link", { name: "Báo cáo hiệu suất" }));
+		expect(window.location.pathname).toBe("/admin/reports/performance");
 
+		window.history.replaceState({ activeRole: "admin" }, "", "/dashboard");
 		rerender(
 			<RoleLandingPage
 				user={{
@@ -166,10 +167,8 @@ describe("AdminLayout", () => {
 		);
 		const sidebar = screen.getByRole("navigation", { name: "Điều hướng quản trị" });
 		expect(screen.getAllByRole("complementary")).toHaveLength(1);
-		expect(within(sidebar).getByRole("link", { name: "Tổng quan" })).toHaveAttribute(
-			"aria-current",
-			"page"
-		);
+		expect(within(sidebar).queryByRole("link", { name: "Tổng quan" })).not.toBeInTheDocument();
+		expect(within(sidebar).getByRole("link", { name: "Báo cáo hiệu suất" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Mở rộng thanh điều hướng" })).toBeVisible();
 		expect(screen.getByRole("heading", { name: "Trung tâm quản trị" })).toBeVisible();
 		expect(screen.getByText("Coming soon")).toBeVisible();

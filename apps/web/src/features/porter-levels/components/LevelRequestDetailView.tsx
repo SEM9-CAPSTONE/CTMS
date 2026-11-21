@@ -1,16 +1,19 @@
 import { Button, StatusBadge } from "../../../shared/components";
 import { REQUEST_STATUS_LABELS, levelName } from "../constants";
 import type { RequestDetail, RequestEvidence } from "../request-types";
+import type { GlobalPorterLevelOverview } from "../types";
 import { LevelComparisonTable } from "./LevelComparisonTable";
 import { LevelReviewHistory } from "./LevelReviewHistory";
 
 export function LevelRequestDetailView({
 	detail,
+	globalOverview,
 	pending,
 	onDownload,
 	onRemove,
 }: {
 	detail: RequestDetail;
+	globalOverview?: GlobalPorterLevelOverview | null;
 	pending: boolean;
 	onDownload: (file: RequestEvidence) => void;
 	onRemove?: (fileId: string) => void;
@@ -18,13 +21,21 @@ export function LevelRequestDetailView({
 	const { request, evidence, events } = detail;
 	return (
 		<div className="space-y-5">
-			<div className="flex flex-wrap items-start justify-between gap-3">
-				<div>
-					<h3 className="text-lg font-bold">{request.porterName ?? "người hỗ trợ"}</h3>
-					<p className="mt-1 text-sm text-muted-foreground">
-						Tuyến minh chứng:{" "}
-						<span className="font-semibold text-foreground">{request.routeName}</span>
-					</p>
+			{/* Header tóm tắt yêu cầu (chuẩn Impeccable: nền dịu, không viền gắt) */}
+			<div className="flex flex-wrap items-start justify-between gap-4 rounded-xl bg-[#f8faf7] p-4">
+				<div className="space-y-1">
+					<h3 className="text-base font-bold text-[#10221b]">
+						{request.porterName ?? "Người hỗ trợ"}
+					</h3>
+					<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#53674d]">
+						<span>
+							Cấp đề nghị:{" "}
+							<strong className="font-semibold text-[#10221b]">
+								{levelName(request.currentLevel)} → {levelName(request.targetLevel)}
+							</strong>
+						</span>
+						<span>Gửi ngày {new Date(request.createdAt).toLocaleDateString("vi-VN")}</span>
+					</div>
 				</div>
 				<StatusBadge
 					tone={
@@ -40,47 +51,43 @@ export function LevelRequestDetailView({
 					{REQUEST_STATUS_LABELS[request.status]}
 				</StatusBadge>
 			</div>
-			<div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-				<p>
-					Cấp đề nghị:{" "}
-					<strong>
-						{levelName(request.currentLevel)} → {levelName(request.targetLevel)}
-					</strong>
-				</p>
-				<p className="text-muted-foreground">
-					Gửi ngày {new Date(request.createdAt).toLocaleDateString("vi-VN")}
-				</p>
-			</div>
-			<section className="space-y-1 text-sm">
-				<h4 className="font-semibold">Lý do đề nghị</h4>
-				<p className="whitespace-pre-wrap leading-relaxed text-muted-foreground">
+
+			{/* Lý do đề nghị */}
+			<section className="space-y-1.5">
+				<h4 className="text-xs font-semibold uppercase tracking-wide text-[#53674d]">
+					Lý do đề nghị
+				</h4>
+				<p className="whitespace-pre-wrap text-sm leading-relaxed text-[#10221b]">
 					{request.reason}
 				</p>
 			</section>
+
 			{request.decisionReason && (
-				<section className="border-l-2 border-[#164027] pl-3 text-sm">
-					<h4 className="font-semibold">Phản hồi</h4>
-					<p className="mt-1 whitespace-pre-wrap">{request.decisionReason}</p>
+				<section className="rounded-xl border-l-3 border-[#164027] bg-[#f8faf7] px-4 py-3 text-sm">
+					<h4 className="text-xs font-semibold uppercase tracking-wide text-[#164027]">Phản hồi</h4>
+					<p className="mt-1 whitespace-pre-wrap leading-relaxed text-[#10221b]">
+						{request.decisionReason}
+					</p>
 				</section>
 			)}
-			<section className="space-y-2">
-				<h4 className="text-sm font-semibold">
+
+			{/* Minh chứng đính kèm */}
+			<section className="space-y-2 border-t border-[#edf2ed] pt-4">
+				<h4 className="text-xs font-semibold uppercase tracking-wide text-[#53674d]">
 					Minh chứng {evidence.length > 0 && `(${evidence.length})`}
 				</h4>
-				{!evidence.length && (
-					<p className="text-sm text-muted-foreground">Chưa đính kèm minh chứng.</p>
-				)}
+				{!evidence.length && <p className="text-xs text-[#667a6d]">Chưa đính kèm minh chứng.</p>}
 				{evidence.map((file) => (
 					<div
 						key={file.id}
-						className="flex flex-wrap items-center justify-between gap-3 border-b border-border py-2 text-sm"
+						className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#f8faf7] px-3.5 py-2.5 text-sm"
 					>
 						<div className="min-w-0">
-							<p className="break-all font-medium">
+							<p className="break-all font-medium text-[#10221b]">
 								{file.fileName}
 								{file.removedAt ? " (Đã gỡ)" : ""}
 							</p>
-							<p className="text-xs text-muted-foreground">{Math.ceil(file.size / 1024)} KB</p>
+							<p className="text-xs text-[#667a6d]">{Math.ceil(file.size / 1024)} KB</p>
 						</div>
 						<div className="flex gap-2">
 							<Button
@@ -105,21 +112,27 @@ export function LevelRequestDetailView({
 					</div>
 				))}
 			</section>
-			{detail.decision ? (
-				<LevelReviewHistory items={[detail.decision]} />
-			) : (
-				<LevelComparisonTable context={detail} />
-			)}
-			<details className="text-sm">
-				<summary className="cursor-pointer py-2 font-semibold">
+
+			{/* Đối chiếu tiêu chí hoặc Quyết định */}
+			<div className="border-t border-[#edf2ed] pt-4">
+				{detail.decision ? (
+					<LevelReviewHistory items={[detail.decision]} />
+				) : (
+					<LevelComparisonTable context={detail} globalOverview={globalOverview} />
+				)}
+			</div>
+
+			{/* Lịch sử xử lý */}
+			<details className="rounded-xl bg-[#f8faf7] px-4 py-2.5 text-sm">
+				<summary className="cursor-pointer py-1 text-xs font-semibold text-[#10221b]">
 					Lịch sử xử lý ({events.length})
 				</summary>
-				<ol className="mt-2 space-y-3 border-l border-border pl-4">
+				<ol className="mt-2.5 space-y-3 border-l-2 border-[#d5e3d8] pl-4 pb-1">
 					{events.map((event) => (
 						<li key={event.id}>
-							<p className="font-medium">
+							<p className="text-xs font-semibold text-[#10221b]">
 								{REQUEST_STATUS_LABELS[event.toStatus]}{" "}
-								<span className="font-normal text-muted-foreground">
+								<span className="font-normal text-[#667a6d]">
 									·{" "}
 									{new Date(event.createdAt).toLocaleString("vi-VN", {
 										dateStyle: "short",
@@ -128,9 +141,9 @@ export function LevelRequestDetailView({
 								</span>
 							</p>
 							{event.reason && (
-								<p className="mt-1 whitespace-pre-wrap text-muted-foreground">{event.reason}</p>
+								<p className="mt-1 whitespace-pre-wrap text-xs text-[#4a5e51]">{event.reason}</p>
 							)}
-							<p className="mt-1 text-xs text-muted-foreground">{event.actorName ?? "Hệ thống"}</p>
+							<p className="mt-0.5 text-[11px] text-[#667a6d]">{event.actorName ?? "Hệ thống"}</p>
 						</li>
 					))}
 				</ol>

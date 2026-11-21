@@ -11,6 +11,7 @@ interface PorterProfileFormProps {
 	onSubmit: (e?: React.BaseSyntheticEvent) => Promise<void>;
 	onReset: () => void;
 	isDirty: boolean;
+	embedded?: boolean;
 }
 
 export function PorterProfileForm({
@@ -19,6 +20,7 @@ export function PorterProfileForm({
 	onSubmit,
 	onReset,
 	isDirty,
+	embedded = false,
 }: PorterProfileFormProps) {
 	const {
 		register,
@@ -34,16 +36,22 @@ export function PorterProfileForm({
 		<form
 			onSubmit={onSubmit}
 			data-testid="porter-profile-form"
-			className="rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm sm:p-8"
+			className={
+				embedded
+					? "space-y-5"
+					: "rounded-[28px] border border-[#dfe8df] bg-white p-6 shadow-sm sm:p-8"
+			}
 		>
-			<div className="border-b border-[#e7eee7] pb-4">
-				<h2 className="text-lg font-extrabold text-[#10221b]">Thông tin hồ sơ chuyên môn</h2>
-				<p className="mt-0.5 text-xs text-[#627769]">
-					Cập nhật kinh nghiệm thực địa, trạng thái nhận ca và ngôn ngữ giao tiếp.
-				</p>
-			</div>
+			{!embedded && (
+				<div className="border-b border-[#e7eee7] pb-4">
+					<h2 className="text-lg font-extrabold text-[#10221b]">Thông tin hồ sơ chuyên môn</h2>
+					<p className="mt-0.5 text-xs text-[#627769]">
+						Cập nhật kinh nghiệm thực địa, trạng thái nhận ca và ngôn ngữ giao tiếp.
+					</p>
+				</div>
+			)}
 
-			<div className="mt-6 flex flex-col gap-6">
+			<div className={embedded ? "flex flex-col gap-5" : "mt-6 flex flex-col gap-6"}>
 				{/* Experience Years */}
 				<div className="flex flex-col gap-2">
 					<label
