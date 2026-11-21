@@ -88,3 +88,36 @@ pnpm --filter @ctms/api run test:integration --runTestsByPath `
 ```
 
 The remaining risk is unexecuted PostgreSQL behavior, especially parameter inference, CAS/audit rollback, concurrent claim/reconcile counts and final generation fencing. No claim that all eight integration failures have passed is made until that command completes successfully.
+
+## CI follow-up: explicit configuration for the V1/V2 fencing case
+
+The reported CI result was 93 passed, 1 skipped and 1 failed across six integration
+suites. The fencing case called the application `RagConfig.settings()` without a
+configured `RAG_MIN_SCORE`. That score is deliberately required in production.
+The explicit configuration hook belonged to the nested CTMS-068 describe block,
+while this case ran outside that block. A local deployment environment could mask
+the missing test setup; CI correctly rejected it before checking eligibility.
+
+The case now builds its own valid settings with the same explicit 0.8 threshold
+and vi/en source locales used by the other RAG integration cases. Both the
+pre-review and post-review eligibility checks use those settings. The assertions
+still require superseded V1 to be ineligible and only complete current V2 to
+become eligible. Production configuration validation and retrieval logic are
+unchanged; no deployment environment variable or migration is needed for this fix.
+
+Executed checks for this follow-up:
+
+- RAG publication, retrieval, cross-language relevance and AI answer regression:
+  87 passed in 4 suites.
+- Configuration smoke check with `RAG_MIN_SCORE` absent: production validation
+  still rejects it; the explicit test configuration succeeds.
+- Biome and whitespace checks passed.
+- The affected PostgreSQL case was selected and attempted, but global setup
+  failed with `EACCES 127.0.0.1:55451`; no new integration pass is claimed here.
+
+The accompanying OCR CI log still shows the original three-argument test function
+and automatic-PASSED assertion at line 62. The source-bound review regression is
+already present locally in commit `6c872b5d`, which adds a fourth `monkeypatch`
+argument, a checksum-bound literal source manifest and four additional review
+cases. That older OCR log does not exercise this fix. Validate a workflow run
+whose checkout includes the OCR commit and this configuration correction.

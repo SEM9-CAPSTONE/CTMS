@@ -368,6 +368,15 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			.expect(({ body }) => expect(body.inUse).toBe(false));
 	});
 	it("fences superseded V1 while V2 needs review and serves only a complete current V2", async () => {
+		// This case is outside the RAG describe's configuration hook. Keep its
+		// score policy explicit instead of depending on a developer's .env.
+		const settings = new RagConfig(
+			new ConfigService({
+				RAG_MIN_SCORE: "0.8",
+				RAG_LOCALES: "vi,en",
+				RAG_SOURCE_LOCALES: "vi,en",
+			})
+		).settings();
 		const doc = await publish(await draft());
 		await enqueue(doc);
 		const first = await claim();
@@ -380,7 +389,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		review.chunks = [];
 		await repo.finish(second, review);
 		const repository = app.get(RagRepository);
-		expect(await repository.hasEligibleCorpus(ragConfig.settings())).toBe(false);
+		expect(await repository.hasEligibleCorpus(settings)).toBe(false);
 		const [before] = await db.query(
 			"SELECT chunk_set_id FROM knowledge_chunk_publications WHERE document_id=$1",
 			[doc.id]
@@ -399,7 +408,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			[doc.id]
 		);
 		expect(after.chunk_set_id).toBe(second.id);
-		expect(await repository.hasEligibleCorpus(ragConfig.settings())).toBe(true);
+		expect(await repository.hasEligibleCorpus(settings)).toBe(true);
 		expect((await repo.status(doc.id, first.document_version_id))[0].active).toBe(false);
 	});
 
