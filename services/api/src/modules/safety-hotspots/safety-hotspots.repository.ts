@@ -66,7 +66,8 @@ const HOTSPOT_COLUMNS = `hotspot."id", hotspot."route_id" AS "routeId", route."n
 	hotspot."distinct_member_count" AS "distinctMemberCount", hotspot."evidence_event_ids" AS "evidenceEventIds",
 	hotspot."evidence_hash" AS "evidenceHash", hotspot."first_event_at" AS "firstEventAt",
 	hotspot."last_event_at" AS "lastEventAt", hotspot."previous_hotspot_id" AS "previousHotspotId",
-	hotspot."detection_run_id" AS "detectionRunId", hotspot."detected_at" AS "detectedAt"`;
+	hotspot."detection_run_id" AS "detectionRunId", hotspot."detected_at" AS "detectedAt",
+	hotspot."name", hotspot."description", hotspot."severity"`;
 
 /** One deviation behind a hotspot: which Trip and when; never which member (BR-361). */
 export interface HotspotEvidenceEvent {
@@ -86,6 +87,10 @@ export type SafetyHotspotRow = Omit<NewHotspot, "centerLng" | "centerLat"> & {
 	centerLng: number;
 	routeName: string;
 	routeStatus: string;
+	/** Admin-written details; null until an Admin edits the hotspot. */
+	name: string | null;
+	description: string | null;
+	severity: "low" | "medium" | "high" | null;
 };
 
 const HOTSPOT_FROM = `"potential_safety_hotspots" hotspot

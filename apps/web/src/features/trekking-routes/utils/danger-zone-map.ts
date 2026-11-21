@@ -27,13 +27,21 @@ export function dangerZonePositions(zones: RouteDangerZone[]): Position[] {
 	);
 }
 
+/** Area hazards only: a point hazard is drawn as its warning icon alone, without a radius ring. */
 export function dangerZoneFeatureCollection(zones: RouteDangerZone[]) {
 	return {
 		type: "FeatureCollection" as const,
-		features: zones.map((zone) => ({
-			type: "Feature" as const,
-			properties: { id: zone.id, severity: zone.severity, description: zone.description },
-			geometry: dangerZonePolygon(zone),
-		})),
+		features: zones
+			.filter((zone) => zone.geometry.type === "Polygon")
+			.map((zone) => ({
+				type: "Feature" as const,
+				properties: {
+					id: zone.id,
+					severity: zone.severity,
+					description: zone.description,
+					sourceGeometry: zone.geometry.type,
+				},
+				geometry: dangerZonePolygon(zone),
+			})),
 	};
 }

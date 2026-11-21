@@ -1,6 +1,7 @@
 import { Modal, StatusBadge } from "../../../shared/components";
 import { RouteGeometryPreview } from "../../trekking-routes/components/RouteGeometryPreview";
 import type { RouteDangerZone } from "../../trekking-routes/types";
+import { resolveMediaUrl } from "../../trip-incidents/utils/media-url";
 import {
 	HAZARD_TYPE_LABELS,
 	PROPOSAL_SOURCE_LABELS,
@@ -47,7 +48,7 @@ export function ProposalDetailModal({ proposal, onClose, onDecided }: Props) {
 	const decision = useProposalDecision(proposal.id, onDecided);
 	const pending = proposal.status === "PENDING";
 	const reportedBy =
-		proposal.source === "INCIDENT" && proposal.tripTitle && proposal.tripStartsAt
+		proposal.tripTitle && proposal.tripStartsAt
 			? `${proposal.proposerName} · chuyến ${proposal.tripTitle} khởi hành ${formatDate(proposal.tripStartsAt)}`
 			: proposal.proposerName;
 	const facts: Array<[string, string]> = [
@@ -91,6 +92,34 @@ export function ProposalDetailModal({ proposal, onClose, onDecided }: Props) {
 							{proposal.description}
 						</p>
 					</div>
+					{proposal.photos.length > 0 && (
+						<div>
+							<p className="text-xs font-medium tracking-wide text-[#667a6d]">Ảnh hiện trường</p>
+							<ul className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+								{proposal.photos.map((photo, index) => {
+									const src = resolveMediaUrl(photo.url) ?? photo.url;
+									return (
+										<li key={photo.url}>
+											<a
+												href={src}
+												target="_blank"
+												rel="noreferrer"
+												aria-label={`Mở ảnh hiện trường ${index + 1} ở kích thước gốc`}
+												className="block overflow-hidden rounded-xl border border-[#dfe8df] bg-[#f6f9f5] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#164027]"
+											>
+												<img
+													src={src}
+													alt={`Ảnh hiện trường ${index + 1}`}
+													loading="lazy"
+													className="aspect-square w-full object-cover transition-opacity hover:opacity-90"
+												/>
+											</a>
+										</li>
+									);
+								})}
+							</ul>
+						</div>
+					)}
 					{proposal.reviewReason && (
 						<div>
 							<p className="text-xs font-medium tracking-wide text-[#667a6d]">Lý do</p>

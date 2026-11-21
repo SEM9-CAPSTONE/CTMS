@@ -65,13 +65,10 @@ describe("CreateCheckpointForm", () => {
 		expect(screen.queryByLabelText("Thời gian đến dự kiến (phút)")).not.toBeInTheDocument();
 	});
 
-	it("offers Khu vực nguy hiểm for new locations and hands off to the danger area form", async () => {
-		const user = userEvent.setup();
-		const onSelectDangerArea = vi.fn();
+	it("does not offer drawing a danger area from the location picker", () => {
 		render(
 			<CreateCheckpointForm
 				location={location}
-				onSelectDangerArea={onSelectDangerArea}
 				disabled={false}
 				isSubmitting={false}
 				error=""
@@ -79,11 +76,10 @@ describe("CreateCheckpointForm", () => {
 				onCreated={vi.fn()}
 			/>
 		);
-		await user.selectOptions(screen.getByLabelText("Vị trí"), "danger_area");
-		expect(onSelectDangerArea).toHaveBeenCalledTimes(1);
+		expect(screen.queryByRole("option", { name: "Khu vực nguy hiểm" })).not.toBeInTheDocument();
 	});
 
-	it("starts with the type picked from the danger area form", () => {
+	it("starts with the type picked from quick select", () => {
 		render(
 			<CreateCheckpointForm
 				location={location}

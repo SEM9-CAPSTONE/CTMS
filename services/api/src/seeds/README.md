@@ -16,6 +16,7 @@ Run commands from the repository root:
 | `pnpm --filter @ctms/api seed:financial-adjustments` | Financial adjustments using the existing admin, host and camper accounts. |
 | `pnpm --filter @ctms/api seed:revenue-analytics` | Revenue history and trip area snapshots. |
 | `pnpm --filter @ctms/api seed:safety-hotspots` | Safety hotspots using existing trips and participants. |
+| `pnpm --filter @ctms/api seed:danger-zone-reports` | Porter danger-zone reports (pending with photos, approved, rejected) on Trips assigned to `porter@ctms.local`; never resets data. |
 | `pnpm --filter @ctms/api seed:performance-reports` | Booking and trip performance reports. |
 | `pnpm --filter @ctms/api seed:bank-accounts` | Host and camper bank accounts. |
 | `pnpm --filter @ctms/api seed:group-bookings` | Group bookings and equipment. |

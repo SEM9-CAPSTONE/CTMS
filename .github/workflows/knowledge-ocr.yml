@@ -8,6 +8,7 @@ on:
       - services/ai/app/ocr_artifacts.py
       - services/ai/app/prefetch_knowledge_models.py
       - services/ai/app/test_knowledge_*.py
+      - services/ai/app/test_prefetch_knowledge_models.py
       - services/ai/app/test_docling_ocr_stage.py
       - services/ai/app/test_ocr_fixtures.py
       - services/ai/app/fixtures/ocr/**
@@ -28,13 +29,14 @@ jobs:
         with:
           persist-credentials: false
       - name: Build pinned CPU OCR runtime and prefetch model artifacts
-        run: docker build -f infra/docker/ingestion.Dockerfile -t ctms-ocr-tests .
+        run: docker build --target test -f infra/docker/ingestion.Dockerfile -t ctms-ocr-tests .
       - name: Test real native, scanned and mixed PDFs without network
         run: >-
           docker run --rm --network none
           -e RUN_KNOWLEDGE_OCR_INTEGRATION=true
           -e RUN_KNOWLEDGE_MODEL_SMOKE=true
           ctms-ocr-tests python -B -m pytest -q -p no:cacheprovider
+          app/test_prefetch_knowledge_models.py
           app/test_knowledge_api.py app/test_knowledge_chunking.py
           app/test_knowledge_page_numbers.py
           app/test_knowledge_native_pages.py

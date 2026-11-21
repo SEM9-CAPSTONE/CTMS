@@ -36,6 +36,7 @@ import {
 import { DEFAULT_ROUTE_CENTER, getRouteMapStyleUrl } from "../utils/route-map";
 import { dangerZoneDescription, severityColors } from "../utils/route-preview";
 import { DangerZoneDetailsModal } from "./DangerZoneDetailsModal";
+import { HazardWarningMark } from "./HazardWarningMark";
 
 interface MonitoringMarker {
 	code: string;
@@ -166,19 +167,7 @@ export function RouteCheckpointMap({
 				: null,
 		[mode, radiusMeters, selectedLocation]
 	);
-	const persistedHazards = useMemo(() => {
-		const collection = dangerZoneFeatureCollection(dangerZones);
-		return {
-			...collection,
-			features: collection.features.map((feature, index) => ({
-				...feature,
-				properties: {
-					...feature.properties,
-					sourceGeometry: dangerZones[index]?.geometry.type ?? "Polygon",
-				},
-			})),
-		};
-	}, [dangerZones]);
+	const persistedHazards = useMemo(() => dangerZoneFeatureCollection(dangerZones), [dangerZones]);
 	const proposedHazardPolygon = useMemo(
 		() =>
 			proposedHazard
@@ -597,6 +586,7 @@ export function RouteCheckpointMap({
 				>
 					{dangerZones.map((zone) => {
 						const isPoint = zone.geometry.type === "Point";
+						if (isPoint) return null;
 						return (
 							<polygon
 								key={zone.id}
@@ -726,24 +716,7 @@ export function RouteCheckpointMap({
 								aria-label={accessibleLabel}
 							>
 								<title>{accessibleLabel}</title>
-								<circle
-									cx={x}
-									cy={y}
-									r="3.2"
-									fill={severityColors[zone.severity]}
-									stroke="#172554"
-									strokeWidth="0.9"
-								/>
-								<text
-									x={x}
-									y={y + 1.25}
-									textAnchor="middle"
-									fontSize="4"
-									fontWeight="900"
-									fill="white"
-								>
-									!
-								</text>
+								<HazardWarningMark x={x} y={y} color={severityColors[zone.severity]} />
 							</g>
 						);
 					})}

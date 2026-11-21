@@ -122,6 +122,8 @@ export const ADMIN_NAV_GROUPS = [
 		items: [
 			"trip-review",
 			"route-review",
+			"danger-zone-proposals",
+			"safety-hotspots",
 			"porter-verifications",
 			"content-reports",
 			"ai-investigations",
@@ -133,14 +135,7 @@ export const ADMIN_NAV_GROUPS = [
 		key: "system",
 		label: "Hệ thống",
 		icon: Settings,
-		items: [
-			"survival-documents",
-			"weather-management",
-			"safety-hotspots",
-			"danger-zone-proposals",
-			"review-analysis",
-			"audit-logs",
-		],
+		items: ["survival-documents", "weather-management", "review-analysis", "audit-logs"],
 	},
 ] as const satisfies ReadonlyArray<{
 	key: string;

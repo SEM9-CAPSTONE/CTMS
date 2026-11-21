@@ -5,18 +5,19 @@
  * match the snapshot the Admin approved, so later unapproved edits are not published.
  */
 export const VERIFIED_DANGER_ZONES_CTE = `verified_zones AS (
- SELECT z.*, decision.decided_at AS approved_at
+ SELECT z.*, decision.decided_at AS approved_at, decision.hazard_type AS approved_hazard_type
  FROM route_danger_zones z
  JOIN LATERAL (
   SELECT d.* FROM (
    SELECT a.created_at AS decided_at, a.id, a.after, 'HOTSPOT'::text AS kind, a.hotspot_id,
-    a.hotspot_evidence_hash, a.hotspot_route_version, a.hotspot_status_changed_at
+    a.hotspot_evidence_hash, a.hotspot_route_version, a.hotspot_status_changed_at,
+    NULL::text AS hazard_type
    FROM hotspot_corrective_actions a
    WHERE a.target_type='trekking_route_danger_zone' AND a.target_id=z.id AND a.route_id=z.route_id
     AND a.action_type IN ('ADD_HAZARD_AREA','UPDATE_HAZARD_AREA')
    UNION ALL
    SELECT p.reviewed_at, p.id, p.approved_snapshot, 'PROPOSAL'::text, NULL::uuid,
-    NULL::char(64), NULL::varchar, NULL::timestamptz
+    NULL::char(64), NULL::varchar, NULL::timestamptz, p.hazard_type::text
    FROM danger_zone_proposals p
    WHERE p.danger_zone_id=z.id AND p.route_id=z.route_id AND p.status='APPROVED'
   ) d
@@ -38,7 +39,8 @@ export const VERIFIED_DANGER_ZONES_CTE = `verified_zones AS (
 
 export const VERIFIED_DANGER_ZONE_COLUMNS = `
  'host:' || v.id AS id, 'ADMIN_VERIFIED' AS "sourceType", 'CTMS' AS source,
- v.id::text AS "sourceReference", 'verified_danger_zone' AS "hazardType",
+ v.id::text AS "sourceReference",
+ COALESCE(v.approved_hazard_type, 'verified_danger_zone') AS "hazardType",
  upper(v.severity::text) AS severity, NULL::text AS "routeName",
  v.geom, 'verified_danger_zone' AS "geometryRole", v.description,
  NULL::timestamptz AS "observedAt", v.approved_at AS "issuedAt", NULL::timestamptz AS "fetchedAt",

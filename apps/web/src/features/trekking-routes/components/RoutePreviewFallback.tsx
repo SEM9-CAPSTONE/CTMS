@@ -9,6 +9,7 @@ import {
 	severityColors,
 } from "../utils/route-preview";
 import { DangerZoneDetailsModal } from "./DangerZoneDetailsModal";
+import { HazardWarningMark } from "./HazardWarningMark";
 import { RoutePreviewCheckpoint } from "./RoutePreviewCheckpoint";
 interface Props {
 	geometry: GeoJsonLineString;
@@ -31,6 +32,7 @@ export function RoutePreviewFallback({ geometry, checkpoints, dangerZones, bound
 				{dangerZones.map((dangerZone) => {
 					const description = dangerZoneDescription(dangerZone);
 					const point = dangerZone.geometry.type === "Point";
+					if (point) return null;
 					return (
 						<polygon
 							key={`hazard-area-${dangerZone.id}`}
@@ -92,24 +94,7 @@ export function RoutePreviewFallback({ geometry, checkpoints, dangerZones, bound
 							aria-label={description}
 						>
 							<title>{description}</title>
-							<circle
-								cx={x}
-								cy={y}
-								r="3.6"
-								fill={severityColors[dangerZone.severity]}
-								stroke="#172554"
-								strokeWidth="0.9"
-							/>
-							<text
-								x={x}
-								y={y + 1.35}
-								textAnchor="middle"
-								fontSize="4.2"
-								fontWeight="900"
-								fill="white"
-							>
-								!
-							</text>
+							<HazardWarningMark x={x} y={y} color={severityColors[dangerZone.severity]} />
 						</g>
 					);
 				})}

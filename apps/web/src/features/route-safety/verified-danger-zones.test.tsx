@@ -4,17 +4,12 @@ import type { Map as MapLibreMap } from "maplibre-gl";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RouteGeometryEditor } from "../trekking-routes/components/RouteGeometryEditor";
-import { approximateLengthMeters } from "../trekking-routes/utils/route-import";
 import { SafetyMapFallback } from "./components/SafetyMapFallback";
 import { VERIFIED_ZONE_REFRESH_MS, VERIFIED_ZONE_VIEW_DEBOUNCE_MS } from "./constants";
 import { useVerifiedDangerZones } from "./hooks/useVerifiedDangerZones";
 import { routeSafetyService } from "./services/route-safety.service";
 import type { MapSafetyBounds, SafetyFeature, VerifiedZoneCollection } from "./types";
-import {
-	excludeSafetyFeatures,
-	projectFallbackPosition,
-	publishedZoneShape,
-} from "./utils/verified-zone-map";
+import { excludeSafetyFeatures, projectFallbackPosition } from "./utils/verified-zone-map";
 
 vi.mock("../auth/utils/tokenStorage", () => ({ getStoredAuthUser: () => ({ id: "host" }) }));
 vi.mock("./services/route-safety.service", () => ({
@@ -39,7 +34,7 @@ const zone: SafetyFeature = {
 		sourceType: "ADMIN_VERIFIED",
 		source: "CTMS",
 		sourceReference: "internal-zone",
-		hazardType: "verified_danger_zone",
+		hazardType: "SLIPPERY_OR_LANDSLIDE",
 		severity: "HIGH",
 		geometryRole: "verified_danger_zone",
 		description: "Lối mòn sát mép vực, đi theo cọc tiêu đỏ.",
@@ -95,6 +90,7 @@ describe("automatically published map danger zones", () => {
 		fireEvent.click(marker);
 		expect(screen.getByRole("dialog")).toHaveTextContent("50 m");
 		expect(screen.getByRole("dialog")).toHaveTextContent("Quản trị viên xác nhận");
+		expect(screen.getByRole("dialog")).toHaveTextContent("Trơn trượt, sạt lở");
 		expect(screen.getByRole("dialog")).not.toHaveTextContent("internal-zone");
 		expect(onChange).not.toHaveBeenCalled();
 	});
@@ -190,15 +186,6 @@ describe("automatically published map danger zones", () => {
 		expect(previous?.aborted).toBe(true);
 	});
 	it("removes duplicate raw features and aligns fallback markers with letterboxed SVG", () => {
-		const rendered = publishedZoneShape(zone);
-		expect(rendered.geometry.type).toBe("Polygon");
-		if (rendered.geometry.type !== "Polygon" || zone.geometry.type !== "Point")
-			throw new Error("Expected a point display circle");
-		expect(
-			approximateLengthMeters([zone.geometry.coordinates, rendered.geometry.coordinates[0][0]])
-		).toBeCloseTo(5, 2);
-		expect(rendered.properties.radiusMeters).toBe(50);
-		expect(rendered.properties.labelPoint).toEqual(zone.geometry);
 		expect(excludeSafetyFeatures(collection(), [zone.id])?.features).toEqual([]);
 		const container = document.createElement("div");
 		vi.spyOn(container, "getBoundingClientRect").mockReturnValue({

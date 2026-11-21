@@ -115,21 +115,10 @@ describe("trekkingRoutesService", () => {
 		}
 	});
 
-	it("gets and creates hazards through the authoritative nested hazard-area resource", async () => {
+	it("lists hazards through the nested hazard-area resource", async () => {
 		const get = vi.spyOn(httpClient, "get").mockResolvedValue([]);
-		const post = vi.spyOn(httpClient, "post").mockResolvedValue({ id: "zone-id" });
-		const payload = {
-			geometry: { type: "Point" as const, coordinates: [108.46, 11.94] as [number, number] },
-			radiusMeters: 35,
-			description: "Loose rock",
-			severity: "high" as const,
-		};
 		await trekkingRoutesService.listRouteDangerZones("route-id");
-		await trekkingRoutesService.createRouteDangerZone("route-id", payload);
 		expect(get).toHaveBeenCalledWith("/trekking-routes/route-id/hazard-areas");
-		expect(post).toHaveBeenCalledWith("/trekking-routes/route-id/hazard-areas", payload);
-		expect(payload).not.toHaveProperty("routeId");
-		expect(payload).not.toHaveProperty("id");
 	});
 
 	it("patches close and reopen using only the reason contract", async () => {

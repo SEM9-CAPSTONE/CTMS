@@ -39,47 +39,47 @@ function FieldError({ message }: { message?: string }) {
 export function ProposalDecisionForm({ proposal, submitting, onApprove, onReject }: Props) {
 	const isPoint = proposal.geometry.type === "Point";
 	const [pending, setPending] = useState<"approve" | "reject" | null>(null);
+	const [rejectReason, setRejectReason] = useState("");
 	const [rejectError, setRejectError] = useState<string>();
 	const {
 		register,
 		control,
 		handleSubmit,
-		getValues,
 		formState: { errors },
 	} = useForm<ApproveProposalFormInput, unknown, ApproveProposalFormData>({
 		resolver: zodResolver(approveProposalSchema),
 		defaultValues: {
 			severity: proposal.severity,
-			description: proposal.source === "HOST" ? proposal.description : "",
+			// Reporter text is a starting point the Admin edits; automatic incident text is not copied.
+			description: proposal.source === "INCIDENT" ? "" : proposal.description,
 			radiusMeters: proposal.radiusMeters ?? undefined,
-			reason: "",
 		},
 	});
 
-	const askReject = () => {
-		const parsed = rejectProposalSchema.safeParse({ reason: getValues("reason") });
-		if (!parsed.success) {
-			setRejectError(parsed.error.issues[0]?.message);
-			return;
-		}
+	const closeConfirm = () => {
 		setRejectError(undefined);
-		setPending("reject");
+		setPending(null);
 	};
 
 	const confirm = async () => {
 		if (pending === "reject") {
-			await onReject(getValues("reason").trim());
+			// The rejection reason is shown to the reporter, so it is asked for at the decision itself.
+			const parsed = rejectProposalSchema.safeParse({ reason: rejectReason });
+			if (!parsed.success) {
+				setRejectError(parsed.error.issues[0]?.message);
+				return;
+			}
+			await onReject(parsed.data.reason);
 		} else {
 			await handleSubmit((values) =>
 				onApprove({
 					severity: values.severity,
 					description: values.description,
 					radiusMeters: isPoint ? values.radiusMeters : undefined,
-					reason: values.reason || undefined,
 				})
 			)();
 		}
-		setPending(null);
+		closeConfirm();
 	};
 
 	return (
@@ -119,7 +119,7 @@ export function ProposalDecisionForm({ proposal, submitting, onApprove, onReject
 				{isPoint && (
 					<div className="space-y-1.5">
 						<label htmlFor="proposal-radius" className={labelClass}>
-							Bán kính ghi nhận (m)
+							Bán kính vùng nguy hiểm (m)
 						</label>
 						<input
 							id="proposal-radius"
@@ -133,21 +133,13 @@ export function ProposalDecisionForm({ proposal, submitting, onApprove, onReject
 					</div>
 				)}
 			</div>
-			<div className="space-y-1.5">
-				<label htmlFor="proposal-reason" className={labelClass}>
-					Lý do
-				</label>
-				<textarea
-					id="proposal-reason"
-					rows={2}
-					{...register("reason")}
-					className={fieldClass}
-					disabled={submitting}
-				/>
-				<FieldError message={rejectError ?? errors.reason?.message} />
-			</div>
 			<div className="flex flex-wrap justify-end gap-2">
-				<Button type="button" variant="outline" disabled={submitting} onClick={askReject}>
+				<Button
+					type="button"
+					variant="outline"
+					disabled={submitting}
+					onClick={() => setPending("reject")}
+				>
 					Từ chối
 				</Button>
 				<Button type="submit" disabled={submitting}>
@@ -157,15 +149,33 @@ export function ProposalDecisionForm({ proposal, submitting, onApprove, onReject
 
 			<ConfirmModal
 				isOpen={pending !== null}
-				onClose={() => setPending(null)}
+				onClose={closeConfirm}
 				onConfirm={confirm}
 				isLoading={submitting}
 				variant={pending === "reject" ? "danger" : "success"}
 				title={pending === "reject" ? "Từ chối đề xuất" : "Duyệt điểm nguy hiểm"}
 				description={
-					pending === "reject"
-						? "Đề xuất sẽ không hiển thị trên bản đồ. Lý do được lưu cùng đề xuất."
-						: `Điểm nguy hiểm trên tuyến ${proposal.routeName} sẽ hiển thị trên bản đồ của mọi người dùng.`
+					pending === "reject" ? (
+						<div className="space-y-3">
+							<p>Đề xuất sẽ không hiển thị trên bản đồ. Người báo cáo sẽ thấy lý do này.</p>
+							<div className="space-y-1.5">
+								<label htmlFor="proposal-reject-reason" className={labelClass}>
+									Lý do từ chối
+								</label>
+								<textarea
+									id="proposal-reject-reason"
+									rows={3}
+									value={rejectReason}
+									onChange={(event) => setRejectReason(event.target.value)}
+									className={fieldClass}
+									disabled={submitting}
+								/>
+								<FieldError message={rejectError} />
+							</div>
+						</div>
+					) : (
+						`Điểm nguy hiểm trên tuyến ${proposal.routeName} sẽ hiển thị trên bản đồ của mọi người dùng.`
+					)
 				}
 				confirmText={pending === "reject" ? "Từ chối" : "Duyệt"}
 				cancelText="Quay lại"

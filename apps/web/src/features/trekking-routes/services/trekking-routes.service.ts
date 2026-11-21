@@ -3,7 +3,6 @@ import type {
 	AdminRouteReviewsQuery,
 	AdminTrekkingRouteReview,
 	CreateCheckpointInput,
-	CreateRouteDangerZoneInput,
 	CreateTrekkingRouteInput,
 	CreatedTrekkingRoute,
 	PaginatedAdminRouteReviews,
@@ -79,9 +78,4 @@ export const trekkingRoutesService = {
 		),
 	listRouteDangerZones: (routeId: string): Promise<RouteDangerZone[]> =>
 		httpClient.get<RouteDangerZone[]>(API_ENDPOINTS.TREKKING.HAZARD_AREAS(routeId)),
-	createRouteDangerZone: (
-		routeId: string,
-		input: CreateRouteDangerZoneInput
-	): Promise<RouteDangerZone> =>
-		httpClient.post<RouteDangerZone>(API_ENDPOINTS.TREKKING.HAZARD_AREAS(routeId), input),
 };

@@ -3,25 +3,19 @@ import { useEffect, useState } from "react";
 import { useToast } from "../../../shared/components/Toast";
 import { CHECKPOINT_RADIUS_METERS } from "../constants";
 import { useCreateRouteCheckpoint } from "../hooks/useCreateRouteCheckpoint";
-import { useCreateRouteDangerZone } from "../hooks/useCreateRouteDangerZone";
 import { useRouteCheckpoints } from "../hooks/useRouteCheckpoints";
 import { useRouteDangerZones } from "../hooks/useRouteDangerZones";
 import { useUpdateRouteCheckpoint } from "../hooks/useUpdateRouteCheckpoint";
 import type {
 	CreatedTrekkingRoute,
 	GeoJsonPoint,
-	Position,
 	RouteCheckpoint,
 	RouteCheckpointType,
 	RouteDangerZone,
-	RouteDangerZoneGeometry,
-	RouteMapMode,
 } from "../types";
-import { closePolygonRing } from "../utils/danger-zone-map";
 import { nearestRoutePoint } from "../utils/route-snap";
 import { CheckpointList } from "./CheckpointList";
 import { CreateCheckpointForm } from "./CreateCheckpointForm";
-import { CreateRouteDangerZoneForm } from "./CreateRouteDangerZoneForm";
 import { DangerZoneList } from "./DangerZoneList";
 import { RouteCheckpointMap } from "./RouteCheckpointMap";
 import { RouteSubmissionPanel } from "./RouteSubmissionPanel";
@@ -46,14 +40,7 @@ export function RouteCheckpointsPanel({
 	const create = useCreateRouteCheckpoint(route.id, reload);
 	const update = useUpdateRouteCheckpoint(route.id, reload);
 	const dangerZones = useRouteDangerZones(route.id);
-	const dangerReload = dangerZones.reload;
-	const createDangerZone = useCreateRouteDangerZone(route.id, dangerReload, onRouteReload);
 	const [selectedLocation, setSelectedLocation] = useState<GeoJsonPoint>();
-	const [mapMode, setMapMode] = useState<RouteMapMode>("checkpoint");
-	const [dangerGeometry, setDangerGeometry] = useState<RouteDangerZoneGeometry>();
-	const [dangerRadiusMeters, setDangerRadiusMeters] = useState(30);
-	const [polygonVertices, setPolygonVertices] = useState<Position[]>([]);
-	const [polygonError, setPolygonError] = useState("");
 	const [editingCheckpoint, setEditingCheckpoint] = useState<RouteCheckpoint>();
 	const [checkpointType, setCheckpointType] = useState<RouteCheckpointType>();
 	const toast = useToast();
@@ -77,53 +64,13 @@ export function RouteCheckpointsPanel({
 		setSelectedLocation(undefined);
 	}, [route.id]);
 
-	function clearDangerGeometry(): void {
-		setDangerGeometry(undefined);
-		setPolygonVertices([]);
-		setPolygonError("");
-	}
-
-	function changeMapMode(mode: RouteMapMode): void {
-		setMapMode(mode);
-		clearDangerGeometry();
-	}
-
 	function selectMapLocation(location: GeoJsonPoint): void {
-		if (mapMode === "checkpoint") {
-			// Route locations must sit on the line, like trip waypoints, so snap the click onto it.
-			const snapped = nearestRoutePoint(location.coordinates, route.geometry.coordinates);
-			setSelectedLocation({ type: "Point", coordinates: snapped.position });
-			return;
-		}
-		if (mapMode === "hazard-point") {
-			setDangerGeometry(location);
-			return;
-		}
-		if (!dangerGeometry) {
-			setPolygonVertices((current) => [...current, location.coordinates]);
-			setPolygonError("");
-		}
-	}
-
-	function finishPolygon(): void {
-		const polygon = closePolygonRing(polygonVertices);
-		if (!polygon) {
-			setPolygonError("Khu vực cần ít nhất 3 đỉnh khác nhau.");
-			return;
-		}
-		setDangerGeometry(polygon);
-		setPolygonError("");
-	}
-
-	function resetDangerDraft(): void {
-		clearDangerGeometry();
-		setDangerRadiusMeters(30);
-		setMapMode("checkpoint");
+		// Route locations must sit on the line, like trip waypoints, so snap the click onto it.
+		const snapped = nearestRoutePoint(location.coordinates, route.geometry.coordinates);
+		setSelectedLocation({ type: "Point", coordinates: snapped.position });
 	}
 
 	function beginCheckpointEdit(checkpoint: RouteCheckpoint): void {
-		setMapMode("checkpoint");
-		clearDangerGeometry();
 		setEditingCheckpoint(checkpoint);
 		setSelectedLocation(checkpoint.location);
 	}
@@ -156,103 +103,68 @@ export function RouteCheckpointsPanel({
 				geometry={route.geometry}
 				checkpoints={checkpoints.items}
 				dangerZones={dangerZones.items}
-				mode={mapMode}
+				mode="checkpoint"
 				selectedLocation={selectedLocation}
 				radiusMeters={CHECKPOINT_RADIUS_METERS}
-				proposedHazard={dangerGeometry}
-				proposedHazardRadiusMeters={dangerRadiusMeters}
-				polygonVertices={polygonVertices}
 				disabled={createDisabled}
 				onSelectLocation={selectMapLocation}
 			/>
-			{mapMode === "checkpoint" && selectedLocation && (
+			{selectedLocation && (
 				<p className="mt-2 text-xs font-bold text-[#667a6d]">
 					Điểm đã chọn: {selectedLocation.coordinates.map((value) => value.toFixed(6)).join(", ")}
 				</p>
 			)}
-			{mapMode === "checkpoint" && (
-				<div className="mt-3 flex flex-wrap items-center gap-2">
-					<span className="text-xs font-semibold text-[#667a6d]">Chọn nhanh vị trí:</span>
-					<button
-						type="button"
-						disabled={createDisabled}
-						onClick={() => {
-							const startCoord = route.geometry.coordinates[0];
-							if (startCoord) {
-								setSelectedLocation({ type: "Point", coordinates: startCoord });
-								setCheckpointType("start");
-							}
-						}}
-						className="rounded-lg border border-[#cbd9ce] bg-[#f8fbf7] px-3 py-1 text-xs font-bold text-[#10221b] hover:bg-[#e0ebe0] disabled:cursor-not-allowed disabled:opacity-50"
-					>
-						📍 Điểm đầu tuyến (Start)
-					</button>
-					<button
-						type="button"
-						disabled={createDisabled}
-						onClick={() => {
-							const finishCoord = route.geometry.coordinates.at(-1);
-							if (finishCoord) {
-								setSelectedLocation({ type: "Point", coordinates: finishCoord });
-								setCheckpointType("finish");
-							}
-						}}
-						className="rounded-lg border border-[#cbd9ce] bg-[#f8fbf7] px-3 py-1 text-xs font-bold text-[#10221b] hover:bg-[#e0ebe0] disabled:cursor-not-allowed disabled:opacity-50"
-					>
-						🏁 Điểm cuối tuyến (Finish)
-					</button>
-				</div>
-			)}
+			<div className="mt-3 flex flex-wrap items-center gap-2">
+				<span className="text-xs font-semibold text-[#667a6d]">Chọn nhanh vị trí:</span>
+				<button
+					type="button"
+					disabled={createDisabled}
+					onClick={() => {
+						const startCoord = route.geometry.coordinates[0];
+						if (startCoord) {
+							setSelectedLocation({ type: "Point", coordinates: startCoord });
+							setCheckpointType("start");
+						}
+					}}
+					className="rounded-lg border border-[#cbd9ce] bg-[#f8fbf7] px-3 py-1 text-xs font-bold text-[#10221b] hover:bg-[#e0ebe0] disabled:cursor-not-allowed disabled:opacity-50"
+				>
+					📍 Điểm đầu tuyến (Start)
+				</button>
+				<button
+					type="button"
+					disabled={createDisabled}
+					onClick={() => {
+						const finishCoord = route.geometry.coordinates.at(-1);
+						if (finishCoord) {
+							setSelectedLocation({ type: "Point", coordinates: finishCoord });
+							setCheckpointType("finish");
+						}
+					}}
+					className="rounded-lg border border-[#cbd9ce] bg-[#f8fbf7] px-3 py-1 text-xs font-bold text-[#10221b] hover:bg-[#e0ebe0] disabled:cursor-not-allowed disabled:opacity-50"
+				>
+					🏁 Điểm cuối tuyến (Finish)
+				</button>
+			</div>
 
-			{mapMode === "checkpoint" ? (
-				<CreateCheckpointForm
-					key={editingCheckpoint?.id ?? route.id}
-					checkpoint={editingCheckpoint}
-					location={selectedLocation}
-					initialType={checkpointType}
-					onSelectDangerArea={() => changeMapMode("hazard-polygon")}
-					disabled={createDisabled}
-					isSubmitting={editingCheckpoint ? update.isSubmitting : create.isSubmitting}
-					error={editingCheckpoint ? update.error : create.error}
-					onSubmit={(payload) =>
-						editingCheckpoint
-							? update.submit(editingCheckpoint.id, payload)
-							: create.submit(payload)
-					}
-					onCreated={() => {
-						toast.success(editingCheckpoint ? "Đã cập nhật vị trí." : "Đã thêm vị trí.");
-						setEditingCheckpoint(undefined);
-						setSelectedLocation(undefined);
-						setCheckpointType(undefined);
-					}}
-					onCancel={cancelCheckpointEdit}
-				/>
-			) : (
-				<CreateRouteDangerZoneForm
-					mode={mapMode}
-					geometry={dangerGeometry}
-					polygonVertexCount={polygonVertices.length}
-					disabled={createDisabled}
-					isSubmitting={createDangerZone.isSubmitting}
-					error={createDangerZone.error}
-					polygonError={polygonError}
-					onSelectCheckpointType={(type) => {
-						setCheckpointType(type);
-						changeMapMode("checkpoint");
-					}}
-					onFinishPolygon={finishPolygon}
-					onUndoPolygon={() => {
-						setDangerGeometry(undefined);
-						setPolygonVertices((current) => current.slice(0, -1));
-						setPolygonError("");
-					}}
-					onClearGeometry={clearDangerGeometry}
-					onCancel={resetDangerDraft}
-					onRadiusChange={setDangerRadiusMeters}
-					onSubmit={createDangerZone.submit}
-					onCreated={resetDangerDraft}
-				/>
-			)}
+			<CreateCheckpointForm
+				key={editingCheckpoint?.id ?? route.id}
+				checkpoint={editingCheckpoint}
+				location={selectedLocation}
+				initialType={checkpointType}
+				disabled={createDisabled}
+				isSubmitting={editingCheckpoint ? update.isSubmitting : create.isSubmitting}
+				error={editingCheckpoint ? update.error : create.error}
+				onSubmit={(payload) =>
+					editingCheckpoint ? update.submit(editingCheckpoint.id, payload) : create.submit(payload)
+				}
+				onCreated={() => {
+					toast.success(editingCheckpoint ? "Đã cập nhật vị trí." : "Đã thêm vị trí.");
+					setEditingCheckpoint(undefined);
+					setSelectedLocation(undefined);
+					setCheckpointType(undefined);
+				}}
+				onCancel={cancelCheckpointEdit}
+			/>
 
 			<div className="mt-6 border-t border-[#e0ebe0] pt-5">
 				<h3 className="font-extrabold">Danh sách các vị trí trên tuyến</h3>

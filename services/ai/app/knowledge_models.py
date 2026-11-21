@@ -5,9 +5,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.knowledge_artifacts import EMBEDDING_MODEL, EMBEDDING_REVISION
+
 PIPELINE_VERSION = "ctms-content-integrity-v5"
-EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
-EMBEDDING_REVISION = "614241f622f53c4eeff9890bdc4f31cfecc418b3"
 EMBEDDING_DIMENSIONS = 384
 MAX_EMBEDDING_TOKENS = 480
 CONTEXT_TOKENIZER = "e5-sentencepiece"

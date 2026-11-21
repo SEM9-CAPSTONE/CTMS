@@ -27,4 +27,13 @@ export const INCIDENT_PROPOSAL_SEVERITY: Record<IncidentSeverity, RouteDangerZon
 export const INCIDENT_PROPOSAL_MIN_RADIUS_METERS = 30;
 export const INCIDENT_PROPOSAL_MAX_RADIUS_METERS = 200;
 
+/** A Porter reports the hazard where they stand; the map marks it as a small point, not a GPS-sized area. */
+export const PORTER_PROPOSAL_RADIUS_METERS = 5;
+
+/** Optional field photos per Porter report, each one JPEG, PNG or WebP image. */
+export const PROPOSAL_PHOTO_MAX_COUNT = 3;
+export const PROPOSAL_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+/** Sub-folder of the upload root that holds danger-zone report photos. */
+export const PROPOSAL_PHOTO_DIRECTORY = "danger-zone-proposals";
+
 export const DANGER_ZONE_PROPOSAL_LIST_LIMIT = 200;

@@ -1,5 +1,6 @@
 import type { MapLayerMouseEvent, Map as MapLibreMap, Marker } from "maplibre-gl";
 import { useEffect, useState } from "react";
+import { createSafetySymbol } from "../../route-safety/map-symbols";
 import type { RouteDangerZone } from "../types";
 import { dangerZoneDescription, severityColors } from "../utils/route-preview";
 
@@ -28,10 +29,10 @@ export function useDangerZoneMapDetails(
 				if (zone.geometry.type !== "Point") continue;
 				const element = document.createElement("button");
 				element.type = "button";
+				// Only the warning sign is shown; no badge frame or radius ring around it.
 				element.className =
-					"z-20 flex size-11 touch-manipulation cursor-pointer items-center justify-center rounded-full border-[3px] border-white text-base font-black text-white shadow-[0_0_0_2px_#172554] hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4";
-				element.style.backgroundColor = severityColors[zone.severity];
-				element.textContent = "!";
+					"z-20 flex size-11 touch-manipulation cursor-pointer items-center justify-center bg-transparent hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4";
+				element.append(createSafetySymbol("hazard", severityColors[zone.severity], false));
 				element.dataset.hazardPointMarker = "persisted";
 				element.dataset.severity = zone.severity;
 				element.ariaLabel = dangerZoneDescription(zone);

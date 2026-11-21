@@ -31,6 +31,7 @@
 		"seed:performance-reports": "ts-node src/seeds/main.seed.ts --performance-reports-only",
 		"seed:revenue-analytics": "ts-node src/seeds/main.seed.ts --revenue-analytics-only",
 		"seed:safety-hotspots": "ts-node src/seeds/main.seed.ts --safety-hotspots-only",
+		"seed:danger-zone-reports": "ts-node src/seeds/main.seed.ts --danger-zone-reports-only",
 		"seed:bank-accounts": "ts-node src/seeds/main.seed.ts --bank-accounts-only",
 		"seed:group-bookings": "ts-node src/seeds/main.seed.ts --group-bookings-only",
 		"seed:da-nang": "ts-node src/seeds/main.seed.ts --da-nang-only"

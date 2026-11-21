@@ -84,6 +84,7 @@ $env:UV_PYTHON_INSTALL_DIR=(Resolve-Path .python).Path
 $knowledgePython = uv python find 3.12 --managed-python --no-project --resolve-links
 & $knowledgePython -m venv .venv-ingestion
 .\.venv-ingestion\Scripts\python.exe -m pip install -r services/ai/requirements-ingestion.txt
+.\.venv-ingestion\Scripts\python.exe -m pip install pytest==8.3.4
 .\.venv-ingestion\Scripts\python.exe -m uvicorn app.knowledge_api:app --app-dir services/ai --env-file .env --host 127.0.0.1 --port 8001 --workers 1
 ```
 
