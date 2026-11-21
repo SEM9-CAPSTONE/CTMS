@@ -5291,16 +5291,20 @@ async function seedPorterProfileAndAssignments(routeIds: Record<string, string>)
 			);
 			const tripId = tripRows[0]?.id;
 			if (!tripId) {
-				throw new Error(
-					`[seed:dev-trips] Missing Trip for Porter conflict fixture: ${fixture.conflictingTripTitle}`
+				// No step creates this Trip any more; skip only this assignment instead of
+				// throwing, which aborted the rest of seedDevTrips (health profiles, booking
+				// members, group bookings with equipment).
+				console.warn(
+					`[seed:dev-trips] Skipped Porter conflict assignment: no Trip titled ${fixture.conflictingTripTitle}`
+				);
+			} else {
+				await dataSource.query(
+					`INSERT INTO "trip_porters" (trip_id, porter_id, status)
+					 VALUES ($1, $2, 'assigned')
+					 ON CONFLICT (trip_id, porter_id) DO UPDATE SET status = 'assigned'`,
+					[tripId, porterId]
 				);
 			}
-			await dataSource.query(
-				`INSERT INTO "trip_porters" (trip_id, porter_id, status)
-				 VALUES ($1, $2, 'assigned')
-				 ON CONFLICT (trip_id, porter_id) DO UPDATE SET status = 'assigned'`,
-				[tripId, porterId]
-			);
 		}
 
 		// Seed completed led trips for expert-lead (Nguyễn Minh Sơn) so "Lịch sử chuyến đã dẫn" and Host assignment views have data
@@ -10312,7 +10316,7 @@ const WEATHER_DEMO_HOSTS: SeedAccount[] = [
 		phone: "0900000091",
 		password: "Host@123",
 		role: "host",
-		fullName: "Host Bị Khoá Tạo Trip",
+		fullName: "Phan Văn Lộc",
 	},
 	{
 		label: "host.suspended",
@@ -10320,7 +10324,7 @@ const WEATHER_DEMO_HOSTS: SeedAccount[] = [
 		phone: "0900000092",
 		password: "Host@123",
 		role: "host",
-		fullName: "Host Bị Đình Chỉ",
+		fullName: "Đỗ Thị Hạnh",
 	},
 ];
 
@@ -10568,7 +10572,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 		await dataSource.query(
 			`UPDATE "trip_weather_forecasts"
 			 SET "ai_risk_level" = $2, "ai_reason" = $3, "ai_confidence" = $4,
-			     "ai_model" = 'gpt-4o-mini (demo)', "ai_reviewed_at" = $5, "ai_review_attempts" = 1
+			     "ai_model" = 'gemini-3.1-flash-lite', "ai_reviewed_at" = $5, "ai_review_attempts" = 1
 			 WHERE "id" = $1`,
 			[forecastId, level, reason, confidence, at(-reviewedHoursAgo)]
 		);
@@ -11040,11 +11044,8 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 				input.blockedDays ? new Date(createdAt.getTime() + input.blockedDays * 24 * HOUR) : null,
 				new Date(trip.startsAt.getTime() + 48 * HOUR),
 				waiver?.reason ?? null,
-				JSON.stringify(
-					waiver
-						? ["https://res.cloudinary.com/demo/raw/upload/weather-penalty-waivers/giay-vien.pdf"]
-						: []
-				),
+				// No evidence file: a link to a file that does not exist would open an error page.
+				JSON.stringify([]),
 				waiver ? at(-waiver.requestedHoursAgo) : null,
 				waiver ? at(waiver.reviewDueInHours) : null,
 				waiver?.decision ?? null,
