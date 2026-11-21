@@ -3,8 +3,17 @@
 # Shared VPS: leave the existing host web server and ports 80/443 untouched.
 name: ditrek-prod
 
+# Bound disk growth per CTMS container on the shared VPS. This does not change
+# the Docker daemon defaults or logging for other applications such as IPA.
+x-ctms-logging: &ctms-logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   postgres:
+    logging: *ctms-logging
     container_name: !reset null
     restart: unless-stopped
     environment:
@@ -12,16 +21,19 @@ services:
     ports: !reset []
 
   redis:
+    logging: *ctms-logging
     container_name: !reset null
     restart: unless-stopped
     ports: !reset []
 
   adminer:
+    logging: *ctms-logging
     container_name: !reset null
     profiles: [tools]
     ports: !reset []
 
   api:
+    logging: *ctms-logging
     container_name: !reset null
     restart: unless-stopped
     environment:
@@ -53,21 +65,25 @@ services:
       start_period: 30s
 
   basemap-worker:
+    logging: *ctms-logging
     environment:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL:?Set the internal PostgreSQL URL in .env.production}
 
   ai:
+    logging: *ctms-logging
     container_name: !reset null
     restart: unless-stopped
     ports: !reset []
 
   ingestion:
+    logging: *ctms-logging
     container_name: !reset null
     restart: unless-stopped
     ports: !reset []
 
   web:
+    logging: *ctms-logging
     container_name: !reset null
     restart: unless-stopped
     build:
@@ -76,6 +92,7 @@ services:
     ports: !reset []
 
   nginx:
+    logging: *ctms-logging
     container_name: !reset null
     restart: unless-stopped
     ports: !override

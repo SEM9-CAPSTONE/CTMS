@@ -11,6 +11,7 @@ from threading import Lock
 from contextlib import contextmanager
 
 from app.knowledge_chunking import compare_pdf_text, low_extraction_confidence, split_document, visual_content_issues
+from app.knowledge_artifacts import LAYOUT_REVISION
 from app.knowledge_ocr import check_ocr_runtime, tessdata_path, tesseract_command, validate_ocr_pages
 from app.knowledge_models import (
     EMBEDDING_DIMENSIONS, EMBEDDING_MODEL, EMBEDDING_REVISION, MAX_EMBEDDING_TOKENS,
@@ -77,7 +78,7 @@ class KnowledgeIngestionService:
             from app.knowledge_pdf_backend import KnowledgePdfDocumentBackend
             from app.knowledge_pdf_pipeline import KnowledgePdfPipeline
             layout = LayoutObjectDetectionOptions()
-            layout.model_spec = layout.model_spec.model_copy(update={"revision": "8f39ad3c0b4c58e9c2d2c84a38465abf757272d8"})
+            layout.model_spec = layout.model_spec.model_copy(update={"revision": LAYOUT_REVISION})
             check_ocr_runtime()
             options = PdfPipelineOptions(
                 document_timeout=25 * 60,

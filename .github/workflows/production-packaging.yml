@@ -1,0 +1,41 @@
+name: Production Packaging
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - infra/docker/api.Dockerfile
+      - services/api/package.json
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - .dockerignore
+      - .github/workflows/production-packaging.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    name: API Production Dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v4
+      # The runner stage checks every declared runtime dependency and loads
+      # bcrypt's native binary. No production credentials or push are needed.
+      - name: Build and validate the production API image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: infra/docker/api.Dockerfile
+          target: runner
+          push: false
+          cache-from: |
+            type=gha,scope=ctms-prod-api
+            type=gha,scope=ctms-api-packaging
+          cache-to: type=gha,scope=ctms-api-packaging,mode=min,ignore-error=true
