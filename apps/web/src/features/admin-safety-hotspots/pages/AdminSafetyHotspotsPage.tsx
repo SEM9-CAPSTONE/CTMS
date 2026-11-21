@@ -70,7 +70,10 @@ export function AdminSafetyHotspotsPage({
 				<HotspotDetailModal
 					hotspot={selected}
 					onClose={() => setSelected(null)}
-					onChanged={() => void hotspots.reload()}
+					onDeleted={() => {
+						setSelected(null);
+						void hotspots.reload();
+					}}
 					onReviewed={(next) => {
 						setSelected(next);
 						void hotspots.reload();

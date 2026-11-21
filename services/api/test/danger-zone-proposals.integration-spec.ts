@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { type INestApplication, ValidationPipe } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { Test } from "@nestjs/testing";
@@ -28,6 +31,8 @@ describe("Danger-zone proposals and hotspot review (real Postgres/PostGIS)", () 
 	let host: Account;
 	let otherHost: Account;
 	let camper: Account;
+	let porter: Account;
+	let otherPorter: Account;
 
 	beforeAll(async () => {
 		process.env.OFFLINE_PACKAGE_WORKER_ENABLED = "false";
@@ -47,6 +52,8 @@ describe("Danger-zone proposals and hotspot review (real Postgres/PostGIS)", () 
 		jwtService = moduleRef.get(JwtService);
 		await assertSafeTestDatabase(dataSource);
 		admin = await createAccount(UserRole.ADMIN, "Trần Minh Quân");
+		porter = await createAccount(UserRole.PORTER, "Nguyễn Văn Hùng");
+		otherPorter = await createAccount(UserRole.PORTER, "Trần Minh An");
 		host = await createAccount(UserRole.HOST, "Lê Thu Hà");
 		otherHost = await createAccount(UserRole.HOST, "Đỗ Văn Khoa");
 		camper = await createAccount(UserRole.CAMPER, "Phạm Gia Bảo");
@@ -142,11 +149,28 @@ describe("Danger-zone proposals and hotspot review (real Postgres/PostGIS)", () 
 		return (response.body.features as Array<{ id: string }>).map((feature) => feature.id);
 	};
 
-	it("lets the owning Host propose on a Route in any status without publishing it", async () => {
+	async function legacyProposal(routeId: string, body: typeof pointProposal) {
+		const [{ id }] = await dataSource.query(
+			`INSERT INTO "danger_zone_proposals"
+		 ("source", "route_id", "proposer_id", "hazard_type", "geom", "radius_m", "severity", "description", "observed_at")
+		 VALUES ('HOST', $1, $2, $3, ST_SetSRID(ST_GeomFromGeoJSON($4),4326)::geography, $5, $6, $7, now()) RETURNING "id"`,
+			[
+				routeId,
+				host.id,
+				body.hazardType,
+				JSON.stringify(body.geometry),
+				body.radiusMeters,
+				body.severity,
+				body.description,
+			]
+		);
+		return as(admin, api().get(`/api/admin/danger-zone-proposals/${id}`)).expect(200);
+	}
+
+	it("blocks new Host submissions while retaining historical proposals", async () => {
 		const routeId = await createRoute("active");
-		await propose(otherHost, routeId, pointProposal).expect(403);
-		await propose(camper, routeId, pointProposal).expect(403);
-		const created = await propose(host, routeId, pointProposal).expect(201);
+		await propose(host, routeId, pointProposal).expect(404);
+		const created = await legacyProposal(routeId, pointProposal);
 		expect(created.body).toMatchObject({
 			source: "HOST",
 			status: "PENDING",
@@ -171,11 +195,11 @@ describe("Danger-zone proposals and hotspot review (real Postgres/PostGIS)", () 
 
 	it("publishes an approved proposal to every role and keeps a rejected one private", async () => {
 		const routeId = await createRoute("closed");
-		const approved = await propose(host, routeId, pointProposal).expect(201);
-		const rejected = await propose(host, routeId, {
+		const approved = await legacyProposal(routeId, pointProposal);
+		const rejected = await legacyProposal(routeId, {
 			...pointProposal,
 			geometry: { type: "Point", coordinates: [108.25, 16.062] },
-		}).expect(201);
+		});
 
 		await as(host, api().post(`/api/admin/danger-zone-proposals/${approved.body.id}/approve`))
 			.send({ severity: "high", description: "Dốc đất trơn trượt khi mưa" })
@@ -207,6 +231,13 @@ describe("Danger-zone proposals and hotspot review (real Postgres/PostGIS)", () 
 			expect(ids).toContain(`host:${zoneId}`);
 			expect(ids).toHaveLength(new Set(ids).size);
 		}
+		const published = await as(camper, api().get("/api/route-safety/verified-zones"))
+			.query(BOUNDS)
+			.expect(200);
+		const feature = (
+			published.body.features as Array<{ id: string; properties: { hazardType: string } }>
+		).find((item) => item.id === `host:${zoneId}`);
+		expect(feature?.properties.hazardType).toBe("SLIPPERY_OR_LANDSLIDE");
 		const [zone] = await dataSource.query(
 			`SELECT "radius_m" AS "radius", "severity", "description" FROM "route_danger_zones" WHERE "id" = $1`,
 			[zoneId]
@@ -223,6 +254,146 @@ describe("Danger-zone proposals and hotspot review (real Postgres/PostGIS)", () 
 			[zoneId]
 		);
 		expect(await publishedIds(camper)).not.toContain(`host:${zoneId}`);
+	});
+
+	it("stores up to three Porter field photos per pending report without duplicates", async () => {
+		const previousRoot = process.env.UPLOAD_ROOT;
+		process.env.UPLOAD_ROOT = await mkdtemp(join(tmpdir(), "ctms-proposal-photos-"));
+		try {
+			const routeId = await createRoute();
+			const tripId = await createOngoingTrip(routeId);
+			await dataSource.query(
+				`INSERT INTO "trip_porters" ("trip_id", "porter_id", "status") VALUES ($1,$2,'assigned'),($1,$3,'assigned')`,
+				[tripId, porter.id, otherPorter.id]
+			);
+			const now = new Date().toISOString();
+			const created = await as(porter, api().post(`/api/trips/${tripId}/danger-zone-proposals`))
+				.send({
+					clientRequestId: randomUUID(),
+					hazardType: "ROUTE_OBSTRUCTION",
+					severity: "medium",
+					description: "Cây đổ chắn ngang lối mòn gần suối.",
+					observedAt: now,
+					location: { latitude: 16.061, longitude: 108.24, accuracyMeters: 8, capturedAt: now },
+				})
+				.expect(201);
+			expect(created.body.photos).toEqual([]);
+			const endpoint = `/api/trips/${tripId}/danger-zone-proposals/${created.body.id}/photos`;
+			const jpeg = (marker: number) => Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, marker]);
+			const upload = (account: Account, bytes: Buffer) =>
+				as(account, api().post(endpoint)).attach("file", bytes, {
+					filename: "photo.jpg",
+					contentType: "image/jpeg",
+				});
+
+			await upload(otherPorter, jpeg(1)).expect(404);
+			await upload(porter, Buffer.from("not an image")).expect(422);
+			const first = await upload(porter, jpeg(1)).expect(200);
+			expect(first.body.photos).toHaveLength(1);
+			expect(first.body.photos[0].url).toMatch(/^\/uploads\/danger-zone-proposals\/.+\.jpg$/);
+			expect((await upload(porter, jpeg(1)).expect(200)).body.photos).toHaveLength(1);
+			await upload(porter, jpeg(2)).expect(200);
+			await upload(porter, jpeg(3)).expect(200);
+			const limit = await upload(porter, jpeg(4)).expect(409);
+			expect(limit.body.code).toBe("PROPOSAL_PHOTO_LIMIT");
+
+			const review = await as(
+				admin,
+				api().get(`/api/admin/danger-zone-proposals/${created.body.id}`)
+			).expect(200);
+			expect(review.body.photos).toHaveLength(3);
+		} finally {
+			process.env.UPLOAD_ROOT = previousRoot;
+		}
+	});
+
+	it("accepts assigned Porter GPS reports idempotently and supports delivery after the trip ends", async () => {
+		const routeId = await createRoute();
+		const tripId = await createOngoingTrip(routeId);
+		await dataSource.query(
+			`INSERT INTO "trip_porters" ("trip_id", "porter_id", "status") VALUES ($1,$2,'assigned'),($1,$3,'assigned')`,
+			[tripId, porter.id, otherPorter.id]
+		);
+		const endpoint = `/api/trips/${tripId}/danger-zone-proposals`;
+		const now = new Date().toISOString();
+		const body = {
+			clientRequestId: randomUUID(),
+			hazardType: "SLIPPERY_OR_LANDSLIDE",
+			severity: "high",
+			description: "Đất đá tràn xuống lối đi sau mưa.",
+			observedAt: now,
+			location: { latitude: 16.061, longitude: 108.24, accuracyMeters: 12, capturedAt: now },
+		};
+		await as(host, api().post(endpoint)).send(body).expect(403);
+		await as(camper, api().post(endpoint)).send(body).expect(403);
+		await as(porter, api().post(`/api/trips/${randomUUID()}/danger-zone-proposals`))
+			.send(body)
+			.expect(403);
+		for (const bad of [
+			{ location: null },
+			{ location: { ...body.location, latitude: 100 } },
+			{ location: { ...body.location, capturedAt: new Date(Date.now() - 120000).toISOString() } },
+		]) {
+			await as(porter, api().post(endpoint))
+				.send({ ...body, ...bad, clientRequestId: randomUUID() })
+				.expect(422);
+		}
+		const [first, duplicate] = await Promise.all([
+			as(porter, api().post(endpoint)).send(body).expect(201),
+			as(porter, api().post(endpoint)).send(body).expect(201),
+		]);
+		expect(first.body.id).toBe(duplicate.body.id);
+		expect(first.body).toMatchObject({
+			source: "PORTER",
+			status: "PENDING",
+			radiusMeters: 5,
+			tripTitle: "Sơn Trà bình minh",
+			proposerName: "Nguyễn Văn Hùng",
+		});
+		await as(porter, api().post(endpoint))
+			.send({ ...body, description: "Nội dung thay đổi" })
+			.expect(409);
+		expect((await as(otherPorter, api().get(endpoint)).expect(200)).body).toEqual([]);
+		expect((await as(porter, api().get(endpoint)).expect(200)).body).toHaveLength(1);
+		expect(
+			(
+				await dataSource.query(
+					`SELECT count(*)::int AS n FROM "route_danger_zones" WHERE "route_id"=$1`,
+					[routeId]
+				)
+			)[0].n
+		).toBe(0);
+		await dataSource.query(
+			`UPDATE "trips" SET "status"='completed', "actual_started_at"="starts_at", "actual_ended_at"=now() WHERE "id"=$1`,
+			[tripId]
+		);
+		await as(porter, api().post(endpoint))
+			.send({ ...body, clientRequestId: randomUUID() })
+			.expect(201);
+		const future = new Date(Date.now() + 60000).toISOString();
+		await as(porter, api().post(endpoint))
+			.send({
+				...body,
+				clientRequestId: randomUUID(),
+				observedAt: future,
+				location: { ...body.location, capturedAt: future },
+			})
+			.expect(422);
+		await as(porter, api().post(`/api/admin/danger-zone-proposals/${first.body.id}/approve`))
+			.send({ severity: "high", description: body.description })
+			.expect(403);
+		const decision = await as(
+			admin,
+			api().post(`/api/admin/danger-zone-proposals/${first.body.id}/approve`)
+		)
+			.send({ severity: "high", description: body.description })
+			.expect(200);
+		expect(await publishedIds(camper)).toContain(`host:${decision.body.dangerZoneId}`);
+		await dataSource.query(`DELETE FROM "trip_porters" WHERE "trip_id"=$1 AND "porter_id"=$2`, [
+			tripId,
+			porter.id,
+		]);
+		await as(porter, api().post(endpoint)).send(body).expect(403);
 	});
 
 	it("queues an eligible field incident with a fresh position, and nothing else", async () => {
@@ -305,9 +476,8 @@ describe("Danger-zone proposals and hotspot review (real Postgres/PostGIS)", () 
 			});
 
 		await review(host, "UNDER_REVIEW").expect(403);
-		expect((await review(admin, "CONFIRMED").expect(409)).body.code).toBe("INVALID_TRANSITION");
-		await review(admin, "UNDER_REVIEW", "ngắn").expect(422);
-		await review(admin, "UNDER_REVIEW").expect(200);
+		await review(admin, "UNDER_REVIEW").expect(422);
+		await review(admin, "CONFIRMED", "ngắn").expect(422);
 		const confirmed = await review(admin, "CONFIRMED").expect(200);
 		expect(confirmed.body.status).toBe("CONFIRMED");
 		await review(admin, "DISMISSED").expect(409);
@@ -322,9 +492,6 @@ describe("Danger-zone proposals and hotspot review (real Postgres/PostGIS)", () 
 				row.toStatus,
 				row.actorName,
 			])
-		).toEqual([
-			["UNDER_REVIEW", "CONFIRMED", "Trần Minh Quân"],
-			["DETECTED", "UNDER_REVIEW", "Trần Minh Quân"],
-		]);
+		).toEqual([["DETECTED", "CONFIRMED", "Trần Minh Quân"]]);
 	});
 });

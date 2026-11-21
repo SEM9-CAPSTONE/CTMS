@@ -18,6 +18,7 @@ import '../../gps_tracking/application/gps_tracking_controller.dart';
 import '../../gps_tracking/data/gps_log_store.dart';
 import '../../gps_tracking/data/gps_tracking_api.dart';
 import '../../gps_tracking/domain/gps_tracking_models.dart';
+import '../../danger_zone_proposals/application/danger_zone_report_queue.dart';
 import '../../incidents/application/incident_sync.dart';
 import '../../incidents/data/incident_store.dart';
 import '../../incidents/data/incidents_api.dart';
@@ -55,10 +56,13 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
     this.medicalStore,
     this.healthProfileRepository,
     this.feedbackQueue,
+    this.dangerReportQueue,
     DateTime Function()? clock,
     bool autoStart = true,
   }) : _clock = clock ?? DateTime.now {
     _connectivitySub = connectivitySource.onConnectivityChanged.listen(_handleConnectivityChange);
+    _dangerCommits = dangerReportQueue?.commits ?? 0;
+    dangerReportQueue?.addListener(_onDangerChanged);
     _feedbackCommits = feedbackQueue?.commits ?? 0;
     feedbackQueue?.addListener(_onFeedbackChanged);
     if (autoStart) {
@@ -80,6 +84,8 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
   final OfflineMedicalStore? medicalStore;
   final CamperHealthProfileRepository? healthProfileRepository;
   final AiFeedbackQueue? feedbackQueue;
+  final DangerZoneReportQueue? dangerReportQueue;
+  int _dangerCommits = 0;
   final DateTime Function() _clock;
 
   bool _isOnline = false;
@@ -167,6 +173,13 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
     if (_disposed || !_isOnline) return;
     _feedbackRequested = true;
     if (!_isSyncing) unawaited(synchronizeAll());
+  }
+
+  void _onDangerChanged() {
+    final commits = dangerReportQueue?.commits ?? 0;
+    if (commits == _dangerCommits) return;
+    _dangerCommits = commits;
+    _requestFeedbackSync();
   }
 
   void _onFeedbackChanged() {
@@ -279,6 +292,9 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
         }
       }
 
+      final dangerPending = _isOnline && !_disposed
+          ? await dangerReportQueue?.flush() == true : false;
+
       // 4. PRIORITY 3: Synchronize GPS logs and Route Deviation events per trip (BR-257)
       for (final tripId in tripIds) {
         if (safetyEventStore != null && safetyEventApi != null) {
@@ -368,7 +384,7 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
 
       // Ratings and unsafe reports are delivered after SOS and safety telemetry.
       final feedback = _isOnline && !_disposed ? await feedbackQueue?.flush() : null;
-      final feedbackPending = feedback?.retry == true;
+      final feedbackPending = feedback?.retry == true || dangerPending;
       if (feedbackPending) {
         _feedbackFailures++;
       } else {
@@ -444,6 +460,8 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
         await incidentStore.put(updated);
       }
 
+      if (_isOnline && !_disposed) await dangerReportQueue?.flush();
+
       // 3. Telemetry and route deviation events
       if (gpsStore != null && gpsApi != null) {
         if (force) {
@@ -514,6 +532,7 @@ class ReconnectionSyncCoordinator extends ChangeNotifier {
     _cancelRetryTimer();
     _connectivitySub?.cancel();
     feedbackQueue?.removeListener(_onFeedbackChanged);
+    dangerReportQueue?.removeListener(_onDangerChanged);
     super.dispose();
   }
 }
@@ -550,6 +569,7 @@ final reconnectionSyncCoordinatorProvider = Provider<ReconnectionSyncCoordinator
     medicalStore: medicalStore,
     healthProfileRepository: healthRepo,
     feedbackQueue: ref.watch(aiFeedbackQueueProvider.notifier),
+    dangerReportQueue: ref.watch(dangerZoneReportQueueProvider.notifier),
   );
 
   ref.onDispose(coordinator.dispose);

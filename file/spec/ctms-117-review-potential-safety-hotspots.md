@@ -134,6 +134,45 @@ TBD — Technical Design.
 
 None for the approved hotspot lifecycle.
 
+## Porter danger-zone reporting amendment — 2026-11-21
+
+New manual danger-zone proposals are submitted by the assigned Porter from the mobile
+**Chuyến đi → Báo điểm nguy hiểm** form. Host creation is removed: the Host
+`POST /api/trekking-routes/:routeId/danger-zone-proposals` and the direct
+`POST /api/trekking-routes/:routeId/hazard-areas` no longer exist, and the web route
+screens no longer offer drawing or proposing danger zones. Owned-Route history
+(`GET` on both paths) and existing Host/incident records remain available; Admin
+corrective hazard areas from approvals and safety hotspots are unchanged.
+
+`POST /api/trips/:tripId/danger-zone-proposals` accepts `clientRequestId`, `hazardType`,
+`severity`, `description` (1–1000 characters), `observedAt`, and required `location`
+(`latitude`, `longitude`, `accuracyMeters`, `capturedAt`). The Route comes from the Trip.
+GPS must be within 30 seconds of the observation; future timestamps beyond 30 seconds
+are rejected. The initial radius is a fixed 5 m point; GPS accuracy is kept for review only.
+An account-scoped request key returns the same proposal on identical retries and 409
+for changed evidence. `GET` on the same path lists only that Porter's proposals.
+
+The form is available during an ongoing Trip. Persisted reports may arrive after completion
+if observed during the actual operating window (scheduled timestamps are the legacy
+fallback). Delivery still requires the Porter to be assigned. Synchronization never
+replaces the saved coordinates or observation time with the current position.
+
+Mobile saves the full report durably before sending and retains it across restarts.
+The existing reconnection coordinator sends pending work while the app is active,
+on reconnection and resume. Transient errors use bounded exponential backoff; invalid
+or unauthorized reports stop automatic retries and show a Vietnamese explanation.
+Logout cancels requests and isolates the saved queue by account. No killed-app background
+execution is promised. Admin sees source **Porter**, reporter, Trip, capture time and GPS
+accuracy in the existing proposal review screen. Only approval publishes a verified zone.
+
+Field photos are optional: up to 3 JPEG/PNG/WebP images of at most 5 MB each.
+`POST /api/trips/:tripId/danger-zone-proposals/:proposalId/photos` (multipart `file`)
+accepts one photo for the Porter's own pending report; the content hash makes a retried
+upload return the stored photo instead of counting twice. Decided reports reject new photos
+(409 `PROPOSAL_ALREADY_DECIDED`), a fourth photo returns 409 `PROPOSAL_PHOTO_LIMIT`.
+Mobile saves the resized photos with the queued report and uploads them after the report
+is created; Admin sees them as **Ảnh hiện trường** in the review detail.
+
 ## Web map consumer amendment — 2026-11-16
 
 CONFIRMED establishes eligible evidence; it does not itself publish a map hazard. Once Admin applies ADD_HAZARD_AREA or UPDATE_HAZARD_AREA under CTMS-118, the matching authoritative hazard becomes visible through the shared viewport layer without a selected Route, Trip or drawn geometry. Current confirmation, evidence and applied hazard snapshot must match. Pending/rejected/reopened evidence is excluded. Public reads expose safety facts and verification, never review reasons, evidence or member data. See docs/business-rules/route-safety-v2.md, amended BR-475/477. No automatic review or corrective write is introduced.

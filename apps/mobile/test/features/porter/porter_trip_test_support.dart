@@ -1,3 +1,4 @@
+import 'package:mobile/features/danger_zone_proposals/application/danger_zone_report_queue.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile/features/emergency_broadcasts/application/emergency_broadcasts_controller.dart';
 import 'package:mobile/features/emergency_broadcasts/data/emergency_broadcast_seen_store.dart';
@@ -103,6 +104,7 @@ class _Seen implements EmergencyBroadcastSeenStore {
 }
 
 List<Override> trackingOverrides({Map<String, RecordingGps>? createdGps}) => [
+  dangerZoneReportQueueProvider.overrideWith((ref) => null),
   packageDownloadControllerProvider.overrideWith((ref, id) => IdleDownload(id)),
   offlineMapControllerProvider.overrideWith((ref, id) => IdleMap(id)),
   gpsTrackingControllerProvider.overrideWith((ref, id) {

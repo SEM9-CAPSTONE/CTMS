@@ -4,11 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpError } from "../../../core/api";
 import { toast } from "../../../shared/components";
 import { safetyHotspotsService } from "../services/safety-hotspots.service";
-import type { CorrectiveTargets, SafetyHotspot } from "../types";
+import type { SafetyHotspot } from "../types";
 import { AdminSafetyHotspotsPage } from "./AdminSafetyHotspotsPage";
 
 const HOTSPOT_ID = "8b1f6a52-2f6c-4c55-9f0e-6d2c1a9b7e10";
-const CHECKPOINT_ID = "0f5d2c9a-71b4-4f3e-8a6d-3c2b1e0f9a87";
 
 const confirmed: SafetyHotspot = {
 	id: HOTSPOT_ID,
@@ -25,12 +24,9 @@ const confirmed: SafetyHotspot = {
 	firstEventAt: "2026-10-20T02:00:00Z",
 	lastEventAt: "2026-11-08T02:00:00Z",
 	detectedAt: "2026-11-09T00:00:00Z",
-};
-const targets: CorrectiveTargets = {
-	checkpoints: [
-		{ id: CHECKPOINT_ID, name: "Ngã ba suối Đá", routePosition: 0.5, instructions: "Nghỉ chân" },
-	],
-	hazardAreas: [],
+	name: null,
+	description: null,
+	severity: null,
 };
 
 async function openDetail() {
@@ -43,7 +39,7 @@ async function openDetail() {
 	return within(await screen.findByRole("dialog"));
 }
 
-describe("AdminSafetyHotspotsPage (CTMS-118)", () => {
+describe("AdminSafetyHotspotsPage", () => {
 	beforeEach(() => {
 		vi.spyOn(safetyHotspotsService, "list").mockResolvedValue([confirmed]);
 		vi.spyOn(safetyHotspotsService, "evidence").mockResolvedValue([
@@ -64,19 +60,8 @@ describe("AdminSafetyHotspotsPage (CTMS-118)", () => {
 				maxDistanceMeters: 90,
 			},
 		]);
-		vi.spyOn(safetyHotspotsService, "targets").mockResolvedValue(targets);
 		vi.spyOn(safetyHotspotsService, "actions").mockResolvedValue([]);
 		vi.spyOn(safetyHotspotsService, "reviews").mockResolvedValue([]);
-		vi.spyOn(safetyHotspotsService, "createAction").mockResolvedValue({
-			id: "action-1",
-			actionType: "UPDATE_CHECKPOINT_INSTRUCTIONS",
-			targetName: "Ngã ba suối Đá",
-			reason: "Nhiều đoàn rẽ nhầm tại ngã ba suối, cần chỉ rõ hướng rẽ trái.",
-			packageImpact: "AFFECTED",
-			impactTripCount: 2,
-			actorName: "Trần Minh Quân",
-			createdAt: "2026-11-15T03:00:00Z",
-		});
 		vi.spyOn(toast, "success").mockImplementation(() => undefined);
 		vi.spyOn(toast, "error").mockImplementation(() => undefined);
 	});
@@ -102,16 +87,11 @@ describe("AdminSafetyHotspotsPage (CTMS-118)", () => {
 		await waitFor(() => expect(safetyHotspotsService.list).toHaveBeenLastCalledWith("ALL"));
 	});
 
-	it("does not offer a safety update for a hotspot that is not confirmed", async () => {
-		vi.mocked(safetyHotspotsService.list).mockResolvedValue([
-			{ ...confirmed, status: "UNDER_REVIEW" },
-		]);
+	it("no longer offers updating Route safety data from a hotspot", async () => {
 		const dialog = await openDetail();
-		expect(
-			dialog.getByText("Điểm nóng chưa được xác nhận nên chưa thể cập nhật dữ liệu an toàn.")
-		).toBeInTheDocument();
-		expect(dialog.queryByRole("button", { name: "Cập nhật dữ liệu an toàn" })).toBeNull();
-		expect(safetyHotspotsService.targets).not.toHaveBeenCalled();
+		await dialog.findByRole("region", { name: "Thông tin điểm nóng" });
+		expect(dialog.queryByText("Cập nhật dữ liệu an toàn")).toBeNull();
+		expect(dialog.queryByText(/chưa thể cập nhật dữ liệu an toàn/)).toBeNull();
 	});
 
 	it("lists each deviation with its Trip and time, without member data", async () => {
@@ -166,62 +146,70 @@ describe("AdminSafetyHotspotsPage (CTMS-118)", () => {
 		).toBeInTheDocument();
 	});
 
-	it("updates checkpoint instructions after confirmation and reports the package impact", async () => {
+	it("saves the name, description and severity an Admin writes", async () => {
+		const update = vi.spyOn(safetyHotspotsService, "update").mockResolvedValue({
+			...confirmed,
+			name: "Ngã ba suối Đá",
+			description: "Các đoàn rẽ nhầm xuống suối khi biển chỉ hướng bị cây che.",
+			severity: "high",
+		});
 		const dialog = await openDetail();
-		await userEvent.click(await dialog.findByRole("combobox", { name: "Điểm dừng" }));
-		await userEvent.click(dialog.getByRole("option", { name: "1. Ngã ba suối Đá" }));
-		const instructions = dialog.getByLabelText("Hướng dẫn an toàn mới");
-		await userEvent.clear(instructions);
-		await userEvent.type(instructions, "Rẽ trái theo cọc tiêu đỏ");
+		await userEvent.type(dialog.getByLabelText("Tên điểm nóng"), "  Ngã ba suối Đá ");
 		await userEvent.type(
-			dialog.getByLabelText("Lý do"),
-			"Nhiều đoàn rẽ nhầm tại ngã ba suối, cần chỉ rõ hướng rẽ trái."
+			dialog.getByLabelText("Mô tả"),
+			"Các đoàn rẽ nhầm xuống suối khi biển chỉ hướng bị cây che."
 		);
-		await userEvent.click(dialog.getByRole("button", { name: "Cập nhật dữ liệu an toàn" }));
-		await userEvent.click(await screen.findByRole("button", { name: "Cập nhật" }));
-
+		await userEvent.click(dialog.getByRole("combobox", { name: "Mức độ" }));
+		await userEvent.click(dialog.getByRole("option", { name: "Cao" }));
+		await userEvent.click(dialog.getByRole("button", { name: "Lưu thay đổi" }));
 		await waitFor(() =>
-			expect(safetyHotspotsService.createAction).toHaveBeenCalledWith(HOTSPOT_ID, {
-				actionType: "UPDATE_CHECKPOINT_INSTRUCTIONS",
-				reason: "Nhiều đoàn rẽ nhầm tại ngã ba suối, cần chỉ rõ hướng rẽ trái.",
-				checkpointId: CHECKPOINT_ID,
-				instructions: "Rẽ trái theo cọc tiêu đỏ",
+			expect(update).toHaveBeenCalledWith(HOTSPOT_ID, {
+				name: "Ngã ba suối Đá",
+				description: "Các đoàn rẽ nhầm xuống suối khi biển chỉ hướng bị cây che.",
+				severity: "high",
 			})
 		);
-		expect(toast.success).toHaveBeenCalledWith(
-			"Đã cập nhật dữ liệu an toàn. Gói an toàn ngoại tuyến của 2 chuyến sắp khởi hành sẽ được tạo phiên bản mới.",
-			"Điểm nóng an toàn"
-		);
+		expect(toast.success).toHaveBeenCalledWith("Đã lưu thông tin điểm nóng.", "Điểm nóng an toàn");
+		expect(await screen.findByRole("heading", { name: "Ngã ba suối Đá" })).toBeInTheDocument();
 	});
 
-	it("requires a reason before asking for confirmation", async () => {
+	it("requires a name before saving", async () => {
+		const update = vi.spyOn(safetyHotspotsService, "update");
 		const dialog = await openDetail();
-		await dialog.findByRole("combobox", { name: "Điểm dừng" });
-		await userEvent.click(dialog.getByRole("button", { name: "Cập nhật dữ liệu an toàn" }));
-		expect(await dialog.findByText("Lý do cần tối thiểu 10 ký tự.")).toBeInTheDocument();
-		expect(dialog.getByText("Chọn điểm dừng cần cập nhật.")).toBeInTheDocument();
-		expect(safetyHotspotsService.createAction).not.toHaveBeenCalled();
+		await userEvent.type(dialog.getByLabelText("Mô tả"), "Đoạn dốc trơn sau mưa.");
+		await userEvent.click(dialog.getByRole("button", { name: "Lưu thay đổi" }));
+		expect(await dialog.findByText("Vui lòng nhập tên điểm nóng.")).toBeInTheDocument();
+		expect(update).not.toHaveBeenCalled();
 	});
 
-	it("shows a Vietnamese error toast when the hotspot is no longer confirmed", async () => {
-		vi.mocked(safetyHotspotsService.createAction).mockRejectedValue(
-			new HttpError("Conflict", 409, { code: "HOTSPOT_NOT_CONFIRMED", status: "DISMISSED" })
+	it("deletes a hotspot permanently only after confirmation", async () => {
+		const remove = vi.spyOn(safetyHotspotsService, "remove").mockResolvedValue(undefined);
+		const dialog = await openDetail();
+		await userEvent.click(dialog.getByRole("button", { name: "Xóa điểm nóng" }));
+		const confirmation = within(await screen.findByTestId("confirm-modal"));
+		expect(confirmation.getByText(/xóa vĩnh viễn, không thể khôi phục/)).toBeInTheDocument();
+		expect(remove).not.toHaveBeenCalled();
+		await userEvent.click(confirmation.getByRole("button", { name: "Xóa vĩnh viễn" }));
+		await waitFor(() => expect(remove).toHaveBeenCalledWith(HOTSPOT_ID));
+		expect(toast.success).toHaveBeenCalledWith("Đã xóa điểm nóng.", "Điểm nóng an toàn");
+		await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+		expect(safetyHotspotsService.list).toHaveBeenCalledTimes(2);
+	});
+
+	it("explains in Vietnamese why a hotspot that changed Route data cannot be deleted", async () => {
+		vi.spyOn(safetyHotspotsService, "remove").mockRejectedValue(
+			new HttpError("Conflict", 409, { code: "HOTSPOT_HAS_CORRECTIONS" })
 		);
 		const dialog = await openDetail();
-		await userEvent.click(await dialog.findByRole("combobox", { name: "Biện pháp" }));
-		await userEvent.click(dialog.getByRole("option", { name: "Không cần thay đổi dữ liệu" }));
-		await userEvent.type(
-			dialog.getByLabelText("Lý do"),
-			"Đoạn lệch là lối tắt an toàn đã có biển chỉ dẫn."
-		);
-		await userEvent.click(dialog.getByRole("button", { name: "Cập nhật dữ liệu an toàn" }));
-		await userEvent.click(await screen.findByRole("button", { name: "Cập nhật" }));
+		await userEvent.click(dialog.getByRole("button", { name: "Xóa điểm nóng" }));
+		await userEvent.click(await screen.findByRole("button", { name: "Xóa vĩnh viễn" }));
 		await waitFor(() =>
 			expect(toast.error).toHaveBeenCalledWith(
-				"Điểm nóng này không còn ở trạng thái đã xác nhận nên chưa thể cập nhật dữ liệu an toàn.",
+				"Điểm nóng này đã được dùng để cập nhật dữ liệu an toàn của tuyến nên không thể xóa.",
 				"Điểm nóng an toàn"
 			)
 		);
+		expect(screen.getByRole("dialog")).toBeInTheDocument();
 	});
 
 	it.each(["DETECTED", "UNDER_REVIEW"] as const)(

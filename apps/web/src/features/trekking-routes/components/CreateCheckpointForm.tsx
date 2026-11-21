@@ -14,13 +14,12 @@ import type {
 	RouteCheckpoint,
 	RouteCheckpointType,
 } from "../types";
-import { DANGER_AREA_VALUE, LocationTypeOptions } from "./LocationTypeOptions";
+import { LocationTypeOptions } from "./LocationTypeOptions";
 
 interface Props {
 	checkpoint?: RouteCheckpoint;
 	location?: GeoJsonPoint;
 	initialType?: RouteCheckpointType;
-	onSelectDangerArea?: () => void;
 	disabled: boolean;
 	isSubmitting: boolean;
 	error: string;
@@ -36,7 +35,6 @@ export function CreateCheckpointForm({
 	checkpoint,
 	location,
 	initialType,
-	onSelectDangerArea,
 	disabled,
 	isSubmitting,
 	error,
@@ -102,13 +100,9 @@ export function CreateCheckpointForm({
 					aria-label="Vị trí"
 					disabled={fieldDisabled}
 					className={inputClass}
-					{...register("type", {
-						onChange: (event) => {
-							if (event.target.value === DANGER_AREA_VALUE) onSelectDangerArea?.();
-						},
-					})}
+					{...register("type")}
 				>
-					<LocationTypeOptions includeDangerArea={!checkpoint && Boolean(onSelectDangerArea)} />
+					<LocationTypeOptions />
 				</select>
 				{errors.type && (
 					<span className="mt-1 block text-xs text-red-600">{errors.type.message}</span>

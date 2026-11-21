@@ -30,6 +30,7 @@ export const PROPOSAL_STATUS_FILTERS: Array<{ value: ProposalStatusFilter; label
 ];
 
 export const PROPOSAL_SOURCE_LABELS: Record<ProposalSource, string> = {
+	PORTER: "Porter báo cáo",
 	HOST: "Host đề xuất",
 	INCIDENT: "Báo cáo sự cố",
 };

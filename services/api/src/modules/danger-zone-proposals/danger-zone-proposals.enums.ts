@@ -1,5 +1,6 @@
 /** Where a proposal came from. Neither source publishes anything until an Admin approves it. */
 export enum DangerZoneProposalSource {
+	PORTER = "PORTER",
 	HOST = "HOST",
 	INCIDENT = "INCIDENT",
 }

@@ -23,6 +23,12 @@ export function featureMarkerPoint(feature: SafetyFeature): GeoJsonPoint | undef
 		return feature.properties.labelPoint ?? undefined;
 	return undefined;
 }
+/** Verified danger zones show only the warning sign: no badge frame, outline or radius ring. */
+export const isBareSymbol = (feature: SafetyFeature) =>
+	feature.properties.sourceType === "ADMIN_VERIFIED";
+const FRAMED_MARKER = "rounded-full border-2 border-white bg-white/95 p-1 shadow-sm hover:bg-white";
+export const markerFrameClass = (feature: SafetyFeature) =>
+	isBareSymbol(feature) ? "bg-transparent" : FRAMED_MARKER;
 export const featureColor = (feature: SafetyFeature) =>
 	feature.properties.sourceType === "RESOURCE"
 		? WATER_COLOR
@@ -37,7 +43,11 @@ export const isDisplayableFeature = (feature: SafetyFeature) =>
 		));
 
 /** The DOM marker and React legend share these paths; no remote icon or font requests. */
-export function createSafetySymbol(kind: SafetySymbolKind, color: string): SVGSVGElement {
+export function createSafetySymbol(
+	kind: SafetySymbolKind,
+	color: string,
+	outlined = true
+): SVGSVGElement {
 	const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
 	svg.setAttribute("viewBox", "0 0 24 24");
 	svg.setAttribute("width", "28");
@@ -47,7 +57,7 @@ export function createSafetySymbol(kind: SafetySymbolKind, color: string): SVGSV
 		const element = document.createElementNS(svg.namespaceURI, "path");
 		element.setAttribute("d", path);
 		element.setAttribute("fill", key === "shape" ? color : "none");
-		element.setAttribute("stroke", "white");
+		element.setAttribute("stroke", key === "shape" && !outlined ? "none" : "white");
 		element.setAttribute("stroke-width", key === "shape" ? "1.5" : "2.5");
 		element.setAttribute("stroke-linecap", "round");
 		svg.append(element);

@@ -1,17 +1,19 @@
-import { Button, Modal, StatusBadge } from "../../../shared/components";
-import { HOTSPOT_STATUS_LABELS, HOTSPOT_STATUS_TONES } from "../constants";
-import { useHotspotCorrections } from "../hooks/useHotspotCorrections";
+import { useState } from "react";
+import { Button, ConfirmModal, Modal, StatusBadge } from "../../../shared/components";
+import { HAZARD_SEVERITY_OPTIONS, HOTSPOT_STATUS_LABELS, HOTSPOT_STATUS_TONES } from "../constants";
+import { useHotspotDetails } from "../hooks/useHotspotDetails";
+import { useHotspotEvidence } from "../hooks/useHotspotEvidence";
 import { useHotspotReview } from "../hooks/useHotspotReview";
 import type { HotspotEvidenceEvent, SafetyHotspot } from "../types";
 import { formatDate, formatDateTime, formatTime } from "../utils/format";
-import { CorrectiveActionForm } from "./CorrectiveActionForm";
+import { HotspotDetailsForm } from "./HotspotDetailsForm";
 import { HotspotHistoryTable } from "./HotspotHistoryTable";
 import { HotspotReviewForm } from "./HotspotReviewForm";
 
 interface Props {
 	hotspot: SafetyHotspot;
 	onClose: () => void;
-	onChanged: () => void;
+	onDeleted: () => void;
 	onReviewed: (next: SafetyHotspot) => void;
 }
 
@@ -40,14 +42,17 @@ function groupByTrip(events: HotspotEvidenceEvent[]): TripEvidence[] {
 const minutesBetween = (from: string, to: string) =>
 	Math.max(1, Math.round((new Date(to).getTime() - new Date(from).getTime()) / 60_000));
 
-export function HotspotDetailModal({ hotspot, onClose, onChanged, onReviewed }: Props) {
-	const corrections = useHotspotCorrections(hotspot, onChanged);
+export function HotspotDetailModal({ hotspot, onClose, onDeleted, onReviewed }: Props) {
+	const corrections = useHotspotEvidence(hotspot.id);
 	const review = useHotspotReview(hotspot.id, onReviewed);
-	const confirmed = hotspot.status === "CONFIRMED";
+	const details = useHotspotDetails(hotspot.id, onReviewed, onDeleted);
+	const [confirmDelete, setConfirmDelete] = useState(false);
+	const severity = HAZARD_SEVERITY_OPTIONS.find((option) => option.value === hotspot.severity);
 	const reviewable = hotspot.status === "DETECTED" || hotspot.status === "UNDER_REVIEW";
 	const evidenceByTrip = groupByTrip(corrections.evidence);
 	const facts: Array<[string, string]> = [
 		["Tuyến", hotspot.routeName],
+		["Mức độ", severity?.label ?? "Chưa đánh giá"],
 		["Bằng chứng", `${hotspot.eventCount} lần lệch tuyến từ ${hotspot.distinctTripCount} chuyến`],
 		[
 			"Khoảng thời gian",
@@ -63,9 +68,9 @@ export function HotspotDetailModal({ hotspot, onClose, onChanged, onReviewed }: 
 		<Modal
 			isOpen
 			onClose={onClose}
-			title="Điểm nóng an toàn"
+			title={hotspot.name ?? "Điểm nóng an toàn"}
 			size="xl"
-			isCloseDisabled={corrections.submitting || review.submitting}
+			isCloseDisabled={details.submitting || review.submitting}
 		>
 			<div className="space-y-6">
 				<div className="space-y-3">
@@ -137,29 +142,17 @@ export function HotspotDetailModal({ hotspot, onClose, onChanged, onReviewed }: 
 
 				<section
 					className="space-y-3 border-t border-[#e8efe7] pt-4"
-					aria-labelledby="hotspot-update-title"
+					aria-labelledby="hotspot-details-title"
 				>
-					<h3 id="hotspot-update-title" className="text-lg font-semibold text-[#10221b]">
-						Cập nhật dữ liệu an toàn
+					<h3 id="hotspot-details-title" className="text-lg font-semibold text-[#10221b]">
+						Thông tin điểm nóng
 					</h3>
-					{!confirmed && (
-						<p className="text-sm text-[#667a6d]">
-							Điểm nóng chưa được xác nhận nên chưa thể cập nhật dữ liệu an toàn.
-						</p>
-					)}
-					{confirmed && corrections.loading && !corrections.targets && (
-						<p className="text-sm text-[#667a6d]">
-							Đang tải điểm dừng và vùng nguy hiểm của tuyến...
-						</p>
-					)}
-					{confirmed && corrections.targets && (
-						<CorrectiveActionForm
-							hotspot={hotspot}
-							targets={corrections.targets}
-							submitting={corrections.submitting}
-							onSubmit={corrections.submit}
-						/>
-					)}
+					<HotspotDetailsForm
+						key={hotspot.id}
+						hotspot={hotspot}
+						submitting={details.submitting}
+						onSave={details.save}
+					/>
 				</section>
 
 				<section
@@ -173,7 +166,32 @@ export function HotspotDetailModal({ hotspot, onClose, onChanged, onReviewed }: 
 						<HotspotHistoryTable reviews={review.reviews} actions={corrections.history} />
 					)}
 				</section>
+
+				<div className="flex justify-end border-t border-[#e8efe7] pt-4">
+					<Button
+						variant="outline"
+						disabled={details.submitting || review.submitting}
+						onClick={() => setConfirmDelete(true)}
+						className="border-rose-200 text-rose-700 hover:bg-rose-50"
+					>
+						Xóa điểm nóng
+					</Button>
+				</div>
 			</div>
+
+			<ConfirmModal
+				isOpen={confirmDelete}
+				onClose={() => setConfirmDelete(false)}
+				onConfirm={async () => {
+					if (!(await details.remove())) setConfirmDelete(false);
+				}}
+				isLoading={details.submitting}
+				variant="danger"
+				title="Xóa điểm nóng"
+				description={`Điểm nóng trên tuyến ${hotspot.routeName} và lịch sử xét duyệt của nó sẽ bị xóa vĩnh viễn, không thể khôi phục. Các lần lệch tuyến vẫn được giữ, nên lần phát hiện sau có thể tạo lại điểm này.`}
+				confirmText="Xóa vĩnh viễn"
+				cancelText="Quay lại"
+			/>
 		</Modal>
 	);
 }

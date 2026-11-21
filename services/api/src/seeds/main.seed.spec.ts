@@ -53,6 +53,7 @@ describe("Master seed entry point", () => {
 		"--group-bookings-only",
 		"--revenue-analytics-only",
 		"--safety-hotspots-only",
+		"--danger-zone-reports-only",
 		"--fresh",
 	])("refuses %s in production before connecting to the database", async (flag) => {
 		const environment = jest.replaceProperty(process, "env", {

@@ -30,19 +30,7 @@ export function useRoutePreviewMap(
 		],
 		[checkpoints, fitDangerZones, geometry.coordinates]
 	);
-	const persistedHazards = useMemo(() => {
-		const collection = dangerZoneFeatureCollection(dangerZones);
-		return {
-			...collection,
-			features: collection.features.map((feature, index) => ({
-				...feature,
-				properties: {
-					...feature.properties,
-					sourceGeometry: dangerZones[index]?.geometry.type ?? "Polygon",
-				},
-			})),
-		};
-	}, [dangerZones]);
+	const persistedHazards = useMemo(() => dangerZoneFeatureCollection(dangerZones), [dangerZones]);
 	const bounds = useMemo(() => previewBounds(previewPositions), [previewPositions]);
 	useEffect(() => {
 		geometryRef.current = geometry;

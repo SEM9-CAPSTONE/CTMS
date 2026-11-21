@@ -4,6 +4,7 @@ import '../../../core/api/api_exception.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/ctms_section_card.dart';
 import '../../gps_tracking/presentation/porter_gps_tracking_section.dart';
+import '../../danger_zone_proposals/presentation/danger_zone_reports_panel.dart';
 import '../../offline_packages/presentation/package_policy_copy.dart';
 import '../../sync/presentation/device_sync_status_screen.dart';
 import '../application/trip_operations_providers.dart';
@@ -68,6 +69,16 @@ class _PorterTripWorkspaceState extends ConsumerState<PorterTripWorkspace> {
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
+        if (status == OperationalTripStatus.ongoing ||
+            status == OperationalTripStatus.completed) ...[
+          DangerZoneReportsPanel(
+            key: ValueKey('danger-${widget.accountId}-${trip.id}'),
+            tripId: trip.id,
+            tripTitle: trip.title,
+            canReport: status == OperationalTripStatus.ongoing,
+          ),
+          const SizedBox(height: AppSpacing.lg),
+        ],
         if (status == OperationalTripStatus.published ||
             status == OperationalTripStatus.ongoing)
           PorterGpsTrackingSection(

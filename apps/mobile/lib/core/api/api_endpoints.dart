@@ -76,6 +76,10 @@ class TrekkingEndpoints {
 }
 
 class TripEndpoints {
+  String dangerZoneProposals(String tripId) =>
+      '/trips/$tripId/danger-zone-proposals';
+  String dangerZoneProposalPhotos(String tripId, String proposalId) =>
+      '/trips/$tripId/danger-zone-proposals/$proposalId/photos';
   String offlineBasemap(String tripId, int version, {bool download = false}) =>
       '/trips/$tripId/offline-packages/$version/tiles${download ? '/download' : ''}';
   const TripEndpoints();

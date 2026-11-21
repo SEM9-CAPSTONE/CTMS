@@ -1,3 +1,5 @@
+import { HAZARD_TYPE_LABELS } from "../danger-zone-proposals/constants";
+import type { ProposalHazardType } from "../danger-zone-proposals/types";
 import { DANGER_ZONE_MAP_RADIUS_METERS } from "../trekking-routes/utils/danger-zone-map";
 import { featureMarkerPoint } from "./map-symbols";
 import { safetyText as t } from "./messages";
@@ -18,7 +20,9 @@ export function safetyDetailView(feature: SafetyFeature) {
 		: p.sourceType === "HOST_DEFINED"
 			? "Ghi nhận trên tuyến"
 			: p.source;
+	const hazardLabel = verified ? HAZARD_TYPE_LABELS[p.hazardType as ProposalHazardType] : undefined;
 	const fields: { label: string; value: string }[] = [
+		...(hazardLabel ? [{ label: "Loại nguy hiểm", value: hazardLabel }] : []),
 		{ label: "Nguồn", value: source },
 		{ label: "Xác minh", value: t.verification[p.verificationStatus] },
 	];

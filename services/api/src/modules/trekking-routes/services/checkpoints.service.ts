@@ -15,7 +15,6 @@ import type { UpdateCheckpointDto } from "../dto/update-checkpoint.dto";
 import { TrekkingRoute, TrekkingRouteStatus } from "../entities/trekking-route.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { CheckpointsRepository } from "../repositories/checkpoints.repository";
-import type { CorrectiveChange } from "./route-danger-zones.service";
 
 @Injectable()
 export class CheckpointsService {
@@ -147,29 +146,6 @@ export class CheckpointsService {
 
 			return checkpoint;
 		});
-	}
-
-	/**
-	 * CTMS-118: safety-instruction correction from a CONFIRMED safety hotspot, in the caller's
-	 * transaction (Admin authorized, Route locked). Name, location, order and timing are untouched,
-	 * so Trips that already reference the Route keep the same checkpoint geometry.
-	 */
-	async updateSafetyInstructionsCorrective(
-		manager: EntityManager,
-		routeId: string,
-		checkpointId: string,
-		instructions: string
-	): Promise<CorrectiveChange<CheckpointResponseDto> | null> {
-		const repository = manager.withRepository(this.checkpointsRepository);
-		const existing = await repository.findOneForUpdate(routeId, checkpointId);
-		if (!existing) return null;
-		const updated = await repository.updateInstructions(routeId, checkpointId, instructions);
-		if (!updated) return null;
-		return {
-			result: updated,
-			before: this.buildAuditSnapshot(existing),
-			after: this.buildAuditSnapshot(updated),
-		};
 	}
 
 	private async findOwnedRoute(

@@ -67,6 +67,7 @@ describe("Detect potential safety hotspots (CTMS-116, real Postgres/PostGIS)", (
 			);
 			await dataSource.query('DELETE FROM "trips" WHERE "id" = ANY($1)', [tripIds]);
 			await dataSource.query('DELETE FROM "trekking_routes" WHERE "id" = ANY($1)', [routeIds]);
+			await dataSource.query('DELETE FROM "audit_logs" WHERE "actor_id" = ANY($1)', [userIds]);
 			await dataSource.query('DELETE FROM "user_roles" WHERE "user_id" = ANY($1)', [userIds]);
 			await dataSource.query('DELETE FROM "users" WHERE "id" = ANY($1)', [userIds]);
 		}
@@ -378,6 +379,73 @@ describe("Detect potential safety hotspots (CTMS-116, real Postgres/PostGIS)", (
 
 		await detect();
 		expect(await hotspotsOn(routeId)).toEqual([]);
+	});
+
+	it("lets an Admin name, describe, rate and permanently delete a hotspot", async () => {
+		const routeId = await createRoute();
+		const base = { routeId, routeVersion: "route-md5-edit" };
+		const campers = [
+			await createAccount(UserRole.CAMPER),
+			await createAccount(UserRole.CAMPER),
+			await createAccount(UserRole.CAMPER),
+		];
+		const trips = [
+			await createTrip(routeId, base.routeVersion),
+			await createTrip(routeId, base.routeVersion),
+			await createTrip(routeId, base.routeVersion),
+		];
+		for (const [index, metresNorth] of [60, 66, 72, 78, 84].entries()) {
+			await addEvent({
+				...base,
+				trip: trips[index % 3],
+				userId: campers[index % 3].id,
+				metresNorth,
+				daysAgo: 2,
+			});
+		}
+		await detect();
+		const [hotspot] = await hotspotsOn(routeId);
+		const endpoint = `/api/admin/safety-hotspots/${hotspot.id}`;
+
+		await asAdmin(api().patch(endpoint))
+			.send({ name: " ", description: "", severity: "high" })
+			.expect(422);
+		const edited = await asAdmin(api().patch(endpoint))
+			.send({
+				name: "  Ngã ba suối Đá  ",
+				description: "Các đoàn rẽ nhầm xuống suối khi biển chỉ hướng bị cây che.",
+				severity: "medium",
+			})
+			.expect(200);
+		expect(edited.body).toMatchObject({
+			name: "Ngã ba suối Đá",
+			description: "Các đoàn rẽ nhầm xuống suối khi biển chỉ hướng bị cây che.",
+			severity: "medium",
+			eventCount: 5,
+		});
+		await api()
+			.patch(endpoint)
+			.set("Authorization", `Bearer ${host.accessToken}`)
+			.send({ name: "A", description: "", severity: "low" })
+			.expect(403);
+
+		// Corrective changes are no longer created from hotspots.
+		await asAdmin(api().post(`${endpoint}/corrective-actions`))
+			.send({ actionType: "NO_DATA_CHANGE", reason: "Không cần thay đổi dữ liệu tuyến." })
+			.expect(404);
+		await asAdmin(api().get(`${endpoint}/corrective-targets`)).expect(404);
+
+		await asAdmin(api().delete(endpoint)).expect(204);
+		await asAdmin(api().get(endpoint)).expect(404);
+		await asAdmin(api().delete(endpoint)).expect(404);
+		const audit = (await dataSource.query(
+			`SELECT "action" FROM "audit_logs" WHERE "target_id" = $1 ORDER BY "created_at"`,
+			[hotspot.id]
+		)) as Array<{ action: string }>;
+		expect(audit.map((row) => row.action)).toEqual([
+			"safety_hotspot.updated",
+			"safety_hotspot.deleted",
+		]);
 	});
 
 	it("rejects bad ids, bad filters and non-Admins", async () => {

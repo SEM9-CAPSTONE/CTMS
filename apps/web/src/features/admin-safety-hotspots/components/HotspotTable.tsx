@@ -13,8 +13,13 @@ export function HotspotTable({ rows, onOpen }: Props) {
 	const columns: DataTableColumn<SafetyHotspot>[] = [
 		{
 			key: "route",
-			header: "Tuyến",
-			render: (row) => <span className="font-semibold text-[#10221b]">{row.routeName}</span>,
+			header: "Điểm nóng",
+			render: (row) => (
+				<div>
+					<p className="font-semibold text-[#10221b]">{row.name ?? row.routeName}</p>
+					{row.name && <p className="text-xs text-[#667a6d]">{row.routeName}</p>}
+				</div>
+			),
 		},
 		{
 			key: "evidence",

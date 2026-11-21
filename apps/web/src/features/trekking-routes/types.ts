@@ -65,16 +65,6 @@ interface CreateRouteDangerZoneBase {
 	severity: RouteDangerZoneSeverity;
 }
 
-export type CreateRouteDangerZoneInput =
-	| (CreateRouteDangerZoneBase & {
-			geometry: GeoJsonPoint;
-			radiusMeters: number;
-	  })
-	| (CreateRouteDangerZoneBase & {
-			geometry: GeoJsonPolygon;
-			radiusMeters?: never;
-	  });
-
 export interface RouteDangerZone extends CreateRouteDangerZoneBase {
 	id: string;
 	routeId: string;
