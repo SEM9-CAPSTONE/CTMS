@@ -50,7 +50,18 @@ const MAX_ATTEMPTS = 3;
 const BACKOFF_MS = [500, 1000];
 const HOUR_MS = 60 * 60 * 1000;
 /** Repeated requests within this window reuse the stored forecast instead of calling the provider. */
-const REUSE_WINDOW_MS = 10 * 60 * 1000;
+const DEFAULT_REUSE_WINDOW_MINUTES = 10;
+
+/**
+ * `WEATHER_FORECAST_REUSE_MINUTES` (default 10). A demo machine can raise it so seeded
+ * forecasts are not replaced by the live provider while the Trip pages are shown.
+ */
+function reuseWindowMs(): number {
+	const minutes = Number(process.env.WEATHER_FORECAST_REUSE_MINUTES);
+	return (
+		(Number.isFinite(minutes) && minutes > 0 ? minutes : DEFAULT_REUSE_WINDOW_MINUTES) * 60_000
+	);
+}
 /** Newest history rows returned to clients. */
 const HISTORY_LIMIT = 50;
 /** Owning Host and Admin responses carry the AI opinion; traveller responses never do. */
@@ -402,7 +413,7 @@ export class TripWeatherForecastService {
 		return (
 			activeRule !== null &&
 			latest.ruleVersionId === activeRule.id &&
-			now.getTime() - (latest.checkedAt ?? latest.createdAt).getTime() < REUSE_WINDOW_MS
+			now.getTime() - (latest.checkedAt ?? latest.createdAt).getTime() < reuseWindowMs()
 		);
 	}
 
