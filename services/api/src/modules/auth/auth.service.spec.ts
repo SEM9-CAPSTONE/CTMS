@@ -3,6 +3,7 @@ import {
 	ConflictException,
 	Logger,
 	NotFoundException,
+	ServiceUnavailableException,
 	UnauthorizedException,
 } from "@nestjs/common";
 import type { ConfigService } from "@nestjs/config";
@@ -1006,18 +1007,26 @@ describe("AuthService.sendOtp", () => {
 
 		const error = await authService.sendOtp(buildDto()).catch((e) => e);
 
-		expect(error).toBe(deliveryError);
+		expect(error).toBeInstanceOf(ServiceUnavailableException);
 		expect(transactionalOtpRepository.save).not.toHaveBeenCalled();
 	});
 
-	it("propagates the delivery error unchanged to the caller", async () => {
+	it("turns a delivery failure into a channel-specific 503 without leaking the provider error", async () => {
 		const deliveryError = new Error("Resend: Invalid from address");
 		otpDeliveryService.send.mockRejectedValue(deliveryError);
 		usersRepository.findOneByOrFail.mockResolvedValue(buildUser());
 
-		await expect(authService.sendOtp(buildDto({ channel: OtpChannel.EMAIL }))).rejects.toBe(
-			deliveryError
-		);
+		const error = await authService
+			.sendOtp(buildDto({ channel: OtpChannel.EMAIL }))
+			.catch((e: ServiceUnavailableException) => e);
+
+		expect(error).toBeInstanceOf(ServiceUnavailableException);
+		expect(error.getStatus()).toBe(503);
+		expect(error.getResponse()).toMatchObject({
+			code: "OTP_DELIVERY_FAILED",
+			channel: OtpChannel.EMAIL,
+		});
+		expect(JSON.stringify(error.getResponse())).not.toContain("Invalid from address");
 	});
 
 	// --- No OTP exposure ------------------------------------------------

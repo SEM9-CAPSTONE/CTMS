@@ -108,7 +108,12 @@ export class AuthController {
 	})
 	@ApiResponse({
 		status: 409,
-		description: "Resend limit reached, or delivery failed",
+		description: "Resend limit reached",
+	})
+	@ApiResponse({
+		status: 503,
+		description:
+			"The e-mail/SMS provider could not deliver the OTP (`code: OTP_DELIVERY_FAILED`, `channel`)",
 	})
 	@ApiResponse({
 		status: 422,
@@ -130,7 +135,12 @@ export class AuthController {
 	})
 	@ApiResponse({
 		status: 409,
-		description: "Resend limit reached, or delivery failed",
+		description: "Resend limit reached",
+	})
+	@ApiResponse({
+		status: 503,
+		description:
+			"The e-mail/SMS provider could not deliver the OTP (`code: OTP_DELIVERY_FAILED`, `channel`)",
 	})
 	@ApiResponse({
 		status: 422,

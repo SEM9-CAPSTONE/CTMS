@@ -204,10 +204,12 @@ describe("POST /api/auth/send-otp (integration, real Postgres, fake delivery pro
 		const { userId } = await registerUser("send-otp-dispatch-fail");
 		fakeSmsProvider.send.mockRejectedValueOnce(new Error("Twilio: simulated outage"));
 
-		await request(app.getHttpServer())
+		const failed = await request(app.getHttpServer())
 			.post("/api/auth/send-otp")
 			.send({ userId, channel: "phone" })
-			.expect(500);
+			.expect(503);
+		// A clear, channel-specific error the clients turn into Vietnamese copy.
+		expect(failed.body).toMatchObject({ code: "OTP_DELIVERY_FAILED", channel: "phone" });
 
 		const otpRows = await dataSource.query(
 			'SELECT * FROM "verification_otps" WHERE "user_id" = $1',
