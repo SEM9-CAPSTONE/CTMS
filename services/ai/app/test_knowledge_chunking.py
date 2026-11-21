@@ -6,7 +6,7 @@ import pytest
 from docling_core.transforms.chunker.hybrid_chunker import HybridChunker
 from docling_core.transforms.chunker.tokenizer.base import BaseTokenizer
 from docling_core.types.doc import (
-    BoundingBox, DocItemLabel, DoclingDocument, ProvenanceItem, Size, TableCell, TableData,
+    BoundingBox, CoordOrigin, DocItemLabel, DoclingDocument, ProvenanceItem, Size, TableCell, TableData,
 )
 
 from app.knowledge_chunking import compare_pdf_text, low_extraction_confidence, split_document
@@ -31,7 +31,8 @@ class WordTokenizer(BaseTokenizer):
 
 
 def prov(page: int = 1) -> ProvenanceItem:
-    return ProvenanceItem(page_no=page, charspan=(0, 1), bbox=BoundingBox(l=10, t=20, r=100, b=10))
+    return ProvenanceItem(page_no=page, charspan=(0, 1), bbox=BoundingBox(l=10, t=20, r=100, b=10,
+                                                                                    coord_origin=CoordOrigin.BOTTOMLEFT))
 
 
 def doc() -> DoclingDocument:

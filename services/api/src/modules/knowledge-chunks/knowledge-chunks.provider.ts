@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: Nest injection
 import { ConfigService } from "@nestjs/config";
 import {
@@ -12,6 +12,7 @@ import {
 	type ChunkSet,
 	IngestionError,
 	PDF_READ_ISSUES,
+	type PreparedChunkOutput,
 	chunkConfiguration,
 } from "./knowledge-chunks.types";
 
@@ -19,6 +20,7 @@ const PASSAGE_BATCH_SIZE = 128;
 
 @Injectable()
 export class KnowledgeChunksProvider {
+	private readonly logger = new Logger(KnowledgeChunksProvider.name);
 	constructor(private readonly config: ConfigService) {}
 	private get baseUrl(): string {
 		return this.config.get<string>("KNOWLEDGE_SERVICE_URL") || "http://localhost:8001";
@@ -34,7 +36,10 @@ export class KnowledgeChunksProvider {
 				headers: { "X-CTMS-Knowledge-Token": token },
 				signal: AbortSignal.timeout(3000),
 			});
-			return response.status === 204;
+			return (
+				response.status === 204 &&
+				response.headers.get("X-CTMS-Pipeline-Version") === this.configuration().pipeline_version
+			);
 		} catch {
 			return false;
 		}
@@ -44,11 +49,19 @@ export class KnowledgeChunksProvider {
 		bytes: Buffer,
 		title: string,
 		signal: AbortSignal,
-		findEmbeddings?: (inputs: string[]) => Promise<Map<string, number[]>>
+		findEmbeddings?: (inputs: string[]) => Promise<Map<string, number[]>>,
+		checkpoint?: (output: PreparedChunkOutput) => Promise<void>
 	): Promise<ChunkOutput> {
 		const token = this.config.get<string>("KNOWLEDGE_SERVICE_TOKEN");
 		if (!token) throw new IngestionError("ingestion_not_configured", true);
-		const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(600000)]);
+		const configured = Number(
+			this.config.get<string>("KNOWLEDGE_EXTRACTION_TIMEOUT_MS") ?? 1800000
+		);
+		const timeout =
+			Number.isSafeInteger(configured) && configured >= 60000 && configured <= 3600000
+				? configured
+				: 1800000;
+		const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(timeout)]);
 		const post = (path: string, body: object) =>
 			fetch(`${this.baseUrl}${path}`, {
 				method: "POST",
@@ -57,6 +70,7 @@ export class KnowledgeChunksProvider {
 				signal: requestSignal,
 			});
 		const request = {
+			extraction_snapshot: set.extraction_snapshot ?? null,
 			document_version_id: set.document_version_id,
 			source_version: set.source_version,
 			checksum: set.checksum,
@@ -76,6 +90,7 @@ export class KnowledgeChunksProvider {
 				);
 			}
 			const output = validatePreparedChunkOutput(await this.readResult(preparedResponse), set);
+			await checkpoint?.(output);
 			if (output.quality.status === "NEEDS_REVIEW") return { ...output, chunks: [] };
 			requestSignal.throwIfAborted();
 			const inputs = [...new Set(output.chunks.map((chunk) => chunk.embedding_text))];
@@ -112,14 +127,49 @@ export class KnowledgeChunksProvider {
 			);
 		} catch (error) {
 			if (error instanceof IngestionError) throw error;
+			if (requestSignal.aborted)
+				throw new IngestionError(
+					requestSignal.reason?.name === "TimeoutError"
+						? "ingestion_timeout"
+						: "ingestion_cancelled",
+					true
+				);
+			const cause = (error as { cause?: { code?: unknown } } | null)?.cause?.code;
+			const known = [
+				"ECONNREFUSED",
+				"ENOTFOUND",
+				"EACCES",
+				"ECONNRESET",
+				"UND_ERR_CONNECT_TIMEOUT",
+				"UND_ERR_SOCKET",
+			];
+			this.logger.warn(
+				`Knowledge transport failure set=${set.id} cause=${typeof cause === "string" && known.includes(cause) ? cause : "unavailable"}`
+			);
 			throw new IngestionError("ingestion_transport", true);
 		}
 	}
 
 	private async readResult(response: Response): Promise<unknown> {
+		if (response.status === 503) {
+			const raw = await response.json().catch(() => null);
+			if (raw?.detail?.code === "ocr_runtime_unavailable")
+				throw new IngestionError("ocr_runtime_unavailable", true);
+		}
 		if (response.status === 422) {
 			const raw: unknown = await response.json().catch(() => null);
 			const detail = (raw as { detail?: { code?: unknown; issue?: unknown } } | null)?.detail;
+			if (
+				Array.isArray(detail) &&
+				detail.some(
+					(error) =>
+						error?.type === "literal_error" &&
+						Array.isArray(error.loc) &&
+						error.loc[0] === "body" &&
+						error.loc[1] === "configuration"
+				)
+			)
+				throw new IngestionError("ingestion_configuration_mismatch", true);
 			const issue = PDF_READ_ISSUES.find((code) => code === detail?.issue);
 			if (detail?.code === "invalid_pdf" && issue) {
 				throw new IngestionError("extraction_needs_review", false, {

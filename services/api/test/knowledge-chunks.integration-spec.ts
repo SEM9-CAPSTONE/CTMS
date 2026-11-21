@@ -28,17 +28,29 @@ import { RagEmbeddingProvider } from "../src/modules/rag/rag-embedding.provider"
 import { RagRetrievalService } from "../src/modules/rag/rag-retrieval.service";
 import { RagConfig } from "../src/modules/rag/rag.config";
 import { RagRepository } from "../src/modules/rag/rag.repository";
-import { Classification } from "../src/modules/survival-documents/survival-documents.types";
+import {
+	Classification,
+	RightsStatus,
+} from "../src/modules/survival-documents/survival-documents.types";
 import { SurvivalSourceReader } from "../src/modules/survival-documents/survival-source-reader.service";
 import { UserRole, UserStatus } from "../src/modules/users/entities/user.entity";
 import { assertSafeTestDatabase } from "./support/assert-safe-test-database";
 import { providerInferenceTraceFixture } from "./support/inference-trace-fixture";
+import {
+	integrityFixture,
+	verifiedIntegrity,
+	withIntegrity,
+} from "./support/knowledge-integrity-fixture";
 import {
 	type SourceTestDetail,
 	fictionalMetadata,
 	fictionalRights,
 	uniqueFictionalPdf,
 } from "./support/survival-source-fixture";
+import {
+	NATURAL_PREPARATION_QUESTIONS,
+	TRIP_PLANNING_CHECKLIST,
+} from "./support/trip-planning-retrieval-fixture";
 
 describe("CTMS-051 durable ingestion and provenance", () => {
 	let app: INestApplication;
@@ -59,6 +71,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 	let camperAuth: string;
 	const admin = randomUUID();
 	const camper = randomUUID();
+	const uploadedOriginals = new Map<string, Buffer>();
 	const endpoint = "/api/admin/survival-documents";
 	const chunkEndpoint = (doc: SourceTestDetail) =>
 		`${endpoint}/${doc.id}/versions/${doc.versions[0].id}/chunk-sets`;
@@ -100,13 +113,15 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		camperAuth = `Bearer ${jwt.sign({ sub: camper, roles: ["camper"] })}`;
 	}, 90000);
 	beforeEach(async () => {
-		// Only this feature's queue is used by these serial integration tests.
+		// Reconcile intentionally scans every eligible current publication. Clearing
+		// only derived sets resurrects prior cases' sources as missing work.
+		// This connection was checked by assertSafeTestDatabase in beforeAll.
 		await db.query(
 			"TRUNCATE knowledge_chunk_event_receipts,knowledge_chunk_publications,knowledge_chunks,knowledge_chunk_sets,knowledge_embeddings"
 		);
-		await db.query(
-			"INSERT INTO knowledge_chunk_event_receipts(event_id) SELECT id FROM survival_document_outbox"
-		);
+		// Outbox events intentionally have no FK to deleted documents.
+		await db.query("TRUNCATE survival_document_outbox,survival_documents CASCADE");
+		uploadedOriginals.clear();
 	});
 	afterAll(async () => {
 		await app?.close();
@@ -126,8 +141,31 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 				JSON.stringify({ ...fictionalMetadata, classification, locale, originalLocale: locale })
 			);
 		if (previous) upload.field("expectedDocumentRevision", String(previous.revision));
-		return (await upload.attach("file", uniqueFictionalPdf(), `${randomUUID()}.pdf`).expect(201))
+		const bytes = uniqueFictionalPdf();
+		const document = (await upload.attach("file", bytes, `${randomUUID()}.pdf`).expect(201))
 			.body as SourceTestDetail;
+		uploadedOriginals.set(document.versions[0].id, Buffer.from(bytes));
+		return document;
+	}
+	async function restrictedPublication(): Promise<SourceTestDetail> {
+		const document = await draft(undefined, Classification.FIRST_AID);
+		const version = document.versions[0];
+		// Initialize a restricted source while it is still mutable. Publication
+		// of a PDF and permission to process its knowledge are separate policies.
+		const changed: Array<{ id: string }> = await db.query(
+			`WITH changed AS (
+				UPDATE survival_document_versions SET rights=$2::jsonb
+				WHERE id=$1 AND status='DRAFT' RETURNING id
+			) SELECT id FROM changed`,
+			[
+				version.id,
+				JSON.stringify({ ...version.rights, rightsReviewStatus: RightsStatus.RESTRICTED }),
+			]
+		);
+		expect(changed).toEqual([{ id: version.id }]);
+		const published = await publish(document, false);
+		expect(published.processingSyncStatus).toBe("NOT_PROCESSED");
+		return published;
 	}
 	async function publish(doc: SourceTestDetail, rights = true): Promise<SourceTestDetail> {
 		return (
@@ -162,13 +200,14 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		expect(receipts).toHaveLength(1);
 	}
 	function output(set: ChunkSet): ChunkOutput {
-		return {
+		return withIntegrity({
+			extraction_snapshot: integrityFixture(set),
 			document_version_id: set.document_version_id,
 			source_version: set.source_version,
 			checksum: set.checksum,
 			locale: set.locale,
 			configuration: set.configuration,
-			quality: { status: "PASSED", issues: [], page_count: 1 },
+			quality: { status: "PASSED", issues: [], page_count: 1, integrity: verifiedIntegrity },
 			chunks: [0, 1].map((index) => ({
 				chunk_index: index,
 				content: `Nguồn thử nghiệm ${index}`,
@@ -184,7 +223,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 				],
 				embedding: Array.from({ length: 384 }, (_, dimension) => (dimension === index ? 1 : 0)),
 			})),
-		};
+		});
 	}
 	async function claim(): Promise<ChunkSet> {
 		const set = await repo.claim(configuration);
@@ -195,6 +234,198 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		return (await db.query("SELECT status FROM knowledge_chunk_sets WHERE id=$1", [id]))[0]
 			.status as ChunkSetStatus;
 	}
+	it("audits exact-region verification, restricts access, replays safely and queues only the cached extraction", async () => {
+		const doc = await publish(await draft());
+		await enqueue(doc);
+		const set = await claim();
+		const result = output(set);
+		const position = {
+			id: "a".repeat(64),
+			page: 1,
+			bbox: result.chunks[0].locations[0].bbox,
+			item_refs: ["#/texts/0"],
+			kind: "text",
+			original_text: "WARNING: check conditions",
+			issues: ["ocr_critical_content_unverified"],
+			related_figures: [],
+			critical: true,
+			excludable: false,
+			assessment: "requires_manual_verification",
+			attempts: [],
+			decision: null,
+		};
+		result.extraction_snapshot = { ...integrityFixture(set), regions: [position] };
+		result.quality = {
+			status: "NEEDS_REVIEW",
+			issues: position.issues,
+			page_count: 1,
+			integrity: { revision: 0, complete: false, regions: [position] },
+		};
+		result.chunks = [];
+		await repo.finish(set, result);
+		const path = `${endpoint}/${doc.id}/versions/${set.document_version_id}/content-verification`;
+		await request(app.getHttpServer()).get(path).expect(401);
+		await request(app.getHttpServer()).get(path).set("Authorization", camperAuth).expect(403);
+		const payload = {
+			extractionId: set.id,
+			requestId: randomUUID(),
+			expectedRevision: 0,
+			action: "confirm",
+			text: position.original_text,
+			source_checked: true,
+			context_checked: true,
+			visual_checked: false,
+		};
+		await request(app.getHttpServer())
+			.post(`${path}/${position.id}`)
+			.set("Authorization", camperAuth)
+			.send(payload)
+			.expect(403);
+		await request(app.getHttpServer())
+			.post(`${path}/${position.id}`)
+			.set("Authorization", auth)
+			.send({
+				...payload,
+				action: "exclude",
+				reason: "An attempted critical instruction exclusion",
+			})
+			.expect(422);
+		await request(app.getHttpServer())
+			.post(`${path}/${position.id}`)
+			.set("Authorization", auth)
+			.send(payload)
+			.expect(201);
+		await request(app.getHttpServer())
+			.post(`${path}/${position.id}`)
+			.set("Authorization", auth)
+			.send(payload)
+			.expect(201);
+		await request(app.getHttpServer())
+			.post(`${path}/${position.id}`)
+			.set("Authorization", auth)
+			.send({ ...payload, requestId: randomUUID() })
+			.expect(409);
+		const [audit] = await db.query(
+			`SELECT count(*)::int AS count FROM audit_logs WHERE target_id=$1 AND action='survival_document.content_verify'`,
+			[doc.id]
+		);
+		expect(audit.count).toBe(1);
+		const next = await claim();
+		expect(next.id).toBe(set.id);
+		expect(next.extraction_snapshot?.revision).toBe(1);
+		expect(next.extraction_snapshot?.regions[0].decision).toMatchObject({
+			action: "confirm",
+			text: position.original_text,
+		});
+		const source = await app.get(SurvivalSourceReader).readPublished(set.document_version_id);
+		expect(createHash("sha256").update(source.bytes).digest("hex")).toBe(set.checksum);
+	});
+
+	it("distinguishes a same-PDF rebuild from first preparation and fences a superseded active source", async () => {
+		const doc = await publish(await draft());
+		const legacy = { ...configuration, pipeline_version: "ctms-hybrid-ocr-v4" };
+		await repo.consumeEvents(legacy);
+		const original = await repo.claim(legacy);
+		if (!original) throw new Error("Missing legacy source claim");
+		const legacyOutput = output(original);
+		Reflect.deleteProperty(legacyOutput, "extraction_snapshot");
+		await repo.finish(original, legacyOutput);
+		const path = (document: SourceTestDetail) =>
+			`${endpoint}/${document.id}/versions/${document.versions[0].id}/content-verification`;
+		await request(app.getHttpServer())
+			.get(path(doc))
+			.set("Authorization", auth)
+			.expect(200)
+			.expect(({ body }) =>
+				expect(body).toMatchObject({
+					inUse: true,
+					preparing: false,
+					complete: true,
+					available: false,
+				})
+			);
+		await repo.reconcile(configuration);
+		await request(app.getHttpServer())
+			.get(path(doc))
+			.set("Authorization", auth)
+			.expect(200)
+			.expect(({ body }) =>
+				expect(body).toMatchObject({ inUse: true, preparing: true, complete: false })
+			);
+		const newer = await publish(await draft(doc));
+		await enqueue(newer);
+		await request(app.getHttpServer())
+			.get(path(newer))
+			.set("Authorization", auth)
+			.expect(200)
+			.expect(({ body }) =>
+				expect(body).toMatchObject({ inUse: false, preparing: true, complete: false })
+			);
+		await request(app.getHttpServer())
+			.get(path(doc))
+			.set("Authorization", auth)
+			.expect(200)
+			.expect(({ body }) => expect(body.inUse).toBe(false));
+	});
+	it("fences superseded V1 while V2 needs review and serves only a complete current V2", async () => {
+		const doc = await publish(await draft());
+		await enqueue(doc);
+		const first = await claim();
+		await repo.finish(first, output(first));
+		const newer = await publish(await draft(doc));
+		await enqueue(newer);
+		const second = await claim();
+		const review = output(second);
+		review.quality = { status: "NEEDS_REVIEW", issues: ["ocr_low_confidence"], page_count: 1 };
+		review.chunks = [];
+		await repo.finish(second, review);
+		const repository = app.get(RagRepository);
+		expect(await repository.hasEligibleCorpus(ragConfig.settings())).toBe(false);
+		const [before] = await db.query(
+			"SELECT chunk_set_id FROM knowledge_chunk_publications WHERE document_id=$1",
+			[doc.id]
+		);
+		expect(before.chunk_set_id).toBe(first.id);
+		expect((await repo.status(doc.id, first.document_version_id))[0].active).toBe(false);
+		// Re-entry here represents a reviewed cached generation, never partial vectors.
+		await db.query(
+			"UPDATE knowledge_chunk_sets SET status='PENDING',next_attempt_at=clock_timestamp() WHERE id=$1",
+			[second.id]
+		);
+		const complete = await claim();
+		await repo.finish(complete, output(complete));
+		const [after] = await db.query(
+			"SELECT chunk_set_id FROM knowledge_chunk_publications WHERE document_id=$1",
+			[doc.id]
+		);
+		expect(after.chunk_set_id).toBe(second.id);
+		expect(await repository.hasEligibleCorpus(ragConfig.settings())).toBe(true);
+		expect((await repo.status(doc.id, first.document_version_id))[0].active).toBe(false);
+	});
+
+	it("resumes a durable checkpoint after interruption without losing its source-bound extraction", async () => {
+		const doc = await publish(await draft());
+		await enqueue(doc);
+		const set = await claim();
+		await repo.checkpoint(set, output(set));
+		await repo.finish(set, { error: "ingestion_transport", retryable: true });
+		await db.query(
+			"UPDATE knowledge_chunk_sets SET next_attempt_at=clock_timestamp() WHERE id=$1",
+			[set.id]
+		);
+		const resumed = await claim();
+		expect(resumed.extraction_snapshot).toMatchObject({
+			checksum: set.checksum,
+			document_version_id: set.document_version_id,
+		});
+		await repo.finish(resumed, output(resumed));
+		expect(await repo.finish(resumed, output(resumed))).toBe(false);
+		const [count] = await db.query(
+			"SELECT count(*)::int AS count FROM knowledge_chunks WHERE chunk_set_id=$1",
+			[set.id]
+		);
+		expect(count.count).toBe(2);
+	});
 
 	it("guards exact-version status and rejects manual enqueue", async () => {
 		const doc = await draft();
@@ -203,7 +434,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			.get(chunkEndpoint(doc))
 			.set("Authorization", camperAuth)
 			.expect(403);
-		const unverified = await publish(await draft(undefined, Classification.FIRST_AID), false);
+		const unverified = await draft(undefined, Classification.FIRST_AID);
 		await repo.consumeEvents(configuration);
 		await request(app.getHttpServer())
 			.get(chunkEndpoint(unverified))
@@ -253,6 +484,76 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			locale: "vi",
 		});
 		expect((await enqueue(doc)).id).toBe(set.id);
+	});
+	it.each(["ctms-hybrid-v1", "ctms-hybrid-ocr-v2", "ctms-hybrid-ocr-v3"])(
+		"reprocesses the stored original under the current OCR pipeline once after %s extraction failed",
+		async (legacyPipeline) => {
+			const doc = await publish(await draft());
+			const legacy = { ...configuration, pipeline_version: legacyPipeline };
+			await repo.consumeEvents(legacy);
+			const old = await repo.claim(legacy);
+			expect(old).toBeDefined();
+			if (!old) throw new Error("Missing legacy claim");
+			expect(old.document_version_id).toBe(doc.versions[0].id);
+			expect(old.checksum).toBe(doc.versions[0].checksum);
+			await repo.finish(old, {
+				...output(old),
+				quality: { status: "NEEDS_REVIEW", issues: ["page_text_unverifiable"], page_count: 1 },
+				chunks: [],
+			});
+			await Promise.all([repo.reconcile(configuration), repo.reconcile(configuration)]);
+			const sets = await repo.status(doc.id, doc.versions[0].id);
+			expect(sets).toHaveLength(2);
+			expect(sets.map((set) => set.configuration.pipeline_version).sort()).toEqual(
+				[configuration.pipeline_version, legacyPipeline].sort()
+			);
+			const next = await repo.claim(configuration);
+			if (!next) throw new Error("Missing OCR claim");
+			expect(next.document_version_id).toBe(old.document_version_id);
+			expect(next.checksum).toBe(old.checksum);
+			expect(next.config_hash).not.toBe(old.config_hash);
+			const source = await app.get(SurvivalSourceReader).readPublished(next.document_version_id);
+			expect(source.bytes).toEqual(uploadedOriginals.get(old.document_version_id));
+			expect(source.manifest).toMatchObject({
+				versionId: old.document_version_id,
+				checksum: old.checksum,
+			});
+			expect(createHash("sha256").update(source.bytes).digest("hex")).toBe(old.checksum);
+			expect(next.document_version_id).toBe(old.document_version_id);
+			expect(
+				await repo.reusableEmbeddings(
+					next,
+					output(next).chunks.map((c) => c.embedding_text)
+				)
+			).toEqual(new Map());
+			expect(await repo.readCurrent(doc.id)).toEqual([]);
+			await repo.finish(next, output(next));
+			expect(await storedStatus(old.id)).toBe(ChunkSetStatus.NEEDS_REVIEW);
+			expect(await repo.readCurrent(doc.id)).toHaveLength(2);
+			await repo.reconcile(configuration);
+			expect(await repo.status(doc.id, doc.versions[0].id)).toHaveLength(2);
+		}
+	);
+	it("recovers legacy rollout HTTP 422 failures within the existing recovery cap", async () => {
+		const doc = await publish(await draft());
+		const rolloutConfiguration = { ...configuration, pipeline_version: "ctms-hybrid-ocr-v2" };
+		await repo.consumeEvents(rolloutConfiguration);
+		for (let round = 0; round <= MAX_RECOVERY_ROUNDS; round++) {
+			const set = await repo.claim(rolloutConfiguration);
+			if (!set) throw new Error("Missing legacy rollout claim");
+			await repo.finish(set, { error: "ingestion_http_422", retryable: false });
+			const [state] = await repo.status(doc.id, set.document_version_id);
+			expect(state).toMatchObject({
+				status: ChunkSetStatus.FAILED,
+				automatic_recovery_pending: round < MAX_RECOVERY_ROUNDS,
+			});
+			expect(await repo.readCurrent(doc.id)).toEqual([]);
+			expect(await repo.hasRecoverableFailures(rolloutConfiguration)).toBe(
+				round < MAX_RECOVERY_ROUNDS
+			);
+			await repo.recoverFailed(rolloutConfiguration);
+		}
+		expect(await repo.claim(rolloutConfiguration)).toBeNull();
 	});
 	it("does not publish partial embeddings and retries transport failures", async () => {
 		const doc = await publish(await draft());
@@ -376,7 +677,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			);
 		const fetcher = jest
 			.spyOn(globalThis, "fetch")
-			.mockResolvedValueOnce(Response.json(prepared))
+			.mockResolvedValueOnce(Response.json(withIntegrity(prepared)))
 			.mockResolvedValueOnce(Response.json({ embeddings: [prepared.chunks[1].embedding] }));
 		try {
 			expect(await worker.processOne()).toBe(true);
@@ -608,12 +909,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 	});
 	it("consumes publication outbox exactly once independently of other consumers", async () => {
 		const eligible = await publish(await draft(), false);
-		const unverified = await publish(await draft(undefined, Classification.FIRST_AID), false);
-		// Exclude prior tests' events so this test is isolated from their retained source history.
-		await db.query(
-			"INSERT INTO knowledge_chunk_event_receipts(event_id) SELECT id FROM survival_document_outbox WHERE document_id<>ALL($1::uuid[]) ON CONFLICT DO NOTHING",
-			[[eligible.id, unverified.id]]
-		);
+		await restrictedPublication();
 		await Promise.all([repo.consumeEvents(configuration), repo.consumeEvents(configuration)]);
 		await repo.consumeEvents(configuration);
 		expect(
@@ -623,22 +919,21 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			await db.query("SELECT id FROM survival_document_outbox WHERE document_id=$1", [eligible.id])
 		).toHaveLength(1);
 	});
+	it("processes an Admin-published medical source without treating NOT_REVIEWED as explicit rejection", async () => {
+		const document = await publish(await draft(undefined, Classification.FIRST_AID), false);
+		expect(document.versions[0].rights.medicalContentReviewStatus).toBe("NOT_REVIEWED");
+		await Promise.all([repo.consumeEvents(configuration), repo.consumeEvents(configuration)]);
+		expect(await repo.status(document.id, document.versions[0].id)).toMatchObject([
+			{ status: ChunkSetStatus.PENDING, document_version_id: document.versions[0].id },
+		]);
+	});
 	it("reconciles only eligible current versions with missing sets across concurrent reruns", async () => {
 		const a1 = await publish(await draft(), false);
 		const a2 = await publish(await draft(a1), false);
 		const a3 = await publish(await draft(a2), false);
 		const b1 = await publish(await draft(), false);
-		const blocked = await publish(await draft(undefined, Classification.FIRST_AID), false);
+		const blocked = await restrictedPublication();
 		const ids = [a3.id, b1.id, blocked.id];
-		// Earlier cases retain their sources. Make them outside this missing-set scenario.
-		await db.query(
-			`
-			INSERT INTO knowledge_chunk_sets(document_id,document_version_id,source_version,checksum,locale,configuration,config_hash,status)
-			SELECT d.id,v.id,v.version_number,v.checksum,v.metadata->>'locale','{}',$2,'FAILED'
-			FROM survival_documents d JOIN survival_document_versions v ON v.id=d.current_published_version_id
-			WHERE d.id<>ALL($1::uuid[])`,
-			[ids, createHash("sha256").update(JSON.stringify(configuration)).digest("hex")]
-		);
 		await db.query(
 			"INSERT INTO knowledge_chunk_event_receipts(event_id) SELECT id FROM survival_document_outbox ON CONFLICT DO NOTHING"
 		);
@@ -649,7 +944,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			queued: 0,
 			lastDocumentId: blocked.id,
 			skipped: [
-				{ versionId: blocked.versions[0].id, reason: expect.stringContaining("chuyên môn") },
+				{ versionId: blocked.versions[0].id, reason: expect.stringContaining("hạn chế sử dụng") },
 			],
 		});
 		const sets: Array<{ document_version_id: string }> = await db.query(
@@ -701,7 +996,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		const second = await claim();
 		const replacement = output(second);
 		replacement.chunks[1].embedding_text = `passage: New heading\n${replacement.chunks[1].content}`;
-		await repo.finish(second, replacement);
+		await repo.finish(second, withIntegrity(replacement));
 		expect(
 			await db.query("SELECT id FROM knowledge_embeddings WHERE document_id=$1", [v1.id])
 		).toHaveLength(3);
@@ -793,7 +1088,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 				generated.chunks[0].content = content;
 				generated.chunks[0].embedding_text = `passage: ${content}`;
 			}
-			expect(await repo.finish(set, generated)).toBe(true);
+			expect(await repo.finish(set, withIntegrity(generated))).toBe(true);
 			return set;
 		}
 
@@ -1032,6 +1327,24 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			);
 		});
 
+		it("retrieves English preparation guidance for a natural Vietnamese trekking question with exact provenance", async () => {
+			const doc = await publish(await draft(undefined, Classification.TREKKING_SAFETY, "en"));
+			const set = await ready(doc, TRIP_PLANNING_CHECKLIST);
+			const result = await retrieve({ question: NATURAL_PREPARATION_QUESTIONS[0], locale: "vi" });
+			expect(result).toMatchObject({
+				status: "GROUNDED",
+				sources: [{ documentVersionId: set.document_version_id, locale: "en" }],
+			});
+			if (result.status !== "GROUNDED") throw new Error("Expected eligible preparation evidence");
+			expect(result.selectedChunks[0]).toMatchObject({
+				content: TRIP_PLANNING_CHECKLIST,
+				locations: [{ page: 1, itemRef: "#/texts/0" }],
+			});
+			await archive(doc);
+			expect(
+				await retrieve({ question: NATURAL_PREPARATION_QUESTIONS[0], locale: "vi" })
+			).toMatchObject({ status: "INSUFFICIENT_CONTEXT", sources: [] });
+		});
 		it("searches across an eligible mixed corpus with a global candidate limit", async () => {
 			const en = await ready(
 				await publish(await draft(undefined, Classification.TREKKING_SAFETY, "en")),
@@ -1062,13 +1375,15 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			await expect(retrieve()).rejects.toMatchObject({ response: { code: "RAG_CORPUS_LIMIT" } });
 		});
 
-		it("rejects an unreviewed medical PDF in a different language", async () => {
+		it("keeps a published medical PDF out of retrieval until automatic extraction is READY", async () => {
 			const unreviewed = await publish(
 				await draft(undefined, Classification.FIRST_AID, "en"),
 				false
 			);
 			await repo.consumeEvents(configuration);
-			expect(await repo.status(unreviewed.id, unreviewed.versions[0].id)).toEqual([]);
+			expect(await repo.status(unreviewed.id, unreviewed.versions[0].id)).toMatchObject([
+				{ status: ChunkSetStatus.PENDING },
+			]);
 			expect(await retrieve({ question: "Sơ cứu bong gân thế nào?", locale: "vi" })).toMatchObject({
 				status: "INSUFFICIENT_CONTEXT",
 				reason: "NO_MATCH",
@@ -1116,7 +1431,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			const generated = output(set);
 			generated.chunks[0].content += " nguồn thứ hai";
 			generated.chunks[0].embedding_text += " nguồn thứ hai";
-			expect(await repo.finish(set, generated)).toBe(true);
+			expect(await repo.finish(set, withIntegrity(generated))).toBe(true);
 			ragProvider.countPrefixes.mockImplementationOnce(async (blocks: string[]) => {
 				expect(blocks).toHaveLength(2);
 				await archive(first);
@@ -1215,7 +1530,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 					content: `${sample.content} ${index}`,
 					embedding_text: `${sample.embedding_text} ${index}`,
 				}));
-				expect(await repo.finish(set, generated)).toBe(true);
+				expect(await repo.finish(set, withIntegrity(generated))).toBe(true);
 				ragProvider.countPrefixes.mockResolvedValue([20, 40, 60, 80, 100]);
 				const before = process.memoryUsage().heapUsed;
 				const durations: number[] = [];
