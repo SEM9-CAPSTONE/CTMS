@@ -120,7 +120,10 @@ export function validateRefundEligibility(
 			if (booking.status !== BookingStatus.COMPLETED) {
 				throw new ConflictException("Complaint refund request requires completed participation");
 			}
-			const completedAt = (trip as unknown as { completedAt?: Date }).completedAt ?? trip.endsAt;
+			const completedAt =
+				trip.actualEndedAt ??
+				(trip as unknown as { completedAt?: Date }).completedAt ??
+				trip.endsAt;
 			if (!completedAt || !Number.isFinite(completedAt.getTime())) {
 				throw new ConflictException("Trip is missing a valid completion timestamp");
 			}

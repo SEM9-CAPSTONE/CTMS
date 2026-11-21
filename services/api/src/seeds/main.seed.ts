@@ -26,7 +26,6 @@ import {
 import { InAppNotificationType } from "../modules/in-app-notifications/in-app-notification.entity";
 import { InAppNotificationsService } from "../modules/in-app-notifications/in-app-notifications.service";
 import dataSource from "../shared/database/data-source";
-import { seedCamperHealthProfile } from "./camper-health-profile.seed";
 
 import { randomUUID } from "node:crypto";
 import { CheckpointArrivalsRepository } from "../modules/checkpoint-arrivals/checkpoint-arrivals.repository";
@@ -4999,6 +4998,59 @@ async function seedPorterProfileAndAssignments(routeIds: Record<string, string>)
 // --------------------------------------------------------------------------
 // Helper: Seed Camper Health Profiles & Emergency Contacts
 // --------------------------------------------------------------------------
+/** Populate the main local account without replacing health notes entered through the app. */
+export async function seedCamperHealthProfile(ds: DataSource = dataSource): Promise<void> {
+	if (process.env.NODE_ENV === "production") {
+		throw new Error("Health profile seed is development-only");
+	}
+	if (!ds.isInitialized) await ds.initialize();
+	await ds.transaction(async (manager) => {
+		const [camper]: Array<{ id: string }> = await manager.query(
+			"SELECT id FROM users WHERE email = $1 AND role = 'camper' AND status = 'active'",
+			["camper@ctms.local"]
+		);
+		if (!camper) throw new Error("Không tìm thấy tài khoản camper@ctms.local đang hoạt động.");
+		const activity = JSON.stringify({
+			comfortableDistanceKm: 8,
+			comfortableWalkingMinutes: 180,
+			activityNotes: null,
+			confirmedAt: new Date().toISOString(),
+		});
+		await manager.query(
+			`INSERT INTO health_profiles
+			 (user_id, blood_type, physical_fitness_level, activity_profile,
+			  emergency_notes, medical_conditions,
+			  is_consent_granted, consent_granted_at)
+			 VALUES ($1, 'O+', 'INTERMEDIATE', $2::jsonb,
+			  'Có tiền sử hạ đường huyết nhẹ khi vận động cường độ cao liên tục',
+			  '[]'::jsonb, true, now())
+			 ON CONFLICT (user_id) DO UPDATE SET
+			 blood_type = EXCLUDED.blood_type,
+			 physical_fitness_level = EXCLUDED.physical_fitness_level,
+			 activity_profile = EXCLUDED.activity_profile,
+			 emergency_notes = EXCLUDED.emergency_notes,
+			 version = health_profiles.version + 1, updated_at = now()
+			 WHERE health_profiles.activity_profile IS NULL
+			 AND health_profiles.blood_type = 'UNKNOWN'
+			 AND health_profiles.physical_fitness_level = 'BEGINNER'
+			 AND health_profiles.dietary_restrictions IS NULL
+			 AND health_profiles.emergency_notes IS NULL
+			 AND health_profiles.allergies = '[]'::jsonb
+			 AND health_profiles.medical_conditions = '[]'::jsonb`,
+			[camper.id, activity]
+		);
+		// Supply only missing activity facts, retaining existing health notes.
+		await manager.query(
+			`UPDATE health_profiles SET
+			 activity_profile = COALESCE(activity_profile, $2::jsonb),
+			 version = version + 1, updated_at = now()
+			 WHERE user_id = $1 AND activity_profile IS NULL`,
+			[camper.id, activity]
+		);
+	});
+	console.log("Đã bổ sung hồ sơ sức khỏe cho camper@ctms.local.");
+}
+
 async function seedCamperHealthAndContacts(): Promise<void> {
 	console.log("[seed:dev-trips] Seeding Camper health profiles & emergency contacts...");
 	const camperRows: Array<{ id: string }> = await dataSource.query(
@@ -9237,9 +9289,219 @@ async function seedReputationScenarios(ds = dataSource): Promise<void> {
 	});
 }
 
+/** Deterministic UUIDv8 with RFC variant bits, accepted by API UUID validation. */
+export function porterLifecycleFixtureId(key: string): string {
+	const hex = createHash("sha256").update(key).digest("hex");
+	return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-8${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
+/** Additive operational fixtures; never reset a Trip after a Porter has used it. */
+export async function seedPorterTripLifecycle(ds: DataSource = dataSource): Promise<void> {
+	if (!ds.isInitialized) await ds.initialize();
+	await ds.transaction(async (manager) => {
+		const users: Array<{ id: string; email: string }> = await manager.query(
+			`SELECT id,email FROM users WHERE status='active'
+			 AND ((email='host@ctms.local' AND role='host')
+			 OR (email='porter@ctms.local' AND role='porter')
+			 OR (email='camper@ctms.local' AND role='camper'))`
+		);
+		const host = users.find((user) => user.email === "host@ctms.local");
+		const porter = users.find((user) => user.email === "porter@ctms.local");
+		const camper = users.find((user) => user.email === "camper@ctms.local");
+		if (!host || !porter || !camper) {
+			throw new Error("Cần có tài khoản host, porter và camper chính trước khi bổ sung chuyến đi.");
+		}
+		const routes: Array<{ id: string }> = await manager.query(
+			`SELECT id FROM trekking_routes WHERE host_id=$1 AND status='active'
+			 ORDER BY (name ILIKE '%Sơn Trà%') DESC,created_at,id LIMIT 1`,
+			[host.id]
+		);
+		if (!routes[0]) throw new Error("Chủ chuyến cần có ít nhất một tuyến đường đang hoạt động.");
+		const scenarios = [
+			{
+				key: "departure",
+				title: "Đi bộ ven rừng Sơn Trà",
+				startHours: -0.25,
+				endHours: 6,
+				status: TripStatus.PUBLISHED,
+			},
+			{
+				key: "return",
+				title: "Ngắm biển từ đỉnh Bàn Cờ",
+				startHours: -4,
+				endHours: -1,
+				status: TripStatus.ONGOING,
+			},
+			{
+				key: "upcoming",
+				title: "Đón bình minh trên bán đảo Sơn Trà",
+				startHours: 24,
+				endHours: 30,
+				status: TripStatus.PUBLISHED,
+			},
+		];
+		for (const scenario of scenarios) {
+			// One set per calendar day; running again retains dates, notes and all user transitions.
+			const key = `porter-lifecycle:${new Date().toISOString().slice(0, 10)}:${scenario.key}`;
+			// Repair only untouched records from the initial pre-release UUID generation bug.
+			// Explicit opt-in; never re-key a Trip or remove records with operational history.
+			if (process.argv.includes("--repair-porter-lifecycle-ids")) {
+				const legacy: Array<{ id: string }> = await manager.query(
+					`SELECT id FROM trips WHERE id=md5($1)::uuid AND host_id=$2
+					 AND title=$3 AND status=$4::trip_status AND updated_at=created_at
+					 AND NOT EXISTS(SELECT 1 FROM audit_logs WHERE target_id=trips.id)
+					 AND NOT EXISTS(SELECT 1 FROM offline_packages WHERE trip_id=trips.id)
+					 AND NOT EXISTS(SELECT 1 FROM payments p JOIN bookings b ON b.id=p.booking_id WHERE b.trip_id=trips.id)
+					 AND NOT EXISTS(SELECT 1 FROM bookings WHERE trip_id=trips.id AND
+					  (id<>md5($1||':booking')::uuid OR status<>'confirmed' OR total_amount<>0))
+					 FOR UPDATE`,
+					[key, host.id, scenario.title, scenario.status]
+				);
+				if (legacy[0]) {
+					await manager.query("DELETE FROM bookings WHERE trip_id=$1", [legacy[0].id]);
+					await manager.query("DELETE FROM trips WHERE id=$1", [legacy[0].id]);
+				}
+			}
+			const trips: Array<{ id: string }> = await manager.query(
+				`INSERT INTO trips(id,host_id,route_id,title,description,trip_type,duration_nights,
+				 starts_at,ends_at,meeting_point,meeting_at,booking_deadline,capacity_min,capacity_max,
+				 seats_taken,price_per_person,status,participation_evaluated_at,actual_started_at,started_by_id)
+				 SELECT $1::uuid,$2,r.id,$3,
+				 'Hành trình đi bộ cộng đồng, khám phá rừng và ngắm biển. Đơn vị tổ chức hỗ trợ chi phí tham gia.',
+				 'day_trip',0,now()+$4*interval '1 hour',now()+$5*interval '1 hour',
+				 ST_StartPoint(r.route_geom::geometry)::geography,now()+($4-0.5)*interval '1 hour',
+				 now()+($4-2)*interval '1 hour',1,12,1,0,$6::trip_status,
+				 CASE WHEN $4<0 THEN now() ELSE NULL END,
+				 CASE WHEN $6='ongoing' THEN now()+$4*interval '1 hour' ELSE NULL END,
+				 CASE WHEN $6='ongoing' THEN $7::uuid ELSE NULL END
+				 FROM trekking_routes r WHERE r.id=$8
+				 ON CONFLICT(id) DO NOTHING RETURNING id`,
+				[
+					porterLifecycleFixtureId(key),
+					host.id,
+					scenario.title,
+					scenario.startHours,
+					scenario.endHours,
+					scenario.status,
+					porter.id,
+					routes[0].id,
+				]
+			);
+			if (!trips[0]) continue;
+			const tripId = trips[0].id;
+			await manager.query(
+				"INSERT INTO trip_porters(trip_id,porter_id,status) VALUES($1,$2,'assigned')",
+				[tripId, porter.id]
+			);
+			await manager.query(
+				`INSERT INTO bookings(id,trip_id,user_id,num_people,status,payment_status,base_price,total_amount,
+				 trip_starts_at_snapshot,trip_ends_at_snapshot)
+				 SELECT $1::uuid,id,$2,1,'confirmed','not_required',0,0,starts_at,ends_at
+				 FROM trips WHERE id=$3`,
+				[porterLifecycleFixtureId(`${key}:booking`), camper.id, tripId]
+			);
+			await manager.query(
+				`INSERT INTO booking_members(id,booking_id,user_id,is_primary,member_status,checked_in_at)
+				 VALUES($1::uuid,$2::uuid,$3,true,'joined',now())`,
+				[
+					porterLifecycleFixtureId(`${key}:member`),
+					porterLifecycleFixtureId(`${key}:booking`),
+					camper.id,
+				]
+			);
+		}
+	});
+	console.log(
+		"[seed:porter-lifecycle] Đã bổ sung chuyến đi cho các tài khoản chính; giữ nguyên chuyến đã có."
+	);
+}
+
+/** Refresh telemetry only on the known operational fixture; never change Trip/user/financial state. */
+export async function seedMemberLocations(
+	ds: DataSource = dataSource,
+	required = true
+): Promise<void> {
+	if (!ds.isInitialized) await ds.initialize();
+	const seeded = await ds.transaction(async (manager) => {
+		const fixture = porterLifecycleFixtureId(
+			`porter-lifecycle:${new Date().toISOString().slice(0, 10)}:return`
+		);
+		const rows: Array<{ tripId: string; routeId: string; camperId: string; porterId: string }> =
+			await manager.query(
+				`SELECT t.id AS "tripId",t.route_id AS "routeId",c.id AS "camperId",p.id AS "porterId"
+			 FROM trips t JOIN users h ON h.id=t.host_id AND h.email='host@ctms.local'
+			 JOIN users c ON c.email='camper@ctms.local' AND c.status='active'
+			 JOIN users p ON p.email='porter@ctms.local' AND p.status='active'
+			 WHERE t.id=$1 AND t.status='ongoing'
+			 AND EXISTS(SELECT 1 FROM trip_porters tp WHERE tp.trip_id=t.id AND tp.porter_id=p.id AND tp.status='assigned')
+			 AND EXISTS(SELECT 1 FROM booking_members m JOIN bookings b ON b.id=m.booking_id
+			  WHERE b.trip_id=t.id AND b.status='confirmed' AND m.user_id=c.id AND m.member_status='joined' AND m.left_at IS NULL)`,
+				[fixture]
+			);
+		const trip = rows[0];
+		if (!trip) {
+			if (!required) return false;
+			throw new Error(
+				"Cần chuyến đi đang diễn ra của seed:porter-lifecycle; không đặt lại chuyến đã kết thúc."
+			);
+		}
+		for (const [userId, role, fraction] of [
+			[trip.camperId, "camper", 0.35],
+			[trip.porterId, "porter", 0.55],
+		] as const) {
+			let latestId = "";
+			for (let sample = 0; sample < 3; sample++) {
+				latestId = randomUUID();
+				await manager.query(
+					`INSERT INTO gps_logs(id,trip_id,user_id,participant_role,event_time,location,accuracy_meters,config_version,received_at)
+					 SELECT $1,$2,$3,$4::gps_participant_role,now()-$6::int*interval '1 second',position.location,5,'v3',now()
+					 FROM trekking_routes r CROSS JOIN LATERAL (
+					 SELECT CASE WHEN $4='camper'
+					 THEN ST_Project(ST_LineInterpolatePoint(r.route_geom::geometry,$5)::geography,100,step*pi()/2)
+					 ELSE ST_LineInterpolatePoint(r.route_geom::geometry,$5)::geography END AS location
+					 FROM generate_series(0,3) step ORDER BY ST_Distance(
+					 CASE WHEN $4='camper' THEN ST_Project(ST_LineInterpolatePoint(r.route_geom::geometry,$5)::geography,100,step*pi()/2)
+					 ELSE ST_LineInterpolatePoint(r.route_geom::geometry,$5)::geography END,r.route_geom) DESC LIMIT 1
+					 ) position WHERE r.id=$7`,
+					[latestId, trip.tripId, userId, role, fraction, (2 - sample) * 10, trip.routeId]
+				);
+			}
+			if (role === "camper")
+				await manager.query(
+					`INSERT INTO safety_events(id,trip_id,user_id,participant_role,event_type,event_time,location,
+				 accuracy_meters,distance_to_route_meters,consecutive_valid_samples,route_id,route_version,config_version,received_at)
+				 SELECT $1,g.trip_id,g.user_id,'camper','OFF_ROUTE',g.event_time,g.location,5,
+				 ST_Distance(g.location,r.route_geom),3,r.id,md5(ST_AsText(r.route_geom::geometry)),'v3',now()
+				 FROM gps_logs g JOIN trekking_routes r ON r.id=$3 WHERE g.id=$2`,
+					[randomUUID(), latestId, trip.routeId]
+				);
+		}
+	});
+	if (seeded !== false)
+		console.log(
+			"[seed:member-locations] Đã bổ sung vị trí đồng bộ cho khách tham gia và người dẫn đoàn hiện có."
+		);
+}
+
 export async function runMasterSeed(): Promise<void> {
 	if (process.env.NODE_ENV === "production") {
 		throw new Error("[seed:master] Refusing to run seed script in production environment!");
+	}
+	if (process.argv.includes("--member-locations-only")) {
+		try {
+			await seedMemberLocations();
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
+	}
+	if (process.argv.includes("--porter-lifecycle-only")) {
+		try {
+			await seedPorterTripLifecycle();
+		} finally {
+			if (dataSource.isInitialized) await dataSource.destroy();
+		}
+		return;
 	}
 	if (process.argv.includes("--da-nang-only")) {
 		try {
@@ -9257,13 +9519,15 @@ export async function runMasterSeed(): Promise<void> {
 		}
 		return;
 	}
-	const standaloneSeed = process.argv.includes("--financial-adjustments-only")
-		? seedFinancialAdjustments
-		: process.argv.includes("--bank-accounts-only")
-			? seedUserBankAccounts
-			: process.argv.includes("--group-bookings-only")
-				? seedHostGroupBookingsWithEquipment
-				: undefined;
+	const standaloneSeed = process.argv.includes("--health-profile-only")
+		? seedCamperHealthProfile
+		: process.argv.includes("--financial-adjustments-only")
+			? seedFinancialAdjustments
+			: process.argv.includes("--bank-accounts-only")
+				? seedUserBankAccounts
+				: process.argv.includes("--group-bookings-only")
+					? seedHostGroupBookingsWithEquipment
+					: undefined;
 	if (standaloneSeed) {
 		try {
 			await standaloneSeed();
@@ -9526,6 +9790,8 @@ export async function runMasterSeed(): Promise<void> {
 		console.log("👉 [19/19] Seeding 12-month Host business analytics history...");
 		await seedHostAnalyticsHistoryScenarios(dataSource);
 		console.log("✅ Step 19 completed.\n");
+		await seedPorterTripLifecycle(dataSource);
+		await seedMemberLocations(dataSource, false);
 
 		const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(2);
 

@@ -87,6 +87,18 @@ export class Trip {
 	@Column({ name: "ends_at", type: "timestamptz" })
 	endsAt!: Date;
 
+	@Column({ name: "actual_started_at", type: "timestamptz", nullable: true })
+	actualStartedAt!: Date | null;
+
+	@Column({ name: "actual_ended_at", type: "timestamptz", nullable: true })
+	actualEndedAt!: Date | null;
+
+	@Column({ name: "started_by_id", type: "uuid", nullable: true })
+	startedById!: string | null;
+
+	@Column({ name: "ended_by_id", type: "uuid", nullable: true })
+	endedById!: string | null;
+
 	@Column({ name: "meeting_point", type: "geography", spatialFeatureType: "Point", srid: 4326 })
 	meetingPoint!: GeoPoint;
 

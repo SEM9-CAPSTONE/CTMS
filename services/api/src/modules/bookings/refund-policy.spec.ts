@@ -37,6 +37,34 @@ describe("RefundPolicy (CTMS-035)", () => {
 	}
 
 	describe("validateRefundEligibility (BR-103)", () => {
+		it("keeps 24 hours after actual completion when the Trip ends later than scheduled", () => {
+			const actualEndedAt = new Date("2030-05-15T18:00:00Z");
+			const trip = createTrip({ status: TripStatus.COMPLETED, actualEndedAt });
+			const booking = createBooking({ status: BookingStatus.COMPLETED });
+			const params = { trip, booking, origin: RefundOrigin.CAMPER_COMPLAINT };
+			expect(
+				validateRefundEligibility({ ...params, requestTime: new Date("2030-05-16T17:59:00Z") })
+			).toMatchObject({ eligible: true });
+			expect(() =>
+				validateRefundEligibility({ ...params, requestTime: new Date("2030-05-16T18:00:01Z") })
+			).toThrow("24-hour");
+		});
+
+		it("uses actual completion for an early return instead of extending the window to the planned end", () => {
+			const trip = createTrip({
+				status: TripStatus.COMPLETED,
+				actualEndedAt: new Date("2030-05-12T10:00:00Z"),
+			});
+			const booking = createBooking({ status: BookingStatus.COMPLETED });
+			expect(() =>
+				validateRefundEligibility({
+					trip,
+					booking,
+					origin: RefundOrigin.CAMPER_COMPLAINT,
+					requestTime: new Date("2030-05-13T11:00:00Z"),
+				})
+			).toThrow("24-hour");
+		});
 		describe("Camper Pre-Trip Cancellation", () => {
 			it("allows refund when Booking was cancelled before Trip starts_at", () => {
 				const trip = createTrip();

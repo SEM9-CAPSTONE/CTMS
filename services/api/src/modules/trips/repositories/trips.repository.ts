@@ -1603,6 +1603,8 @@ export class TripsRepository extends Repository<Trip> {
 					const due: Array<{ id: string; previousStatus: TripStatus }> = await manager.query(
 						`SELECT id,status AS "previousStatus" FROM trips
       WHERE status='published' AND starts_at<=CURRENT_TIMESTAMP AND ends_at>CURRENT_TIMESTAMP AND weather_paused_at IS NULL
+      AND actual_started_at IS NULL
+      AND NOT EXISTS(SELECT 1 FROM trip_porters p WHERE p.trip_id=trips.id AND p.status IN ('assigned','pending_reconfirmation'))
       AND (NOT $2::boolean OR participation_evaluated_at IS NOT NULL) AND NOT(id=ANY($3::uuid[]))
       ORDER BY starts_at,id LIMIT $1 FOR UPDATE SKIP LOCKED`,
 						[limit - moved.length, awaitParticipationEvaluation, inspected]
@@ -1636,6 +1638,8 @@ export class TripsRepository extends Repository<Trip> {
 				SELECT "id", "status"
 				FROM "trips"
 				WHERE ${dueCondition}
+				  AND "actual_started_at" IS NULL
+				  AND NOT EXISTS(SELECT 1 FROM trip_porters p WHERE p.trip_id=trips.id AND p.status IN ('assigned','pending_reconfirmation'))
 				  AND ("status" <> 'published' OR NOT $3::boolean OR "participation_evaluated_at" IS NOT NULL)
 				ORDER BY "starts_at" ASC, "id" ASC
 				LIMIT $2

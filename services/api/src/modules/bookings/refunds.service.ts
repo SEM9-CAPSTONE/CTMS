@@ -94,8 +94,9 @@ export class RefundsService {
 		params: RefundEligibilityValidationParams
 	): Promise<RefundEligibilityResult> {
 		const { booking, trip, origin, requestTime } = params;
-		const deadline = trip.endsAt
-			? trip.endsAt.getTime() + 24 * 60 * 60 * 1000
+		const completedAt = trip.actualEndedAt ?? trip.endsAt;
+		const deadline = completedAt
+			? completedAt.getTime() + 24 * 60 * 60 * 1000
 			: Number.POSITIVE_INFINITY;
 		if (
 			origin === RefundOrigin.CAMPER_COMPLAINT &&
@@ -785,6 +786,7 @@ export class RefundsService {
 		let applicableWindow: BookingRefundApplicableWindowDto | undefined;
 		if (determinedOrigin === RefundOrigin.CAMPER_COMPLAINT) {
 			const completedAt =
+				trip.actualEndedAt ??
 				(trip as unknown as { completedAt?: Date }).completedAt ??
 				trip.endsAt ??
 				booking.tripEndsAtSnapshot;

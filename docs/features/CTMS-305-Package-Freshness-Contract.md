@@ -6,13 +6,17 @@ This implementation follows the repository's NestJS/TypeORM patterns; the generi
 
 ## Scope and existing lifecycle
 
-Trips currently become ongoing by schedule; there is no manual Start Trip API.
+CTMS-056 now adds `/trips/:tripId/lifecycle/start` and `/end` for the assigned Porter.
+Assigned Trips wait for explicit confirmation, and manual departure always enforces
+required-package readiness. The schedule worker remains a fallback for Trips with no
+assigned/pending-reconfirmation Porter and no actual start timestamp. The flag below
+governs that legacy fallback only. See `file/spec/ctms-56-update-trip-operational-lifecycle-and-progress.md`.
 An assigned Porter explicitly confirms **one installation/device** as responsible
 for departure. This is not a requirement that every Camper or every device reports.
 The server does not guarantee that another member's device possesses the package.
 Campers can report their own package state but cannot confirm responsible departure.
 Device UUIDs are client-supplied installation identifiers, not hardware attestation.
-No new manual Trip lifecycle endpoint or package-generation behavior is introduced.
+CTMS-305 itself introduced no manual Trip lifecycle endpoint or package-generation behavior.
 
 `OFFLINE_PACKAGE_DEPARTURE_GATE_ENABLED=true` opts the schedule worker into the gate.
 Default/absent/false preserves the old transition path. Even with the flag enabled,

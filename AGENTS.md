@@ -1,5 +1,6 @@
 # Quy tắc tên và dữ liệu hiển thị
 
+- Không tạo file hoặc script seed mới cho từng tính năng hay kịch bản. Mọi bổ sung, chỉnh sửa dữ liệu seed phải được tích hợp vào seed chính (main seed) hiện có của dự án.
 - Tên người trong dữ liệu seed phải giống tên người Việt thông thường, có dấu. Không dùng tên đánh số như “Chủ chuyến mẫu 2”, “User 1”, “Host test”.
 - Khi chuẩn bị dữ liệu seed để kiểm tra hoặc trình diễn, tái sử dụng các tài khoản chính đã có: `host@ctms.local`, `camper@ctms.local`, `admin@ctms.local`. Không tự tạo thêm tài khoản cho từng kịch bản. Chỉ tạo tài khoản mới khi người dùng yêu cầu rõ ràng; nhiều nhánh kiểm thử không phải lý do để tự tạo thêm nick.
 - Tên chuyến đi phải giống tên sản phẩm thực tế, ví dụ “Khám phá bán đảo Sơn Trà”. Không thêm “[Mẫu]”, “[Demo]”, mã ticket hoặc trạng thái nghiệp vụ vào tên. Trạng thái và mục đích kiểm thử nằm ở trường riêng hoặc tài liệu seed.

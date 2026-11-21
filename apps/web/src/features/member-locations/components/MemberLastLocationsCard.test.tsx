@@ -66,12 +66,12 @@ afterEach(() => {
 });
 
 describe("MemberLastLocationsCard (CTMS-066-T02)", () => {
-	it("shows a loading state and says the data is not live", () => {
+	it("shows loading without an explanatory subtitle", () => {
 		renderCard(() => new Promise(() => undefined));
 		expect(screen.getByText("Đang tải vị trí thành viên…")).toBeInTheDocument();
 		expect(
-			screen.getByText(/Vị trí server đã nhận gần nhất, không phải vị trí trực tiếp/)
-		).toBeInTheDocument();
+			screen.queryByText(/Vị trí server đã nhận gần nhất, không phải vị trí trực tiếp/)
+		).not.toBeInTheDocument();
 	});
 
 	it("orders members by attention needed and shows last seen, coordinates, checkpoint and flags", async () => {
@@ -91,7 +91,12 @@ describe("MemberLastLocationsCard (CTMS-066-T02)", () => {
 					id: "b",
 					name: "Bình Lệch",
 					safety: {
-						route: { type: "OFF_ROUTE", eventTime: ago(60), receivedAt: ago(50) },
+						route: {
+							type: "OFF_ROUTE",
+							eventTime: ago(60),
+							receivedAt: ago(50),
+							distanceToRouteMeters: 65.4,
+						},
 						gps: null,
 						lastCheckpoint: {
 							checkpointId: "cp",
@@ -118,7 +123,7 @@ describe("MemberLastLocationsCard (CTMS-066-T02)", () => {
 			"fresh",
 		]);
 		expect(rows[0]).toHaveTextContent("Bình Lệch");
-		expect(within(rows[0]).getByText("Lệch tuyến")).toBeInTheDocument();
+		expect(within(rows[0]).getByText("Lệch tuyến · 65 m")).toBeInTheDocument();
 		expect(within(rows[0]).getByText("Chậm hơn đoàn · 35 phút")).toBeInTheDocument();
 		expect(rows[0]).toHaveTextContent("Checkpoint gần nhất: Đèo Gió");
 		expect(rows[0]).toHaveTextContent("16.04000, 108.20000 · ±8 m");
@@ -190,4 +195,32 @@ describe("MemberLastLocationsCard (CTMS-066-T02)", () => {
 		expect(screen.getByText("An")).toBeInTheDocument();
 		expect(get).toHaveBeenCalledTimes(2);
 	});
+
+	it.each([
+		[null, "Lệch tuyến"],
+		[0, "Lệch tuyến · 0 m"],
+	] as const)(
+		"keeps an event distance of %s distinct from GPS accuracy",
+		async (distance, label) => {
+			renderCard(async () =>
+				response([
+					member({
+						safety: {
+							route: {
+								type: "OFF_ROUTE",
+								eventTime: ago(60),
+								receivedAt: ago(50),
+								distanceToRouteMeters: distance,
+							},
+							gps: null,
+							lastCheckpoint: null,
+							behindSchedule: null,
+						},
+					}),
+				])
+			);
+			expect(await screen.findByText(label)).toBeInTheDocument();
+			expect(screen.queryByText("Lệch tuyến · 8 m")).not.toBeInTheDocument();
+		}
+	);
 });
