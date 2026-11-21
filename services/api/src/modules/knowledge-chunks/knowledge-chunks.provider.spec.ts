@@ -1,4 +1,9 @@
 import { ConfigService } from "@nestjs/config";
+import {
+	integrityFixture,
+	verifiedIntegrity,
+	withIntegrity,
+} from "../../../test/support/knowledge-integrity-fixture";
 import { KnowledgeChunksProvider } from "./knowledge-chunks.provider";
 import { type ChunkSet, ChunkSetStatus } from "./knowledge-chunks.types";
 
@@ -72,6 +77,41 @@ describe("Knowledge ingestion provider boundary", () => {
 			provider.generate(set, Buffer.from("pdf"), "Title", new AbortController().signal)
 		).rejects.toMatchObject({ code: "ingestion_transport", retryable: true });
 	});
+	it("retries a pipeline contract mismatch while keeping unrelated validation errors permanent", async () => {
+		const fetcher = jest.spyOn(globalThis, "fetch");
+		fetcher.mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					detail: [{ type: "literal_error", loc: ["body", "configuration", "pipeline_version"] }],
+				}),
+				{ status: 422 }
+			)
+		);
+		await expect(
+			provider.generate(set, Buffer.from("pdf"), "Title", new AbortController().signal)
+		).rejects.toMatchObject({ code: "ingestion_configuration_mismatch", retryable: true });
+		fetcher.mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					detail: [{ type: "string_pattern_mismatch", loc: ["body", "checksum"] }],
+				}),
+				{ status: 422 }
+			)
+		);
+		await expect(
+			provider.generate(set, Buffer.from("pdf"), "Title", new AbortController().signal)
+		).rejects.toMatchObject({ code: "ingestion_http_422", retryable: false });
+	});
+	it("distinguishes a missing OCR runtime from content requiring technical review", async () => {
+		jest.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response(JSON.stringify({ detail: { code: "ocr_runtime_unavailable" } }), {
+				status: 503,
+			})
+		);
+		await expect(
+			provider.generate(set, Buffer.from("pdf"), "Title", new AbortController().signal)
+		).rejects.toMatchObject({ code: "ocr_runtime_unavailable", retryable: true });
+	});
 	it("fails explicitly when unconfigured and rejects mismatched worker output", async () => {
 		const fetcher = jest
 			.spyOn(globalThis, "fetch")
@@ -105,11 +145,25 @@ describe("Knowledge ingestion provider boundary", () => {
 			quality: { status: "NEEDS_REVIEW", issues: ["pdf_text_read_failed"], page_count: null },
 		});
 	});
-	it("probes the service with the ingestion token and treats a wrong token as unavailable", async () => {
+	it("requires an authenticated readiness probe matching the current pipeline", async () => {
 		const fetcher = jest
 			.spyOn(globalThis, "fetch")
 			.mockResolvedValueOnce(new Response(null, { status: 401 }))
-			.mockResolvedValueOnce(new Response(null, { status: 204 }));
+			.mockResolvedValueOnce(new Response(null, { status: 204 }))
+			.mockResolvedValueOnce(
+				new Response(null, {
+					status: 204,
+					headers: { "X-CTMS-Pipeline-Version": "ctms-hybrid-v1" },
+				})
+			)
+			.mockResolvedValueOnce(
+				new Response(null, {
+					status: 204,
+					headers: { "X-CTMS-Pipeline-Version": set.configuration.pipeline_version },
+				})
+			);
+		await expect(provider.isAvailable()).resolves.toBe(false);
+		await expect(provider.isAvailable()).resolves.toBe(false);
 		await expect(provider.isAvailable()).resolves.toBe(false);
 		await expect(provider.isAvailable()).resolves.toBe(true);
 		expect(fetcher).toHaveBeenCalledWith(
@@ -125,7 +179,8 @@ describe("Knowledge ingestion provider boundary", () => {
 		const vector = (index: number) => Array.from({ length: 384 }, (_, i) => Number(i === index));
 		const response = {
 			...set,
-			quality: { status: "PASSED", issues: [], page_count: 3 },
+			extraction_snapshot: integrityFixture(set),
+			quality: { status: "PASSED", issues: [], page_count: 3, integrity: verifiedIntegrity },
 			chunks: [matchingInput, changedInput, changedInput].map((input, index) => ({
 				chunk_index: index,
 				content: "Unchanged",
@@ -141,6 +196,7 @@ describe("Knowledge ingestion provider boundary", () => {
 				],
 			})),
 		};
+		response.extraction_snapshot.prepared = response.chunks;
 		const find = jest.fn().mockResolvedValue(
 			new Map([
 				[matchingInput, vector(0)],
@@ -151,13 +207,19 @@ describe("Knowledge ingestion provider boundary", () => {
 			.spyOn(globalThis, "fetch")
 			.mockResolvedValueOnce(Response.json(response))
 			.mockResolvedValueOnce(Response.json({ embeddings: [vector(1)] }));
+		const checkpoint = jest.fn().mockResolvedValue(undefined);
 		const result = await provider.generate(
 			set,
 			Buffer.from("pdf"),
 			"Title",
 			new AbortController().signal,
-			find
+			find,
+			checkpoint
 		);
+		expect(checkpoint).toHaveBeenCalledWith(
+			expect.objectContaining({ extraction_snapshot: expect.any(Object) })
+		);
+		expect(checkpoint.mock.invocationCallOrder[0]).toBeLessThan(find.mock.invocationCallOrder[0]);
 		expect(find).toHaveBeenCalledWith([matchingInput, changedInput]);
 		expect(fetcher).toHaveBeenCalledTimes(2);
 		expect(JSON.parse(String(fetcher.mock.calls[1][1]?.body))).toEqual({
@@ -171,6 +233,45 @@ describe("Knowledge ingestion provider boundary", () => {
 				[vector(1), 3],
 			]
 		);
+	});
+	it("rejects changed prepared text before checkpointing or looking up vectors", async () => {
+		const prepared = withIntegrity({
+			...set,
+			quality: { status: "PASSED" as const, issues: [], page_count: 1 },
+			chunks: [
+				{
+					chunk_index: 0,
+					content: "Verified instruction",
+					embedding_text: "passage: Verified instruction",
+					token_count: 7,
+					headings: [],
+					locations: [
+						{
+							page: 1,
+							item_ref: "#/texts/0",
+							bbox: { l: 0, t: 10, r: 100, b: 0, coord_origin: "BOTTOMLEFT" as const },
+						},
+					],
+				},
+			],
+		});
+		prepared.chunks[0].embedding_text = "passage: Changed heading\nVerified instruction";
+		const fetcher = jest.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(prepared));
+		const find = jest.fn();
+		const checkpoint = jest.fn();
+		await expect(
+			provider.generate(
+				set,
+				Buffer.from("pdf"),
+				"Title",
+				new AbortController().signal,
+				find,
+				checkpoint
+			)
+		).rejects.toMatchObject({ code: "invalid_ingestion_output", retryable: false });
+		expect(fetcher).toHaveBeenCalledTimes(1);
+		expect(checkpoint).not.toHaveBeenCalled();
+		expect(find).not.toHaveBeenCalled();
 	});
 	it("stops after extraction when the new version fails quality checks", async () => {
 		const fetcher = jest.spyOn(globalThis, "fetch").mockResolvedValue(

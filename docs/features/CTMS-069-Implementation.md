@@ -10,6 +10,12 @@ The same Camper screen keeps the current session's transcript across modes. With
 
 ### Device runtime decision
 
+The local runtime is enabled only by `CTMS_ENABLE_LOCAL_AI=true` on supported iOS/Android ARM64 builds and requires an installed, checksum-verified active model. Flutter Web explicitly reports no Local LLM support. The current pretrained local path does not retrieve Admin PDF chunks from PostgreSQL; the implemented saved-package lookup handles the selected package's checkpoint count. Neither the presence of server chunks nor a Wi-Fi connection establishes local model readiness.
+
+An Online API/service error is not evidence that the device has no Internet. Generic failures therefore use neutral interruption feedback. Network transport failures describe inability to reach the assistant. BR-499 still limits automatic fallback to an established pre-request connection failure; timeouts, HTTP errors, malformed replies and authorization denials do not silently switch an uncertain Online turn to Local inference. A true offline turn with an available supported model remains local and makes no API request. Backend diagnostics record bounded failure categories and provider HTTP status without keys, request URLs, prompts or response contents.
+
+For the 2026-11-20 error-feedback change, API answer unit tests passed (32) and Python provider/payload policy tests passed (5). New Flutter regression cases cover neutral server-error feedback, same-ID retry, refused-connection fallback and general preparation with no network requests. Their runtime execution is not claimed passing when the environment refuses the Flutter SDK cache lockfile. A real device/model inference and the running provider error still need separate verification.
+
 | Candidate | Artifact | Role |
 | --- | --- | --- |
 | [Qwen2.5 0.5B Instruct](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/blob/main/qwen2.5-0.5b-instruct-q4_k_m.gguf) | GGUF Q4_K_M, 491,400,032 bytes, Apache 2.0 | First candidate because of lower download size |

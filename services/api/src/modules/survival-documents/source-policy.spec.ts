@@ -155,7 +155,7 @@ describe("CTMS-050 source policy and private storage", () => {
 		).toThrow();
 		expect(() => validatePublicationMetadata({ ...metadata, originalLocale: "en" })).toThrow();
 	});
-	it("separates AI, offline, translation and medical decisions", () => {
+	it("accepts Admin source confirmation and preserves separate use restrictions and explicit rejection", () => {
 		expect(() => assertRights(metadata, permitted)).not.toThrow();
 		expect(() => assertRights(metadata, permitted, "OFFLINE")).toThrow();
 		expect(() => assertRights(metadata, permitted, "TRANSLATION")).toThrow();
@@ -164,6 +164,12 @@ describe("CTMS-050 source policy and private storage", () => {
 		).not.toThrow();
 		expect(() =>
 			assertRights({ ...metadata, classification: Classification.FIRST_AID }, permitted)
+		).not.toThrow();
+		expect(() =>
+			assertRights(
+				{ ...metadata, classification: Classification.FIRST_AID },
+				{ ...permitted, medicalContentReviewStatus: MedicalStatus.REJECTED }
+			)
 		).toThrow();
 		expect(() =>
 			assertRights(

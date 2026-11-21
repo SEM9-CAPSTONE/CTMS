@@ -102,6 +102,14 @@ beforeEach(() => {
 	vi.spyOn(service, "edit").mockResolvedValue(doc);
 	vi.spyOn(service, "action").mockResolvedValue(doc);
 	vi.spyOn(service, "file").mockReturnValue(new Promise(() => {}));
+	vi.spyOn(service, "verification").mockResolvedValue({
+		extractionId: "set",
+		revision: 0,
+		preparing: false,
+		available: true,
+		complete: true,
+		positions: [],
+	});
 });
 afterEach(() => vi.restoreAllMocks());
 describe("CTMS-050 Admin source management", () => {
@@ -110,13 +118,6 @@ describe("CTMS-050 Admin source management", () => {
 		currentPublishedVersionId: doc.versions[0].id,
 		processingSyncStatus: "REGENERATION_NEEDED",
 		versions: [{ ...doc.versions[0], status: "PUBLISHED" }],
-	};
-	const chunkSet = {
-		active: false,
-		chunk_count: 0,
-		error_code: null,
-		quality_report: null,
-		automatic_recovery_pending: false,
 	};
 
 	it("opens the version editor and requires explicit confirmation before creating a PDF", async () => {
@@ -176,52 +177,86 @@ describe("CTMS-050 Admin source management", () => {
 		expect(service.action).not.toHaveBeenCalled();
 	});
 
-	it("polls for active chunks after publication without a start button", async () => {
+	it("polls preparation after publication without exposing processing controls or counts", async () => {
 		vi.mocked(service.detail).mockResolvedValue(published);
-		vi.spyOn(service, "chunkSets")
-			.mockResolvedValueOnce([])
-			.mockResolvedValue([{ ...chunkSet, status: "READY", active: true, chunk_count: 8 }]);
+		const ready = {
+			extractionId: "set",
+			revision: 0,
+			preparing: false,
+			available: true,
+			complete: true,
+			positions: [],
+		};
+		vi.mocked(service.verification)
+			.mockResolvedValueOnce({ ...ready, preparing: true, available: false, complete: false })
+			.mockResolvedValue(ready);
 		const panel = await detail();
-		expect(await panel.findByText("Đang chờ xử lý tự động")).toBeInTheDocument();
+		expect(await panel.findByText("Đang chuẩn bị nội dung, vui lòng chờ…")).toBeInTheDocument();
 		expect(panel.queryByRole("button", { name: "Bắt đầu xử lý" })).toBeNull();
-		expect(
-			await panel.findByText("Dữ liệu tri thức đã sẵn sàng · 8 đoạn trích", {}, { timeout: 4500 })
-		).toBeInTheDocument();
+		await waitFor(
+			() => expect(panel.queryByText("Đang chuẩn bị nội dung, vui lòng chờ…")).toBeNull(),
+			{ timeout: 6500 }
+		);
+		expect(service.verification).toHaveBeenCalledTimes(2);
+		expect(panel.queryByText(/đoạn trích|READY|embedding/)).toBeNull();
 	});
 
-	it.each([
-		[true, "Tạm thời chưa thể xử lý"],
-		[false, "Không thể hoàn tất xử lý"],
-	])("shows whether a technical failure awaits recovery", async (pending, label) => {
-		vi.mocked(service.detail).mockResolvedValue(published);
-		vi.spyOn(service, "chunkSets").mockResolvedValue([
-			{
-				...chunkSet,
-				status: "FAILED",
-				error_code: "ingestion_transport",
-				automatic_recovery_pending: pending,
-			},
-		]);
-		const panel = await detail();
-		expect(await panel.findByText(label)).toBeInTheDocument();
-		expect(panel.queryByRole("button", { name: "Thử lại xử lý" })).toBeNull();
-		expect(Boolean(panel.queryByText(/sẽ tự động thử lại/))).toBe(pending);
-	});
+	it.each([true, false])(
+		"uses ordinary preparation feedback without revealing technical failure state (%s)",
+		async (preparing) => {
+			vi.mocked(service.detail).mockResolvedValue(published);
+			vi.mocked(service.verification).mockResolvedValue({
+				extractionId: "set",
+				revision: 0,
+				preparing,
+				available: false,
+				complete: false,
+				positions: [],
+			});
+			const panel = await detail();
+			expect(
+				await panel.findByText(
+					preparing
+						? "Đang chuẩn bị nội dung, vui lòng chờ…"
+						: "Chưa thể chuẩn bị nội dung. Vui lòng kiểm tra lại sau."
+				)
+			).toBeInTheDocument();
+			expect(panel.queryByText(/FAILED|ingestion_transport|chunk|OCR/)).toBeNull();
+			expect(panel.queryByRole("button", { name: "Thử lại xử lý" })).toBeNull();
+		}
+	);
 
-	it("explains an extraction omission without blaming the PDF", async () => {
+	it("provides content verification for an omission without blaming the PDF", async () => {
 		vi.mocked(service.detail).mockResolvedValue(published);
-		vi.spyOn(service, "chunkSets").mockResolvedValue([
-			{
-				...chunkSet,
-				status: "NEEDS_REVIEW",
-				quality_report: { issues: ["missing_critical_pdf_text"] },
-			},
-		]);
+		vi.mocked(service.verification).mockResolvedValue({
+			extractionId: "set",
+			revision: 0,
+			preparing: false,
+			available: true,
+			complete: false,
+			positions: [
+				{
+					id: "a".repeat(64),
+					page: 17,
+					label: "Đoạn văn",
+					kind: "text",
+					originalText: "Cảnh báo cần đối chiếu",
+					text: "Cảnh báo cần đối chiếu",
+					bbox: { l: 10, t: 20, r: 100, b: 40, coord_origin: "TOPLEFT" },
+					resolved: false,
+					canExclude: false,
+					needsVisualCheck: false,
+					needsAnchor: false,
+					anchors: [],
+				},
+			],
+		});
 		const panel = await detail();
 		expect(
-			await panel.findByText(/cảnh báo hoặc hướng dẫn an toàn bị thiếu sau khi trích xuất/)
+			await panel.findByText("Có một số nội dung cần kiểm tra trước khi xuất bản.")
 		).toBeInTheDocument();
-		expect(panel.queryByText(/tải lên bản PDF/)).toBeNull();
+		expect(panel.getByRole("button", { name: "Kiểm tra nội dung" })).toBeInTheDocument();
+		expect(panel.queryByText(/tải lên bản PDF|missing_critical_pdf_text/)).toBeNull();
 		expect(panel.queryByRole("button", { name: "Thử lại xử lý" })).toBeNull();
 	});
 

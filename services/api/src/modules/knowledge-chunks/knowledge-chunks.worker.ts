@@ -66,16 +66,16 @@ export class KnowledgeChunksWorker implements OnModuleInit, OnModuleDestroy {
 				this.reconciliationCursor = candidates === QUEUE_BATCH_SIZE ? lastDocumentId : null;
 				if (!this.reconciliationCursor) this.nextReconciliationAt = Date.now() + RECOVERY_POLL_MS;
 			}
+			const available = await this.provider.isAvailable();
 			if (Date.now() >= this.nextRecoveryAt) {
 				this.nextRecoveryAt = Date.now() + RECOVERY_POLL_MS;
-				if (
-					(await this.repository.hasRecoverableFailures(configuration)) &&
-					(await this.provider.isAvailable())
-				) {
+				if (available && (await this.repository.hasRecoverableFailures(configuration))) {
 					await this.repository.recoverFailed(configuration);
 				}
 			}
-			await this.processOne();
+			// Keep queued work pending while the service is stopped or an older
+			// pipeline is deployed, instead of spending all attempts on transport/422.
+			if (available) await this.processOne();
 			await this.cleanupWhenDue();
 		} catch {
 			this.logger.error(
@@ -108,6 +108,9 @@ export class KnowledgeChunksWorker implements OnModuleInit, OnModuleDestroy {
 	async processOne(): Promise<boolean> {
 		const set = await this.repository.claim(this.provider.configuration());
 		if (!set) return false;
+		this.logger.log(
+			`Knowledge job started set=${set.id} version=${set.document_version_id} attempt=${set.attempts} cached=${!!set.extraction_snapshot}`
+		);
 		const abort = new AbortController();
 		const heartbeat = setInterval(() => {
 			void this.repository
@@ -127,7 +130,8 @@ export class KnowledgeChunksWorker implements OnModuleInit, OnModuleDestroy {
 					source.bytes,
 					source.manifest.metadata.sourceTitle,
 					abort.signal,
-					(inputs) => this.repository.reusableEmbeddings(set, inputs)
+					(inputs) => this.repository.reusableEmbeddings(set, inputs),
+					(output) => this.repository.checkpoint(set, output)
 				);
 			} catch (error) {
 				const failure =
@@ -141,7 +145,19 @@ export class KnowledgeChunksWorker implements OnModuleInit, OnModuleDestroy {
 							);
 				result = { error: failure.code, retryable: failure.retryable, quality: failure.quality };
 			}
-			await this.repository.finish(set, result);
+			if ("error" in result)
+				this.logger.warn(
+					`Knowledge job failed set=${set.id} code=${result.error} retryable=${result.retryable}`
+				);
+			else if (result.quality.status === "NEEDS_REVIEW")
+				this.logger.log(
+					`Knowledge verification required set=${set.id} regions=${result.quality.integrity?.regions.length ?? 0}`
+				);
+			const committed = await this.repository.finish(set, result);
+			if (!committed)
+				this.logger.warn(
+					`Knowledge job completion rejected after lease/source change set=${set.id}`
+				);
 		} finally {
 			clearInterval(heartbeat);
 		}

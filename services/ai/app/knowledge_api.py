@@ -1,9 +1,12 @@
 """Private ingestion, embedding and token-count endpoints."""
 
 import hmac
+import logging
 import os
+import traceback
 from collections.abc import Callable
 from functools import lru_cache
+from pathlib import Path
 from typing import TypeVar
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
@@ -11,14 +14,24 @@ from pydantic import ValidationError
 
 from app.document_editor import ComposeRequest, EditorSection, compose_pdf
 from app.knowledge_ingestion import InvalidEmbedding, InvalidPdf, InvalidQuery, KnowledgeIngestionService, ModelBusy
+from app.knowledge_ocr import OcrRuntimeError
 from app.knowledge_models import (
-    MAX_CONTEXT_BLOCKS, MAX_CONTEXT_BLOCK_BYTES, MAX_PDF_BYTES, ContextTokenRequest, ContextTokenResponse,
+    MAX_CONTEXT_BLOCKS, MAX_CONTEXT_BLOCK_BYTES, MAX_PDF_BYTES, PIPELINE_VERSION, ContextTokenRequest, ContextTokenResponse,
     IngestionRequest, IngestionResponse, PassageEmbeddingRequest, PassageEmbeddingResponse,
     PreparedIngestionResponse, QueryEmbeddingRequest, QueryEmbeddingResponse,
 )
 
 app = FastAPI(title="CTMS Knowledge Ingestion", version="1.0.0")
+logger = logging.getLogger(__name__)
 IngestionResult = TypeVar("IngestionResult", bound=PreparedIngestionResponse)
+
+
+def log_ingestion_failure(error: Exception, operation: str) -> None:
+    # Record code locations, never exception messages/locals, PDF text, vectors or tokens.
+    frames = [f"{Path(frame.filename).name}:{frame.lineno}:{frame.name}"
+              for frame in traceback.extract_tb(error.__traceback__)]
+    logger.error("ingestion_failure operation=%s error_type=%s frames=%s",
+                 operation, type(error).__name__, " > ".join(frames))
 
 
 def require_token(x_ctms_knowledge_token: str | None = Header(default=None)) -> None:
@@ -40,8 +53,10 @@ def health() -> dict[str, str]:
 
 
 @app.get("/readiness", status_code=204, dependencies=[Depends(require_token)])
-def readiness() -> Response:
-    return Response(status_code=204)
+def readiness(service: KnowledgeIngestionService = Depends(get_service)) -> Response:
+    if service.busy:
+        return Response(status_code=503, headers={"X-CTMS-Pipeline-Version": PIPELINE_VERSION, "Retry-After": "5"})
+    return Response(status_code=204, headers={"X-CTMS-Pipeline-Version": PIPELINE_VERSION})
 
 
 @app.post("/knowledge-chunks", response_model=IngestionResponse, dependencies=[Depends(require_token)])
@@ -82,9 +97,16 @@ def run_ingestion(operation: Callable[[IngestionRequest], IngestionResult], requ
         if str(error) in {"pdf_encrypted", "pdf_no_pages", "pdf_page_limit_exceeded", "pdf_text_read_failed"}:
             detail["issue"] = str(error)
         raise HTTPException(422, detail=detail) from None
-    except InvalidEmbedding:
+    except InvalidEmbedding as error:
+        log_ingestion_failure(error, "ingest")
         raise HTTPException(502, detail={"code": "invalid_embedding"}) from None
-    except Exception:
+    except ModelBusy:
+        raise HTTPException(503, detail={"code": "knowledge_model_busy"}) from None
+    except OcrRuntimeError as error:
+        log_ingestion_failure(error, "ingest")
+        raise HTTPException(503, detail={"code": "ocr_runtime_unavailable"}) from None
+    except Exception as error:
+        log_ingestion_failure(error, "ingest")
         # Neither source content nor model/library errors leave this trusted boundary.
         raise HTTPException(502, detail={"code": "ingestion_failed"}) from None
 
@@ -115,7 +137,10 @@ def embed_passages(
         return PassageEmbeddingResponse(embeddings=service.embed_passages(
             payload.passages, payload.configuration.embedding_dimensions,
         ))
-    except Exception:
+    except ModelBusy:
+        raise HTTPException(503, detail={"code": "knowledge_model_busy"}) from None
+    except Exception as error:
+        log_ingestion_failure(error, "embed_passages")
         raise HTTPException(502, detail={"code": "invalid_embedding"}) from None
 
 

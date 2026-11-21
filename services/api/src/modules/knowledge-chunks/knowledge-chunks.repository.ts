@@ -4,7 +4,11 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { DataSource, type EntityManager, QueryFailedError } from "typeorm";
 import { isEligiblePublishedSource, sourceContentIssue } from "../survival-documents/source-policy";
 import { type SourceVersion, VERSION_SELECT } from "../survival-documents/survival-documents.types";
-import { isValidEmbedding, validateChunkOutput } from "./knowledge-chunks.policy";
+import {
+	isValidEmbedding,
+	validateChunkOutput,
+	validatePreparedChunkOutput,
+} from "./knowledge-chunks.policy";
 import {
 	type ChunkConfiguration,
 	type ChunkFailure,
@@ -15,24 +19,38 @@ import {
 	LEASE_SECONDS,
 	MAX_ATTEMPTS,
 	MAX_RECOVERY_ROUNDS,
+	type PreparedChunkOutput,
 	QUEUE_BATCH_SIZE,
 	RECOVERY_DELAY_SECONDS,
 	RETRY_BASE_SECONDS,
 	type StoredKnowledgeChunk,
+	chunkConfiguration,
 } from "./knowledge-chunks.types";
 
 function configHash(configuration: ChunkConfiguration): string {
 	return createHash("sha256").update(JSON.stringify(configuration)).digest("hex");
 }
 
+function embeddingCacheHash(set: ChunkSet): string {
+	return set.configuration.verification_revision === undefined
+		? set.config_hash
+		: configHash({ ...chunkConfiguration(), ...set.configuration, verification_revision: 0 });
+}
+
 const attemptDelay = `make_interval(secs=>${RETRY_BASE_SECONDS} * power(2, greatest(0,s.attempts-1)))`;
 const recoveryDelay = `make_interval(secs=>CASE WHEN s.recovery_round=0
 	THEN ${RECOVERY_DELAY_SECONDS[0]} ELSE ${RECOVERY_DELAY_SECONDS[1]} END)`;
+// The initial OCR rollout stored a v2 request rejected by a v1 service as a
+// permanent HTTP 422. Re-admit only empty technical failures, within the same
+// recovery cap, after the worker verifies the running service's pipeline header.
+const legacyConfigurationFailure = `(s.error_code='ingestion_http_422'
+  AND s.configuration->>'pipeline_version'='ctms-hybrid-ocr-v2'
+  AND s.chunk_count=0 AND s.quality_report IS NULL)`;
 const dueRecoveries = `
 	SELECT s.id FROM knowledge_chunk_sets s
 	JOIN survival_documents d ON d.id=s.document_id AND d.current_published_version_id=s.document_version_id
-	WHERE s.status='FAILED' AND s.retryable_failure AND s.recovery_round<${MAX_RECOVERY_ROUNDS}
-	  AND s.config_hash=$1 AND s.next_attempt_at<=clock_timestamp()
+	WHERE s.status='FAILED' AND (s.retryable_failure OR ${legacyConfigurationFailure}) AND s.recovery_round<${MAX_RECOVERY_ROUNDS}
+	  AND (s.configuration-'verification_revision')=($1::jsonb-'verification_revision') AND s.next_attempt_at<=clock_timestamp()
 	ORDER BY s.next_attempt_at,s.id`;
 const embeddingInputHash = "encode(sha256(convert_to(embedding_text,'UTF8')),'hex')";
 
@@ -254,7 +272,7 @@ export class KnowledgeChunksRepository {
 
 	async hasRecoverableFailures(configuration: ChunkConfiguration): Promise<boolean> {
 		const due: Array<{ id: string }> = await this.db.query(`${dueRecoveries} LIMIT 1`, [
-			configHash(configuration),
+			JSON.stringify(configuration),
 		]);
 		return due.length > 0;
 	}
@@ -265,7 +283,7 @@ export class KnowledgeChunksRepository {
 			 UPDATE knowledge_chunk_sets s SET status='PENDING',attempts=0,
 			  recovery_round=s.recovery_round+1,next_attempt_at=clock_timestamp(),completed_at=NULL
 			 FROM due WHERE s.id=due.id`,
-			[configHash(configuration)]
+			[JSON.stringify(configuration)]
 		);
 	}
 
@@ -286,14 +304,15 @@ export class KnowledgeChunksRepository {
 			`WITH candidate AS (
 			   SELECT s.id FROM knowledge_chunk_sets s
 			   JOIN survival_documents d ON d.id=s.document_id AND d.current_published_version_id=s.document_version_id
-			   WHERE s.status='PENDING' AND s.next_attempt_at<=clock_timestamp() AND s.attempts<$1 AND s.config_hash=$2
+			   WHERE s.status='PENDING' AND s.next_attempt_at<=clock_timestamp() AND s.attempts<$1
+			     AND (s.configuration-'verification_revision')=($2::jsonb-'verification_revision')
 			   ORDER BY s.next_attempt_at,s.created_at,s.id LIMIT 1 FOR UPDATE OF s SKIP LOCKED
 			 ), changed AS (
 			   UPDATE knowledge_chunk_sets s SET status='RUNNING',attempts=s.attempts+1,lease_token=$3,
 			    lease_until=clock_timestamp()+make_interval(secs=>$4),error_code=NULL,retryable_failure=false
 			   FROM candidate WHERE s.id=candidate.id RETURNING s.*
 			 ) SELECT * FROM changed`,
-			[MAX_ATTEMPTS, configHash(configuration), randomUUID(), LEASE_SECONDS]
+			[MAX_ATTEMPTS, JSON.stringify(configuration), randomUUID(), LEASE_SECONDS]
 		);
 		return claim ?? null;
 	}
@@ -332,7 +351,7 @@ export class KnowledgeChunksRepository {
 			[
 				inputs,
 				set.document_id,
-				set.config_hash,
+				embeddingCacheHash(set),
 				JSON.stringify(set.configuration),
 				set.document_version_id,
 				dimensions,
@@ -344,6 +363,24 @@ export class KnowledgeChunksRepository {
 				vectors.set(row.embedding_text, row.embedding);
 		}
 		return vectors;
+	}
+
+	async checkpoint(set: ChunkSet, output: PreparedChunkOutput): Promise<void> {
+		validatePreparedChunkOutput(output, set);
+		if (!output.extraction_snapshot) return;
+		const rows: Array<{ id: string }> = await this.db.query(
+			`UPDATE knowledge_chunk_sets s SET extraction_snapshot=$3::jsonb,quality_report=$4::jsonb
+			 WHERE s.id=$1 AND s.status='RUNNING' AND s.lease_token=$2 AND s.lease_until>clock_timestamp()
+			 AND EXISTS (SELECT 1 FROM survival_documents d WHERE d.id=s.document_id AND d.current_published_version_id=s.document_version_id)
+			 RETURNING s.id`,
+			[
+				set.id,
+				set.lease_token,
+				JSON.stringify(output.extraction_snapshot),
+				JSON.stringify(output.quality),
+			]
+		);
+		if (!rows.length) throw new Error("Knowledge extraction lease changed");
 	}
 
 	async finish(set: ChunkSet, result: ChunkOutput | ChunkFailure): Promise<boolean> {
@@ -358,7 +395,7 @@ export class KnowledgeChunksRepository {
 			let status: ChunkSetStatus;
 			let error: string | null = null;
 			let output: ChunkOutput | undefined;
-			let quality: ChunkSetSummary["quality_report"] = null;
+			let quality: ChunkSetSummary["quality_report"] = current.quality_report ?? null;
 			let retryable = false;
 			if (
 				!source ||
@@ -402,7 +439,7 @@ export class KnowledgeChunksRepository {
 					 WHERE e.embedding_text=excluded.embedding_text AND NOT (${validStoredEmbedding("e.embedding", "$4")})`,
 					[
 						set.document_id,
-						current.config_hash,
+						embeddingCacheHash(current),
 						JSON.stringify(embeddings),
 						current.configuration.embedding_dimensions,
 					]
@@ -426,7 +463,7 @@ export class KnowledgeChunksRepository {
 						JSON.stringify(chunks),
 						source?.metadata.sourceTitle,
 						set.document_id,
-						current.config_hash,
+						embeddingCacheHash(current),
 					]
 				);
 				if (inserted.length !== output.chunks.length)
@@ -434,7 +471,7 @@ export class KnowledgeChunksRepository {
 			}
 			await manager.query(
 				`UPDATE knowledge_chunk_sets s SET status=$2::varchar,error_code=$3,quality_report=$4::jsonb,
-			 chunk_count=$5,retryable_failure=$6,lease_token=NULL,lease_until=NULL,
+				 chunk_count=$5,retryable_failure=$6,extraction_snapshot=COALESCE($7::jsonb,extraction_snapshot),lease_token=NULL,lease_until=NULL,
 			 next_attempt_at=clock_timestamp()+CASE
 			  WHEN $2::varchar='PENDING' THEN ${attemptDelay}
 			  WHEN $2::varchar='FAILED' AND $6 THEN ${recoveryDelay}
@@ -447,6 +484,7 @@ export class KnowledgeChunksRepository {
 					quality ? JSON.stringify(quality) : null,
 					output?.chunks.length ?? 0,
 					retryable,
+					output?.extraction_snapshot ? JSON.stringify(output.extraction_snapshot) : null,
 				]
 			);
 			if (status === ChunkSetStatus.READY) {
@@ -474,7 +512,7 @@ export class KnowledgeChunksRepository {
 		if (!versions.length) throw new NotFoundException({ code: "KNOWLEDGE_SOURCE_NOT_FOUND" });
 		return this.db.query(
 			`SELECT s.id,s.document_version_id,s.source_version,s.locale,s.status,s.attempts,s.error_code,
-			 (s.status='FAILED' AND s.retryable_failure AND s.recovery_round<${MAX_RECOVERY_ROUNDS}) AS automatic_recovery_pending,
+			 (s.status='FAILED' AND (s.retryable_failure OR ${legacyConfigurationFailure}) AND s.recovery_round<${MAX_RECOVERY_ROUNDS}) AS automatic_recovery_pending,
 			 s.quality_report,s.configuration,s.chunk_count,s.created_at,s.completed_at,
 			 COALESCE(p.chunk_set_id=s.id AND d.current_published_version_id=s.document_version_id AND s.status='READY',false) AS active
 			 FROM knowledge_chunk_sets s JOIN survival_documents d ON d.id=s.document_id

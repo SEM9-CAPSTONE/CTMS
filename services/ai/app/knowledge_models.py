@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-PIPELINE_VERSION = "ctms-hybrid-v1"
+PIPELINE_VERSION = "ctms-content-integrity-v5"
 EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
 EMBEDDING_REVISION = "614241f622f53c4eeff9890bdc4f31cfecc418b3"
 EMBEDDING_DIMENSIONS = 384
@@ -22,7 +22,8 @@ MAX_PASSAGE_BATCH = 128
 
 class IngestionConfiguration(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-    pipeline_version: Literal["ctms-hybrid-v1"] = PIPELINE_VERSION
+    pipeline_version: Literal["ctms-content-integrity-v5"] = PIPELINE_VERSION
+    verification_revision: int = Field(default=0, ge=0)
     embedding_model: Literal["intfloat/multilingual-e5-small"] = EMBEDDING_MODEL
     embedding_revision: Literal["614241f622f53c4eeff9890bdc4f31cfecc418b3"] = EMBEDDING_REVISION
     embedding_dimensions: Literal[384] = EMBEDDING_DIMENSIONS
@@ -38,6 +39,7 @@ class IngestionRequest(BaseModel):
     title: str = Field(min_length=1, max_length=300)
     configuration: IngestionConfiguration
     pdf_base64: str = Field(min_length=1, max_length=4 * ((MAX_PDF_BYTES + 2) // 3))
+    extraction_snapshot: dict | None = None
 
 
 class SourceBox(BaseModel):
@@ -67,10 +69,22 @@ class EmbeddedChunk(PreparedChunk):
     embedding: list[float]
 
 
+class PageExtractionReport(BaseModel):
+    page: int
+    mode: Literal["native", "ocr", "mixed", "blank", "unverified", "manual"]
+    ocr_words: int = 0
+    minimum_confidence: float | None = None
+    text_coverage: float | None = None
+    issues: list[str] = Field(default_factory=list)
+    regions: list[dict] = Field(default_factory=list)
+
+
 class QualityReport(BaseModel):
     status: Literal["PASSED", "NEEDS_REVIEW"]
     issues: list[str]
     page_count: int
+    pages: list[PageExtractionReport] = Field(default_factory=list)
+    integrity: dict | None = None
 
 
 class PreparedIngestionResponse(BaseModel):
@@ -81,6 +95,7 @@ class PreparedIngestionResponse(BaseModel):
     configuration: IngestionConfiguration
     quality: QualityReport
     chunks: list[PreparedChunk]
+    extraction_snapshot: dict | None = None
 
 
 class IngestionResponse(PreparedIngestionResponse):

@@ -20,7 +20,13 @@ import { MAX_BLOCK_BYTES, type RagChunk, type RagEvidenceRef, type RagSource } f
 const MAX_PAGE_COUNT = 1000;
 const MAX_RANKED_ROWS = 128;
 const EMBEDDING = chunkConfiguration();
-const CONFIG_HASH = createHash("sha256").update(JSON.stringify(EMBEDDING)).digest("hex");
+const COMPATIBLE_PIPELINES = new Set([
+	"ctms-hybrid-v1",
+	"ctms-hybrid-ocr-v2",
+	"ctms-hybrid-ocr-v3",
+	"ctms-hybrid-ocr-v4",
+	EMBEDDING.pipeline_version,
+]);
 
 export function evidenceRef(chunk: RagChunk): RagEvidenceRef {
 	const { chunkId, chunkIndex, source, locations, content, headings } = chunk;
@@ -52,10 +58,41 @@ function sameEvidence(left: RagEvidenceRef, right: RagEvidenceRef): boolean {
 }
 
 interface Publication extends SourceVersion {
+	currentVersionId: string;
+	configuration: ReturnType<typeof chunkConfiguration>;
 	chunkSetId: string;
 	configHash: string;
 	chunkCount: number;
 	pageCount: number;
+}
+
+export function isEligibleRagPublication(version: Publication): boolean {
+	// The stored chunk pointer is not an authorization to serve a historical PDF.
+	if (!isEligiblePublishedSource(version, version.currentVersionId)) return false;
+	const configuration = version.configuration;
+	if (
+		!configuration ||
+		!COMPATIBLE_PIPELINES.has(configuration.pipeline_version) ||
+		configuration.embedding_model !== EMBEDDING.embedding_model ||
+		configuration.embedding_revision !== EMBEDDING.embedding_revision ||
+		configuration.embedding_dimensions !== EMBEDDING.embedding_dimensions ||
+		configuration.max_tokens !== EMBEDDING.max_tokens
+	)
+		return false;
+	const expected = {
+		...(configuration.verification_revision !== undefined
+			? { verification_revision: configuration.verification_revision }
+			: {}),
+		pipeline_version: configuration.pipeline_version,
+		embedding_model: configuration.embedding_model,
+		embedding_revision: configuration.embedding_revision,
+		embedding_dimensions: configuration.embedding_dimensions,
+		max_tokens: configuration.max_tokens,
+	};
+	return (
+		Object.keys(configuration).length === Object.keys(expected).length &&
+		createHash("sha256").update(JSON.stringify(expected)).digest("hex") === version.configHash
+	);
 }
 
 interface CandidateRow {
@@ -126,7 +163,7 @@ function toSource(version: Publication): RagSource {
 		embeddingModel: EMBEDDING.embedding_model,
 		embeddingRevision: EMBEDDING.embedding_revision,
 		embeddingDimensions: EMBEDDING.embedding_dimensions,
-		pipelineVersion: EMBEDDING.pipeline_version,
+		pipelineVersion: version.configuration.pipeline_version,
 		configHash: version.configHash,
 	};
 }
@@ -142,6 +179,22 @@ export class RagRepository {
 		return this.read(settings.databaseTimeoutMs, async (manager) => {
 			const { candidateCount } = await this.boundedCorpus(manager, settings);
 			return candidateCount > 0;
+		});
+	}
+
+	/** Exact current source availability, independently of a newer derived rebuild. */
+	async hasEligibleDocument(documentId: string, versionId: string): Promise<boolean> {
+		return this.read(2000, async (manager) => {
+			const [publication] = await this.publications(manager, this.config.sourceLocales(), 1, [
+				documentId,
+			]);
+			if (!publication || publication.id !== versionId) return false;
+			const [result]: Array<{ complete: boolean }> = await manager.query(
+				`SELECT count(*)=$2::int AND min(chunk_index)=0 AND max(chunk_index)=$2::int-1 AS complete
+				 FROM knowledge_chunks WHERE chunk_set_id=$1`,
+				[publication.chunkSetId, publication.chunkCount]
+			);
+			return result?.complete === true;
 		});
 	}
 
@@ -372,17 +425,21 @@ export class RagRepository {
 		documentIds: string[] | null = null
 	): Promise<Publication[]> {
 		const rows: Publication[] = await manager.query(
-			`SELECT v.*,s.id AS "chunkSetId",s.config_hash AS "configHash",s.chunk_count AS "chunkCount",
+			`SELECT v.*,d.current_published_version_id AS "currentVersionId",s.configuration,s.id AS "chunkSetId",s.config_hash AS "configHash",s.chunk_count AS "chunkCount",
 				s.quality_report->'page_count' AS "pageCount"
 			FROM knowledge_chunk_publications p
 			JOIN survival_documents d ON d.id=p.document_id
 			JOIN knowledge_chunk_sets s ON s.id=p.chunk_set_id AND s.document_id=d.id
-			JOIN (${VERSION_SELECT}) v ON v.id=d.current_published_version_id AND v."documentId"=d.id
+			JOIN (${VERSION_SELECT}) v ON v.id=d.current_published_version_id AND v.id=s.document_version_id AND v."documentId"=d.id
 			WHERE v.status=$1 AND v."publishedAt" IS NOT NULL AND s.status=$2
 				AND s.document_version_id=v.id AND s.source_version=v."versionNumber"
 				AND s.checksum=v.checksum AND s.locale=v.metadata->>'locale' AND s.locale=ANY($3::text[])
-				AND s.configuration=$4::jsonb
+				AND s.configuration->>'embedding_model'=($4::jsonb)->>'embedding_model'
+				AND s.configuration->>'embedding_revision'=($4::jsonb)->>'embedding_revision'
+				AND s.configuration->>'embedding_dimensions'=($4::jsonb)->>'embedding_dimensions'
+				AND s.configuration->>'max_tokens'=($4::jsonb)->>'max_tokens'
 				AND s.quality_report->>'status'='PASSED' AND s.quality_report->'issues'='[]'::jsonb
+				AND (s.configuration->>'pipeline_version'<>'ctms-content-integrity-v5' OR s.quality_report->'integrity'->>'complete'='true')
 				AND ($5::uuid[] IS NULL OR d.id=ANY($5))
 			ORDER BY d.id LIMIT $6`,
 			[
@@ -399,8 +456,7 @@ export class RagRepository {
 		}
 		return rows.filter(
 			(version) =>
-				isEligiblePublishedSource(version, version.id) &&
-				version.configHash === CONFIG_HASH &&
+				isEligibleRagPublication(version) &&
 				Number.isInteger(version.pageCount) &&
 				version.pageCount >= 1 &&
 				version.pageCount <= MAX_PAGE_COUNT &&
