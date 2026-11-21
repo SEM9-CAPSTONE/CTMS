@@ -1,5 +1,5 @@
 import { Check, ChevronDown, Loader2, RefreshCw, Search, Sparkles, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { buttonClass } from "./constants";
 import type { TripList } from "./types";
 
@@ -34,6 +34,18 @@ export function AnalysisToolbar(props: Props) {
 		if (picker.current) picker.current.open = false;
 		trigger.current?.focus();
 	};
+
+	useEffect(() => {
+		const handlePointerDown = (event: MouseEvent) => {
+			const el = picker.current;
+			if (!el?.open) return;
+			if (event.target instanceof Node && !el.contains(event.target)) {
+				el.open = false;
+			}
+		};
+		document.addEventListener("mousedown", handlePointerDown);
+		return () => document.removeEventListener("mousedown", handlePointerDown);
+	}, []);
 	const items = trips?.items ?? [];
 	const normalizeTripName = (name: string) =>
 		name.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").replaceAll("đ", "d");

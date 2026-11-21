@@ -45,7 +45,6 @@ export function TripFeedbackDashboard({
 	const items = query.data?.items ?? [];
 	const total = query.data?.total ?? 0;
 	const totalPages = Math.max(1, Math.ceil(total / 6));
-	const threshold = query.data?.sampleThreshold ?? 5;
 
 	return (
 		<div className="space-y-4">
@@ -141,15 +140,14 @@ export function TripFeedbackDashboard({
 											{!trip.hasSufficientSample && (
 												<span className="inline-flex items-center gap-1.5 self-start rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-900 sm:self-auto">
 													<Info className="size-3.5" />
-													Chưa đạt ngưỡng mẫu ({threshold})
+													Chưa có đánh giá
 												</span>
 											)}
 										</div>
 
 										{!trip.hasSufficientSample && (
 											<p className="mt-2 rounded-lg bg-amber-50 p-2.5 text-xs text-amber-900">
-												Cần tối thiểu {threshold} đánh giá hợp lệ để kích hoạt điểm số xếp hạng. Dữ
-												liệu dưới đây phản ánh số lượt ghi nhận thô.
+												Chuyến đi này chưa có đánh giá nào để phân tích khía cạnh trải nghiệm.
 											</p>
 										)}
 									</header>
@@ -177,7 +175,7 @@ export function TripFeedbackDashboard({
 												</div>
 
 												{/* Proportional Stacked Bar */}
-												<div className="my-3 flex h-2 w-full gap-0.5 overflow-hidden rounded-full bg-[#edf1e9]">
+												<div className="my-3 flex h-2 w-full gap-0.5 overflow-hidden rounded-full bg-[#f0f3ed]">
 													{totalMentions > 0 && aspect.positive > 0 && (
 														<div
 															className="h-full bg-[#164027] transition-all"
@@ -186,13 +184,13 @@ export function TripFeedbackDashboard({
 													)}
 													{totalMentions > 0 && aspect.neutral > 0 && (
 														<div
-															className="h-full bg-slate-400 transition-all"
+															className="h-full bg-[#94a393] transition-all"
 															style={{ width: `${(aspect.neutral / totalMentions) * 100}%` }}
 														/>
 													)}
 													{totalMentions > 0 && aspect.negative > 0 && (
 														<div
-															className="h-full bg-rose-500 transition-all"
+															className="h-full bg-[#c76d5e] transition-all"
 															style={{ width: `${(aspect.negative / totalMentions) * 100}%` }}
 														/>
 													)}
@@ -201,27 +199,25 @@ export function TripFeedbackDashboard({
 												{/* Sentiment Counts Breakdown */}
 												<div className="mt-auto space-y-1.5 text-xs">
 													<div className="flex items-center justify-between">
-														<span className="flex items-center gap-1.5 text-emerald-800">
+														<span className="flex items-center gap-1.5 text-[#164027]">
 															<span className="size-2 rounded-full bg-[#164027]" />
 															Tích cực
 														</span>
-														<span className="font-semibold text-emerald-900">
-															{aspect.positive}
-														</span>
+														<span className="font-semibold text-[#164027]">{aspect.positive}</span>
 													</div>
 													<div className="flex items-center justify-between">
-														<span className="flex items-center gap-1.5 text-slate-700">
-															<span className="size-2 rounded-full bg-slate-400" />
+														<span className="flex items-center gap-1.5 text-[#556354]">
+															<span className="size-2 rounded-full bg-[#94a393]" />
 															Trung lập
 														</span>
-														<span className="font-semibold text-slate-800">{aspect.neutral}</span>
+														<span className="font-semibold text-[#3f4b3e]">{aspect.neutral}</span>
 													</div>
 													<div className="flex items-center justify-between">
-														<span className="flex items-center gap-1.5 text-rose-800">
-															<span className="size-2 rounded-full bg-rose-500" />
+														<span className="flex items-center gap-1.5 text-[#9c4538]">
+															<span className="size-2 rounded-full bg-[#c76d5e]" />
 															Tiêu cực
 														</span>
-														<span className="font-semibold text-rose-900">{aspect.negative}</span>
+														<span className="font-semibold text-[#8b3a2e]">{aspect.negative}</span>
 													</div>
 
 													{trip.hasSufficientSample && aspect.netScore !== null && (
