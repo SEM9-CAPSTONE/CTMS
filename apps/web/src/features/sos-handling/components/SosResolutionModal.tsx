@@ -117,6 +117,7 @@ export function SosResolutionModal({
 			setStatus("acknowledged");
 			toast.success("Đã tiếp nhận xử lý yêu cầu SOS");
 			onUpdated?.();
+			onClose();
 		} catch (e) {
 			const msg = parseErrorMessage(e);
 			setError(msg);

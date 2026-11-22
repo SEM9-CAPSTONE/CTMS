@@ -235,7 +235,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Mẫu cũ (>30s) · ±10.0 m'), findsOneWidget);
+      expect(find.text('GPS · ±10.0 m'), findsOneWidget);
     });
 
     testWidgets('zoom in button increases zoom scale', (tester) async {

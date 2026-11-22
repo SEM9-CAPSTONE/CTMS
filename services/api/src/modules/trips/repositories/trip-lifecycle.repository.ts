@@ -75,5 +75,15 @@ export class TripLifecycleRepository {
 			 FROM moved`,
 			[trip.tripId, target, porterId, starting ? "trip.started" : "trip.ended", trip.status]
 		);
+		if (!starting) {
+			await manager.query(
+				`UPDATE bookings
+				 SET status = 'completed',
+				     completed_at = COALESCE(completed_at, clock_timestamp())
+				 WHERE trip_id = $1
+				   AND status = 'confirmed'`,
+				[trip.tripId]
+			);
+		}
 	}
 }
