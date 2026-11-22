@@ -55,13 +55,15 @@ class PorterGpsTrackingSection extends ConsumerWidget {
             tripId: tripId,
           ),
         ],
-        OfflinePackagePanel(tripId: tripId, tripTitle: tripTitle),
-        const SizedBox(height: AppSpacing.lg),
-        OfflineMapPanel(
-          key: ValueKey('map-$tripId'),
-          tripId: tripId,
-          tripTitle: tripTitle,
-        ),
+        if (!isOngoing) ...[
+          OfflinePackagePanel(tripId: tripId, tripTitle: tripTitle),
+          const SizedBox(height: AppSpacing.lg),
+          OfflineMapPanel(
+            key: ValueKey('map-$tripId'),
+            tripId: tripId,
+            tripTitle: tripTitle,
+          ),
+        ],
         if (isOngoing) ...[
           const SizedBox(height: AppSpacing.lg),
           GpsTrackingPanel(key: ValueKey('gps-$tripId'), tripId: tripId),

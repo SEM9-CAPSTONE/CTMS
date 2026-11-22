@@ -2107,7 +2107,7 @@ class _GpsAccuracyBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, icon, color, bg) = switch ((isStale, quality)) {
       (true, _) => (
-        'Mẫu cũ (>30s) · ±${accuracyMeters.toStringAsFixed(1)} m',
+        'GPS · ±${accuracyMeters.toStringAsFixed(1)} m',
         Icons.history_toggle_off,
         AppColors.statusNeutral,
         AppColors.statusNeutralBg,

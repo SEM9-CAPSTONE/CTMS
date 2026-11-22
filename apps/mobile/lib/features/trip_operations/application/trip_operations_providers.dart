@@ -8,6 +8,8 @@ final porterOperationsAccountProvider = Provider<String?>((ref) {
   return user?.id;
 });
 
+final selectedPorterTripIdProvider = StateProvider<String?>((ref) => null);
+
 final assignedOperationalTripsProvider = FutureProvider.autoDispose
     .family<List<OperationalTrip>, String>((ref, accountId) {
       if (ref.watch(porterOperationsAccountProvider) != accountId) return [];
