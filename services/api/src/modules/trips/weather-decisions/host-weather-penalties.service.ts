@@ -3,6 +3,10 @@ import { ConflictException, Injectable, NotFoundException, Optional } from "@nes
 import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
 import { minorToMoney, moneyToMinor } from "../../bookings/cancellation-policy";
+import {
+	readPlatformBankAccount,
+	toPaymentAccount,
+} from "../../platform-bank-accounts/platform-bank-account.reader";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { EventsGateway } from "../../realtime/events.gateway";
 import {
@@ -192,6 +196,9 @@ export class HostWeatherPenaltiesService {
 			overdueTotal: minorToMoney(restriction.overdueDebtMinor),
 			hostingBlockedUntil: restriction.blockedUntil?.toISOString() ?? null,
 			suspended: restriction.suspended,
+			paymentAccount: toPaymentAccount(
+				await readPlatformBankAccount(this.dataSource, "weather_penalty")
+			),
 		};
 	}
 

@@ -58,6 +58,11 @@ function mine(overrides: Partial<MyWeatherPenalties> = {}): MyWeatherPenalties {
 		overdueTotal: "0.00",
 		hostingBlockedUntil: "2030-01-24T01:00:00.000Z",
 		suspended: false,
+		paymentAccount: {
+			bankName: "Vietcombank",
+			accountNumber: "1028374659",
+			accountHolderName: "CONG TY TNHH CTMS VIET NAM",
+		},
 		...overrides,
 	};
 }
@@ -187,6 +192,31 @@ describe("HostWeatherPenaltiesCard", () => {
 		expect(items[0]).toHaveTextContent('"Phạt thời tiết – Tà Năng – Phan Dũng"');
 		expect(within(items[1]).queryByTestId("weather-penalty-payment-due")).not.toBeInTheDocument();
 		expect(items[1]).toHaveTextContent("mã giao dịch FT2611230045");
+	});
+
+	it("shows where to transfer the penalty, copies the account number, and explains when none is set", async () => {
+		const writeText = vi.fn().mockResolvedValue(undefined);
+		Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+		const api = service();
+		renderCard(api);
+		const account = await screen.findByTestId("weather-penalty-payment-account");
+		expect(account).toHaveTextContent("Vietcombank");
+		expect(account).toHaveTextContent("1028374659");
+		expect(account).toHaveTextContent("CONG TY TNHH CTMS VIET NAM");
+		expect(screen.getAllByTestId("weather-penalty-payment-due")[0]).toHaveTextContent(
+			"vào tài khoản CTMS ở trên"
+		);
+		fireEvent.click(within(account).getByRole("button", { name: "Sao chép số tài khoản" }));
+		await waitFor(() => expect(writeText).toHaveBeenCalledWith("1028374659"));
+	});
+
+	it("asks the Host to contact an Admin while no receiving account is set", async () => {
+		const api = service({ listMine: vi.fn().mockResolvedValue(mine({ paymentAccount: null })) });
+		renderCard(api);
+		expect(await screen.findByTestId("weather-penalty-payment-account-missing")).toHaveTextContent(
+			"Quản trị viên chưa cập nhật tài khoản nhận tiền phạt"
+		);
+		expect(screen.queryByTestId("weather-penalty-payment-account")).not.toBeInTheDocument();
 	});
 
 	it("hides the waiver button after the deadline or once requested, and shows the suspension", async () => {

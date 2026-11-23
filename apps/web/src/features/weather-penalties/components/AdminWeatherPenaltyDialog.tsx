@@ -5,6 +5,8 @@ import { Modal } from "../../../shared/components/Modal";
 import { StatusBadge } from "../../../shared/components/StatusBadge";
 import { toast } from "../../../shared/components/Toast";
 import { formatBookingMoney } from "../../booking-details/utils/booking-details-formatters";
+import { usePlatformBankAccount } from "../../platform-bank-account/hooks/usePlatformBankAccount";
+import type { platformBankAccountService } from "../../platform-bank-account/services/platform-bank-account.service";
 import {
 	useConfirmWeatherPenaltyPayment,
 	useReviewWeatherPenaltyWaiver,
@@ -28,6 +30,7 @@ export interface AdminWeatherPenaltyDialogProps {
 	penalty: WeatherPenalty;
 	onClose: () => void;
 	service?: typeof weatherPenaltiesService;
+	bankAccountService?: typeof platformBankAccountService;
 }
 
 /**
@@ -38,6 +41,7 @@ export function AdminWeatherPenaltyDialog({
 	penalty: initial,
 	onClose,
 	service,
+	bankAccountService,
 }: AdminWeatherPenaltyDialogProps) {
 	const noteId = useId();
 	const referenceId = useId();
@@ -48,6 +52,7 @@ export function AdminWeatherPenaltyDialog({
 	const [error, setError] = useState<string | null>(null);
 	const review = useReviewWeatherPenaltyWaiver(service);
 	const confirmPayment = useConfirmWeatherPenaltyPayment(service);
+	const receivingAccount = usePlatformBankAccount(bankAccountService).data ?? null;
 	const [reference, setReference] = useState("");
 	const [paymentNote, setPaymentNote] = useState("");
 	const [referenceError, setReferenceError] = useState<string | null>(null);
@@ -195,6 +200,14 @@ export function AdminWeatherPenaltyDialog({
 								Host còn phải nộp {formatBookingMoney(penalty.outstandingAmount)}. Chỉ xác nhận khi
 								tiền đã vào tài khoản CTMS. Sau khi xác nhận, Host tạo Trip lại được nếu đang bị
 								chặn vì quá hạn nộp.
+							</p>
+							<p
+								className="mt-1 font-semibold text-[#164027]"
+								data-testid="penalty-receiving-account"
+							>
+								{receivingAccount
+									? `Đối chiếu sao kê tài khoản ${receivingAccount.bankName} · ${receivingAccount.accountNumber} · ${receivingAccount.accountHolderName}.`
+									: "Chưa cấu hình tài khoản nhận tiền phạt (Tài chính › Tài khoản nhận tiền phạt)."}
 							</p>
 						</div>
 						<div className="grid gap-3 sm:grid-cols-2">

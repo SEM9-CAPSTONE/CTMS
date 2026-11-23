@@ -1,3 +1,5 @@
+import type { PlatformPaymentAccount } from "../platform-bank-account/types";
+
 /** Weather penalty of a Host who did not answer a Red forecast (CTMS-94 API, policy §6). */
 export type WeatherPenaltyStatus = "applied" | "waived";
 export type WeatherPenaltyWaiverDecision = "approved" | "rejected";
@@ -54,6 +56,8 @@ export interface MyWeatherPenalties {
 	overdueTotal: string;
 	hostingBlockedUntil: string | null;
 	suspended: boolean;
+	/** Where to transfer what settlements did not cover; null until an Admin sets it. */
+	paymentAccount: PlatformPaymentAccount | null;
 }
 
 export interface WaiverRequestInput {

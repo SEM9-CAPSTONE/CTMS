@@ -19,7 +19,7 @@ Ví dụ: Camper trả 1.500.000 đ → doanh thu Host 1.425.000 đ → phạt l
 
 - **Thu tiền phạt:**
   1. Tự **trừ vào ví Host khi quyết toán** các chuyến sau. Ví không bao giờ âm.
-  2. Phần chưa trừ được (chuyến bị huỷ nên không có doanh thu), Host **chuyển khoản nộp trong 7 ngày**. Admin bấm **Xác nhận đã nhận tiền** kèm mã giao dịch.
+  2. Phần chưa trừ được (chuyến bị huỷ nên không có doanh thu), Host **chuyển khoản nộp trong 7 ngày** vào tài khoản Admin cấu hình ở **Tài chính › Tài khoản nhận tiền phạt**. Admin bấm **Xác nhận đã nhận tiền** kèm mã giao dịch.
   3. **Quá 7 ngày còn nợ** thì Host **không tạo / gửi duyệt chuyến mới** được cho tới khi nộp đủ.
 - Host có quyền **xin miễn phạt** (bất khả kháng) trong hạn. Admin **duyệt** (hoàn vào ví số đã trừ và đã nộp, gỡ khoá) hoặc **từ chối** (có lý do).
 
@@ -39,11 +39,16 @@ Ví dụ: Camper trả 1.500.000 đ → doanh thu Host 1.425.000 đ → phạt l
 
 **1. Host thấy khoản phạt** (cửa sổ thường)
 1. Đăng nhập `host@ctms.local` → menu **Ví**.
-2. Thẻ **Phạt thời tiết**: khoản "Tiên Sa" hiện **Doanh thu Host của chuyến 1.425.000 đ**, **Tiền phạt 71.250 đ**, **Còn phải nộp 71.250 đ** và **Hạn nộp** sau 7 ngày, kèm hướng dẫn chuyển khoản.
+2. Thẻ **Phạt thời tiết**: khung **Thông tin chuyển khoản nộp phạt** (Vietcombank · 1028374659 · CONG TY TNHH CTMS VIET NAM, có nút sao chép số tài khoản). Khoản "Tiên Sa" hiện **Doanh thu Host của chuyến 1.425.000 đ**, **Tiền phạt 71.250 đ**, **Còn phải nộp 71.250 đ**, **Hạn nộp** sau 7 ngày và nội dung chuyển khoản.
+
+**1b. Admin cấu hình tài khoản nhận tiền** (cửa sổ ẩn danh)
+1. Đăng nhập `admin@ctms.local` → **Tài chính › Tài khoản nhận tiền phạt**: thấy tài khoản đang dùng, ai cập nhật lúc nào.
+2. Bấm **Đổi tài khoản** → chọn ngân hàng khác, sửa số tài khoản → **Lưu tài khoản** → **Lưu**.
+3. Quay lại cửa sổ Host, tải lại **Ví**: khung chuyển khoản đổi theo ngay.
 
 **2. Admin xác nhận Host đã chuyển khoản** (cửa sổ ẩn danh)
-1. Đăng nhập `admin@ctms.local` → **Quản lý thời tiết** → tab **Phạt Host** → lọc **Chưa nộp đủ**.
-2. Mở "Tiên Sa" → phần **Host chuyển khoản nộp phạt** → nhập mã giao dịch, ví dụ `FT2611230045` → **Xác nhận đã nhận tiền** → **Xác nhận**.
+1. Admin → **Quản lý thời tiết** → tab **Phạt Host** → lọc **Chưa nộp đủ**.
+2. Mở "Tiên Sa" → phần **Host chuyển khoản nộp phạt** (ghi rõ tài khoản cần đối chiếu sao kê) → nhập mã giao dịch, ví dụ `FT2611230045` → **Xác nhận đã nhận tiền** → **Xác nhận**.
 3. Quay lại cửa sổ Host → **Ví**: "Tiên Sa" hiện **Đã nộp 71.250 đ … (mã giao dịch FT2611230045)**, **Còn phải nộp 0 đ**.
 4. "Núi Thần Tài" (Đỗ Thị Hạnh) có nhãn **Quá hạn nộp**: đây là trường hợp Host bị chặn tạo chuyến vì nợ quá hạn.
 

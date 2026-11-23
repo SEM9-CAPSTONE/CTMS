@@ -13,6 +13,7 @@ import {
 	MaxLength,
 } from "class-validator";
 import { minorToMoney, moneyToMinor } from "../../bookings/cancellation-policy";
+import { PlatformPaymentAccountDto } from "../../platform-bank-accounts/platform-bank-account.dto";
 
 function trimmed(value: unknown): unknown {
 	return typeof value === "string" ? value.trim() : value;
@@ -162,6 +163,13 @@ export class HostWeatherPenaltyListDto {
 	@ApiPropertyOptional({ format: "date-time", nullable: true })
 	hostingBlockedUntil!: string | null;
 	@ApiProperty() suspended!: boolean;
+	@ApiPropertyOptional({
+		type: PlatformPaymentAccountDto,
+		nullable: true,
+		description:
+			"Where to transfer what the settlements did not cover; null until an Admin sets it",
+	})
+	paymentAccount!: PlatformPaymentAccountDto | null;
 }
 
 export interface HostWeatherPenaltyRow {
