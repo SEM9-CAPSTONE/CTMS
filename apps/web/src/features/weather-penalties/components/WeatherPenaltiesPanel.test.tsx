@@ -19,6 +19,14 @@ function penalty(overrides: Partial<WeatherPenalty> = {}): WeatherPenalty {
 		amount: "1000000.00",
 		deductedAmount: "570000.00",
 		outstandingAmount: "430000.00",
+		payment: {
+			dueAt: "2099-01-16T20:00:00.000Z",
+			overdue: false,
+			collectedAmount: "0.00",
+			collectedAt: null,
+			reference: null,
+			note: null,
+		},
 		status: "applied",
 		hostingBlockedUntil: null,
 		waiverDeadline: "2030-01-12T01:00:00.000Z",
@@ -43,6 +51,17 @@ function service(items: WeatherPenalty[]) {
 		uploadEvidence: vi.fn(),
 		listForAdmin: vi.fn().mockResolvedValue(items),
 		getForAdmin: vi.fn(),
+		confirmPayment: vi.fn().mockImplementation(async (_id: string, input: { reference: string }) =>
+			penalty({
+				outstandingAmount: "0.00",
+				payment: {
+					...penalty().payment,
+					collectedAmount: "430000.00",
+					collectedAt: "2030-01-11T00:00:00.000Z",
+					reference: input.reference,
+				},
+			})
+		),
 		reviewWaiver: vi.fn().mockImplementation(async (_id: string, input: { approve: boolean }) =>
 			penalty({
 				status: input.approve ? "waived" : "applied",
@@ -83,6 +102,37 @@ it("flags a waiver request past its 5 working days", async () => {
 	]);
 	render(<WeatherPenaltiesPanel service={api} />);
 	expect(await screen.findByTestId("weather-penalty-row")).toHaveTextContent("Quá hạn xem");
+});
+
+it("lists unpaid penalties, flags an overdue one and records the Host's transfer", async () => {
+	const api = service([penalty({ payment: { ...penalty().payment, overdue: true } })]);
+	render(<WeatherPenaltiesPanel service={api} />);
+	fireEvent.click(screen.getByRole("tab", { name: "Chưa nộp đủ" }));
+	await waitFor(() => expect(api.listForAdmin).toHaveBeenCalledWith("unpaid"));
+	const row = await screen.findByTestId("weather-penalty-row");
+	expect(row).toHaveTextContent("Quá hạn nộp");
+	fireEvent.click(row);
+	const dialog = await screen.findByTestId("admin-weather-penalty-dialog");
+	expect(dialog).toHaveTextContent("Doanh thu Host của chuyến");
+	const form = within(dialog).getByTestId("weather-penalty-payment-form");
+	fireEvent.click(within(form).getByRole("button", { name: "Xác nhận đã nhận tiền" }));
+	expect(form).toHaveTextContent("Nhập mã giao dịch");
+	expect(api.confirmPayment).not.toHaveBeenCalled();
+	fireEvent.change(within(form).getByLabelText("Mã giao dịch ngân hàng (bắt buộc)"), {
+		target: { value: " FT2611230045 " },
+	});
+	fireEvent.click(within(form).getByRole("button", { name: "Xác nhận đã nhận tiền" }));
+	const confirm = await screen.findByTestId("confirm-modal");
+	expect(confirm).toHaveTextContent(/430\.000/);
+	fireEvent.click(within(confirm).getByRole("button", { name: "Xác nhận" }));
+	await waitFor(() =>
+		expect(api.confirmPayment).toHaveBeenCalledWith("p-1", {
+			reference: "FT2611230045",
+			note: undefined,
+		})
+	);
+	expect(await within(dialog).findByText(/Mã giao dịch FT2611230045/)).toBeVisible();
+	expect(within(dialog).queryByTestId("weather-penalty-payment-form")).not.toBeInTheDocument();
 });
 
 it("shows the evidence and approves the waiver with a mandatory note", async () => {

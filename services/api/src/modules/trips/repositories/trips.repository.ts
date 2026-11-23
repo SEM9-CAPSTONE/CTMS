@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { type EntityManager, Repository } from "typeorm";
+import { moneyToMinor } from "../../bookings/cancellation-policy";
 import {
 	type TrekkingRouteDifficulty,
 	TrekkingRouteStatus,
@@ -27,6 +28,7 @@ import type {
 import type { WaypointType } from "../entities/trip-waypoint.entity";
 import type { GeoPoint, Trip, TripType } from "../entities/trip.entity";
 import { TripStatus } from "../entities/trip.entity";
+import type { AppliedPenaltyForRestriction } from "../weather-decisions/host-weather-penalty.policy";
 import {
 	PORTER_TRIP_OPERATIONS_QUERY,
 	PORTER_VISIBLE_TRIP_STATUSES_SQL,
@@ -648,18 +650,25 @@ const ADMIN_TRIP_SELECT = buildTripSelect(
 @Injectable()
 export class TripsRepository extends Repository<Trip> {
 	/** Applied weather penalties of a Host that can still restrict hosting (policy §6). */
-	async findHostingPenalties(
-		hostId: string
-	): Promise<Array<{ createdAt: Date; hostingBlockedUntil: Date | null }>> {
+	async findHostingPenalties(hostId: string): Promise<AppliedPenaltyForRestriction[]> {
 		const rows = (await this.query(
-			`SELECT "created_at" AS "createdAt", "hosting_blocked_until" AS "hostingBlockedUntil"
+			`SELECT "created_at" AS "createdAt", "hosting_blocked_until" AS "hostingBlockedUntil",
+			        ("amount" - "deducted_amount" - "collected_amount")::text AS "outstanding",
+			        "payment_due_at" AS "paymentDueAt"
 			 FROM "host_weather_penalties" WHERE "host_id" = $1 AND "status" = 'applied'
 			 ORDER BY "created_at" DESC LIMIT 50`,
 			[hostId]
-		)) as Array<{ createdAt: Date | string; hostingBlockedUntil: Date | string | null }>;
+		)) as Array<{
+			createdAt: Date | string;
+			hostingBlockedUntil: Date | string | null;
+			outstanding: string;
+			paymentDueAt: Date | string;
+		}>;
 		return rows.map((row) => ({
 			createdAt: new Date(row.createdAt),
 			hostingBlockedUntil: row.hostingBlockedUntil ? new Date(row.hostingBlockedUntil) : null,
+			outstandingMinor: moneyToMinor(row.outstanding),
+			paymentDueAt: new Date(row.paymentDueAt),
 		}));
 	}
 

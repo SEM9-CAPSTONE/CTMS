@@ -5,7 +5,12 @@ import { useRealtimeConnection, useRealtimeEvent } from "../../../core/realtime/
 import { toast } from "../../../shared/components/Toast";
 import { getStoredAuthUser } from "../../auth/utils/tokenStorage";
 import { weatherPenaltiesService } from "../services/weather-penalties.service";
-import type { AdminPenaltyFilter, WaiverRequestInput, WaiverReviewInput } from "../types";
+import type {
+	AdminPenaltyFilter,
+	PaymentConfirmationInput,
+	WaiverRequestInput,
+	WaiverReviewInput,
+} from "../types";
 
 type Service = typeof weatherPenaltiesService;
 
@@ -81,6 +86,16 @@ export function useAdminWeatherPenalties(
 		connection
 	);
 	return query;
+}
+
+/** Admin records the Host's bank transfer for what the settlements did not cover. */
+export function useConfirmWeatherPenaltyPayment(service: Service = weatherPenaltiesService) {
+	const client = useQueryClient();
+	return useMutation({
+		mutationFn: ({ penaltyId, input }: { penaltyId: string; input: PaymentConfirmationInput }) =>
+			service.confirmPayment(penaltyId, input),
+		onSuccess: () => client.invalidateQueries({ queryKey: ["weather", "penalties"] }),
+	});
 }
 
 export function useReviewWeatherPenaltyWaiver(service: Service = weatherPenaltiesService) {

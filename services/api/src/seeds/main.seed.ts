@@ -47,6 +47,7 @@ import { readVerifiedPackageRoute } from "../modules/offline-packages/package-ro
 import { CheckpointType } from "../modules/trekking-routes/entities/checkpoint.entity";
 import { WaypointType } from "../modules/trips/entities/trip-waypoint.entity";
 import { TripStatus, TripType } from "../modules/trips/entities/trip.entity";
+import { PENALTY_PAYMENT_DAYS } from "../modules/trips/weather-decisions/host-weather-penalty.policy";
 import { AUTO_CANCEL_WEATHER_REASON } from "../modules/trips/weather-decisions/trip-weather-decision.service";
 
 import { BookingsRepository } from "../modules/bookings/bookings.repository";
@@ -10878,7 +10879,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 
 	// 8c. Already cancelled by the system at T-6h: "Hệ thống" in the decision log, notices to the
 	// Host and Admin, a pending 100% refund and the Host's open first penalty (still in the waiver
-	// window, already deducted from the wallet below).
+	// window). The Trip earned nothing, so the penalty stays owed: the Host pays it within 7 days.
 	const autoCancelled = await createTrip({
 		title: "Tiên Sa – Nghỉ dưỡng và dã ngoại ven biển",
 		host: hostId,
@@ -10924,8 +10925,9 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 	await dataSource.query(
 		`INSERT INTO "host_weather_penalties" (
 			trip_id, host_id, trip_title, trip_starts_at, decision_id, violation_number, booking_value,
-			rate_basis_points, cap_amount, amount, deducted_amount, status, waiver_deadline, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, 1, 1500000, 500, 2000000, 75000, 75000, 'applied', $6, $7, now())`,
+			rate_basis_points, cap_amount, amount, deducted_amount, status, waiver_deadline,
+			payment_due_at, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $5, 1, 1425000, 500, 2000000, 71250, 0, 'applied', $6, $7, $8, now())`,
 		[
 			autoCancelled.id,
 			hostId,
@@ -10933,6 +10935,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 			autoCancelled.startsAt,
 			systemDecision[0].id,
 			new Date(autoCancelled.startsAt.getTime() + 48 * HOUR),
+			new Date(at(-3).getTime() + PENALTY_PAYMENT_DAYS * 24 * HOUR),
 			at(-3),
 		]
 	);
@@ -10981,13 +10984,17 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 		{ rate: 1000, cap: 5_000_000 },
 		{ rate: 1500, cap: 10_000_000 },
 	];
+	// Penalty base = the Host's earnings: paid bookings minus the 5% platform commission.
+	const hostEarnings = (paid: number) => paid - Math.floor((paid * 5) / 100);
 	const addPenalty = async (input: {
 		host: string;
 		title: string;
 		startedHoursAgo: number;
 		violation: 1 | 2 | 3;
-		bookingValue: number;
-		deducted: number;
+		/** Paid bookings of the Trip; the penalty base is the Host's 95% share. */
+		paidBookings: number;
+		/** Taken from settlements so far; "full" = the whole penalty. */
+		deducted: number | "full";
 		status?: "applied" | "waived";
 		blockedDays?: number;
 		waiver?: {
@@ -11015,7 +11022,9 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 			createdHoursAgo: input.startedHoursAgo + 20,
 		});
 		const tier = tiers[input.violation - 1];
-		const amount = Math.min(Math.round((input.bookingValue * tier.rate) / 10_000), tier.cap);
+		const base = hostEarnings(input.paidBookings);
+		const amount = Math.min(Math.floor((base * tier.rate) / 10_000), tier.cap);
+		const deducted = input.deducted === "full" ? amount : input.deducted;
 		const createdAt = at(-(input.startedHoursAgo + 20));
 		const waiver = input.waiver;
 		await dataSource.query(
@@ -11023,10 +11032,11 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 				trip_id, host_id, trip_title, trip_starts_at, decision_id, violation_number, booking_value,
 				rate_basis_points, cap_amount, amount, deducted_amount, status, hosting_blocked_until,
 				waiver_deadline, waiver_reason, waiver_evidence_urls, waiver_requested_at, waiver_review_due_at,
-				waiver_decision, waiver_reviewed_by, waiver_reviewed_at, waiver_review_note, created_at, updated_at
+				waiver_decision, waiver_reviewed_by, waiver_reviewed_at, waiver_review_note, payment_due_at,
+				created_at, updated_at
 			) VALUES (
 				$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17, $18,
-				$19, $20, $21, $22, $23, now()
+				$19, $20, $21, $22, $24, $23, now()
 			)`,
 			[
 				trip.id,
@@ -11035,11 +11045,11 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 				trip.startsAt,
 				decisionId,
 				input.violation,
-				input.bookingValue,
+				base,
 				tier.rate,
 				tier.cap,
 				amount,
-				input.status === "waived" ? 0 : input.deducted,
+				input.status === "waived" ? 0 : deducted,
 				input.status ?? "applied",
 				input.blockedDays ? new Date(createdAt.getTime() + input.blockedDays * 24 * HOUR) : null,
 				new Date(trip.startsAt.getTime() + 48 * HOUR),
@@ -11053,6 +11063,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 				waiver?.reviewedHoursAgo !== undefined ? at(-waiver.reviewedHoursAgo) : null,
 				waiver?.note ?? null,
 				createdAt,
+				new Date(createdAt.getTime() + PENALTY_PAYMENT_DAYS * 24 * HOUR),
 			]
 		);
 		return { tripId: trip.id, amount };
@@ -11066,7 +11077,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 		title: "Hòa Bắc – Khám phá bản làng Cơ Tu",
 		startedHoursAgo: 60 * 24,
 		violation: 1,
-		bookingValue: 8_000_000,
+		paidBookings: 8_000_000,
 		deducted: 0,
 		status: "waived",
 		waiver: {
@@ -11082,7 +11093,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 		hostWallet,
 		waivedOld.tripId,
 		"penalty_debit",
-		400_000,
+		waivedOld.amount,
 		"Trừ phạt thời tiết: Hòa Bắc",
 		59 * 24 + 12
 	);
@@ -11090,20 +11101,13 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 		hostWallet,
 		waivedOld.tripId,
 		"penalty_refund",
-		400_000,
+		waivedOld.amount,
 		"Hoàn phạt thời tiết (đã miễn): Hòa Bắc",
 		58 * 24
 	);
 	// host@'s open first penalty is the T-6h auto-cancel demo (8c): one applied penalty only, so
-	// host@ is never blocked by the seed.
-	await walletEntry(
-		hostWallet,
-		autoCancelled.id,
-		"penalty_debit",
-		75_000,
-		"Trừ phạt thời tiết: Tiên Sa",
-		2
-	);
+	// host@ is never blocked by the seed. It earned nothing, so nothing is deducted from the wallet:
+	// the Host pays it by transfer and the Admin confirms (Phạt Host › Chưa nộp đủ).
 
 	// host.blocked@ctms.local — 2nd violation: blocked 14 days, waiver waiting for the Admin.
 	const blockedWallet = await ensureWallet(blockedHostId);
@@ -11112,8 +11116,8 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 		title: "Nam Ô – Đi bộ ven rạn đá",
 		startedHoursAgo: 40 * 24,
 		violation: 1,
-		bookingValue: 6_000_000,
-		deducted: 300_000,
+		paidBookings: 6_000_000,
+		deducted: "full",
 		waiver: {
 			reason: "Xe hỏng nên không kịp quyết định.",
 			requestedHoursAgo: 39 * 24,
@@ -11128,7 +11132,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 		title: "Bà Nà – Cắm trại giữa rừng xanh",
 		startedHoursAgo: 3 * 24,
 		violation: 2,
-		bookingValue: 12_000_000,
+		paidBookings: 12_000_000,
 		deducted: 700_000,
 		blockedDays: 14,
 		waiver: {
@@ -11156,23 +11160,23 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 	);
 
 	// host.suspended@ctms.local — 3 applied violations in 90 days: suspended; the last waiver is
-	// past its 5-working-day review deadline.
+	// past its 5-working-day review deadline and its penalty is still unpaid past the 7 days.
 	await ensureWallet(suspendedHostId);
 	await addPenalty({
 		host: suspendedHostId,
 		title: "Hồ Hòa Trung – Dã ngoại bên hồ",
 		startedHoursAgo: 70 * 24,
 		violation: 1,
-		bookingValue: 5_000_000,
-		deducted: 250_000,
+		paidBookings: 5_000_000,
+		deducted: "full",
 	});
 	await addPenalty({
 		host: suspendedHostId,
 		title: "Sông Cu Đê – Hành trình qua thung lũng",
 		startedHoursAgo: 45 * 24,
 		violation: 2,
-		bookingValue: 7_000_000,
-		deducted: 700_000,
+		paidBookings: 7_000_000,
+		deducted: "full",
 		blockedDays: 14,
 	});
 	await addPenalty({
@@ -11180,7 +11184,7 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 		title: "Núi Thần Tài – Nghỉ chân bên suối",
 		startedHoursAgo: 12 * 24,
 		violation: 3,
-		bookingValue: 9_000_000,
+		paidBookings: 9_000_000,
 		deducted: 0,
 		waiver: {
 			reason: "Người thân mất đột ngột, có giấy báo tử.",

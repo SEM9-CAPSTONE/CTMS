@@ -115,26 +115,30 @@ Dự báo Đỏ ──T-48h──► Nhắc Host ──T-24h──► Host quy�
 
 - **Áp dụng khi:** tới T-24h dự báo Đỏ, Host không có quyết định và Admin phải can thiệp.
 - **Không áp dụng khi:** Host đã chọn Huỷ, Dời hoặc Giữ có lý do đúng hạn.
-- **Giá trị booking của Trip** = tổng tiền các booking đã thanh toán. Khoản phạt được **trừ vào doanh thu quyết toán** (CTMS-112). Nếu doanh thu không đủ thì ghi thành công nợ của Host.
+- **Cơ sở tính phạt = doanh thu Host của Trip** = tổng tiền các booking đã thanh toán **trừ 5% phí nền tảng** (Host nhận 95%, làm tròn giống quyết toán CTMS-112). Số tiền được **chốt tại thời điểm vi phạm**, trước khi huỷ / dời làm thay đổi booking, nên Trip bị huỷ và hoàn 100% cho Camper vẫn có số tiền phạt. Trip chưa có booking đã thanh toán thì tiền phạt **0đ**, nhưng **lần vi phạm vẫn được đếm**.
+- **Thu tiền phạt:**
+  1. Tự **trừ vào doanh thu quyết toán** của các Trip sau (CTMS-112), khoản cũ trước. Ví Host không bao giờ âm.
+  2. Phần chưa trừ được (ví dụ Trip đầu tiên của Host bị huỷ nên không có doanh thu), Host **chuyển khoản nộp trong 7 ngày** kể từ khi bị phạt. Admin đối chiếu sao kê và bấm **Xác nhận đã nhận tiền** (nhập mã giao dịch ngân hàng); hệ thống ghi nhận Host đã nộp đủ phần còn lại.
+  3. **Quá 7 ngày vẫn còn nợ** thì Host **không được tạo / gửi duyệt Trip mới** cho tới khi nộp đủ. Các Trip đã đăng vẫn diễn ra và quyết toán bình thường (và tiếp tục tự trừ nợ).
 - **Đếm số lần vi phạm** trong **90 ngày gần nhất**.
 
 | Lần vi phạm | Mức phạt (đề xuất) | Biện pháp kèm theo |
 | --- | --- | --- |
-| Lần 1 | Cảnh cáo + **5%** giá trị booking của Trip, tối đa **2.000.000đ** | Trừ điểm uy tín Host |
+| Lần 1 | Cảnh cáo + **5%** doanh thu Host của Trip, tối đa **2.000.000đ** | Trừ điểm uy tín Host |
 | Lần 2 | **10%**, tối đa **5.000.000đ** | Tạm khoá tạo Trip mới **14 ngày** |
 | Lần 3 trở đi | **15%**, tối đa **10.000.000đ** | Đình chỉ Host. Admin xem xét khoá tài khoản |
 
 ### Miễn phạt vì bất khả kháng (Host ốm, tai nạn…)
 - Trong **72 giờ** sau mốc T-24h, Host gửi yêu cầu miễn phạt kèm bằng chứng (giấy của cơ sở y tế, biên bản…).
 - Admin xem xét trong **5 ngày làm việc**:
-  - Nếu chấp nhận: hoàn lại khoản phạt và không tính lần vi phạm.
+  - Nếu chấp nhận: hoàn vào ví Host toàn bộ số đã trừ khi quyết toán và số Host đã chuyển khoản, gỡ khoá, không tính lần vi phạm.
   - Nếu từ chối: giữ nguyên, ghi rõ lý do.
 - **Quyền lợi của Camper không phụ thuộc** vào việc Host có được miễn phạt hay không (vẫn hoàn 100% nếu Trip bị huỷ).
 
 ## 7. Ghi nhận và kiểm tra
 
 - **Mỗi quyết định ghi vào `audit_logs`:** người quyết định (Host, Admin hoặc hệ thống), vai trò, thời điểm, bản dự báo đã dùng (ID và mức rủi ro), lý do.
-- **Mỗi khoản phạt lưu thành bản ghi riêng:** Trip, Host, lần vi phạm thứ mấy, số tiền, trạng thái (áp dụng / miễn), ai duyệt miễn.
+- **Mỗi khoản phạt lưu thành bản ghi riêng:** Trip, Host, lần vi phạm thứ mấy, cơ sở tính, số tiền, số đã trừ khi quyết toán, số Host đã chuyển khoản (ai xác nhận, lúc nào, mã giao dịch), hạn nộp, trạng thái (áp dụng / miễn), ai duyệt miễn.
 - Thông báo gửi đi phải chống trùng: mỗi lần đổi mức chỉ gửi một lần cho mỗi người nhận.
 
 ## 8. Cần leader chốt
@@ -148,3 +152,5 @@ Dự báo Đỏ ──T-48h──► Nhắc Host ──T-24h──► Host quy�
    - (b) job theo dõi và thông báo;
    - (c) quy trình quyết định và Admin can thiệp;
    - (d) phạt và miễn phạt.
+6. **Đã chốt (23/11/2026):** cơ sở tính phạt là doanh thu Host (95%); phần quyết toán chưa trừ được nộp trong **7 ngày**, quá hạn thì chặn tạo / gửi duyệt Trip.
+7. **Còn chờ chốt:** tài khoản ngân hàng nhận tiền phạt của nền tảng. Hiện giao diện Host chỉ hướng dẫn chuyển khoản "theo thông tin quản trị viên CTMS cung cấp", chưa hiện số tài khoản.

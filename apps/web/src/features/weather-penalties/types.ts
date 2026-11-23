@@ -1,7 +1,7 @@
 /** Weather penalty of a Host who did not answer a Red forecast (CTMS-94 API, policy §6). */
 export type WeatherPenaltyStatus = "applied" | "waived";
 export type WeatherPenaltyWaiverDecision = "approved" | "rejected";
-export type AdminPenaltyFilter = "waiver_pending" | "applied" | "waived" | "all";
+export type AdminPenaltyFilter = "waiver_pending" | "unpaid" | "applied" | "waived" | "all";
 
 export interface WeatherPenaltyWaiver {
 	reason: string | null;
@@ -13,6 +13,17 @@ export interface WeatherPenaltyWaiver {
 	reviewNote: string | null;
 }
 
+/** What the settlements did not cover is paid by bank transfer within 7 days. */
+export interface WeatherPenaltyPayment {
+	dueAt: string;
+	/** Money still owed after `dueAt`: the Host cannot create or submit Trips. */
+	overdue: boolean;
+	collectedAmount: string;
+	collectedAt: string | null;
+	reference: string | null;
+	note: string | null;
+}
+
 export interface WeatherPenalty {
 	id: string;
 	tripId: string;
@@ -21,12 +32,14 @@ export interface WeatherPenalty {
 	hostId: string;
 	hostName: string | null;
 	violationNumber: number;
+	/** Penalty base: the Host's earnings (paid bookings minus the platform commission). */
 	bookingValue: string;
 	ratePercent: number;
 	capAmount: string;
 	amount: string;
 	deductedAmount: string;
 	outstandingAmount: string;
+	payment: WeatherPenaltyPayment;
 	status: WeatherPenaltyStatus;
 	hostingBlockedUntil: string | null;
 	waiverDeadline: string;
@@ -37,6 +50,8 @@ export interface WeatherPenalty {
 export interface MyWeatherPenalties {
 	items: WeatherPenalty[];
 	outstandingTotal: string;
+	/** Owed past the 7-day deadline. */
+	overdueTotal: string;
 	hostingBlockedUntil: string | null;
 	suspended: boolean;
 }
@@ -44,6 +59,11 @@ export interface MyWeatherPenalties {
 export interface WaiverRequestInput {
 	reason: string;
 	evidenceUrls: string[];
+}
+
+export interface PaymentConfirmationInput {
+	reference: string;
+	note?: string;
 }
 
 export interface WaiverReviewInput {

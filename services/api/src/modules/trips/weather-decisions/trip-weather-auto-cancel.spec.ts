@@ -111,7 +111,7 @@ function setup(
 	};
 	const alerts = { send: jest.fn().mockResolvedValue([]) };
 	const penalties = {
-		paidBookingValue: jest.fn().mockResolvedValue("12000000.00"),
+		penaltyBaseValue: jest.fn().mockResolvedValue("12000000.00"),
 		createInTransaction: jest.fn().mockResolvedValue({ id: "p-1", hostId: "host-1" }),
 		notifyCreated: jest.fn(),
 	};

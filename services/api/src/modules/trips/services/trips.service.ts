@@ -11,7 +11,7 @@ import {
 import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
-import { DEFAULT_CANCELLATION_POLICY } from "../../bookings/cancellation-policy";
+import { DEFAULT_CANCELLATION_POLICY, minorToMoney } from "../../bookings/cancellation-policy";
 import { InAppNotificationType } from "../../in-app-notifications/in-app-notification.entity";
 // biome-ignore lint/style/useImportType: Nest injection metadata
 import { InAppNotificationsService } from "../../in-app-notifications/in-app-notifications.service";
@@ -1511,21 +1511,34 @@ export class TripsService {
 		throw new ConflictException("Only draft Trips can be configured and submitted for approval");
 	}
 
-	/** Weather penalty tier 2 / 3 (policy §6): the Host cannot create or submit Trips for now. */
+	/**
+	 * Weather penalty (policy §6): tier 2 / 3 blocks, or a penalty still unpaid 7 days after it was
+	 * created, keep the Host from creating or submitting Trips for now.
+	 */
 	private async assertHostCanHost(repository: TripsRepository, hostId: string): Promise<void> {
 		const restriction = hostingRestriction(
 			await repository.findHostingPenalties(hostId),
 			new Date()
 		);
-		if (!restriction.blockedUntil) return;
-		throw new ForbiddenException({
-			statusCode: 403,
-			error: "Forbidden",
-			message: restriction.suspended
-				? "Host is suspended from hosting because of repeated weather penalties"
-				: "Host cannot create Trips until the weather penalty block ends",
-			blockedUntil: restriction.blockedUntil.toISOString(),
-		});
+		if (restriction.blockedUntil) {
+			throw new ForbiddenException({
+				statusCode: 403,
+				error: "Forbidden",
+				message: restriction.suspended
+					? "Host is suspended from hosting because of repeated weather penalties"
+					: "Host cannot create Trips until the weather penalty block ends",
+				blockedUntil: restriction.blockedUntil.toISOString(),
+			});
+		}
+		if (restriction.overdueDebtMinor > 0n) {
+			throw new ForbiddenException({
+				statusCode: 403,
+				error: "Forbidden",
+				code: "WEATHER_PENALTY_OVERDUE",
+				message: "Host cannot create Trips until the overdue weather penalty is paid",
+				overdueAmount: minorToMoney(restriction.overdueDebtMinor),
+			});
+		}
 	}
 
 	private validationException(message: FieldValidationError[]): UnprocessableEntityException {
