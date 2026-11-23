@@ -151,7 +151,7 @@ export class TripWeatherDecisionService {
 				(decision) => decision.deciderRole === "host" && !decision.late
 			),
 		});
-		const bookingValue = penaltyDue ? await this.penalties.paidBookingValue(tripId) : null;
+		const bookingValue = penaltyDue ? await this.penalties.penaltyBaseValue(tripId) : null;
 		let penalty: HostWeatherPenaltyDto | null = null;
 		const recordWithPenalty = async (manager: EntityManager) => {
 			const saved = await record(manager);
@@ -225,7 +225,7 @@ export class TripWeatherDecisionService {
 				(decision) => decision.deciderRole === "host" && !decision.late
 			),
 		});
-		const bookingValue = penaltyDue ? await this.penalties.paidBookingValue(tripId) : null;
+		const bookingValue = penaltyDue ? await this.penalties.penaltyBaseValue(tripId) : null;
 		const record = this.recorder(context, null, "system", "cancel", AUTO_CANCEL_WEATHER_REASON, {
 			safetyPlan: null,
 			late: false,

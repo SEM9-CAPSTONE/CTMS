@@ -26,6 +26,14 @@ function penalty(overrides: Partial<WeatherPenalty> = {}): WeatherPenalty {
 		amount: "1000000.00",
 		deductedAmount: "0.00",
 		outstandingAmount: "1000000.00",
+		payment: {
+			dueAt: "2030-01-16T20:00:00.000Z",
+			overdue: false,
+			collectedAmount: "0.00",
+			collectedAt: null,
+			reference: null,
+			note: null,
+		},
 		status: "applied",
 		hostingBlockedUntil: "2030-01-24T01:00:00.000Z",
 		waiverDeadline: "2030-01-12T01:00:00.000Z",
@@ -47,6 +55,7 @@ function mine(overrides: Partial<MyWeatherPenalties> = {}): MyWeatherPenalties {
 	return {
 		items: [penalty()],
 		outstandingTotal: "1000000.00",
+		overdueTotal: "0.00",
 		hostingBlockedUntil: "2030-01-24T01:00:00.000Z",
 		suspended: false,
 		...overrides,
@@ -138,6 +147,46 @@ describe("HostWeatherPenaltiesCard", () => {
 		expect(items[1]).toHaveTextContent("Đã miễn");
 		expect(items[1]).toHaveTextContent("Ghi chú của Admin: Giấy viện hợp lệ");
 		expect(within(items[1]).queryByRole("button")).not.toBeInTheDocument();
+	});
+
+	it("asks the Host to pay what settlements did not cover within 7 days and flags it once overdue", async () => {
+		const api = service({
+			listMine: vi.fn().mockResolvedValue(
+				mine({
+					overdueTotal: "1000000.00",
+					hostingBlockedUntil: null,
+					items: [
+						penalty({
+							hostingBlockedUntil: null,
+							payment: { ...penalty().payment, overdue: true },
+						}),
+						penalty({
+							id: "p-3",
+							tripTitle: "Bidoup",
+							outstandingAmount: "0.00",
+							payment: {
+								...penalty().payment,
+								collectedAmount: "1000000.00",
+								collectedAt: "2030-01-10T03:00:00.000Z",
+								reference: "FT2611230045",
+							},
+						}),
+					],
+				})
+			),
+		});
+		renderCard(api);
+		expect(await screen.findByTestId("weather-penalty-overdue")).toHaveTextContent(
+			/1\.000\.000.*quá hạn nộp/
+		);
+		const items = screen.getAllByTestId("weather-penalty-item");
+		expect(items[0]).toHaveTextContent("Doanh thu Host của chuyến");
+		expect(within(items[0]).getByTestId("weather-penalty-payment-due")).toHaveTextContent(
+			"Đã quá hạn nộp"
+		);
+		expect(items[0]).toHaveTextContent('"Phạt thời tiết – Tà Năng – Phan Dũng"');
+		expect(within(items[1]).queryByTestId("weather-penalty-payment-due")).not.toBeInTheDocument();
+		expect(items[1]).toHaveTextContent("mã giao dịch FT2611230045");
 	});
 
 	it("hides the waiver button after the deadline or once requested, and shows the suspension", async () => {
@@ -277,6 +326,15 @@ describe("hostingBlockedMessage", () => {
 		expect(
 			hostingBlockedMessage(new HttpError("Forbidden", 403, { message: "Not the owner" }))
 		).toBeNull();
+		expect(
+			hostingBlockedMessage(
+				new HttpError("Forbidden", 403, {
+					code: "WEATHER_PENALTY_OVERDUE",
+					message: "Host cannot create Trips until the overdue weather penalty is paid",
+					overdueAmount: "71250.00",
+				})
+			)
+		).toMatch(/Bạn chưa nộp 71\.250.*quá hạn 7 ngày/);
 		expect(hostingBlockedMessage(new Error("x"))).toBeNull();
 	});
 });

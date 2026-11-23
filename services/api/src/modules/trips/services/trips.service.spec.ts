@@ -447,12 +447,36 @@ describe("TripsService", () => {
 
 	it("refuses to create or submit a Trip while a weather penalty blocks the Host (policy §6)", async () => {
 		tripsRepository.findHostingPenalties.mockResolvedValue([
-			{ createdAt: new Date(), hostingBlockedUntil: new Date(Date.now() + 86_400_000) },
+			{
+				createdAt: new Date(),
+				hostingBlockedUntil: new Date(Date.now() + 86_400_000),
+				outstandingMinor: 0n,
+				paymentDueAt: new Date(Date.now() + 7 * 86_400_000),
+			},
 		]);
 		await expect(service.create(HOST_ID, createTripDto())).rejects.toBeInstanceOf(
 			ForbiddenException
 		);
 		expect(tripsRepository.findHostingPenalties).toHaveBeenCalledWith(HOST_ID);
+		expect(tripsRepository.createDraft).not.toHaveBeenCalled();
+	});
+
+	it("refuses to create a Trip while a weather penalty is unpaid past its 7-day deadline", async () => {
+		tripsRepository.findHostingPenalties.mockResolvedValue([
+			{
+				createdAt: new Date(Date.now() - 8 * 86_400_000),
+				hostingBlockedUntil: null,
+				outstandingMinor: 7_125_000n,
+				paymentDueAt: new Date(Date.now() - 86_400_000),
+			},
+		]);
+		await expect(service.create(HOST_ID, createTripDto())).rejects.toMatchObject({
+			status: 403,
+			response: expect.objectContaining({
+				code: "WEATHER_PENALTY_OVERDUE",
+				overdueAmount: "71250.00",
+			}),
+		});
 		expect(tripsRepository.createDraft).not.toHaveBeenCalled();
 	});
 

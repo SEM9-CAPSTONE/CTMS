@@ -3,8 +3,12 @@ import { useId, useState } from "react";
 import { ConfirmModal } from "../../../shared/components/ConfirmModal";
 import { Modal } from "../../../shared/components/Modal";
 import { StatusBadge } from "../../../shared/components/StatusBadge";
+import { toast } from "../../../shared/components/Toast";
 import { formatBookingMoney } from "../../booking-details/utils/booking-details-formatters";
-import { useReviewWeatherPenaltyWaiver } from "../hooks/useWeatherPenalties";
+import {
+	useConfirmWeatherPenaltyPayment,
+	useReviewWeatherPenaltyWaiver,
+} from "../hooks/useWeatherPenalties";
 import type { weatherPenaltiesService } from "../services/weather-penalties.service";
 import type { WeatherPenalty } from "../types";
 import {
@@ -13,6 +17,8 @@ import {
 	evidenceFileName,
 	formatPenaltyDate,
 	formatPenaltyDateTime,
+	hasAmountOwed,
+	isPaymentOverdue,
 	isReviewOverdue,
 	penaltyDisplayStatus,
 	weatherPenaltyErrorMessage,
@@ -24,20 +30,59 @@ export interface AdminWeatherPenaltyDialogProps {
 	service?: typeof weatherPenaltiesService;
 }
 
-/** Policy §6: the Admin reads the penalty and the Host's evidence, then waives or keeps it. */
+/**
+ * Policy §6: the Admin reads the penalty and the Host's evidence, then waives or keeps it, and
+ * records the Host's bank transfer for what the settlements did not cover.
+ */
 export function AdminWeatherPenaltyDialog({
 	penalty: initial,
 	onClose,
 	service,
 }: AdminWeatherPenaltyDialogProps) {
 	const noteId = useId();
+	const referenceId = useId();
+	const paymentNoteId = useId();
 	const [penalty, setPenalty] = useState(initial);
 	const [note, setNote] = useState("");
 	const [pending, setPending] = useState<boolean | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const review = useReviewWeatherPenaltyWaiver(service);
+	const confirmPayment = useConfirmWeatherPenaltyPayment(service);
+	const [reference, setReference] = useState("");
+	const [paymentNote, setPaymentNote] = useState("");
+	const [referenceError, setReferenceError] = useState<string | null>(null);
+	const [confirmingPayment, setConfirmingPayment] = useState(false);
 	const status = penaltyDisplayStatus(penalty);
 	const canReview = Boolean(penalty.waiver.requestedAt && !penalty.waiver.decision);
+	const owed = hasAmountOwed(penalty);
+	const busy = review.isPending || confirmPayment.isPending;
+	const paidSoFar = (
+		Number(penalty.deductedAmount) + Number(penalty.payment.collectedAmount)
+	).toFixed(2);
+
+	function askPaymentConfirmation() {
+		if (!reference.trim()) {
+			setReferenceError("Nhập mã giao dịch trên sao kê ngân hàng.");
+			return;
+		}
+		setReferenceError(null);
+		setConfirmingPayment(true);
+	}
+
+	async function submitPayment() {
+		try {
+			const saved = await confirmPayment.mutateAsync({
+				penaltyId: penalty.id,
+				input: { reference: reference.trim(), note: paymentNote.trim() || undefined },
+			});
+			setPenalty(saved);
+			toast.success("Đã ghi nhận Host nộp đủ tiền phạt.");
+		} catch (paymentError) {
+			toast.error(weatherPenaltyErrorMessage(paymentError));
+		} finally {
+			setConfirmingPayment(false);
+		}
+	}
 
 	function ask(approve: boolean) {
 		if (!note.trim()) {
@@ -71,7 +116,7 @@ export function AdminWeatherPenaltyDialog({
 			icon={<Scale className="size-5" />}
 			description={`${penalty.hostName ?? "Chưa cập nhật tên người tổ chức"} · Vi phạm lần ${penalty.violationNumber}`}
 			size="xl"
-			isCloseDisabled={review.isPending}
+			isCloseDisabled={busy}
 			closeLabel="Đóng"
 		>
 			<div className="space-y-4 text-sm text-[#10221b]" data-testid="admin-weather-penalty-dialog">
@@ -80,6 +125,7 @@ export function AdminWeatherPenaltyDialog({
 						{WEATHER_PENALTY_STATUS_LABELS[status]}
 					</StatusBadge>
 					{isReviewOverdue(penalty) && <StatusBadge tone="danger">Quá hạn xem</StatusBadge>}
+					{isPaymentOverdue(penalty) && <StatusBadge tone="danger">Quá hạn nộp</StatusBadge>}
 				</div>
 				<dl className="grid grid-cols-2 gap-3 rounded-2xl border border-[#edf3ed] bg-[#fbfdfb] p-4 text-xs sm:grid-cols-3">
 					<div>
@@ -87,7 +133,7 @@ export function AdminWeatherPenaltyDialog({
 						<dd className="font-bold">{formatPenaltyDateTime(penalty.tripStartsAt)}</dd>
 					</div>
 					<div>
-						<dt className="text-[#7d8d83]">Tiền Camper đã trả</dt>
+						<dt className="text-[#7d8d83]">Doanh thu Host của chuyến</dt>
 						<dd className="font-bold">{formatBookingMoney(penalty.bookingValue)}</dd>
 					</div>
 					<div>
@@ -105,6 +151,20 @@ export function AdminWeatherPenaltyDialog({
 						<dd className="font-bold">{formatBookingMoney(penalty.deductedAmount)}</dd>
 					</div>
 					<div>
+						<dt className="text-[#7d8d83]">Host đã nộp bằng chuyển khoản</dt>
+						<dd className="font-bold">{formatBookingMoney(penalty.payment.collectedAmount)}</dd>
+					</div>
+					<div>
+						<dt className="text-[#7d8d83]">Còn phải nộp</dt>
+						<dd className="font-bold text-rose-700">
+							{formatBookingMoney(penalty.outstandingAmount)}
+						</dd>
+					</div>
+					<div>
+						<dt className="text-[#7d8d83]">Hạn nộp</dt>
+						<dd className="font-bold">{formatPenaltyDateTime(penalty.payment.dueAt)}</dd>
+					</div>
+					<div>
 						<dt className="text-[#7d8d83]">Không được tạo Trip đến</dt>
 						<dd className="font-bold">
 							{penalty.hostingBlockedUntil
@@ -113,6 +173,72 @@ export function AdminWeatherPenaltyDialog({
 						</dd>
 					</div>
 				</dl>
+
+				{penalty.payment.collectedAt && (
+					<p className="flex items-start gap-2 rounded-2xl bg-[#f1f5f0] p-3 text-xs font-semibold">
+						<CheckCircle2 className="size-4 shrink-0 text-[#164027]" />
+						Đã xác nhận nhận {formatBookingMoney(penalty.payment.collectedAmount)} lúc{" "}
+						{formatPenaltyDateTime(penalty.payment.collectedAt)}
+						{penalty.payment.reference ? ` · Mã giao dịch ${penalty.payment.reference}` : ""}
+						{penalty.payment.note ? ` · ${penalty.payment.note}` : ""}
+					</p>
+				)}
+
+				{owed && (
+					<div
+						className="space-y-3 rounded-2xl border border-[#dfe8df] p-4 text-xs"
+						data-testid="weather-penalty-payment-form"
+					>
+						<div>
+							<p className="font-extrabold">Host chuyển khoản nộp phạt</p>
+							<p className="mt-1 text-[#667a6d]">
+								Host còn phải nộp {formatBookingMoney(penalty.outstandingAmount)}. Chỉ xác nhận khi
+								tiền đã vào tài khoản CTMS. Sau khi xác nhận, Host tạo Trip lại được nếu đang bị
+								chặn vì quá hạn nộp.
+							</p>
+						</div>
+						<div className="grid gap-3 sm:grid-cols-2">
+							<div>
+								<label htmlFor={referenceId} className="font-extrabold">
+									Mã giao dịch ngân hàng (bắt buộc)
+								</label>
+								<input
+									id={referenceId}
+									value={reference}
+									maxLength={100}
+									onChange={(event) => setReference(event.target.value)}
+									aria-invalid={Boolean(referenceError)}
+									className="mt-1 w-full rounded-xl border border-[#dfe8df] px-3 py-2 text-sm outline-none focus:border-[#164027]"
+								/>
+								{referenceError && (
+									<p className="mt-1 font-semibold text-rose-700">{referenceError}</p>
+								)}
+							</div>
+							<div>
+								<label htmlFor={paymentNoteId} className="font-extrabold">
+									Ghi chú
+								</label>
+								<input
+									id={paymentNoteId}
+									value={paymentNote}
+									maxLength={500}
+									onChange={(event) => setPaymentNote(event.target.value)}
+									className="mt-1 w-full rounded-xl border border-[#dfe8df] px-3 py-2 text-sm outline-none focus:border-[#164027]"
+								/>
+							</div>
+						</div>
+						<div className="flex justify-end">
+							<button
+								type="button"
+								onClick={askPaymentConfirmation}
+								disabled={busy}
+								className="rounded-xl bg-[#164027] px-4 py-2 text-xs font-bold text-white hover:bg-[#0d2617] disabled:opacity-50"
+							>
+								Xác nhận đã nhận tiền
+							</button>
+						</div>
+					</div>
+				)}
 
 				<div className="rounded-2xl border border-[#edf3ed] p-4 text-xs">
 					<p className="font-extrabold">Host xin miễn phạt</p>
@@ -176,7 +302,7 @@ export function AdminWeatherPenaltyDialog({
 							<button
 								type="button"
 								onClick={() => ask(false)}
-								disabled={review.isPending}
+								disabled={busy}
 								className="rounded-xl border border-rose-200 bg-white px-4 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
 							>
 								Từ chối
@@ -184,7 +310,7 @@ export function AdminWeatherPenaltyDialog({
 							<button
 								type="button"
 								onClick={() => ask(true)}
-								disabled={review.isPending}
+								disabled={busy}
 								className="rounded-xl bg-[#164027] px-4 py-2 text-xs font-bold text-white hover:bg-[#0d2617] disabled:opacity-50"
 							>
 								Duyệt miễn phạt
@@ -208,13 +334,24 @@ export function AdminWeatherPenaltyDialog({
 				title={pending ? "Miễn phạt cho Host?" : "Không miễn phạt?"}
 				description={
 					pending
-						? `Lần vi phạm này sẽ được bỏ, Host tạo Trip lại được (nếu đang bị khoá) và nhận lại ${formatBookingMoney(penalty.deductedAmount)} đã bị trừ.`
+						? `Lần vi phạm này sẽ được bỏ, Host tạo Trip lại được (nếu đang bị khoá) và nhận lại ${formatBookingMoney(paidSoFar)} đã bị trừ hoặc đã nộp vào ví.`
 						: "Khoản phạt vẫn giữ nguyên. Host sẽ thấy lý do bạn ghi."
 				}
 				confirmText="Xác nhận"
 				cancelText="Quay lại"
 				variant={pending ? "success" : "danger"}
 				isLoading={review.isPending}
+			/>
+			<ConfirmModal
+				isOpen={confirmingPayment}
+				onClose={() => setConfirmingPayment(false)}
+				onConfirm={submitPayment}
+				title={`Xác nhận đã nhận ${formatBookingMoney(penalty.outstandingAmount)}?`}
+				description={`Mã giao dịch ${reference.trim()}. Khoản phạt sẽ được ghi là Host đã nộp đủ.`}
+				confirmText="Xác nhận"
+				cancelText="Quay lại"
+				variant="success"
+				isLoading={confirmPayment.isPending}
 			/>
 		</Modal>
 	);

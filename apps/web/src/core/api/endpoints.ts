@@ -243,6 +243,8 @@ export const API_ENDPOINTS = {
 		ADMIN_PENALTY: (penaltyId: string) => `/admin/weather-penalties/${penaltyId}`,
 		ADMIN_PENALTY_REVIEW: (penaltyId: string) =>
 			`/admin/weather-penalties/${penaltyId}/waiver-review`,
+		ADMIN_PENALTY_PAYMENT: (penaltyId: string) =>
+			`/admin/weather-penalties/${penaltyId}/payment-confirmation`,
 	},
 	AI: {
 		CONVERSATIONS: "/ai/conversations",

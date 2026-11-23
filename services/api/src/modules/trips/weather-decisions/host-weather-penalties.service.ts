@@ -7,11 +7,13 @@ import { minorToMoney, moneyToMinor } from "../../bookings/cancellation-policy";
 import { EventsGateway } from "../../realtime/events.gateway";
 import {
 	type AdminPenaltyFilter,
+	type ConfirmWeatherPenaltyPaymentDto,
 	type HostWeatherPenaltyDto,
 	type HostWeatherPenaltyListDto,
 	type HostWeatherPenaltyRow,
 	type RequestWeatherPenaltyWaiverDto,
 	type ReviewWeatherPenaltyWaiverDto,
+	outstandingMinor,
 	toHostWeatherPenaltyDto,
 } from "./host-weather-penalty.dto";
 import { refundWaivedWeatherPenalty } from "./host-weather-penalty.ledger";
@@ -21,7 +23,9 @@ import {
 	addWorkingDays,
 	hostingBlockedUntil,
 	hostingRestriction,
+	paymentDueAt,
 	penaltyAmountMinor,
+	penaltyBaseMinor,
 	penaltyTier,
 	waiverRequestDeadline,
 } from "./host-weather-penalty.policy";
@@ -32,7 +36,9 @@ const PENALTY_COLUMNS = `penalty."id", penalty."trip_id", penalty."trip_title", 
 	penalty."host_id", host."full_name" AS "host_name", penalty."violation_number",
 	penalty."booking_value"::text AS "booking_value", penalty."rate_basis_points",
 	penalty."cap_amount"::text AS "cap_amount", penalty."amount"::text AS "amount",
-	penalty."deducted_amount"::text AS "deducted_amount", penalty."status",
+	penalty."deducted_amount"::text AS "deducted_amount",
+	penalty."collected_amount"::text AS "collected_amount", penalty."collected_at",
+	penalty."collection_reference", penalty."collection_note", penalty."payment_due_at", penalty."status",
 	penalty."hosting_blocked_until", penalty."waiver_deadline", penalty."waiver_reason",
 	penalty."waiver_evidence_urls", penalty."waiver_requested_at", penalty."waiver_review_due_at",
 	penalty."waiver_decision", penalty."waiver_reviewed_at", penalty."waiver_review_note",
@@ -40,6 +46,8 @@ const PENALTY_COLUMNS = `penalty."id", penalty."trip_id", penalty."trip_title", 
 const PENALTY_FROM = `FROM "host_weather_penalties" penalty
 	LEFT JOIN "users" host ON host."id" = penalty."host_id"`;
 const LIST_LIMIT = 200;
+const UNPAID_CONDITION = `penalty."status" = 'applied'
+	AND penalty."amount" > penalty."deducted_amount" + penalty."collected_amount"`;
 
 export interface PenaltyTripContext {
 	id: string;
@@ -60,8 +68,12 @@ export class HostWeatherPenaltiesService {
 		@Optional() private readonly events?: EventsGateway
 	) {}
 
-	/** Paid booking value of the Trip, read before a cancel / reschedule changes the bookings. */
-	async paidBookingValue(tripId: string): Promise<string> {
+	/**
+	 * Penalty base of the Trip: the Host's earnings, i.e. the paid bookings minus the platform
+	 * commission. Read before a cancel / reschedule changes the bookings, so a Trip cancelled with
+	 * a full Camper refund still has its base fixed at the moment of the violation.
+	 */
+	async penaltyBaseValue(tripId: string): Promise<string> {
 		const rows = (await this.dataSource.query(
 			`SELECT COALESCE(SUM(booking."total_amount"), 0)::numeric(12,2)::text AS "value"
 			 FROM "bookings" booking
@@ -69,7 +81,7 @@ export class HostWeatherPenaltiesService {
 			   AND booking."status" IN ('confirmed', 'pending_reconfirmation', 'completed')`,
 			[tripId]
 		)) as Array<{ value: string }>;
-		return rows[0]?.value ?? "0.00";
+		return minorToMoney(penaltyBaseMinor(moneyToMinor(rows[0]?.value ?? "0.00")));
 	}
 
 	/**
@@ -83,6 +95,7 @@ export class HostWeatherPenaltiesService {
 			decisionId: string;
 			/** Admin who decided; `null` when the system auto-cancelled the Trip. */
 			adminId: string | null;
+			/** From `penaltyBaseValue`: the Host's earnings of the Trip. */
 			bookingValue: string;
 			now: Date;
 		}
@@ -103,8 +116,8 @@ export class HostWeatherPenaltiesService {
 			`INSERT INTO "host_weather_penalties"
 			   ("trip_id", "host_id", "trip_title", "trip_starts_at", "decision_id", "violation_number",
 			    "booking_value", "rate_basis_points", "cap_amount", "amount", "hosting_blocked_until",
-			    "waiver_deadline", "created_at", "updated_at")
-			 VALUES ($1, $2, $3, $4, $5, $6, $7::numeric, $8, $9::numeric, $10::numeric, $11, $12, $13, $13)
+			    "waiver_deadline", "payment_due_at", "created_at", "updated_at")
+			 VALUES ($1, $2, $3, $4, $5, $6, $7::numeric, $8, $9::numeric, $10::numeric, $11, $12, $14, $13, $13)
 			 ON CONFLICT ("trip_id", "trip_starts_at") DO NOTHING
 			 RETURNING "id"`,
 			[
@@ -121,6 +134,7 @@ export class HostWeatherPenaltiesService {
 				hostingBlockedUntil(tier, now),
 				waiverRequestDeadline(trip.startsAt),
 				now,
+				paymentDueAt(now),
 			]
 		)) as Array<{ id: string }>;
 		if (inserted.length === 0) return null;
@@ -159,7 +173,7 @@ export class HostWeatherPenaltiesService {
 			 ORDER BY penalty."created_at" DESC, penalty."id" DESC LIMIT ${LIST_LIMIT}`,
 			[hostId]
 		)) as HostWeatherPenaltyRow[];
-		const items = rows.map(toHostWeatherPenaltyDto);
+		const items = rows.map((row) => toHostWeatherPenaltyDto(row, now));
 		const outstanding = items.reduce((sum, item) => sum + moneyToMinor(item.outstandingAmount), 0n);
 		const restriction = hostingRestriction(
 			items
@@ -167,30 +181,40 @@ export class HostWeatherPenaltiesService {
 				.map((item) => ({
 					createdAt: new Date(item.createdAt),
 					hostingBlockedUntil: item.hostingBlockedUntil ? new Date(item.hostingBlockedUntil) : null,
+					outstandingMinor: moneyToMinor(item.outstandingAmount),
+					paymentDueAt: new Date(item.payment.dueAt),
 				})),
 			now
 		);
 		return {
 			items,
 			outstandingTotal: minorToMoney(outstanding),
+			overdueTotal: minorToMoney(restriction.overdueDebtMinor),
 			hostingBlockedUntil: restriction.blockedUntil?.toISOString() ?? null,
 			suspended: restriction.suspended,
 		};
 	}
 
 	async listForAdmin(filter?: AdminPenaltyFilter): Promise<HostWeatherPenaltyDto[]> {
+		const byStatus = filter === "applied" || filter === "waived";
 		const where =
 			filter === "waiver_pending"
 				? `WHERE penalty."waiver_requested_at" IS NOT NULL AND penalty."waiver_decision" IS NULL`
-				: filter
-					? `WHERE penalty."status" = $1`
-					: "";
+				: filter === "unpaid"
+					? `WHERE ${UNPAID_CONDITION}`
+					: byStatus
+						? `WHERE penalty."status" = $1`
+						: "";
+		// Unpaid penalties are worked through by payment deadline, the oldest debt first.
+		const order =
+			filter === "unpaid"
+				? `penalty."payment_due_at" ASC, penalty."id" ASC`
+				: `penalty."created_at" DESC, penalty."id" DESC`;
 		const rows = (await this.dataSource.query(
-			`SELECT ${PENALTY_COLUMNS} ${PENALTY_FROM} ${where}
-			 ORDER BY penalty."created_at" DESC, penalty."id" DESC LIMIT ${LIST_LIMIT}`,
-			filter && filter !== "waiver_pending" ? [filter] : []
+			`SELECT ${PENALTY_COLUMNS} ${PENALTY_FROM} ${where} ORDER BY ${order} LIMIT ${LIST_LIMIT}`,
+			byStatus ? [filter] : []
 		)) as HostWeatherPenaltyRow[];
-		return rows.map(toHostWeatherPenaltyDto);
+		return rows.map((row) => toHostWeatherPenaltyDto(row));
 	}
 
 	async getForAdmin(id: string): Promise<HostWeatherPenaltyDto> {
@@ -254,6 +278,45 @@ export class HostWeatherPenaltiesService {
 	}
 
 	/**
+	 * Admin confirms the Host paid by bank transfer what the settlements did not cover: the whole
+	 * amount still owed is recorded as collected, which lifts an overdue-debt block.
+	 */
+	async confirmPayment(
+		adminId: string,
+		id: string,
+		dto: ConfirmWeatherPenaltyPaymentDto,
+		now = new Date()
+	): Promise<HostWeatherPenaltyDto> {
+		const penalty = await this.dataSource.transaction(async (manager) => {
+			const locked = await this.lockRow(manager, id);
+			if (!locked) throw new NotFoundException("Weather penalty not found");
+			const owed = outstandingMinor(locked);
+			if (owed <= 0n) {
+				throw new ConflictException("Nothing is left to pay on this weather penalty");
+			}
+			const collected = minorToMoney(owed);
+			await manager.query(
+				`UPDATE "host_weather_penalties"
+				 SET "collected_amount" = "collected_amount" + $2::numeric, "collected_at" = $3,
+				     "collected_by" = $4, "collection_reference" = $5, "collection_note" = $6, "updated_at" = $3
+				 WHERE "id" = $1`,
+				[id, collected, now, adminId, dto.reference, dto.note || null]
+			);
+			await this.audit(
+				manager,
+				adminId,
+				"host.weather_penalty_payment_confirmed",
+				id,
+				{ collectedAmount: collected, reference: dto.reference },
+				dto.note || "Host paid the weather penalty by bank transfer"
+			);
+			return this.findById(id, manager);
+		});
+		if (!penalty) throw new NotFoundException("Weather penalty not found");
+		return penalty;
+	}
+
+	/**
 	 * Admin approves (penalty waived, not counted, money back, block lifted) or rejects (kept, with
 	 * the reason). Camper refunds never depend on this (policy §6).
 	 */
@@ -275,12 +338,15 @@ export class HostWeatherPenaltiesService {
 			const decision = dto.approve ? "approved" : "rejected";
 			let refundedAmount: string | null = null;
 			if (dto.approve) {
-				refundedAmount = locked.deducted_amount;
+				// What settlements deducted and what the Host paid by transfer both go back to the wallet.
+				refundedAmount = minorToMoney(
+					moneyToMinor(locked.deducted_amount) + moneyToMinor(locked.collected_amount)
+				);
 				await refundWaivedWeatherPenalty(manager, {
 					hostId: locked.host_id,
 					tripId: locked.trip_id,
 					tripTitle: locked.trip_title,
-					amount: locked.deducted_amount,
+					amount: refundedAmount,
 				});
 			}
 			await manager.query(
@@ -289,6 +355,7 @@ export class HostWeatherPenaltiesService {
 				     "waiver_review_note" = $5, "updated_at" = $4,
 				     "status" = CASE WHEN $2::varchar = 'approved' THEN 'waived' ELSE "status" END,
 				     "deducted_amount" = CASE WHEN $2::varchar = 'approved' THEN 0 ELSE "deducted_amount" END,
+				     "collected_amount" = CASE WHEN $2::varchar = 'approved' THEN 0 ELSE "collected_amount" END,
 				     "hosting_blocked_until" = CASE WHEN $2::varchar = 'approved' THEN NULL ELSE "hosting_blocked_until" END
 				 WHERE "id" = $1`,
 				[id, decision, adminId, now, dto.note]
@@ -325,13 +392,18 @@ export class HostWeatherPenaltiesService {
 		host_id: string;
 		trip_id: string;
 		trip_title: string;
+		status: "applied" | "waived";
+		amount: string;
 		deducted_amount: string;
+		collected_amount: string;
 		waiver_deadline: Date;
 		waiver_requested_at: Date | null;
 		waiver_decision: string | null;
 	} | null> {
 		const rows = await manager.query(
-			`SELECT "host_id", "trip_id", "trip_title", "deducted_amount"::text AS "deducted_amount",
+			`SELECT "host_id", "trip_id", "trip_title", "status", "amount"::text AS "amount",
+			        "deducted_amount"::text AS "deducted_amount",
+			        "collected_amount"::text AS "collected_amount",
 			        "waiver_deadline", "waiver_requested_at", "waiver_decision"
 			 FROM "host_weather_penalties" WHERE "id" = $1 FOR UPDATE`,
 			[id]

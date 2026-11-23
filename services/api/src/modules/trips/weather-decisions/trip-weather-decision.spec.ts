@@ -122,7 +122,7 @@ function setup(options: { trip?: WeatherDecisionTrip | null; risk?: "green" | "r
 	};
 	const alerts = { send: jest.fn().mockResolvedValue([]) };
 	const penalties = {
-		paidBookingValue: jest.fn().mockResolvedValue("12000000.00"),
+		penaltyBaseValue: jest.fn().mockResolvedValue("12000000.00"),
 		createInTransaction: jest.fn().mockResolvedValue({ id: "p-1", hostId: "host-1" }),
 		notifyCreated: jest.fn(),
 	};
@@ -283,7 +283,7 @@ describe("TripWeatherDecisionService", () => {
 			{ decision: "cancel", reason: "Lũ" },
 			NOW
 		);
-		expect(late.penalties.paidBookingValue).toHaveBeenCalledWith("trip-1");
+		expect(late.penalties.penaltyBaseValue).toHaveBeenCalledWith("trip-1");
 		expect(late.penalties.createInTransaction).toHaveBeenCalledWith(
 			expect.anything(),
 			expect.objectContaining({
@@ -322,7 +322,7 @@ describe("TripWeatherDecisionService", () => {
 			{ decision: "resume", reason: "Ổn" },
 			NOW
 		);
-		expect(again.penalties.paidBookingValue).not.toHaveBeenCalled();
+		expect(again.penalties.penaltyBaseValue).not.toHaveBeenCalled();
 	});
 
 	it("refuses an Admin pause on a Trip already paused or more than 3 days away", async () => {

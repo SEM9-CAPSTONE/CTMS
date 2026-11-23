@@ -31,10 +31,10 @@ export async function deductOutstandingWeatherPenalties(
 ): Promise<PenaltyDeductionResult> {
 	const rows = (await manager.query(
 		`SELECT penalty."id", penalty."trip_title",
-		        (penalty."amount" - penalty."deducted_amount")::text AS "outstanding"
+		        (penalty."amount" - penalty."deducted_amount" - penalty."collected_amount")::text AS "outstanding"
 		 FROM "host_weather_penalties" penalty
 		 WHERE penalty."host_id" = $1 AND penalty."status" = 'applied'
-		   AND penalty."amount" > penalty."deducted_amount"
+		   AND penalty."amount" > penalty."deducted_amount" + penalty."collected_amount"
 		 ORDER BY penalty."created_at" ASC, penalty."id" ASC
 		 FOR UPDATE`,
 		[input.hostId]
@@ -79,19 +79,25 @@ export async function deductOutstandingWeatherPenalties(
 	};
 }
 
-/** Gives a waived penalty's deducted amount back to the Host wallet (policy §6 waiver). */
+/**
+ * Gives a waived penalty's paid amount (deducted from settlements plus paid by transfer) back to
+ * the Host wallet (policy §6 waiver).
+ */
 export async function refundWaivedWeatherPenalty(
 	manager: EntityManager,
 	input: { hostId: string; tripId: string; tripTitle: string; amount: string }
 ): Promise<string | null> {
 	if (moneyToMinor(input.amount) <= 0n) return null;
+	// A Host who paid by bank transfer may never have had a settlement, hence no wallet yet.
+	await manager.query(
+		`INSERT INTO "host_wallets" ("host_id", "balance") VALUES ($1, 0) ON CONFLICT ("host_id") DO NOTHING`,
+		[input.hostId]
+	);
 	const wallets = (await manager.query(
 		`SELECT "id", "balance"::text AS "balance" FROM "host_wallets" WHERE "host_id" = $1 FOR UPDATE`,
 		[input.hostId]
 	)) as Array<{ id: string; balance: string }>;
 	const wallet = wallets[0];
-	// A deduction always went through the wallet, so it exists whenever there is money to return.
-	if (!wallet) throw new Error("Host wallet not found for a deducted weather penalty");
 	const balanceAfter = minorToMoney(moneyToMinor(wallet.balance) + moneyToMinor(input.amount));
 	await manager.query(
 		`UPDATE "host_wallets" SET "balance" = $2::numeric, "updated_at" = now() WHERE "id" = $1`,

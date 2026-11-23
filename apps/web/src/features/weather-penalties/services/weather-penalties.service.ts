@@ -2,6 +2,7 @@ import { API_ENDPOINTS, httpClient } from "../../../core/api";
 import type {
 	AdminPenaltyFilter,
 	MyWeatherPenalties,
+	PaymentConfirmationInput,
 	UploadedEvidence,
 	WaiverRequestInput,
 	WaiverReviewInput,
@@ -32,4 +33,6 @@ export const weatherPenaltiesService = {
 		httpClient.get<WeatherPenalty>(API_ENDPOINTS.WEATHER.ADMIN_PENALTY(penaltyId)),
 	reviewWaiver: (penaltyId: string, input: WaiverReviewInput) =>
 		httpClient.post<WeatherPenalty>(API_ENDPOINTS.WEATHER.ADMIN_PENALTY_REVIEW(penaltyId), input),
+	confirmPayment: (penaltyId: string, input: PaymentConfirmationInput) =>
+		httpClient.post<WeatherPenalty>(API_ENDPOINTS.WEATHER.ADMIN_PENALTY_PAYMENT(penaltyId), input),
 };

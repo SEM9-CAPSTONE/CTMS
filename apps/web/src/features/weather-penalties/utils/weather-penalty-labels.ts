@@ -1,5 +1,6 @@
 import { HttpError } from "../../../core/api";
 import type { StatusBadgeTone } from "../../../shared/components/StatusBadge";
+import { formatBookingMoney } from "../../booking-details/utils/booking-details-formatters";
 import type { WeatherPenalty } from "../types";
 
 /** What the UI shows for a penalty, combining its status and its waiver request. */
@@ -80,6 +81,7 @@ const SERVER_MESSAGES: Array<[RegExp, string]> = [
 	[/window has closed/i, "Đã hết hạn gửi yêu cầu miễn phạt (72 giờ sau mốc 24 giờ trước giờ đi)."],
 	[/has not requested a waiver/i, "Host chưa gửi yêu cầu miễn phạt."],
 	[/already reviewed/i, "Yêu cầu miễn phạt này đã được xử lý."],
+	[/Nothing is left to pay/i, "Khoản phạt này không còn số tiền nào cần nộp."],
 	[/Weather penalty not found/i, "Không tìm thấy khoản phạt."],
 	[
 		/Định dạng tài liệu không hợp lệ|PDF không hợp lệ/i,
@@ -111,14 +113,32 @@ export function weatherPenaltyErrorMessage(error: unknown): string {
 	return "Không gửi được yêu cầu. Vui lòng thử lại.";
 }
 
+/** Money still owed after the 7-day deadline. */
+export function isPaymentOverdue(penalty: WeatherPenalty): boolean {
+	return penalty.status === "applied" && penalty.payment.overdue;
+}
+
+/** A penalty the settlements have not fully covered yet. */
+export function hasAmountOwed(penalty: WeatherPenalty): boolean {
+	return penalty.status === "applied" && Number(penalty.outstandingAmount) > 0;
+}
+
 /**
  * 403 from Trip create / submit while a weather penalty blocks the Host (CTMS-94): the body has
- * `blockedUntil`. Returns the Vietnamese message, or null for any other error.
+ * `blockedUntil`, or `code: WEATHER_PENALTY_OVERDUE` with the overdue amount. Returns the
+ * Vietnamese message, or null for any other error.
  */
 export function hostingBlockedMessage(error: unknown): string | null {
 	if (!(error instanceof HttpError) || error.status !== 403) return null;
 	const data = error.errorData;
-	if (typeof data !== "object" || data === null || !("blockedUntil" in data)) return null;
+	if (typeof data !== "object" || data === null) return null;
+	if ((data as { code?: unknown }).code === "WEATHER_PENALTY_OVERDUE") {
+		const amount = (data as { overdueAmount?: unknown }).overdueAmount;
+		return `Bạn chưa nộp ${
+			typeof amount === "string" ? formatBookingMoney(amount) : "tiền phạt thời tiết"
+		} quá hạn 7 ngày nên chưa tạo Trip mới được. Xem cách nộp trong Ví Host.`;
+	}
+	if (!("blockedUntil" in data)) return null;
 	const until = (data as { blockedUntil?: unknown }).blockedUntil;
 	if (typeof until !== "string") return null;
 	const message = (data as { message?: unknown }).message;

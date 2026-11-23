@@ -3,7 +3,9 @@ import {
 	hostingBlockedUntil,
 	hostingRestriction,
 	isPenaltyDue,
+	paymentDueAt,
 	penaltyAmountMinor,
+	penaltyBaseMinor,
 	penaltyTier,
 	waiverRequestDeadline,
 } from "./host-weather-penalty.policy";
@@ -11,6 +13,16 @@ import {
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 const NOW = new Date("2026-11-16T03:00:00.000Z"); // Monday 10:00 in Vietnam
+
+/** An applied penalty that is fully paid and blocks nothing by itself. */
+function applied(createdAt: Date, hostingBlockedUntil: Date | null = null) {
+	return {
+		createdAt,
+		hostingBlockedUntil,
+		outstandingMinor: 0n,
+		paymentDueAt: paymentDueAt(createdAt),
+	};
+}
 
 describe("host weather penalty policy (§6)", () => {
 	it("uses 5% / 10% / 15% with the 2M / 5M / 10M caps, the 3rd tier repeating", () => {
@@ -28,6 +40,28 @@ describe("host weather penalty policy (§6)", () => {
 		expect(penaltyAmountMinor(0n, penaltyTier(2))).toBe(0n);
 	});
 
+	it("takes the base from the Host's 95% share of the paid bookings, rounded like the settlement", () => {
+		// 1,500,000đ paid − 5% commission (75,000đ) = 1,425,000đ; 5% of it = 71,250đ
+		expect(penaltyBaseMinor(150_000_000n)).toBe(142_500_000n);
+		expect(penaltyAmountMinor(penaltyBaseMinor(150_000_000n), penaltyTier(1))).toBe(7_125_000n);
+		// The commission is rounded down, so the Host's share keeps the odd minor unit.
+		expect(penaltyBaseMinor(1_999n)).toBe(1_900n);
+		expect(penaltyBaseMinor(0n)).toBe(0n);
+	});
+
+	it("gives the Host 7 days to pay and blocks only an unpaid amount past that deadline", () => {
+		const created = new Date(NOW.getTime() - 8 * DAY);
+		expect(paymentDueAt(created)).toEqual(new Date(created.getTime() + 7 * DAY));
+		const overdue = { ...applied(created), outstandingMinor: 7_125_000n };
+		const notYetDue = { ...applied(new Date(NOW.getTime() - DAY)), outstandingMinor: 500_000n };
+		expect(hostingRestriction([overdue, notYetDue], NOW)).toEqual({
+			blockedUntil: null,
+			suspended: false,
+			overdueDebtMinor: 7_125_000n,
+		});
+		expect(hostingRestriction([applied(created)], NOW).overdueDebtMinor).toBe(0n);
+	});
+
 	it("blocks hosting 14 days at tier 2 and leaves tiers 1 and 3 without a dated block", () => {
 		expect(hostingBlockedUntil(penaltyTier(1), NOW)).toBeNull();
 		expect(hostingBlockedUntil(penaltyTier(2), NOW)).toEqual(new Date(NOW.getTime() + 14 * DAY));
@@ -36,36 +70,30 @@ describe("host weather penalty policy (§6)", () => {
 
 	it("suspends while 3 applied penalties fall in 90 days and keeps the latest dated block", () => {
 		const recent = (days: number) => new Date(NOW.getTime() - days * DAY);
-		expect(hostingRestriction([], NOW)).toEqual({ blockedUntil: null, suspended: false });
+		expect(hostingRestriction([], NOW)).toEqual({
+			blockedUntil: null,
+			suspended: false,
+			overdueDebtMinor: 0n,
+		});
 		const blocked = new Date(NOW.getTime() + 3 * DAY);
-		expect(
-			hostingRestriction(
-				[
-					{ createdAt: recent(11), hostingBlockedUntil: blocked },
-					{ createdAt: recent(40), hostingBlockedUntil: null },
-				],
-				NOW
-			)
-		).toEqual({ blockedUntil: blocked, suspended: false });
+		expect(hostingRestriction([applied(recent(11), blocked), applied(recent(40))], NOW)).toEqual({
+			blockedUntil: blocked,
+			suspended: false,
+			overdueDebtMinor: 0n,
+		});
 		const three = hostingRestriction(
-			[
-				{ createdAt: recent(1), hostingBlockedUntil: null },
-				{ createdAt: recent(20), hostingBlockedUntil: null },
-				{ createdAt: recent(80), hostingBlockedUntil: null },
-			],
+			[applied(recent(1)), applied(recent(20)), applied(recent(80))],
 			NOW
 		);
 		// Lifted when the oldest of the three leaves the 90-day window.
-		expect(three).toEqual({ blockedUntil: new Date(NOW.getTime() + 10 * DAY), suspended: true });
+		expect(three).toEqual({
+			blockedUntil: new Date(NOW.getTime() + 10 * DAY),
+			suspended: true,
+			overdueDebtMinor: 0n,
+		});
 		expect(
-			hostingRestriction(
-				[
-					{ createdAt: recent(1), hostingBlockedUntil: null },
-					{ createdAt: recent(20), hostingBlockedUntil: null },
-					{ createdAt: recent(95), hostingBlockedUntil: null },
-				],
-				NOW
-			).suspended
+			hostingRestriction([applied(recent(1)), applied(recent(20)), applied(recent(95))], NOW)
+				.suspended
 		).toBe(false);
 	});
 
