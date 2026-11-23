@@ -346,6 +346,9 @@ export const API_ENDPOINTS = {
 		CONFIRM: (obligationId: string) => `/admin/refunds/${obligationId}/confirm`,
 		REJECT: (obligationId: string) => `/admin/refunds/${obligationId}/reject`,
 	},
+	PLATFORM_BANK_ACCOUNT: {
+		ADMIN: "/admin/platform-bank-account",
+	},
 	SETTLEMENTS: {
 		EVALUATION: (tripId: string) => `/settlements/trips/${tripId}/evaluation`,
 		SETTLE: (tripId: string) => `/settlements/trips/${tripId}/settle`,

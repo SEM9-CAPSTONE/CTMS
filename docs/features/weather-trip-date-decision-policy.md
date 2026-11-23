@@ -118,7 +118,7 @@ Dự báo Đỏ ──T-48h──► Nhắc Host ──T-24h──► Host quy�
 - **Cơ sở tính phạt = doanh thu Host của Trip** = tổng tiền các booking đã thanh toán **trừ 5% phí nền tảng** (Host nhận 95%, làm tròn giống quyết toán CTMS-112). Số tiền được **chốt tại thời điểm vi phạm**, trước khi huỷ / dời làm thay đổi booking, nên Trip bị huỷ và hoàn 100% cho Camper vẫn có số tiền phạt. Trip chưa có booking đã thanh toán thì tiền phạt **0đ**, nhưng **lần vi phạm vẫn được đếm**.
 - **Thu tiền phạt:**
   1. Tự **trừ vào doanh thu quyết toán** của các Trip sau (CTMS-112), khoản cũ trước. Ví Host không bao giờ âm.
-  2. Phần chưa trừ được (ví dụ Trip đầu tiên của Host bị huỷ nên không có doanh thu), Host **chuyển khoản nộp trong 7 ngày** kể từ khi bị phạt. Admin đối chiếu sao kê và bấm **Xác nhận đã nhận tiền** (nhập mã giao dịch ngân hàng); hệ thống ghi nhận Host đã nộp đủ phần còn lại.
+  2. Phần chưa trừ được (ví dụ Trip đầu tiên của Host bị huỷ nên không có doanh thu), Host **chuyển khoản nộp trong 7 ngày** kể từ khi bị phạt, vào **tài khoản nhận tiền phạt** do Admin cấu hình ở **Tài chính › Tài khoản nhận tiền phạt** (ngân hàng, số tài khoản, chủ tài khoản; mỗi lần đổi đều ghi `audit_logs`). Ví Host hiện thông tin này kèm nội dung chuyển khoản. Admin đối chiếu sao kê tài khoản đó và bấm **Xác nhận đã nhận tiền** (nhập mã giao dịch ngân hàng); hệ thống ghi nhận Host đã nộp đủ phần còn lại.
   3. **Quá 7 ngày vẫn còn nợ** thì Host **không được tạo / gửi duyệt Trip mới** cho tới khi nộp đủ. Các Trip đã đăng vẫn diễn ra và quyết toán bình thường (và tiếp tục tự trừ nợ).
 - **Đếm số lần vi phạm** trong **90 ngày gần nhất**.
 
@@ -153,4 +153,4 @@ Dự báo Đỏ ──T-48h──► Nhắc Host ──T-24h──► Host quy�
    - (c) quy trình quyết định và Admin can thiệp;
    - (d) phạt và miễn phạt.
 6. **Đã chốt (23/11/2026):** cơ sở tính phạt là doanh thu Host (95%); phần quyết toán chưa trừ được nộp trong **7 ngày**, quá hạn thì chặn tạo / gửi duyệt Trip.
-7. **Còn chờ chốt:** tài khoản ngân hàng nhận tiền phạt của nền tảng. Hiện giao diện Host chỉ hướng dẫn chuyển khoản "theo thông tin quản trị viên CTMS cung cấp", chưa hiện số tài khoản.
+7. **Đã chốt (23/11/2026):** tài khoản nhận tiền phạt do Admin tự nhập và sửa trên giao diện (Tài chính › Tài khoản nhận tiền phạt). Chưa cấu hình thì Host được hướng dẫn liên hệ quản trị viên.

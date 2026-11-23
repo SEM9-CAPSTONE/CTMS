@@ -1,4 +1,4 @@
-import { CloudLightning, Lock, Wallet } from "lucide-react";
+import { Check, CloudLightning, Copy, Landmark, Lock, Wallet } from "lucide-react";
 import { useState } from "react";
 import type { RealtimeConnection } from "../../../core/realtime/realtimeConnection";
 import { StatusBadge } from "../../../shared/components/StatusBadge";
@@ -43,6 +43,17 @@ export function HostWeatherPenaltiesCard({
 }: HostWeatherPenaltiesCardProps) {
 	const query = useMyWeatherPenalties({ service, connection });
 	const [waiverFor, setWaiverFor] = useState<WeatherPenalty | null>(null);
+	const [copied, setCopied] = useState(false);
+
+	async function copyAccountNumber(value: string) {
+		try {
+			await navigator.clipboard.writeText(value);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 2000);
+		} catch {
+			toast.error("Không sao chép được. Hãy chọn và sao chép số tài khoản thủ công.");
+		}
+	}
 	if (query.isError) {
 		return (
 			<section className="rounded-3xl border border-[#dfe8df] bg-white p-6 text-xs shadow-sm">
@@ -115,6 +126,50 @@ export function HostWeatherPenaltiesCard({
 				</output>
 			)}
 
+			{Number(data.outstandingTotal) > 0 &&
+				(data.paymentAccount ? (
+					<div
+						data-testid="weather-penalty-payment-account"
+						className="mt-4 rounded-2xl border border-[#dfe8df] bg-[#fbfdfb] p-4 text-xs"
+					>
+						<p className="flex items-center gap-2 font-extrabold text-[#10221b]">
+							<Landmark className="size-4 text-[#164027]" /> Thông tin chuyển khoản nộp phạt
+						</p>
+						<dl className="mt-3 grid gap-3 sm:grid-cols-3">
+							<div>
+								<dt className="text-[#7d8d83]">Ngân hàng</dt>
+								<dd className="font-bold">{data.paymentAccount.bankName}</dd>
+							</div>
+							<div>
+								<dt className="text-[#7d8d83]">Số tài khoản</dt>
+								<dd className="flex items-center gap-2 font-bold tracking-wide">
+									{data.paymentAccount.accountNumber}
+									<button
+										type="button"
+										onClick={() => void copyAccountNumber(data.paymentAccount?.accountNumber ?? "")}
+										aria-label="Sao chép số tài khoản"
+										className="rounded-lg p-1 text-[#164027] hover:bg-[#f1f5f0]"
+									>
+										{copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+									</button>
+								</dd>
+							</div>
+							<div>
+								<dt className="text-[#7d8d83]">Chủ tài khoản</dt>
+								<dd className="font-bold">{data.paymentAccount.accountHolderName}</dd>
+							</div>
+						</dl>
+					</div>
+				) : (
+					<p
+						data-testid="weather-penalty-payment-account-missing"
+						className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800"
+					>
+						Quản trị viên chưa cập nhật tài khoản nhận tiền phạt. Vui lòng liên hệ quản trị viên
+						CTMS để nhận thông tin chuyển khoản.
+					</p>
+				))}
+
 			<ul className="mt-4 space-y-3">
 				{data.items.map((penalty) => {
 					const status = penaltyDisplayStatus(penalty);
@@ -168,9 +223,10 @@ export function HostWeatherPenaltiesCard({
 									{isPaymentOverdue(penalty)
 										? `Đã quá hạn nộp (${formatPenaltyDateTime(penalty.payment.dueAt)}).`
 										: `Hạn nộp: ${formatPenaltyDateTime(penalty.payment.dueAt)}.`}{" "}
-									Nếu các lần quyết toán chưa trừ đủ, hãy chuyển khoản số còn lại với nội dung "Phạt
-									thời tiết – {penalty.tripTitle}" theo thông tin quản trị viên CTMS cung cấp. Khoản
-									phạt được cập nhật khi quản trị viên xác nhận đã nhận tiền.
+									Nếu các lần quyết toán chưa trừ đủ, hãy chuyển khoản số còn lại
+									{data.paymentAccount ? " vào tài khoản CTMS ở trên" : ""} với nội dung "Phạt thời
+									tiết – {penalty.tripTitle}". Khoản phạt được cập nhật khi quản trị viên xác nhận
+									đã nhận tiền.
 								</p>
 							)}
 							{penalty.payment.collectedAt && (

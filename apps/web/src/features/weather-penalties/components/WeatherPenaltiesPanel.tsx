@@ -2,6 +2,7 @@ import { AlertCircle, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { StatusBadge } from "../../../shared/components/StatusBadge";
 import { formatBookingMoney } from "../../booking-details/utils/booking-details-formatters";
+import type { platformBankAccountService } from "../../platform-bank-account/services/platform-bank-account.service";
 import { useAdminWeatherPenalties } from "../hooks/useWeatherPenalties";
 import type { weatherPenaltiesService } from "../services/weather-penalties.service";
 import type { AdminPenaltyFilter, WeatherPenalty } from "../types";
@@ -34,10 +35,11 @@ const EMPTY_TEXT: Record<AdminPenaltyFilter, string> = {
 
 export interface WeatherPenaltiesPanelProps {
 	service?: typeof weatherPenaltiesService;
+	bankAccountService?: typeof platformBankAccountService;
 }
 
 /** "Phạt Host" tab of Admin › Quản lý thời tiết (policy §6): penalties and waiver requests. */
-export function WeatherPenaltiesPanel({ service }: WeatherPenaltiesPanelProps) {
+export function WeatherPenaltiesPanel({ service, bankAccountService }: WeatherPenaltiesPanelProps) {
 	const [filter, setFilter] = useState<AdminPenaltyFilter>("waiver_pending");
 	const query = useAdminWeatherPenalties(filter, { service });
 	const [selected, setSelected] = useState<WeatherPenalty | null>(null);
@@ -137,6 +139,7 @@ export function WeatherPenaltiesPanel({ service }: WeatherPenaltiesPanelProps) {
 					penalty={selected}
 					onClose={() => setSelected(null)}
 					service={service}
+					bankAccountService={bankAccountService}
 				/>
 			)}
 		</section>
