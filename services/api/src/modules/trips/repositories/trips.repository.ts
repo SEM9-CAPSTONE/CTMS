@@ -59,6 +59,7 @@ export interface CreateTripInput {
 	routeId: string;
 	title: string;
 	description: string | null;
+	activities?: string[];
 	coverImageUrl: string | null;
 	itinerary: Record<string, unknown> | null;
 	includes: Record<string, unknown> | null;
@@ -225,6 +226,7 @@ interface TripSummaryRow {
 	id: string;
 	title: string;
 	description: string | null;
+	activities?: string[];
 	coverImageUrl: string | null;
 	tripType: TripType;
 	durationNights: number | string;
@@ -287,6 +289,7 @@ const TRIP_SUMMARY_SELECT = `
 				trip."id",
 				trip."title",
 				trip."description",
+ trip."activities",
 				trip."cover_image_url" AS "coverImageUrl",
 				trip."trip_type" AS "tripType",
 				trip."duration_nights" AS "durationNights",
@@ -352,6 +355,7 @@ function toTripSummaryResponse(row: TripSummaryRow): TripSummaryResponseDto {
 		id: row.id,
 		title: row.title,
 		description: row.description,
+		activities: row.activities ?? [],
 		coverImageUrl: row.coverImageUrl,
 		tripType: row.tripType,
 		durationNights: Number(row.durationNights),
@@ -401,6 +405,7 @@ function toTripResponse(row: TripRow): TripResponseDto {
 		routeId: row.routeId,
 		title: row.title,
 		description: row.description,
+		activities: row.activities ?? [],
 		coverImageUrl: row.coverImageUrl,
 		itinerary: row.itinerary,
 		includes: row.includes,
@@ -497,6 +502,7 @@ function buildTripSelect(reviewColumns = "", reviewJoin = ""): string {
 		trip."route_id" AS "routeId",
 		trip."title",
 		trip."description",
+ trip."activities",
 		trip."cover_image_url" AS "coverImageUrl",
 		trip."itinerary",
 		trip."includes",
@@ -745,7 +751,7 @@ export class TripsRepository extends Repository<Trip> {
 				"area_code",
 				"area_name",
 				"province_code",
-				"province_name"
+				"province_name", "activities"
 			)
 			VALUES (
 				$1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9, $10,
@@ -754,7 +760,7 @@ export class TripsRepository extends Repository<Trip> {
 				(SELECT ga."code" FROM "geo_areas" ga WHERE ga."code" = $21),
 				(SELECT ga."name" FROM "geo_areas" ga WHERE ga."code" = $21),
 				(SELECT ga."province_code" FROM "geo_areas" ga WHERE ga."code" = $21),
-				(SELECT ga."province_name" FROM "geo_areas" ga WHERE ga."code" = $21)
+				(SELECT ga."province_name" FROM "geo_areas" ga WHERE ga."code" = $21), $22::text[]
 			)
 			RETURNING "id"
 			`,
@@ -780,6 +786,7 @@ export class TripsRepository extends Repository<Trip> {
 				JSON.stringify(input.cancellationPolicy),
 				TripStatus.DRAFT,
 				input.areaCode ?? null,
+				input.activities ?? [],
 			]
 		)) as Array<{ id: string }>;
 
@@ -831,6 +838,7 @@ export class TripsRepository extends Repository<Trip> {
 			`
 			UPDATE "trips"
 			SET
+				"activities" = COALESCE($21::text[], "activities"),
 				"route_id" = $2,
 				"title" = $3,
 				"description" = $4,
@@ -877,6 +885,7 @@ export class TripsRepository extends Repository<Trip> {
 				input.pricePerPerson,
 				JSON.stringify(input.cancellationPolicy),
 				input.areaCode ?? null,
+				input.activities ?? null,
 			]
 		);
 

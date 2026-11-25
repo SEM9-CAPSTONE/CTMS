@@ -24,7 +24,6 @@ import { TrekkingRouteStatus } from "../../trekking-routes/entities/trekking-rou
 import { UserRole } from "../../users/entities/user.entity";
 import { TripWeatherForecastStatus } from "../../weather/entities/trip-weather-forecast.entity";
 import { RiskLevel } from "../../weather/entities/weather-risk-assessment.entity";
-// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { TripWeatherForecastService } from "../../weather/services/trip-weather-forecast.service";
 import type {
 	ConfigureTripWaypointsDto,
@@ -336,6 +335,7 @@ export class TripsService {
 				routeId: dto.routeId,
 				title: dto.title,
 				description: dto.description ?? null,
+				activities: dto.activities,
 				coverImageUrl: null,
 				itinerary: dto.itinerary ?? null,
 				includes: dto.includes ?? null,
@@ -462,6 +462,7 @@ export class TripsService {
 				routeId: dto.routeId,
 				title: dto.title,
 				description: dto.description ?? null,
+				activities: dto.activities,
 				coverImageUrl: lockedTrip.trip.coverImageUrl ?? null,
 				itinerary: dto.itinerary ?? null,
 				includes: dto.includes ?? null,

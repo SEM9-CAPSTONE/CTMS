@@ -1,7 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import type { Path } from "react-hook-form";
+import { queryKeys } from "../../../core/api";
 import { HttpError } from "../../../core/api";
 import { type CamperProfileFormValues, camperProfileSchema } from "../schema/profile.schema";
 import { camperProfileService } from "../services/camper-profile.service";
@@ -100,6 +102,7 @@ function formValuesFromProfile(profile: CamperProfileData): CamperProfileFormVal
 	};
 }
 export function useCamperProfile() {
+	const queryClient = useQueryClient();
 	const [profile, setProfile] = useState<CamperProfileData | null>(null);
 	const [isLoading, setIsLoading] = useState<boolean>(true);
 	const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -193,6 +196,7 @@ export function useCamperProfile() {
 				languages,
 			};
 			setProfile(nextProfile);
+			queryClient.removeQueries({ queryKey: queryKeys.tripRecommendations.all });
 			form.reset(formValuesFromProfile(nextProfile));
 			setSaveSuccessMessage("Hồ sơ đã được lưu thành công!");
 			setTimeout(() => setSaveSuccessMessage(null), 3000);

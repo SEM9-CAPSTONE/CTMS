@@ -11,6 +11,7 @@ import { isUUID } from "class-validator";
 import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
 import { IncidentMediaStorage } from "../../incidents/incident-media.storage";
+import { TRIP_ACTIVITY_CODES } from "../trip-activities";
 interface Draft {
 	id: string;
 	host_id: string;
@@ -51,8 +52,24 @@ export class TripFormDraftsService {
 			throw new UnprocessableEntityException("Invalid draft values");
 		const values = value as Record<string, unknown>;
 		if (
+			values.activities !== undefined &&
+			(!Array.isArray(values.activities) ||
+				values.activities.length > TRIP_ACTIVITY_CODES.length ||
+				new Set(values.activities).size !== values.activities.length ||
+				values.activities.some(
+					(code) =>
+						typeof code !== "string" || !(TRIP_ACTIVITY_CODES as readonly string[]).includes(code)
+				))
+		) {
+			throw new UnprocessableEntityException("Hoạt động của chuyến chưa hợp lệ.");
+		}
+		if (
 			Object.keys(values).some(
-				(key) => !FIELDS.includes(key) && !OPTIONAL_FIELDS.includes(key) && key !== "waypoints"
+				(key) =>
+					!FIELDS.includes(key) &&
+					!OPTIONAL_FIELDS.includes(key) &&
+					key !== "waypoints" &&
+					key !== "activities"
 			) ||
 			OPTIONAL_FIELDS.some(
 				(key) =>

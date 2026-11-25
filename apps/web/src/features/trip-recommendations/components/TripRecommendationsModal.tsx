@@ -8,6 +8,7 @@ import {
 	useTripRecommendations,
 } from "../hooks/useTripRecommendations";
 import { HealthConsentRequired } from "./HealthConsentRequired";
+import { RecommendationEvidence } from "./RecommendationEvidence";
 import { TripPreferencesForm } from "./TripPreferencesForm";
 
 export interface TripRecommendationsBannerProps {
@@ -209,6 +210,7 @@ export function TripRecommendationsModal({ onClose, onSelectTrip }: TripRecommen
 					<ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 						{data.items.map((item) => (
 							<li key={item.trip.id}>
+								<RecommendationEvidence item={item} />
 								<TripCard trip={item.trip} onSelect={onSelectTrip} />
 							</li>
 						))}

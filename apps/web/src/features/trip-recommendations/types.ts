@@ -28,6 +28,8 @@ export type TripRegionCode =
 	| "city_center";
 
 export type RecommendationReason =
+	| "preferred_activity"
+	| "declared_experience_match"
 	| "preferred_trip_type"
 	| "preferred_difficulty"
 	| "preferred_region"
@@ -40,6 +42,7 @@ export type RecommendationReason =
 	| "fitness_match";
 
 export interface TripPreferencesInput {
+	activities?: string[];
 	tripTypes: TripType[];
 	difficulties: TrekkingRouteDifficulty[];
 	regions: TripRegionCode[];
@@ -48,6 +51,7 @@ export interface TripPreferencesInput {
 }
 
 export interface TripPreferences extends TripPreferencesInput {
+	activityOptions?: Array<{ code: string; label: string }>;
 	updatedAt: string | null;
 	regionOptions: Array<{ code: TripRegionCode; label: string }>;
 }

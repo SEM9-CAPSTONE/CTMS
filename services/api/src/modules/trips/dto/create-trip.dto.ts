@@ -20,6 +20,7 @@ import {
 import { CanonicalPointCoordinatesConstraint } from "../../trekking-routes/validators/point.validator";
 import { WaypointType } from "../entities/trip-waypoint.entity";
 import { TripType } from "../entities/trip.entity";
+import { TripActivitiesDto } from "./trip-activities.dto";
 
 function trimmedString(value: unknown): unknown {
 	return typeof value === "string" ? value.trim() : value;
@@ -96,7 +97,7 @@ export class CreateTripWaypointDto {
 	metadata?: Record<string, unknown>;
 }
 
-export class CreateTripDto {
+export class CreateTripDto extends TripActivitiesDto {
 	@ApiProperty({ format: "uuid" })
 	@IsUUID()
 	routeId!: string;

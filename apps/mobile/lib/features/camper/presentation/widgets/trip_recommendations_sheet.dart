@@ -7,6 +7,7 @@ import '../../../../core/widgets/ctms_button.dart';
 import '../../../../core/widgets/ctms_empty_state.dart';
 import '../../data/trip_recommendations_api.dart';
 import '../../domain/published_trip.dart';
+import '../../domain/trip_recommendation.dart';
 import 'trip_preferences_sheet.dart';
 import 'health_consent_required.dart';
 
@@ -147,7 +148,30 @@ class TripRecommendationsSheet extends ConsumerWidget {
             for (final item in result.items) ...[
               KeyedSubtree(
                 key: ValueKey('recommended-${item.trip.id}'),
-                child: tripCardBuilder(item.trip),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (item.healthAssessment != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                        child: Text(
+                          item.healthAssessment!.label,
+                          style: AppTypography.bodyStrong,
+                        ),
+                      ),
+                    for (final reason
+                        in item.reasons
+                            .where(
+                              (reason) =>
+                                  item.healthAssessment == null ||
+                                  reason !=
+                                      recommendationReasonLabels['fitness_match'],
+                            )
+                            .take(2))
+                      Text(reason, style: AppTypography.caption),
+                    tripCardBuilder(item.trip),
+                  ],
+                ),
               ),
             ],
           ],

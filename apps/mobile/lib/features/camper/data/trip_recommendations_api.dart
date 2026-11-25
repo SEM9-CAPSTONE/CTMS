@@ -28,6 +28,7 @@ class TripRecommendationsController
     final client = ref.watch(apiClientProvider);
     final response = await client.get<Map<String, Object?>>(
       ApiEndpoints.trips.recommendations,
+      expectedUserId: ref.read(recommendationAccountProvider),
     );
     return TripRecommendations.fromJson(response.data!);
   }
@@ -43,6 +44,7 @@ class TripRecommendationsController
     final result = await AsyncValue.guard(() async {
       final response = await client.post<Map<String, Object?>>(
         ApiEndpoints.trips.regenerateRecommendations,
+        expectedUserId: account,
       );
       return TripRecommendations.fromJson(response.data!);
     });
@@ -69,6 +71,7 @@ final tripRecommendationExplanationProvider = FutureProvider.autoDispose
       try {
         final response = await client.get<Map<String, Object?>>(
           ApiEndpoints.trips.recommendationExplanation(tripId),
+          expectedUserId: ref.read(recommendationAccountProvider),
         );
         return TripRecommendationExplanation.fromJson(response.data!);
       } on ApiException catch (error) {

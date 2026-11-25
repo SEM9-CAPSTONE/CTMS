@@ -29,6 +29,7 @@ import {
 	inferTripTypeFromSchedule,
 	toCreateTripInput,
 } from "../schema/create-trip.schema";
+import { TRIP_ACTIVITIES } from "../trip-activities";
 import type { CreateTripInput } from "../types";
 import {
 	SoftSingleDateTimePicker,
@@ -840,6 +841,20 @@ export function CreateTripForm({
 								Chuyến đi miễn phí
 							</label>
 						</TripFormSection>
+						<fieldset className="flex flex-wrap gap-3">
+							<legend className="mb-2 text-sm font-bold">Hoạt động của chuyến</legend>
+							{TRIP_ACTIVITIES.map((activity) => (
+								<label key={activity.code} className="flex items-center gap-2 text-sm">
+									<input
+										type="checkbox"
+										value={activity.code}
+										disabled={locked || isSubmitting}
+										{...register("activities")}
+									/>
+									{activity.label}
+								</label>
+							))}
+						</fieldset>
 						<TripFormSection title="Mô tả" icon={FileText}>
 							<label className="text-sm font-bold text-[#34483b]">
 								<span className="sr-only">Mô tả</span>

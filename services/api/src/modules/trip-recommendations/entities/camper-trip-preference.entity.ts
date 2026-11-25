@@ -13,6 +13,9 @@ export class CamperTripPreference {
 	tripTypes!: TripType[];
 
 	@Column({ type: "text", array: true, default: () => "'{}'" })
+	activities!: string[];
+
+	@Column({ type: "text", array: true, default: () => "'{}'" })
 	difficulties!: TrekkingRouteDifficulty[];
 
 	@Column({ type: "text", array: true, default: () => "'{}'" })

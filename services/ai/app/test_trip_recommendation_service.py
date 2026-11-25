@@ -13,7 +13,7 @@ from app.trip_recommendation_service import TripRecommendationRequest, TripRecom
 
 def candidate(code="c01", **extra):
     return {
-        "code": code, "tripType": "overnight", "difficulty": "hard", "region": "ba_na_hoa_vang",
+        "activities": [], "code": code, "tripType": "overnight", "difficulty": "hard", "region": "ba_na_hoa_vang",
         "priceBand": "1500k_3000k", "durationNights": 1, "daysUntilStart": 12, "baseScore": 0.75,
         "allowedReasons": ["preferred_trip_type", "departing_soon"], **extra,
     }
@@ -21,8 +21,8 @@ def candidate(code="c01", **extra):
 
 def payload(**extra):
     return {
-        "prompt_version": "trip-recommendation-v1", "model": "gemini-3.1-flash-lite", "signal": "preferences_and_history",
-        "preferences": {"tripTypes": ["overnight"], "difficulties": [], "regions": [], "hasPriceRange": True},
+        "prompt_version": "trip-recommendation-v2", "model": "gemini-3.1-flash-lite", "signal": "preferences_and_history",
+        "preferences": {"activities": [], "experienceYears": None, "tripTypes": ["overnight"], "difficulties": [], "regions": [], "hasPriceRange": True},
         "history": {"bookingCount": 3, "tripType": {"overnight": 1}, "difficulty": {"hard": 0.667},
                     "region": {}, "priceBand": {"1500k_3000k": 1}},
         "candidates": [candidate("c01"), candidate("c02", allowedReasons=[], baseScore=0)],
@@ -214,3 +214,21 @@ def test_route_preserves_cooldown_and_rejects_unconfigured_models(monkeypatch):
             fake.rank.assert_not_called()
     finally:
         app.dependency_overrides.pop(get_trip_recommendation_service, None)
+
+@pytest.mark.parametrize("activities", [["unsupported"], ["camping"] * 10])
+def test_activity_catalog_is_validated(activities):
+    raw = payload()
+    raw["preferences"]["activities"] = activities
+    with pytest.raises(ValidationError):
+        TripRecommendationRequest(**raw)
+
+
+def test_structured_activities_and_experience_reach_ranker():
+    raw = payload()
+    raw["preferences"].update(activities=["camping"], experienceYears=0)
+    raw["candidates"][0].update(activities=["camping"], allowedReasons=["preferred_activity", "declared_experience_match"])
+    client = provider({"ranking": [{"code": "c01", "reasons": ["preferred_activity"]}]})
+    TripRecommendationService(client).rank(TripRecommendationRequest(**raw))
+    sent = json.loads(client.chat.completions.create.call_args.kwargs["messages"][1]["content"])
+    assert sent["preferences"]["experienceYears"] == 0
+    assert sent["candidates"][0]["activities"] == ["camping"]

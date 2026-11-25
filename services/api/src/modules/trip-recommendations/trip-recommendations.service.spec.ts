@@ -81,6 +81,7 @@ function setup(options: Setup = {}) {
 				: options.health,
 	};
 	const repository = {
+		findExperienceYears: jest.fn(async (): Promise<number | null> => null),
 		findPreferences: jest.fn(async () => ({ ...state.preferences, updatedAt: null })),
 		findHistoryTrips: jest.fn(async () => options.history ?? []),
 		findHealthSignal: jest.fn(async () => state.health),
@@ -355,6 +356,7 @@ describe("TripRecommendationsService", () => {
 		expect(request.candidates.map((c) => c.code)).toEqual(["c01", "c02", "c03"]);
 		expect(Object.keys(request.candidates[0]).sort()).toEqual(
 			[
+				"activities",
 				"allowedReasons",
 				"baseScore",
 				"code",
@@ -375,7 +377,7 @@ describe("TripRecommendationsService", () => {
 		expect(runs[0]).toMatchObject({
 			mode: "ai",
 			signalType: "preferences_and_history",
-			promptVersion: "trip-recommendation-v1",
+			promptVersion: "trip-recommendation-v2",
 			modelVersion: "gemini/gpt-test",
 			fallbackReason: null,
 			candidateCount: 3,
@@ -437,7 +439,7 @@ describe("TripRecommendationsService", () => {
 		expect(runs[0]).toMatchObject({
 			mode: "rules",
 			fallbackReason: reason,
-			promptVersion: "trip-recommendation-v1",
+			promptVersion: "trip-recommendation-v2",
 		});
 	});
 
@@ -580,8 +582,8 @@ describe("TripRecommendationsService", () => {
 			ids ? later.filter((r) => ids.includes(r.tripId)) : later
 		);
 		const result = await service.getRecommendations(USER);
-		expect(provider.rank).toHaveBeenCalledTimes(1);
-		// Stored order 3, (2 full), 1; Trip 4 was published afterwards and follows in base order.
+		expect(provider.rank).toHaveBeenCalledTimes(2);
+		// A changed candidate set is sent to the ranker again.
 		expect(result.items.map((item) => item.trip.id)).toEqual([tripId(3), tripId(1), tripId(4)]);
 	});
 
@@ -707,4 +709,16 @@ describe("TripRecommendationsService", () => {
 			await expect(service.getExplanation(USER, tripId(9))).rejects.toMatchObject({ status: 404 });
 		});
 	});
+});
+
+it("does not keep a price reason after the price changes during ranking", async () => {
+	const rows = [row(1)];
+	const { service } = setup({
+		rows,
+		preferences: { ...EMPTY_PREFERENCES, maxPrice: 1_000_000 },
+		rank: async () => ({ ranking: [{ code: "c01", reasons: ["preferred_price"] }] }),
+		freshRows: () => [{ ...rows[0], pricePerPerson: 2_000_000 }],
+	});
+	const result = await service.getRecommendations(USER);
+	expect(result.items[0].reasons).not.toContain("preferred_price");
 });

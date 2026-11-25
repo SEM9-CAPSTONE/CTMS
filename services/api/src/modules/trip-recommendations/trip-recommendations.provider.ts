@@ -23,6 +23,8 @@ export interface AiRecommendationRequest {
 	model: string;
 	signal: Exclude<RecommendationSignalType, "none" | "health_profile">;
 	preferences: {
+		activities: string[];
+		experienceYears: number | null;
 		tripTypes: TripType[];
 		difficulties: TrekkingRouteDifficulty[];
 		regions: TripRegionCode[];
@@ -37,6 +39,7 @@ export interface AiRecommendationRequest {
 	};
 	candidates: Array<{
 		code: string;
+		activities: string[];
 		tripType: TripType;
 		difficulty: TrekkingRouteDifficulty | null;
 		region: TripRegionCode | null;

@@ -65,6 +65,8 @@ const needsPreferences: TripRecommendations = {
 };
 
 const preferences: TripPreferences = {
+	activities: [],
+	activityOptions: [{ code: "camping", label: "Cắm trại" }],
 	tripTypes: ["overnight"],
 	difficulties: [],
 	regions: [],
@@ -90,6 +92,22 @@ function renderBanner(onSelectTrip = vi.fn()) {
 const openModal = () => fireEvent.click(screen.getByRole("button", { name: "Xem gợi ý" }));
 
 describe("TripRecommendationsBanner", () => {
+	it("persists explicitly selected activities", async () => {
+		service.list.mockResolvedValue(ready());
+		service.replacePreferences.mockResolvedValue({ ...preferences, activities: ["camping"] });
+		renderBanner();
+		openModal();
+		await screen.findByText(trip.title);
+		fireEvent.click(screen.getByRole("button", { name: "Sửa sở thích" }));
+		const choice = await screen.findByRole("checkbox", { name: "Cắm trại" });
+		fireEvent.click(choice);
+		fireEvent.click(screen.getByRole("button", { name: "Lưu sở thích" }));
+		await waitFor(() =>
+			expect(service.replacePreferences).toHaveBeenCalledWith(
+				expect.objectContaining({ activities: ["camping"] })
+			)
+		);
+	});
 	beforeEach(() => {
 		vi.clearAllMocks();
 		service.regenerate.mockResolvedValue(ready());
@@ -160,6 +178,7 @@ describe("TripRecommendationsBanner", () => {
 
 		await waitFor(() =>
 			expect(service.replacePreferences).toHaveBeenCalledWith({
+				activities: [],
 				tripTypes: [],
 				difficulties: [],
 				regions: ["son_tra"],
@@ -306,7 +325,7 @@ describe("TripRecommendationsBanner", () => {
 		expect(client.getQueryData(["trip-recommendations", "camper-1", "list"])).toBeDefined();
 	});
 
-	it("keeps health assessments and preference summaries out of the results popup", async () => {
+	it("shows health status on result cards while leaving detailed comparisons in the detail view", async () => {
 		service.list.mockResolvedValue(
 			ready({
 				healthBasis: {
@@ -340,6 +359,7 @@ describe("TripRecommendationsBanner", () => {
 		renderBanner();
 		openModal();
 		await screen.findByText("Săn mây đỉnh Bà Nà");
+		expect(screen.getByText("Phù hợp vận động đã khai báo")).toBeInTheDocument();
 		expect(screen.queryByText("Hồ sơ sức khỏe đã dùng")).not.toBeInTheDocument();
 		expect(screen.queryByText("Thể lực và độ khó")).not.toBeInTheDocument();
 		expect(screen.queryByText("Sở thích bổ sung")).not.toBeInTheDocument();

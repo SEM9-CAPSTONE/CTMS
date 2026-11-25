@@ -11,13 +11,14 @@ import {
 	ValidateIf,
 } from "class-validator";
 import { TrekkingRouteDifficulty } from "../../trekking-routes/entities/trekking-route.entity";
+import { TripActivitiesDto } from "../../trips/dto/trip-activities.dto";
 import { TripType } from "../../trips/entities/trip.entity";
 import { TRIP_REGIONS, TRIP_REGION_CODES, type TripRegionCode } from "../trip-regions";
 
 export const MAX_PREFERENCE_PRICE_VND = 1_000_000_000;
 
 /** PUT body: replaces every field; empty arrays and null prices clear the choice. */
-export class ReplaceTripPreferencesDto {
+export class ReplaceTripPreferencesDto extends TripActivitiesDto {
 	@ApiProperty({ enum: TripType, isArray: true })
 	@IsArray()
 	@ArrayUnique()
@@ -62,7 +63,9 @@ export class TripRegionOptionDto {
 	label!: string;
 }
 
-export class TripPreferencesResponseDto {
+export class TripPreferencesResponseDto extends TripActivitiesDto {
+	@ApiProperty({ isArray: true })
+	activityOptions!: Array<{ code: string; label: string }>;
 	@ApiProperty({ enum: TripType, isArray: true })
 	tripTypes!: TripType[];
 

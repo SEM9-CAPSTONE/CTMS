@@ -21,9 +21,10 @@ from app.review_analysis_service import InvalidReviewOutput, ReviewProviderRefus
 TripType = Literal["day_trip", "overnight"]
 Difficulty = Literal["easy", "moderate", "hard", "expert"]
 Region = Literal["son_tra", "hai_van_lien_chieu", "ba_na_hoa_vang", "ngu_hanh_son", "city_center"]
+Activity = Literal["cloud_hunting", "sunrise_sunset", "coast", "forest", "waterfall_stream", "camping", "mountain_climbing", "stargazing", "photography"]
 PriceBand = Literal["under_500k", "500k_1500k", "1500k_3000k", "over_3000k"]
 Reason = Literal[
-    "preferred_trip_type", "preferred_difficulty", "preferred_region", "preferred_price",
+    "preferred_activity", "declared_experience_match", "preferred_trip_type", "preferred_difficulty", "preferred_region", "preferred_price",
     "booked_trip_type", "booked_difficulty", "booked_region", "booked_price", "departing_soon",
 ]
 REASONS: list[str] = list(Reason.__args__)  # type: ignore[attr-defined]
@@ -42,6 +43,8 @@ def _shares_valid(value: dict[str, float]) -> dict[str, float]:
 
 
 class Preferences(Strict):
+    activities: list[Activity] = Field(default_factory=list, max_length=9)
+    experienceYears: int | None = Field(default=None, ge=0)
     tripTypes: list[TripType] = Field(max_length=2)
     difficulties: list[Difficulty] = Field(max_length=4)
     regions: list[Region] = Field(max_length=5)
@@ -59,6 +62,7 @@ class History(Strict):
 
 
 class Candidate(Strict):
+    activities: list[Activity] = Field(default_factory=list, max_length=9)
     code: str = Field(pattern=r"^c[0-9]{2}$")
     tripType: TripType
     difficulty: Difficulty | None
@@ -71,7 +75,7 @@ class Candidate(Strict):
 
 
 class TripRecommendationRequest(Strict):
-    prompt_version: Literal["trip-recommendation-v1"]
+    prompt_version: Literal["trip-recommendation-v2"]
     model: str = Field(min_length=1, max_length=200)
     signal: Literal["preferences", "history", "preferences_and_history"]
     preferences: Preferences
@@ -114,6 +118,7 @@ def _schema(codes: list[str]) -> dict:
 SYSTEM_PROMPT = (
     "You order hiking and camping Trip candidates for one traveller. Every candidate is already bookable. "
     "Use only the supplied structured attributes and the traveller's chosen preferences and aggregated booking shares. "
+    "Activities must match explicitly selected codes; experienceYears is self-reported, never proof of ability. "
     "Chosen preferences outweigh history; a candidate's baseScore is the rule-based estimate and a good default. "
     "Return each candidate code at most once, best first. For each item give up to two reasons, chosen only from "
     "that candidate's allowedReasons, most relevant first. No free text, no other fields. "
@@ -148,8 +153,8 @@ class TripRecommendationService:
     def _rank(self, request: TripRecommendationRequest) -> TripRecommendationResponse:
         codes = [candidate.code for candidate in request.candidates]
         completion = self.client.chat.completions.create(
-            model=request.model, temperature=0, max_tokens=900,
-            response_format={"type": "json_schema", "json_schema": {"name": "trip_recommendation_v1", "strict": True, "schema": _schema(codes)}},
+            model=request.model, temperature=0, max_tokens=1600,
+            response_format={"type": "json_schema", "json_schema": {"name": "trip_recommendation_v2", "strict": True, "schema": _schema(codes)}},
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": json.dumps({

@@ -1,11 +1,13 @@
 import { evaluateTripBookingEligibility } from "../bookings/trip-booking-eligibility";
 import type { FitnessLevel } from "../profiles/entities/health-profile.entity";
 import type { TrekkingRouteDifficulty } from "../trekking-routes/entities/trekking-route.entity";
+import { TRIP_ACTIVITIES } from "../trips/trip-activities";
 import { assessTripHealth } from "./trip-health-assessment";
 import {
 	HISTORY_REASON_MIN_SHARE,
 	type HistoryProfile,
 	type TripPreferences,
+	declaredExperienceMatches,
 	fitnessFit,
 	isLongRoute,
 	priceBand,
@@ -111,23 +113,6 @@ const SUMMARY_LABEL: Partial<Record<ExplanationKind, string>> = {
 	availability: "tình trạng đặt chỗ",
 };
 
-/** Activities a Camper may mention in their bio, and the words a Trip uses for them. */
-const INTERESTS: Array<{ label: string; words: string[]; ignore?: string[] }> = [
-	{ label: "săn mây", words: ["săn mây", "biển mây", "mây"] },
-	{ label: "ngắm bình minh, hoàng hôn", words: ["bình minh", "hoàng hôn", "mặt trời mọc"] },
-	// "biển mây" is a sea of clouds, not the sea.
-	{ label: "biển", words: ["biển", "bãi tắm", "rạn"], ignore: ["biển mây"] },
-	{ label: "rừng", words: ["rừng", "nguyên sinh"] },
-	{ label: "thác, suối", words: ["thác", "suối"] },
-	{ label: "cắm trại", words: ["cắm trại", "lều", "lửa trại"] },
-	{ label: "leo núi, chinh phục đỉnh", words: ["leo núi", "chinh phục", "đỉnh"] },
-	{ label: "đèo", words: ["đèo"] },
-	{ label: "ngắm sao", words: ["ngắm sao", "bầu trời đêm"] },
-	{ label: "chụp ảnh", words: ["chụp ảnh", "nhiếp ảnh", "check-in"] },
-	{ label: "khám phá thiên nhiên hoang sơ", words: ["hoang sơ", "khám phá"] },
-];
-const MAX_INTERESTS = 2;
-const MAX_QUOTE_LENGTH = 140;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SENIOR_AGE = 60;
 
@@ -191,20 +176,6 @@ function ageOn(dateOfBirth: string, now: Date): number | null {
 	return age >= 0 && age < 130 ? age : null;
 }
 
-/** The sentence of the bio that mentions `word`, shortened around it. */
-function bioExcerpt(bio: string, word: string): string {
-	const sentence =
-		bio
-			.split(/[.!?\n]+/)
-			.map((part) => part.trim())
-			.find((part) => part.toLowerCase().includes(word)) ?? bio.trim();
-	if (sentence.length <= MAX_QUOTE_LENGTH) return sentence;
-	const at = sentence.toLowerCase().indexOf(word);
-	const start = Math.max(0, at - 50);
-	const end = start + MAX_QUOTE_LENGTH;
-	return `${start > 0 ? "…" : ""}${sentence.slice(start, end).trim()}${end < sentence.length ? "…" : ""}`;
-}
-
 function tripTypeSection(
 	trip: ExplanationTripRow,
 	preferences: TripPreferences,
@@ -235,11 +206,11 @@ function tripTypeSection(
 			title: "Giống loại chuyến bạn hay đi",
 			quote: {
 				source: "booking_history",
-				field: "Chuyến đã đi",
+				field: "Chuyến đã đặt",
 				text: `${count} là chuyến ${label.toLowerCase()}`,
 			},
 			detail: tripText,
-			conclusion: "Vì vậy đây là kiểu chuyến bạn đã quen và thường chọn.",
+			conclusion: "Đây là kiểu chuyến xuất hiện trong lịch sử đặt chỗ của bạn.",
 		};
 	}
 	return null;
@@ -338,143 +309,38 @@ function ageSection(
 	};
 }
 
-function interestSections(trip: ExplanationTripRow, bio: string | null): ExplanationSection[] {
-	if (!bio) return [];
-	const lowerBio = bio.toLowerCase();
-	const tripText = `${trip.title} ${trip.description ?? ""}`.toLowerCase();
-	const sections: ExplanationSection[] = [];
-	const without = (text: string, ignore: string[] = []) =>
-		ignore.reduce((result, phrase) => result.replaceAll(phrase, " "), text);
-	for (const interest of INTERESTS) {
-		if (sections.length >= MAX_INTERESTS) break;
-		const bioText = without(lowerBio, interest.ignore);
-		const offered = without(tripText, interest.ignore);
-		const inBio = interest.words.find((word) => bioText.includes(word));
-		if (!inBio) continue;
-		if (!interest.words.some((word) => offered.includes(word))) continue;
-		sections.push({
-			kind: "interest",
-			tone: "match",
-			title: `Có hoạt động bạn yêu thích: ${interest.label}`,
-			quote: {
-				source: "personal_profile",
-				field: "Giới thiệu bản thân",
-				text: bioExcerpt(bio, inBio),
-			},
-			detail: `Chuyến “${trip.title}” có ${interest.label} trong lịch trình.`,
-			conclusion: "Vì vậy chuyến đi đúng với điều bạn đã chia sẻ là mình thích.",
-		});
-	}
-	return sections;
-}
-
-/** Place words a Camper may write in their experience, for the Trip's area. */
-const REGION_WORDS: Record<string, string[]> = {
-	son_tra: ["sơn trà", "bàn cờ", "linh ứng", "bãi bụt", "ghềnh bàng"],
-	hai_van_lien_chieu: ["hải vân", "nam ô", "liên chiểu", "hòa khánh"],
-	ba_na_hoa_vang: ["bà nà", "hòa vang", "hòa phú thành", "hòa bắc", "hòa ninh"],
-	ngu_hanh_son: ["ngũ hành sơn", "non nước", "mỹ khê"],
-	city_center: ["hải châu", "thanh khê", "cẩm lệ"],
-};
-/** Short title words that say nothing about the place. */
-const TITLE_STOP_WORDS = new Set([
-	"khám",
-	"phá",
-	"chuyến",
-	"đỉnh",
-	"săn",
-	"mây",
-	"ngắm",
-	"bình",
-	"minh",
-	"trekking",
-	"cắm",
-	"trại",
-	"dạo",
-	"bộ",
-	"chinh",
-	"phục",
-	"rừng",
-	"qua",
-	"đêm",
-	"trong",
-	"ngày",
-	"bán",
-	"đảo",
-]);
-const EXPERIENCED_YEARS = 2;
-
-/** A place from the Trip (its area or a distinctive pair of title words) found in the text. */
-function mentionedPlace(trip: ExplanationTripRow, text: string): string | null {
-	const lower = text.toLowerCase();
-	const areaWord = (trip.region ? (REGION_WORDS[trip.region] ?? []) : []).find((word) =>
-		lower.includes(word)
+function interestSections(
+	trip: ExplanationTripRow,
+	preferences: TripPreferences
+): ExplanationSection[] {
+	const matches = TRIP_ACTIVITIES.filter(
+		(item) => preferences.activities?.includes(item.code) && trip.activities?.includes(item.code)
 	);
-	if (areaWord) return areaWord;
-	const words = trip.title
-		.toLowerCase()
-		.split(/[^\p{L}\p{N}]+/u)
-		.filter((word) => word.length > 1 && !TITLE_STOP_WORDS.has(word));
-	for (let i = 0; i + 1 < words.length; i++) {
-		const pair = `${words[i]} ${words[i + 1]}`;
-		if (lower.includes(pair)) return pair;
-	}
-	return null;
+	return matches.slice(0, 2).map((item) => ({
+		kind: "interest",
+		tone: "match",
+		title: `Có hoạt động bạn chọn: ${item.label}`,
+		quote: { source: "trip_preferences", field: "Hoạt động yêu thích", text: item.label },
+		detail: `Chủ chuyến đã khai báo hoạt động ${item.label.toLowerCase()} cho chuyến này.`,
+		conclusion: null,
+	}));
 }
-
 function experienceSection(
 	trip: ExplanationTripRow,
 	profile: ExplanationProfile
 ): ExplanationSection | null {
-	const { experienceYears: years, experienceDetails: details } = profile;
-	const place = details ? mentionedPlace(trip, details) : null;
-	if (details && place) {
-		const area = regionLabel(trip.region);
-		return {
-			kind: "experience",
-			tone: "match",
-			title: "Bạn đã từng đi khu vực này",
-			quote: {
-				source: "personal_profile",
-				field: "Kinh nghiệm trekking",
-				text: bioExcerpt(details, place),
-			},
-			detail: area
-				? `Chuyến “${trip.title}” đi ở ${area}, nơi bạn đã ghi là từng trekking.`
-				: `Chuyến “${trip.title}” đi qua nơi bạn đã ghi là từng trekking.`,
-			conclusion: "Vì vậy bạn đã quen địa hình và nhịp đi của khu vực này.",
-		};
-	}
-	if (years === null || years <= 0) {
-		if (years === 0 && (trip.difficulty === "hard" || trip.difficulty === "expert")) {
-			return {
-				kind: "experience",
-				tone: "caution",
-				title: "Chuyến khó khi bạn mới bắt đầu",
-				quote: { source: "personal_profile", field: "Số năm kinh nghiệm", text: "0 năm" },
-				detail: `${difficultyPhrase(trip)}.`,
-				conclusion:
-					"Vì vậy hãy cân nhắc bắt đầu bằng một chuyến dễ hơn, hoặc trao đổi với chủ chuyến về hỗ trợ cho người mới.",
-			};
-		}
-		return null;
-	}
-	const demandingTrip =
-		trip.tripType === "overnight" || trip.difficulty === "hard" || trip.difficulty === "expert";
-	const ready = years >= EXPERIENCED_YEARS || !demandingTrip;
-	const kindOfTrip =
-		trip.tripType === "overnight"
-			? `chuyến qua đêm${trip.difficulty ? `, độ khó ${DIFFICULTY_LABEL[trip.difficulty] ?? trip.difficulty}` : ""}`
-			: `chuyến trong ngày${trip.difficulty ? `, độ khó ${DIFFICULTY_LABEL[trip.difficulty] ?? trip.difficulty}` : ""}`;
+	const years = profile.experienceYears;
+	if (years == null || trip.difficulty == null) return null;
+	const match = declaredExperienceMatches(years, trip.difficulty);
 	return {
 		kind: "experience",
-		tone: ready ? "match" : "caution",
-		title: ready ? "Đủ kinh nghiệm cho chuyến này" : "Kinh nghiệm còn ít so với chuyến",
+		tone: match ? "info" : "caution",
+		title: "Kinh nghiệm bạn khai báo",
 		quote: { source: "personal_profile", field: "Số năm kinh nghiệm", text: `${years} năm` },
-		detail: `Đây là ${kindOfTrip}.`,
-		conclusion: ready
-			? "Vì vậy bạn đã có đủ trải nghiệm để tự tin tham gia."
-			: "Vì vậy hãy chuẩn bị kỹ đồ dùng qua đêm và đi cùng người có kinh nghiệm.",
+		detail: difficultyPhrase(trip),
+		conclusion: match
+			? "Kinh nghiệm khai báo được dùng để sắp xếp gợi ý; chưa xác nhận khả năng hoàn thành cung đường."
+			: "Hãy cân nhắc chuyến dễ hơn hoặc trao đổi với chủ chuyến về khả năng tham gia.",
 	};
 }
 
@@ -504,14 +370,15 @@ function difficultySection(
 		return {
 			kind: "difficulty",
 			tone: "match",
-			title: "Độ khó giống các chuyến bạn đã đi",
+			title: "Độ khó giống các chuyến bạn đã đặt",
 			quote: {
 				source: "booking_history",
-				field: "Chuyến đã đi",
+				field: "Chuyến đã đặt",
 				text: `${count} có độ khó ${DIFFICULTY_LABEL[difficulty] ?? difficulty}`,
 			},
 			detail: `${difficultyPhrase(trip)}.`,
-			conclusion: "Vì vậy đây là mức thử thách bạn đã từng vượt qua.",
+			conclusion:
+				"Đây là độ khó xuất hiện trong các chuyến bạn đã đặt; chưa chứng minh bạn đã hoàn thành cung đường.",
 		};
 	}
 	return null;
@@ -544,9 +411,9 @@ function regionSection(
 			kind: "region",
 			tone: "match",
 			title: "Khu vực bạn hay đến",
-			quote: { source: "booking_history", field: "Chuyến đã đi", text: `${count} ở ${label}` },
+			quote: { source: "booking_history", field: "Chuyến đã đặt", text: `${count} ở ${label}` },
 			detail: `Điểm tập trung của chuyến ở ${label}.`,
-			conclusion: "Vì vậy bạn đã quen đường đi và địa hình khu vực này.",
+			conclusion: "Khu vực này xuất hiện trong lịch sử đặt chỗ của bạn.",
 		};
 	}
 	return null;
@@ -692,7 +559,7 @@ export function buildExplanation(input: ExplanationInput): Explanation {
 		availabilitySection(trip, now),
 		fitness,
 		tripTypeSection(trip, preferences, history),
-		...interestSections(trip, profile.bio),
+		...interestSections(trip, preferences),
 		experienceSection(trip, profile),
 		difficultySection(trip, preferences, history),
 		regionSection(trip, preferences, history),

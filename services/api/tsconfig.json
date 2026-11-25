@@ -6,11 +6,12 @@
 		"emitDecoratorMetadata": true,
 		"experimentalDecorators": true,
 		"moduleResolution": "node16",
-		"rootDir": "./src",
+		"rootDir": ".",
 		"outDir": "./dist",
 		"declarationDir": "./dist",
-		"sourceMap": true
+		"sourceMap": true,
+		"types": ["node", "jest"]
 	},
-	"include": ["src/**/*.ts"],
-	"exclude": ["src/**/*.spec.ts", "test/**/*.ts"]
+	"include": ["src/**/*.ts", "test/**/*.ts"],
+	"exclude": ["node_modules", "dist"]
 }

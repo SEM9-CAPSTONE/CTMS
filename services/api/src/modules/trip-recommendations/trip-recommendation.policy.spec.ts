@@ -11,6 +11,7 @@ import {
 	applyHealthFit,
 	fitnessFit,
 	scoreCandidates,
+	signalFingerprint,
 	signalTypeOf,
 	summarizeHistory,
 } from "./trip-recommendation.policy";
@@ -115,7 +116,7 @@ describe("scoreCandidates", () => {
 			now
 		);
 		expect(scored[0].facts.tripId).toBe(match.tripId);
-		expect(scored[0].score).toBe(1);
+		expect(scored[0].score).toBe(0.8);
 		expect(scored[0].supportedReasons).toEqual([
 			"preferred_trip_type",
 			"preferred_difficulty",
@@ -123,7 +124,7 @@ describe("scoreCandidates", () => {
 			"preferred_price",
 		]);
 		// Only the trip type matches; history about day trips is ignored once a type is chosen.
-		expect(scored[1].score).toBe(0.25);
+		expect(scored[1].score).toBe(0.2);
 		expect(scored[1].supportedReasons).toEqual(["preferred_trip_type"]);
 	});
 
@@ -171,14 +172,14 @@ describe("scoreCandidates", () => {
 		const bySimilar = scored.find((item) => item.facts.tripId === similar.tripId);
 		const byDifferent = scored.find((item) => item.facts.tripId === different.tripId);
 		// overnight 0.75 + hard 0.25 + preferred region missed 0 + price band 0.75 = 1.75 / 4
-		expect(bySimilar?.score).toBe(0.438);
+		expect(bySimilar?.score).toBe(0.35);
 		expect(bySimilar?.supportedReasons).toEqual([
 			"booked_trip_type",
 			"booked_price",
 			"booked_difficulty",
 		]);
 		// day trip 0.25 + expert 0 + preferred region 1 + band 0 = 1.25 / 4
-		expect(byDifferent?.score).toBe(0.313);
+		expect(byDifferent?.score).toBe(0.25);
 		expect(byDifferent?.supportedReasons[0]).toBe("preferred_region");
 	});
 
@@ -323,4 +324,65 @@ describe("applyHealthFit", () => {
 		expect(result[0].reasons).toEqual(["fitness_match", "preferred_price"]);
 		expect(result[1].reasons).toEqual(["preferred_price", "preferred_region"]);
 	});
+});
+
+describe("structured profile signals", () => {
+	it("scores declared activities and experience without changing hard eligibility", () => {
+		const a = trip({ activities: ["camping"], difficulty: TrekkingRouteDifficulty.EASY });
+		const b = trip({ activities: [], difficulty: TrekkingRouteDifficulty.HARD });
+		const choices = prefs({
+			tripTypes: [TripType.DAY_TRIP],
+			activities: ["camping", "photography"],
+			experienceYears: 0,
+		});
+		const scores = scoreCandidates([b, a], choices, noHistory, now);
+		expect(scores[0].facts.tripId).toBe(a.tripId);
+		expect(scores[0].score).toBe(0.325);
+		expect(scores[0].supportedReasons).toContain("preferred_activity");
+		expect(scores[0].supportedReasons).toContain("declared_experience_match");
+		expect(scores[1].supportedReasons).not.toContain("declared_experience_match");
+	});
+	it("treats missing activities and experience as unknown", () => {
+		const result = scoreCandidates([trip()], prefs({ activities: ["camping"] }), noHistory, now)[0];
+		expect(result.score).toBe(0);
+		expect(result.supportedReasons).not.toContain("preferred_activity");
+		expect(result.supportedReasons).not.toContain("declared_experience_match");
+		expect(signalTypeOf(prefs({ activities: ["camping"] }), noHistory)).toBe("preferences");
+	});
+	it("invalidates cache when candidate facts, selected activities or experience change", () => {
+		const a = trip();
+		const choices = prefs({ activities: ["camping"], experienceYears: 0 });
+		const key = (facts: CandidateFacts, preferences = choices) =>
+			signalFingerprint(preferences, noHistory, {
+				model: "model",
+				prompt: "v2",
+				candidates: scoreCandidates([facts], preferences, noHistory, now),
+				now,
+			});
+		const original = key(a);
+		expect(key({ ...a })).toBe(original);
+		for (const changed of [
+			{ ...a, pricePerPerson: a.pricePerPerson + 1 },
+			{ ...a, difficulty: TrekkingRouteDifficulty.HARD },
+			{ ...a, activities: ["camping"] },
+		])
+			expect(key(changed)).not.toBe(original);
+		expect(key(a, { ...choices, experienceYears: 3 })).not.toBe(original);
+		expect(key(a, { ...choices, activities: ["forest"] })).not.toBe(original);
+	});
+});
+
+it("separates bookings from proven participation and completion", () => {
+	const facts = {
+		tripType: TripType.DAY_TRIP,
+		difficulty: TrekkingRouteDifficulty.EASY,
+		region: null,
+		pricePerPerson: 1,
+	};
+	const history = summarizeHistory([
+		{ ...facts, participation: "booked" },
+		{ ...facts, participation: "joined" },
+		{ ...facts, participation: "completed" },
+	]);
+	expect(history).toMatchObject({ bookingCount: 3, participatedCount: 2, completedCount: 1 });
 });

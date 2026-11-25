@@ -103,6 +103,7 @@ class _PreferencesForm extends ConsumerStatefulWidget {
 }
 
 class _PreferencesFormState extends ConsumerState<_PreferencesForm> {
+  late Set<String> _activities = {...widget.initial.activities};
   late Set<String> _tripTypes = {...widget.initial.tripTypes};
   late Set<String> _difficulties = {...widget.initial.difficulties};
   late Set<String> _regions = {...widget.initial.regions};
@@ -130,6 +131,7 @@ class _PreferencesFormState extends ConsumerState<_PreferencesForm> {
   }
 
   void _clear() => setState(() {
+    _activities = {};
     _tripTypes = {};
     _difficulties = {};
     _regions = {};
@@ -162,6 +164,7 @@ class _PreferencesFormState extends ConsumerState<_PreferencesForm> {
           .read(tripPreferencesRepositoryProvider)
           .replace(
             TripPreferences(
+              activities: _activities,
               tripTypes: _tripTypes,
               difficulties: _difficulties,
               regions: _regions,
@@ -170,6 +173,7 @@ class _PreferencesFormState extends ConsumerState<_PreferencesForm> {
             ),
           );
       ref.invalidate(tripPreferencesProvider);
+      ref.invalidate(tripRecommendationExplanationProvider);
       messenger.showSnackBar(
         const SnackBar(
           content: Text('Đã lưu sở thích chuyến đi. Gợi ý đang được cập nhật.'),
@@ -238,6 +242,15 @@ class _PreferencesFormState extends ConsumerState<_PreferencesForm> {
         children: [
           Text('Sở thích để gợi ý chuyến đi', style: AppTypography.h2),
           const SizedBox(height: AppSpacing.lg),
+          _group(
+            'Hoạt động yêu thích',
+            [
+              for (final item in widget.initial.activityOptions)
+                (item.code, item.label),
+            ],
+            _activities,
+            (value) => _activities = value,
+          ),
           _group(
             'Loại chuyến',
             tripTypeOptions,

@@ -6,10 +6,17 @@ import {
 } from "./trip-recommendations.provider";
 
 const request = {
-	prompt_version: "trip-recommendation-v1",
+	prompt_version: "trip-recommendation-v2",
 	model: "gpt-test",
 	signal: "preferences",
-	preferences: { tripTypes: [], difficulties: [], regions: [], hasPriceRange: false },
+	preferences: {
+		activities: [],
+		experienceYears: null,
+		tripTypes: [],
+		difficulties: [],
+		regions: [],
+		hasPriceRange: false,
+	},
 	history: { bookingCount: 0, tripType: {}, difficulty: {}, region: {}, priceBand: {} },
 	candidates: [],
 } as AiRecommendationRequest;

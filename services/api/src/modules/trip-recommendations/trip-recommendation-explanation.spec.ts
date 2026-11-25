@@ -112,30 +112,27 @@ describe("buildExplanation", () => {
 		expect(sections.route.detail).toBe("Dài 8,5 km, đi bộ khoảng 4 giờ 30 phút.");
 	});
 
-	it("quotes the Camper's bio when the Trip offers what they wrote they like", () => {
-		const result = build({
-			...NO_PROFILE,
-			bio: "Mình là dân văn phòng ở Hải Châu. Cuối tuần mình mê săn mây và chụp ảnh bình minh trên núi!",
-		});
-		const interests = result.sections.filter((section) => section.kind === "interest");
-		expect(interests).toHaveLength(2);
-		expect(interests[0]).toMatchObject({
-			title: "Có hoạt động bạn yêu thích: săn mây",
-			quote: {
-				source: "personal_profile",
-				field: "Giới thiệu bản thân",
-				text: "Cuối tuần mình mê săn mây và chụp ảnh bình minh trên núi",
-			},
-			detail: "Chuyến “Săn mây đỉnh Bà Nà” có săn mây trong lịch trình.",
-		});
-		expect(interests[1].title).toBe("Có hoạt động bạn yêu thích: ngắm bình minh, hoàng hôn");
+	it("does not infer an interest from positive or negated free text", () => {
+		for (const bio of ["Mình thích săn mây", "Không thích cắm trại", "Không thích săn mây"]) {
+			expect(build({ ...NO_PROFILE, bio }).sections.some((s) => s.kind === "interest")).toBe(false);
+		}
 	});
-
-	it("ignores bio interests the Trip does not offer", () => {
-		const result = build({ ...NO_PROFILE, bio: "Mình thích lặn biển và ngắm san hô." });
-		expect(result.sections.some((section) => section.kind === "interest")).toBe(false);
+	it("explains only activities both parties selected", () => {
+		const result = buildExplanation({
+			trip: trip({ activities: ["cloud_hunting"] }),
+			preferences: { ...preferences, activities: ["cloud_hunting", "camping"] },
+			history: summarizeHistory([]),
+			profile: NO_PROFILE,
+			now,
+		});
+		const interests = result.sections.filter((s) => s.kind === "interest");
+		expect(interests).toHaveLength(1);
+		expect(interests[0].quote).toEqual({
+			source: "trip_preferences",
+			field: "Hoạt động yêu thích",
+			text: "Săn mây",
+		});
 	});
-
 	it("quotes medical conditions and medication while ignoring legacy allergy and diet data", () => {
 		const sections = byKind(
 			build({
@@ -196,49 +193,18 @@ describe("buildExplanation", () => {
 		).toBe(false);
 	});
 
-	it("quotes trekking experience that mentions the Trip's area", () => {
-		const section = byKind(
-			build({
-				...NO_PROFILE,
-				experienceYears: 3,
-				experienceDetails: "Đã trekking Sơn Trà, đèo Hải Vân và cắm trại qua đêm ở Bà Nà hai lần.",
-			})
-		).experience;
-		expect(section).toEqual({
-			kind: "experience",
-			tone: "match",
-			title: "Bạn đã từng đi khu vực này",
-			quote: {
-				source: "personal_profile",
-				field: "Kinh nghiệm trekking",
-				text: "Đã trekking Sơn Trà, đèo Hải Vân và cắm trại qua đêm ở Bà Nà hai lần",
-			},
-			detail: "Chuyến “Săn mây đỉnh Bà Nà” đi ở Bà Nà – Hòa Vang, nơi bạn đã ghi là từng trekking.",
-			conclusion: "Vì vậy bạn đã quen địa hình và nhịp đi của khu vực này.",
-		});
+	it("never infers local familiarity from free-text experience", () => {
+		for (const experienceDetails of ["Đã trekking Bà Nà", "Chưa từng đi Bà Nà"]) {
+			const result = build({ ...NO_PROFILE, experienceDetails });
+			expect(result.sections.some((s) => s.kind === "experience")).toBe(false);
+		}
 	});
-
-	it("falls back to the years of experience, and cautions a beginner on a hard Trip", () => {
-		const seasoned = byKind(
-			build({ ...NO_PROFILE, experienceYears: 4, experienceDetails: "Leo Fansipan năm 2024" })
-		).experience;
-		expect(seasoned).toMatchObject({
-			tone: "match",
-			title: "Đủ kinh nghiệm cho chuyến này",
-			quote: { field: "Số năm kinh nghiệm", text: "4 năm" },
-			detail: "Đây là chuyến qua đêm, độ khó Khó.",
-		});
-		const fresh = byKind(build({ ...NO_PROFILE, experienceYears: 1 })).experience;
-		expect(fresh).toMatchObject({ tone: "caution", title: "Kinh nghiệm còn ít so với chuyến" });
-		const none = byKind(build({ ...NO_PROFILE, experienceYears: 0 })).experience;
-		expect(none).toMatchObject({ tone: "caution", quote: { text: "0 năm" } });
-		const easyDay = build(
-			{ ...NO_PROFILE, experienceYears: 0 },
-			{ trip: { difficulty: TrekkingRouteDifficulty.EASY, tripType: TripType.DAY_TRIP } }
-		);
-		expect(easyDay.sections.some((item) => item.kind === "experience")).toBe(false);
+	it("uses declared years without claiming capability", () => {
+		const result = byKind(build({ ...NO_PROFILE, experienceYears: 4 }));
+		expect(result.experience).toMatchObject({ tone: "info", quote: { text: "4 năm" } });
+		expect(result.experience.conclusion).toContain("chưa xác nhận");
+		expect(byKind(build({ ...NO_PROFILE, experienceYears: 0 })).experience.tone).toBe("caution");
 	});
-
 	it("does not mention legacy allergies in the summary", () => {
 		const { summary } = build({
 			...NO_PROFILE,
@@ -269,7 +235,7 @@ describe("buildExplanation", () => {
 		);
 		expect(sections.region.quote).toEqual({
 			source: "booking_history",
-			field: "Chuyến đã đi",
+			field: "Chuyến đã đặt",
 			text: "3 trong 4 chuyến gần đây ở Bà Nà – Hòa Vang",
 		});
 		expect(sections.trip_type.title).toBe("Giống loại chuyến bạn hay đi");

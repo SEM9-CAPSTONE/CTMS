@@ -69,6 +69,7 @@ export interface CreateTripInput {
 	routeId: string;
 	title: string;
 	description?: string;
+	activities?: string[];
 	areaCode?: string;
 	coverImageUrl?: string;
 	tripType: TripType;
@@ -179,6 +180,7 @@ export interface Trip {
 	routeId: string;
 	title: string;
 	description: string | null;
+	activities?: string[];
 	coverImageUrl: string | null;
 	itinerary: Record<string, unknown> | null;
 	includes: Record<string, unknown> | null;
@@ -266,6 +268,7 @@ export interface TripSummary {
 	id: string;
 	title: string;
 	description: string | null;
+	activities?: string[];
 	coverImageUrl: string | null;
 	tripType: TripType;
 	durationNights: number;
@@ -388,6 +391,7 @@ export interface TripDetails {
 	routeId?: string;
 	title: string;
 	description: string | null;
+	activities?: string[];
 	coverImageUrl: string | null;
 	itinerary: Record<string, unknown> | null;
 	includes: Record<string, unknown> | null;

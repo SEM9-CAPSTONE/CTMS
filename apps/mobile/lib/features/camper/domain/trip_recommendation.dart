@@ -3,16 +3,18 @@ import 'trip_health_assessment.dart';
 
 /// Labels for the reason codes the backend has validated; AI text is never shown.
 const recommendationReasonLabels = <String, String>{
+  'preferred_activity': 'Có hoạt động bạn yêu thích',
+  'declared_experience_match': 'Đối chiếu kinh nghiệm bạn khai báo',
   'preferred_trip_type': 'Đúng loại chuyến bạn chọn',
   'preferred_difficulty': 'Đúng độ khó bạn chọn',
   'preferred_region': 'Ở khu vực bạn quan tâm',
   'preferred_price': 'Phù hợp mức giá bạn chọn',
-  'booked_trip_type': 'Giống loại chuyến bạn từng đi',
-  'booked_difficulty': 'Độ khó tương tự chuyến bạn từng đi',
-  'booked_region': 'Cùng khu vực với chuyến bạn từng đi',
+  'booked_trip_type': 'Giống loại chuyến bạn từng đặt',
+  'booked_difficulty': 'Độ khó tương tự chuyến bạn từng đặt',
+  'booked_region': 'Cùng khu vực với chuyến bạn từng đặt',
   'booked_price': 'Mức giá tương tự chuyến bạn từng đặt',
   'departing_soon': 'Sắp khởi hành',
-  'fitness_match': 'Phù hợp thể lực của bạn',
+  'fitness_match': 'Phù hợp thông tin vận động đã khai báo',
 };
 
 class TripRecommendationItem {
@@ -202,6 +204,8 @@ class TripRegionOption {
 
 class TripPreferences {
   const TripPreferences({
+    this.activities = const {},
+    this.activityOptions = const [],
     this.tripTypes = const {},
     this.difficulties = const {},
     this.regions = const {},
@@ -215,6 +219,18 @@ class TripPreferences {
       for (final value in json[key] as List<Object?>) value as String,
     };
     return TripPreferences(
+      activities: {
+        for (final value in json['activities'] as List<Object?>? ?? const [])
+          value as String,
+      },
+      activityOptions: [
+        for (final value
+            in json['activityOptions'] as List<Object?>? ?? const [])
+          TripRegionOption(
+            (value as Map<String, Object?>)['code'] as String,
+            value['label'] as String,
+          ),
+      ],
       tripTypes: strings('tripTypes'),
       difficulties: strings('difficulties'),
       regions: strings('regions'),
@@ -230,6 +246,8 @@ class TripPreferences {
     );
   }
 
+  final Set<String> activities;
+  final List<TripRegionOption> activityOptions;
   final Set<String> tripTypes;
   final Set<String> difficulties;
   final Set<String> regions;
@@ -238,6 +256,7 @@ class TripPreferences {
   final List<TripRegionOption> regionOptions;
 
   Map<String, Object?> toJson() => {
+    'activities': activities.toList(),
     'tripTypes': tripTypes.toList(),
     'difficulties': difficulties.toList(),
     'regions': regions.toList(),

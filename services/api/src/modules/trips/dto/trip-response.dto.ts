@@ -64,6 +64,8 @@ export class TripSummaryResponseDto {
 
 	@ApiPropertyOptional({ nullable: true })
 	description!: string | null;
+	@ApiProperty({ isArray: true, type: String })
+	activities?: string[];
 
 	@ApiPropertyOptional({ nullable: true })
 	coverImageUrl!: string | null;
@@ -255,6 +257,8 @@ export class TripResponseDto {
 
 	@ApiPropertyOptional()
 	description!: string | null;
+	@ApiProperty({ isArray: true, type: String })
+	activities?: string[];
 
 	@ApiPropertyOptional()
 	coverImageUrl!: string | null;

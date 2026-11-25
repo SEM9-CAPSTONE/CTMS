@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../data/trip_recommendations_api.dart';
 
 import '../data/camper_health_profile_repository.dart';
 import '../domain/health_profile.dart';
@@ -15,7 +16,9 @@ class CamperHealthProfileController extends AsyncNotifier<HealthProfile?> {
 
   Future<void> refresh() async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() => ref.read(camperHealthProfileRepositoryProvider).getProfile());
+    state = await AsyncValue.guard(
+      () => ref.read(camperHealthProfileRepositoryProvider).getProfile(),
+    );
   }
 
   Future<bool> save(UpdateHealthProfileInput input, int version) async {
@@ -23,9 +26,15 @@ class CamperHealthProfileController extends AsyncNotifier<HealthProfile?> {
     _isSaving = true;
 
     final result = await AsyncValue.guard(
-      () => ref.read(camperHealthProfileRepositoryProvider).updateProfile(input, version),
+      () => ref
+          .read(camperHealthProfileRepositoryProvider)
+          .updateProfile(input, version),
     );
     state = result;
+    if (result.hasValue) {
+      ref.invalidate(tripRecommendationsProvider);
+      ref.invalidate(tripRecommendationExplanationProvider);
+    }
     _isSaving = false;
 
     return result.hasValue;
@@ -44,6 +53,10 @@ class CamperHealthProfileController extends AsyncNotifier<HealthProfile?> {
     });
 
     state = result;
+    if (result.hasValue) {
+      ref.invalidate(tripRecommendationsProvider);
+      ref.invalidate(tripRecommendationExplanationProvider);
+    }
     _isSaving = false;
     return result.hasValue;
   }

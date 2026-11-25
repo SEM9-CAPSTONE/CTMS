@@ -60,6 +60,9 @@ export class Trip {
 	@Column({ type: "varchar", length: 150 })
 	title!: string;
 
+	@Column({ type: "text", array: true, default: () => "'{}'" })
+	activities!: string[];
+
 	@Column({ type: "text", nullable: true })
 	description!: string | null;
 

@@ -39,6 +39,7 @@ const ACTIVE_BOOKING_STATUSES = [
 ];
 
 interface RawCandidateRow {
+	activities: string[];
 	id: string;
 	routeId: string;
 	status: TripStatus;
@@ -112,6 +113,7 @@ export class TripRecommendationsRepository {
 			`
 			SELECT
 				trip."id",
+ trip."activities",
 				trip."route_id" AS "routeId",
 				trip."status",
 				trip."trip_type" AS "tripType",
@@ -147,7 +149,7 @@ export class TripRecommendationsRepository {
 				AND NOT EXISTS (
 					SELECT 1 FROM "bookings" booking
 					WHERE booking."trip_id" = trip."id"
-						AND booking."user_id" = $1
+						AND (booking."user_id" = $1 OR EXISTS (SELECT 1 FROM booking_members bm WHERE bm.booking_id = booking.id AND bm.user_id = $1 AND bm.member_status <> 'removed'))
 						AND booking."status"::text = ANY($2::text[])
 				)
 				${idFilter}
@@ -168,6 +170,7 @@ export class TripRecommendationsRepository {
 			`
 			SELECT
 				trip."id",
+ trip."activities",
 				trip."title",
 				trip."description",
 				trip."route_id" AS "routeId",
@@ -191,7 +194,7 @@ export class TripRecommendationsRepository {
 				EXISTS (
 					SELECT 1 FROM "bookings" booking
 					WHERE booking."trip_id" = trip."id"
-						AND booking."user_id" = $1
+						AND (booking."user_id" = $1 OR EXISTS (SELECT 1 FROM booking_members bm WHERE bm.booking_id = booking.id AND bm.user_id = $1 AND bm.member_status <> 'removed'))
 						AND booking."status"::text = ANY($3::text[])
 				) AS "heldByCamper"
 			FROM "trips" trip
@@ -318,6 +321,14 @@ export class TripRecommendationsRepository {
 			`
 			SELECT
 				trip."trip_type" AS "tripType",
+ CASE WHEN EXISTS (
+ SELECT 1 FROM booking_members member JOIN bookings held ON held.id = member.booking_id
+ WHERE held.trip_id = trip.id AND member.user_id = $1 AND member.checked_in_at IS NOT NULL
+ AND member.member_status IN ('joined', 'left')
+ ) THEN CASE WHEN trip.status = 'completed' AND EXISTS (
+ SELECT 1 FROM booking_members member JOIN bookings held ON held.id = member.booking_id
+ WHERE held.trip_id = trip.id AND member.user_id = $1 AND member.checked_in_at IS NOT NULL AND member.member_status = 'joined'
+ ) THEN 'completed' ELSE 'joined' END ELSE 'booked' END AS "participation",
 				route."difficulty",
 				trip."price_per_person" AS "pricePerPerson",
 				ST_Y(trip."meeting_point"::geometry) AS "latitude",
@@ -325,10 +336,11 @@ export class TripRecommendationsRepository {
 			FROM "bookings" booking
 			INNER JOIN "trips" trip ON trip."id" = booking."trip_id"
 			LEFT JOIN "trekking_routes" route ON route."id" = trip."route_id"
-			WHERE booking."user_id" = $1
+			WHERE (booking."user_id" = $1 OR EXISTS (SELECT 1 FROM booking_members bm WHERE bm.booking_id = booking.id AND bm.user_id = $1 AND bm.member_status <> 'removed'))
 				AND booking."status"::text = ANY($2::text[])
 				AND booking."created_at" >= now() - make_interval(months => $3)
-			ORDER BY booking."created_at" DESC, booking."id" DESC
+			GROUP BY trip.id, route.difficulty
+ ORDER BY MAX(booking."created_at") DESC, trip.id DESC
 			LIMIT $4
 			`,
 			[
@@ -338,6 +350,7 @@ export class TripRecommendationsRepository {
 				HISTORY_BOOKING_LIMIT,
 			]
 		)) as Array<{
+			participation: "booked" | "joined" | "completed";
 			tripType: TripType;
 			difficulty: TrekkingRouteDifficulty | null;
 			pricePerPerson: number | string;
@@ -345,6 +358,7 @@ export class TripRecommendationsRepository {
 			longitude: number | null;
 		}>;
 		return rows.map((row) => ({
+			participation: row.participation,
 			tripType: row.tripType,
 			difficulty: row.difficulty,
 			region: regionForPoint(row.latitude, row.longitude),
@@ -352,12 +366,20 @@ export class TripRecommendationsRepository {
 		}));
 	}
 
+	async findExperienceYears(userId: string): Promise<number | null> {
+		const [row] = (await this.dataSource.query(
+			"SELECT camping_experience_years AS years FROM users WHERE id = $1",
+			[userId]
+		)) as Array<{ years: number | null }>;
+		return row?.years == null ? null : Number(row.years);
+	}
 	async findPreferences(userId: string): Promise<TripPreferences & { updatedAt: Date | null }> {
 		const row = await this.dataSource
 			.getRepository(CamperTripPreference)
 			.findOne({ where: { userId } });
 		if (!row) return { ...EMPTY_PREFERENCES, updatedAt: null };
 		return {
+			activities: row.activities ?? [],
 			tripTypes: row.tripTypes,
 			difficulties: row.difficulties,
 			// A region later removed from the catalog is ignored rather than failing the read.
@@ -375,10 +397,11 @@ export class TripRecommendationsRepository {
 		await this.dataSource.query(
 			`
 			INSERT INTO "camper_trip_preferences"
-				("user_id", "trip_types", "difficulties", "regions", "min_price", "max_price")
-			VALUES ($1, $2::text[], $3::text[], $4::text[], $5, $6)
+				("user_id", "trip_types", "difficulties", "regions", "min_price", "max_price", "activities")
+			VALUES ($1, $2::text[], $3::text[], $4::text[], $5, $6, COALESCE($7::text[], '{}'))
 			ON CONFLICT ("user_id") DO UPDATE SET
-				"trip_types" = EXCLUDED."trip_types",
+				"activities" = COALESCE($7::text[], "camper_trip_preferences"."activities"),
+ "trip_types" = EXCLUDED."trip_types",
 				"difficulties" = EXCLUDED."difficulties",
 				"regions" = EXCLUDED."regions",
 				"min_price" = EXCLUDED."min_price",
@@ -392,6 +415,7 @@ export class TripRecommendationsRepository {
 				preferences.regions,
 				preferences.minPrice,
 				preferences.maxPrice,
+				preferences.activities ?? null,
 			]
 		);
 		return this.findPreferences(userId);
@@ -427,6 +451,7 @@ export class TripRecommendationsRepository {
 function toCandidateRow(row: RawCandidateRow): CandidateRow {
 	return {
 		tripId: row.id,
+		activities: row.activities ?? [],
 		routeId: row.routeId,
 		status: row.status,
 		tripType: row.tripType,

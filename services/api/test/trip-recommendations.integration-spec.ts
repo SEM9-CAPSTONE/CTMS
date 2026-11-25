@@ -6,6 +6,11 @@ import request from "supertest";
 import { DataSource } from "typeorm";
 import { AppModule } from "../src/modules/app.module";
 import { TripRecommendationsProvider } from "../src/modules/trip-recommendations/trip-recommendations.provider";
+import { Trip, TripType } from "../src/modules/trips/entities/trip.entity";
+import {
+	type CreateTripInput,
+	TripsRepository,
+} from "../src/modules/trips/repositories/trips.repository";
 import { UserRole, UserStatus } from "../src/modules/users/entities/user.entity";
 import { WEATHER_PROVIDER } from "../src/modules/weather/providers/weather-provider.interface";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
@@ -144,6 +149,10 @@ describe("Trip recommendations (integration, real Postgres)", () => {
 			if (tripIds.length > 0) {
 				await dataSource.query(
 					'DELETE FROM "audit_logs" WHERE "target_id" IN (SELECT "id" FROM "bookings" WHERE "trip_id" = ANY($1))',
+					[tripIds]
+				);
+				await dataSource.query(
+					"DELETE FROM booking_members WHERE booking_id IN (SELECT id FROM bookings WHERE trip_id = ANY($1))",
 					[tripIds]
 				);
 				await dataSource.query('DELETE FROM "bookings" WHERE "trip_id" = ANY($1)', [tripIds]);
@@ -308,6 +317,45 @@ describe("Trip recommendations (integration, real Postgres)", () => {
 		return camper;
 	};
 
+	it("persists Trip activities and preserves them for legacy updates", async () => {
+		const source = await createTrip({ title: "Khám phá rừng Hòa Bắc", status: "draft" });
+		const [row] = (await dataSource.query("SELECT route_id FROM trips WHERE id = $1", [
+			source,
+		])) as Array<{ route_id: string }>;
+		const repository = new TripsRepository(Trip, dataSource.manager);
+		const input: CreateTripInput = {
+			hostId: host.id,
+			routeId: row.route_id,
+			title: "Ngắm sao bên suối Hoa",
+			description: null,
+			activities: ["camping", "stargazing"],
+			coverImageUrl: null,
+			itinerary: null,
+			includes: null,
+			excludes: null,
+			tripType: TripType.OVERNIGHT,
+			durationNights: 1,
+			startsAt: new Date("2035-10-10T01:00:00Z"),
+			endsAt: new Date("2035-10-11T01:00:00Z"),
+			meetingPoint: { type: "Point", coordinates: DA_NANG },
+			meetingAt: null,
+			bookingDeadline: new Date("2035-10-09T01:00:00Z"),
+			capacityMin: 1,
+			capacityMax: 10,
+			pricePerPerson: 600000,
+			cancellationPolicy: null,
+			waypoints: [],
+		};
+		const created = await repository.createDraft(input);
+		tripIds.push(created.id);
+		expect(created.activities).toEqual(input.activities);
+		const { activities: _activities, ...legacy } = input;
+		const unchanged = await repository.updateDraft(created.id, legacy);
+		expect(unchanged.activities).toEqual(input.activities);
+		const cleared = await repository.updateDraft(created.id, { ...input, activities: [] });
+		expect(cleared.activities).toEqual([]);
+	});
+
 	it("allows only active Campers", async () => {
 		await request(app.getHttpServer()).get("/api/trip-recommendations").expect(401);
 		await get("/trip-recommendations", host).expect(403);
@@ -330,6 +378,7 @@ describe("Trip recommendations (integration, real Postgres)", () => {
 		});
 
 		const chosen = {
+			activities: ["camping", "photography"],
 			tripTypes: ["overnight"],
 			difficulties: ["hard", "expert"],
 			regions: ["ba_na_hoa_vang"],
@@ -339,6 +388,16 @@ describe("Trip recommendations (integration, real Postgres)", () => {
 		await put("/profiles/me/trip-preferences", first, chosen).expect(200);
 		expect((await get("/profiles/me/trip-preferences", first).expect(200)).body).toMatchObject(
 			chosen
+		);
+		await put("/profiles/me/trip-preferences", first, { ...NO_PREFERENCES }).expect(200);
+		expect((await get("/profiles/me/trip-preferences", first).expect(200)).body.activities).toEqual(
+			chosen.activities
+		);
+		await put("/profiles/me/trip-preferences", first, { ...NO_PREFERENCES, activities: [] }).expect(
+			200
+		);
+		expect((await get("/profiles/me/trip-preferences", first).expect(200)).body.activities).toEqual(
+			[]
 		);
 		// Another Camper never sees or changes these.
 		expect((await get("/profiles/me/trip-preferences", second).expect(200)).body).toMatchObject(
@@ -355,6 +414,9 @@ describe("Trip recommendations (integration, real Postgres)", () => {
 		["unknown trip type", { ...NO_PREFERENCES, tripTypes: ["camping"] }],
 		["internal id as region", { ...NO_PREFERENCES, regions: [randomUUID()] }],
 		["duplicate value", { ...NO_PREFERENCES, difficulties: ["easy", "easy"] }],
+		["unknown activity", { ...NO_PREFERENCES, activities: ["unlisted"] }],
+		["null activities", { ...NO_PREFERENCES, activities: null }],
+		["duplicate activities", { ...NO_PREFERENCES, activities: ["camping", "camping"] }],
 		["negative price", { ...NO_PREFERENCES, minPrice: -1 }],
 		["inverted range", { ...NO_PREFERENCES, minPrice: 2000000, maxPrice: 1000000 }],
 		["missing field", { tripTypes: [] }],
@@ -377,8 +439,11 @@ describe("Trip recommendations (integration, real Postgres)", () => {
 			createTrip({ title: "Làng Đá Ngọc", status: "draft" }),
 		]);
 		const ids = await recommendedIds(camper);
-		expect(ids.sort()).toEqual([open, unlimited].sort());
-		for (const id of excluded) expect(ids).not.toContain(id);
+		// Creating a current out-of-range forecast uses the same policy as booking;
+		// old route assessments alone no longer pre-empt that refresh.
+		expect(ids).toEqual(expect.arrayContaining([open, unlimited]));
+		for (const id of [excluded[0], excluded[1], excluded[2], excluded[3], excluded[6]])
+			expect(ids).not.toContain(id);
 	});
 
 	it("applies the trip-date forecast policy: Red blocks within 3 days of departure only", async () => {
@@ -393,6 +458,9 @@ describe("Trip recommendations (integration, real Postgres)", () => {
 			startsAt: inDays(8),
 			deadline: inDays(7),
 		});
+		const [activeRule] = await dataSource.query(
+			"SELECT id FROM weather_risk_rules WHERE is_active = true ORDER BY created_at DESC LIMIT 1"
+		);
 		for (const tripId of [soon, later]) {
 			const [trip] = await dataSource.query(
 				`SELECT "route_id", "starts_at", "ends_at" FROM "trips" WHERE "id" = $1`,
@@ -410,7 +478,7 @@ describe("Trip recommendations (integration, real Postgres)", () => {
 					trip.ends_at,
 					host.id,
 					{ rainfallMm: 90 },
-					ruleId,
+					activeRule.id,
 					{ rainfall: { value: 90, level: "red", weight: 0.3, score: 2 } },
 				]
 			);
@@ -587,7 +655,7 @@ describe("Trip recommendations (integration, real Postgres)", () => {
 			mode: "rules",
 			signal_type: "preferences",
 			fallback_reason: "ai_not_configured",
-			rules_version: "trip-recommendation-rules-v4",
+			rules_version: "trip-recommendation-rules-v5",
 			eligible_count: 2,
 			candidate_count: 2,
 		});
@@ -635,6 +703,26 @@ describe("Trip recommendations (integration, real Postgres)", () => {
 			[camper.id]
 		);
 		expect(run.signal_type).toBe("history");
+		const [booking] = await dataSource.query(
+			"SELECT id FROM bookings WHERE trip_id = $1 AND user_id = $2",
+			[past, camper.id]
+		);
+		await dataSource.query("UPDATE bookings SET user_id = $2 WHERE id = $1", [booking.id, host.id]);
+		await dataSource.query(
+			`INSERT INTO booking_members (booking_id, user_id, member_status) VALUES ($1, $2, 'registered')`,
+			[booking.id, camper.id]
+		);
+		const companionResult = (await get("/trip-recommendations", camper).expect(200)).body;
+		expect(companionResult.items.map((item: { trip: { id: string } }) => item.trip.id)).toEqual([
+			similar,
+			other,
+		]);
+		expect(companionResult.items[0].reasons).toContain("booked_trip_type");
+		await dataSource.query(
+			`UPDATE booking_members SET member_status = 'removed' WHERE booking_id = $1`,
+			[booking.id]
+		);
+		expect(await recommendedIds(camper)).toContain(past);
 	});
 
 	it("re-checks after AI ranking and still refuses an over-capacity booking", async () => {
@@ -880,6 +968,14 @@ describe("Trip recommendations (integration, real Postgres)", () => {
 			trekkingExperienceDetails: "Đã cắm trại qua đêm ở Bà Nà hai lần, từng đi đèo Hải Vân.",
 		});
 
+		await dataSource.query(`UPDATE trips SET activities = ARRAY['cloud_hunting'] WHERE id = $1`, [
+			suggested,
+		]);
+		await put("/profiles/me/trip-preferences", camper, {
+			...NO_PREFERENCES,
+			maxPrice: 5000000,
+			activities: ["cloud_hunting"],
+		}).expect(200);
 		// Nothing generated yet.
 		await get(`/trip-recommendations/trips/${suggested}/explanation`, camper).expect(404);
 		expect(await recommendedIds(camper)).toEqual([suggested]);
@@ -907,20 +1003,18 @@ describe("Trip recommendations (integration, real Postgres)", () => {
 		expect(section("fitness").detail).toContain("dài 6 km, đi bộ khoảng 5 giờ");
 		expect(section("health_note").quote.text).toBe("Hen suyễn");
 		expect(section("health_note").detail).toContain("“Ventolin”");
-		expect(section("interest").quote.text).toBe("Cuối tuần mình mê săn mây trên núi");
+		expect(section("interest").quote).toMatchObject({
+			source: "trip_preferences",
+			text: "Săn mây",
+		});
 		expect(section("experience")).toMatchObject({
-			tone: "match",
-			title: "Bạn đã từng đi khu vực này",
-			quote: {
-				field: "Kinh nghiệm trekking",
-				text: "Đã cắm trại qua đêm ở Bà Nà hai lần, từng đi đèo Hải Vân",
-			},
+			tone: "info",
+			title: "Kinh nghiệm bạn khai báo",
+			quote: { field: "Số năm kinh nghiệm", text: "3 năm" },
 		});
 		expect(section("price").quote.text).toBe("Đến 5.000.000 đ");
 		expect(section("price").detail).toBe("Giá chuyến là 1.850.000 đ/người.");
-		expect(response.body.summary).toContain(
-			"Chuyến đi phù hợp với sở thích, kinh nghiệm và ngân sách của bạn."
-		);
+		expect(response.body.summary).toContain("Chuyến đi phù hợp với sở thích và ngân sách của bạn.");
 		expect(response.body.summary).toContain("Độ khó vượt mức bạn khai báo.");
 		expect(response.body.summary).not.toContain("Vì vậy");
 		expect(JSON.stringify(response.body)).not.toContain(suggested.slice(0, 8));

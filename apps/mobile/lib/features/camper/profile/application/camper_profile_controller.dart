@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../data/trip_recommendations_api.dart';
 
 import '../data/camper_profile_repository.dart';
 import '../domain/camper_profile.dart';
@@ -15,7 +16,9 @@ class CamperProfileController extends AsyncNotifier<CamperProfile?> {
 
   Future<void> refresh() async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() => ref.read(camperProfileRepositoryProvider).getProfile());
+    state = await AsyncValue.guard(
+      () => ref.read(camperProfileRepositoryProvider).getProfile(),
+    );
   }
 
   Future<bool> save(UpdateCamperProfileInput input) async {
@@ -26,6 +29,10 @@ class CamperProfileController extends AsyncNotifier<CamperProfile?> {
       () => ref.read(camperProfileRepositoryProvider).updateProfile(input),
     );
     state = result;
+    if (result.hasValue) {
+      ref.invalidate(tripRecommendationsProvider);
+      ref.invalidate(tripRecommendationExplanationProvider);
+    }
     _isSaving = false;
 
     return result.hasValue;

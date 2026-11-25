@@ -6,8 +6,8 @@ import type { TripType } from "../trips/entities/trip.entity";
 import { type TripHealthAssessment, prioritizeHealth } from "./trip-health-assessment";
 import type { TripRegionCode } from "./trip-regions";
 
-export const RECOMMENDATION_RULES_VERSION = "trip-recommendation-rules-v4";
-export const RECOMMENDATION_PROMPT_VERSION = "trip-recommendation-v1";
+export const RECOMMENDATION_RULES_VERSION = "trip-recommendation-rules-v5";
+export const RECOMMENDATION_PROMPT_VERSION = "trip-recommendation-v2";
 export const MAX_RECOMMENDATIONS = 6;
 export const MAX_AI_CANDIDATES = 30;
 export const HISTORY_BOOKING_LIMIT = 20;
@@ -15,6 +15,9 @@ export const HISTORY_MONTHS = 12;
 export const MAX_REASONS_PER_TRIP = 2;
 /** A history share below this is too weak to be shown as "similar to what you booked". */
 export const HISTORY_REASON_MIN_SHARE = 0.25;
+const BASE_WEIGHT = 0.8;
+const ACTIVITY_WEIGHT = 0.15;
+const EXPERIENCE_WEIGHT = 0.05;
 const DEPARTING_SOON_MS = 14 * 24 * 60 * 60 * 1000;
 
 export type RecommendationMode = "ai" | "rules";
@@ -31,6 +34,8 @@ export type RecommendationFallbackReason =
 	| "ai_invalid_output";
 
 export const RECOMMENDATION_REASONS = [
+	"preferred_activity",
+	"declared_experience_match",
 	"preferred_trip_type",
 	"preferred_difficulty",
 	"preferred_region",
@@ -55,6 +60,8 @@ export function priceBand(pricePerPerson: number): PriceBand {
 }
 
 export interface TripPreferences {
+	activities?: string[];
+	experienceYears?: number | null;
 	tripTypes: TripType[];
 	difficulties: TrekkingRouteDifficulty[];
 	regions: TripRegionCode[];
@@ -63,6 +70,7 @@ export interface TripPreferences {
 }
 
 export const EMPTY_PREFERENCES: TripPreferences = {
+	activities: [],
 	tripTypes: [],
 	difficulties: [],
 	regions: [],
@@ -72,6 +80,7 @@ export const EMPTY_PREFERENCES: TripPreferences = {
 
 /** Structured attributes of an eligible Trip; no title, description or Host data. */
 export interface CandidateFacts {
+	activities?: string[];
 	tripId: string;
 	tripType: TripType;
 	difficulty: TrekkingRouteDifficulty | null;
@@ -86,6 +95,7 @@ export interface CandidateFacts {
 
 /** Attributes of one past confirmed/completed booking's Trip; nothing about the booking itself. */
 export interface HistoryTripFacts {
+	participation?: "booked" | "joined" | "completed";
 	tripType: TripType;
 	difficulty: TrekkingRouteDifficulty | null;
 	region: TripRegionCode | null;
@@ -96,6 +106,8 @@ type Shares<K extends string> = Partial<Record<K, number>>;
 
 /** Aggregated history: only proportions per attribute value plus the number of bookings used. */
 export interface HistoryProfile {
+	participatedCount?: number;
+	completedCount?: number;
 	bookingCount: number;
 	tripType: Shares<TripType>;
 	difficulty: Shares<TrekkingRouteDifficulty>;
@@ -119,6 +131,10 @@ export function summarizeHistory(trips: HistoryTripFacts[]): HistoryProfile {
 	const used = trips.slice(0, HISTORY_BOOKING_LIMIT);
 	return {
 		bookingCount: used.length,
+		participatedCount: used.filter(
+			(trip) => trip.participation === "joined" || trip.participation === "completed"
+		).length,
+		completedCount: used.filter((trip) => trip.participation === "completed").length,
 		tripType: shares(used.map((trip) => trip.tripType)),
 		difficulty: shares(used.map((trip) => trip.difficulty)),
 		region: shares(used.map((trip) => trip.region)),
@@ -128,6 +144,7 @@ export function summarizeHistory(trips: HistoryTripFacts[]): HistoryProfile {
 
 export function hasPreferenceSignal(preferences: TripPreferences): boolean {
 	return (
+		(preferences.activities?.length ?? 0) > 0 ||
 		preferences.tripTypes.length > 0 ||
 		preferences.difficulties.length > 0 ||
 		preferences.regions.length > 0 ||
@@ -150,7 +167,7 @@ export function signalTypeOf(
 
 export interface ScoredCandidate {
 	facts: CandidateFacts;
-	/** 0..1; the four groups are weighted equally. */
+	/** 80% base preferences/history, 15% explicit activities, 5% declared experience. */
 	score: number;
 	/** Every reason the facts support, strongest first. */
 	supportedReasons: RecommendationReason[];
@@ -209,6 +226,13 @@ function priceGroupScore(
  * in the booking history is used; with neither the group contributes nothing. Ties, including the
  * case where no group matches, are broken by nearest departure then earliest publication.
  */
+export function declaredExperienceMatches(
+	years: number | null | undefined,
+	difficulty: TrekkingRouteDifficulty | null
+): boolean | null {
+	if (years == null || difficulty == null) return null;
+	return years >= 2 || difficulty === "easy" || (years >= 1 && difficulty === "moderate");
+}
 export function scoreCandidates(
 	candidates: CandidateFacts[],
 	preferences: TripPreferences,
@@ -254,7 +278,19 @@ export function scoreCandidates(
 			if (facts.startsAt.getTime() - now.getTime() <= DEPARTING_SOON_MS) {
 				supportedReasons.push("departing_soon");
 			}
-			const score = groups.reduce((sum, group) => sum + group.score, 0) / groups.length;
+			const activityScore = preferences.activities?.length
+				? preferences.activities.filter((code) => facts.activities?.includes(code)).length /
+					preferences.activities.length
+				: 0;
+			const years = preferences.experienceYears;
+			const experienceScore = declaredExperienceMatches(years, facts.difficulty) === true ? 1 : 0;
+			if (activityScore > 0) supportedReasons.unshift("preferred_activity");
+			if (experienceScore > 0) supportedReasons.push("declared_experience_match");
+			const baseScore = groups.reduce((sum, group) => sum + group.score, 0) / groups.length;
+			const score =
+				baseScore * BASE_WEIGHT +
+				activityScore * ACTIVITY_WEIGHT +
+				experienceScore * EXPERIENCE_WEIGHT;
 			return { facts, score: Math.round(score * 1000) / 1000, supportedReasons };
 		})
 		.sort(compareScored);
@@ -358,14 +394,46 @@ function sortedRecord(record: Record<string, number | undefined>): Array<[string
 export function signalFingerprint(
 	preferences: TripPreferences,
 	history: HistoryProfile,
-	versions: { model: string; prompt: string; provider?: string }
+	versions: {
+		model: string;
+		prompt: string;
+		provider?: string;
+		candidates?: readonly ScoredCandidate[];
+		now?: Date;
+		shortlistIds?: string[];
+	}
 ): string {
 	const payload = {
+		shortlistIds: versions.shortlistIds,
+		candidates: versions.candidates
+			?.map((c) => ({
+				tripId: c.facts.tripId,
+				tripType: c.facts.tripType,
+				difficulty: c.facts.difficulty,
+				region: c.facts.region,
+				price: c.facts.pricePerPerson,
+				durationNights: c.facts.durationNights,
+				startsAt: c.facts.startsAt,
+				length: c.facts.routeLengthMeters,
+				duration: c.facts.routeDurationMinutes,
+				daysUntilStart: versions.now
+					? Math.max(
+							0,
+							Math.floor((c.facts.startsAt.getTime() - versions.now.getTime()) / 86400000)
+						)
+					: null,
+				activities: [...(c.facts.activities ?? [])].sort(),
+				score: c.score,
+				reasons: c.supportedReasons,
+			}))
+			.sort((a, b) => a.tripId.localeCompare(b.tripId)),
+		experienceYears: preferences.experienceYears ?? null,
 		provider: versions.provider ?? "gemini",
 		rules: RECOMMENDATION_RULES_VERSION,
 		prompt: versions.prompt,
 		model: versions.model,
 		preferences: {
+			activities: [...(preferences.activities ?? [])].sort(),
 			tripTypes: [...preferences.tripTypes].sort(),
 			difficulties: [...preferences.difficulties].sort(),
 			regions: [...preferences.regions].sort(),
@@ -374,6 +442,8 @@ export function signalFingerprint(
 		},
 		history: {
 			bookingCount: history.bookingCount,
+			participatedCount: history.participatedCount ?? 0,
+			completedCount: history.completedCount ?? 0,
 			tripType: sortedRecord(history.tripType),
 			difficulty: sortedRecord(history.difficulty),
 			region: sortedRecord(history.region),

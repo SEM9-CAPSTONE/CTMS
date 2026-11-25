@@ -37,6 +37,7 @@ export function formatPriceRange(minPrice: number | null, maxPrice: number | nul
 }
 
 interface FormState {
+	activities: string[];
 	tripTypes: TripType[];
 	difficulties: TrekkingRouteDifficulty[];
 	regions: TripRegionCode[];
@@ -45,6 +46,7 @@ interface FormState {
 }
 
 const EMPTY_FORM: FormState = {
+	activities: [],
 	tripTypes: [],
 	difficulties: [],
 	regions: [],
@@ -54,6 +56,7 @@ const EMPTY_FORM: FormState = {
 
 function toForm(preferences: TripPreferences): FormState {
 	return {
+		activities: preferences.activities ?? [],
 		tripTypes: preferences.tripTypes,
 		difficulties: preferences.difficulties,
 		regions: preferences.regions,
@@ -158,6 +161,7 @@ export function TripPreferencesForm({
 		}
 		setPriceError(null);
 		save.mutate({
+			activities: form.activities,
 			tripTypes: form.tripTypes,
 			difficulties: form.difficulties,
 			regions: form.regions,
@@ -189,6 +193,17 @@ export function TripPreferencesForm({
 			)}
 			{preferences.data && (
 				<form onSubmit={submit} className="flex flex-col gap-5 overflow-y-auto px-5 py-5">
+					<ChoiceGroup
+						legend="Hoạt động yêu thích"
+						options={(preferences.data.activityOptions ?? []).map((item) => ({
+							value: item.code,
+							label: item.label,
+						}))}
+						selected={form.activities}
+						onToggle={(value) =>
+							setForm((f) => ({ ...f, activities: toggle(f.activities, value) }))
+						}
+					/>
 					<ChoiceGroup
 						legend="Loại chuyến"
 						options={TRIP_TYPE_OPTIONS}

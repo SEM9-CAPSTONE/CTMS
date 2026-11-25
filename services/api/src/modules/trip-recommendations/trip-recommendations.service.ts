@@ -11,6 +11,7 @@ import { evaluateTripBookingEligibility } from "../bookings/trip-booking-eligibi
 import type { TripSummaryResponseDto } from "../trips/dto/trip-response.dto";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { TripsRepository } from "../trips/repositories/trips.repository";
+import { TRIP_ACTIVITIES } from "../trips/trip-activities";
 import { TripWeatherForecastStatus } from "../weather/entities/trip-weather-forecast.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { RouteRegistrationRiskService } from "../weather/services/route-registration-risk.service";
@@ -87,7 +88,11 @@ export class TripRecommendationsService {
 	) {}
 
 	async getPreferences(userId: string): Promise<TripPreferencesResponseDto> {
-		return { ...(await this.repository.findPreferences(userId)), regionOptions: REGION_OPTIONS };
+		return {
+			...(await this.repository.findPreferences(userId)),
+			activityOptions: [...TRIP_ACTIVITIES],
+			regionOptions: REGION_OPTIONS,
+		};
 	}
 
 	async replacePreferences(
@@ -102,13 +107,14 @@ export class TripRecommendationsService {
 			});
 		}
 		const saved = await this.repository.replacePreferences(userId, {
+			activities: dto.activities,
 			tripTypes: dto.tripTypes,
 			difficulties: dto.difficulties,
 			regions: dto.regions,
 			minPrice: dto.minPrice,
 			maxPrice: dto.maxPrice,
 		});
-		return { ...saved, regionOptions: REGION_OPTIONS };
+		return { ...saved, activityOptions: [...TRIP_ACTIVITIES], regionOptions: REGION_OPTIONS };
 	}
 
 	/**
@@ -129,6 +135,7 @@ export class TripRecommendationsService {
 			this.repository.findPreferences(userId),
 			this.repository.findHistoryTrips(userId),
 		]);
+		preferences.experienceYears = await this.repository.findExperienceYears(userId);
 		const history = summarizeHistory(historyTrips);
 		const signal = signalTypeOf(preferences, history);
 		// A consented health profile is sufficient for server-side fitness recommendations.
@@ -163,6 +170,9 @@ export class TripRecommendationsService {
 					provider: "gemini",
 					model: modelVersion,
 					prompt: promptVersion,
+					candidates: scored,
+					now,
+					shortlistIds: shortlist.map((item) => item.facts.tripId).sort(),
 				});
 				// Same preferences and history as an earlier AI run: reuse its order, no AI call.
 				const reusable = options.regenerate
@@ -219,7 +229,7 @@ export class TripRecommendationsService {
 			ranked ?? scored.map((candidate) => ({ candidate, reasons: defaultReasons(candidate) })),
 			health
 		);
-		const items = await this.confirmAvailability(userId, ordered, health);
+		const items = await this.confirmAvailability(userId, ordered, health, preferences, history);
 		// Forecast refreshes can take time. Do not publish a run after consent was revoked meanwhile.
 		if (!(await this.repository.findHealthSignal(userId))) return this.needsHealthConsent();
 		const latencyMs = Date.now() - startedAt;
@@ -294,6 +304,7 @@ export class TripRecommendationsService {
 					"Vui lòng vào Hồ sơ sức khỏe và bật chia sẻ thông tin trước khi xem phân tích gợi ý.",
 			});
 		}
+		preferences.experienceYears = profile.experienceYears;
 		const { sections } = buildExplanation({
 			trip,
 			preferences,
@@ -306,7 +317,13 @@ export class TripRecommendationsService {
 			activityProfile: profile.health.activityProfile,
 			hasMedicalConditions: profile.health.medicalConditions.length > 0,
 		});
-		const reasons: RecommendationReason[] = shown.reasons.filter(
+		const freshCandidate = scoreCandidates(
+			[trip],
+			preferences,
+			summarizeHistory(historyTrips),
+			new Date()
+		)[0];
+		const reasons: RecommendationReason[] = freshCandidate.supportedReasons.filter(
 			(reason) => reason !== "fitness_match"
 		);
 		if (healthAssessment.status === "suitable") reasons.unshift("fitness_match");
@@ -335,8 +352,31 @@ export class TripRecommendationsService {
 		}
 	}
 
-	private async filterEligible(rows: CandidateRow[], now: Date): Promise<CandidateFacts[]> {
+	private async refreshForecasts(ids: string[]) {
+		const results: Array<
+			readonly [string, Awaited<ReturnType<TripWeatherForecastService["tryEnsureTripForecast"]>>]
+		> = [];
+		for (let offset = 0; offset < ids.length; offset += 4) {
+			results.push(
+				...(await Promise.all(
+					ids
+						.slice(offset, offset + 4)
+						.map(
+							async (id) =>
+								[id, (await this.tripWeatherForecasts?.tryEnsureTripForecast(id)) ?? null] as const
+						)
+				))
+			);
+		}
+		return new Map(results);
+	}
+	private async filterEligible(
+		rows: CandidateRow[],
+		now: Date,
+		refreshForecasts = true
+	): Promise<CandidateFacts[]> {
 		const open = rows.filter((row) => evaluateTripBookingEligibility(row, 1, now) === null);
+		if (refreshForecasts) await this.refreshForecasts(open.map((row) => row.tripId));
 		const weather = await this.weatherRisk.evaluateBookingWeatherForTrips(
 			open.map((row) => ({
 				id: row.tripId,
@@ -358,7 +398,9 @@ export class TripRecommendationsService {
 	private async confirmAvailability(
 		userId: string,
 		ordered: RankedCandidate[],
-		health: HealthSignal
+		health: HealthSignal,
+		preferences: TripPreferences,
+		history: HistoryProfile
 	): Promise<TripRecommendationItemDto[]> {
 		const accepted: TripRecommendationItemDto[] = [];
 		for (
@@ -370,17 +412,11 @@ export class TripRecommendationsService {
 		) {
 			const slice = ordered.slice(offset, offset + MAX_RECOMMENDATIONS);
 			const ids = slice.map((item) => item.candidate.facts.tripId);
-			const forecasts = new Map(
-				await Promise.all(
-					ids.map(
-						async (id) =>
-							[id, (await this.tripWeatherForecasts?.tryEnsureTripForecast(id)) ?? null] as const
-					)
-				)
-			);
+			const forecasts = await this.refreshForecasts(ids);
 			const fresh = await this.filterEligible(
 				await this.repository.findCandidateRows(userId, ids),
-				new Date()
+				new Date(),
+				false
 			);
 			const freshById = new Map(fresh.map((facts) => [facts.tripId, facts]));
 			const stillEligible = new Set(freshById.keys());
@@ -398,9 +434,18 @@ export class TripRecommendationsService {
 					freshById.get(summary.id) ?? item.candidate.facts,
 					health
 				);
-				const reasons: RecommendationReason[] = item.reasons.filter(
-					(reason) => reason !== "fitness_match"
+				const freshCandidate = scoreCandidates(
+					[freshById.get(summary.id) ?? item.candidate.facts],
+					preferences,
+					history,
+					new Date()
+				)[0];
+				const supported = item.reasons.filter((reason) =>
+					freshCandidate.supportedReasons.includes(reason)
 				);
+				const reasons: RecommendationReason[] = supported.length
+					? supported
+					: defaultReasons(freshCandidate);
 				if (healthAssessment.status === "suitable") reasons.unshift("fitness_match");
 				accepted.push({
 					healthAssessment,
@@ -443,6 +488,8 @@ export class TripRecommendationsService {
 			model,
 			signal,
 			preferences: {
+				activities: preferences.activities ?? [],
+				experienceYears: preferences.experienceYears ?? null,
 				tripTypes: preferences.tripTypes,
 				difficulties: preferences.difficulties,
 				regions: preferences.regions,
@@ -457,6 +504,7 @@ export class TripRecommendationsService {
 			},
 			candidates: [...codes].map(([code, candidate]) => ({
 				code,
+				activities: candidate.facts.activities ?? [],
 				tripType: candidate.facts.tripType,
 				difficulty: candidate.facts.difficulty,
 				region: candidate.facts.region,

@@ -1,3 +1,6 @@
+import 'package:mobile/features/auth/application/auth_controller.dart';
+import 'package:mobile/features/auth/domain/auth_user.dart';
+import 'package:mobile/features/auth/domain/user_role.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -12,6 +15,15 @@ import 'package:mobile/core/theme/app_theme.dart';
 import 'package:mobile/features/camper/data/trip_recommendations_api.dart';
 import 'package:mobile/features/camper/presentation/camper_explore_screen.dart';
 import 'package:mobile/features/offline_packages/application/package_download_controller.dart';
+
+class _SignedInCamper extends AuthController {
+  @override
+  Future<AuthUser?> build() async => const AuthUser(
+    id: 'camper-account',
+    email: 'camper@ctms.local',
+    role: UserRole.camper,
+  );
+}
 
 const _tripId = '6b1f2c4e-8d3a-4f7b-9c2e-1a5d7e9f0b3c';
 
@@ -34,6 +46,7 @@ class _Adapter implements HttpClientAdapter {
   final bodies = <Object?>[];
   int recommendationFailures = 0;
   int remainingSeats = 7;
+  List<String> activities = [];
 
   /// Until the Camper saves preferences the server has nothing to personalize.
   bool needsPreferences = false;
@@ -58,7 +71,14 @@ class _Adapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requests.add(options);
-    if (options.method == 'PUT') needsPreferences = false;
+    if (options.method == 'PUT') {
+      needsPreferences = false;
+      activities = List<String>.from(
+        (options.data as Map<String, Object?>)['activities']
+                as List<Object?>? ??
+            const [],
+      );
+    }
     bodies.add(options.data);
     final path = options.uri.path == '/api/trip-recommendations/regenerate'
         ? '/api/trip-recommendations'
@@ -86,6 +106,10 @@ class _Adapter implements HttpClientAdapter {
       );
     }
     final preferences = {
+      'activities': activities,
+      'activityOptions': [
+        {'code': 'camping', 'label': 'Cắm trại'},
+      ],
       'tripTypes': ['overnight'],
       'difficulties': <String>[],
       'regions': <String>[],
@@ -118,6 +142,12 @@ class _Adapter implements HttpClientAdapter {
               'title': recommendedTitle,
             },
             'reasons': ['preferred_price', 'booked_region', 'unknown_code'],
+            'healthAssessment': {
+              'status': 'needs_review',
+              'summary': 'Cần xác nhận khả năng tham gia.',
+              'comparisons': <Object?>[],
+              'missingInformation': <Object?>[],
+            },
           },
         ],
         'generatedAt': '2026-11-14T03:00:00.000Z',
@@ -174,7 +204,10 @@ class _Adapter implements HttpClientAdapter {
 }
 
 Future<_Adapter> _pump(WidgetTester tester, {_Adapter? adapter}) async {
-  FlutterSecureStorage.setMockInitialValues({'accessToken': 'camper-token'});
+  FlutterSecureStorage.setMockInitialValues({
+    'accessToken':
+        'e30.${base64Url.encode(utf8.encode(jsonEncode({'sub': 'camper-account'}))).replaceAll('=', '')}.signature',
+  });
   final http = adapter ?? _Adapter();
   final apiClient = ApiClient(TokenStorage(const FlutterSecureStorage()));
   apiClient.dio.options.baseUrl = 'https://ctms.test/api';
@@ -184,6 +217,7 @@ Future<_Adapter> _pump(WidgetTester tester, {_Adapter? adapter}) async {
     ProviderScope(
       overrides: [
         apiClientProvider.overrideWithValue(apiClient),
+        authControllerProvider.overrideWith(_SignedInCamper.new),
         offlinePackageAccountProvider.overrideWithValue('camper-account'),
         recommendationAccountProvider.overrideWithValue('camper-account'),
         packageDownloadControllerProvider(_tripId).overrideWith(
@@ -224,7 +258,8 @@ void main() {
     expect(find.text('Sở thích bổ sung'), findsNothing);
     expect(find.text('Hồ sơ sức khỏe đã dùng'), findsNothing);
     expect(find.text('Thể lực và độ khó'), findsNothing);
-    expect(find.text('Phù hợp mức giá bạn chọn'), findsNothing);
+    expect(find.text('Phù hợp mức giá bạn chọn'), findsOneWidget);
+    expect(find.text('Cần xác nhận thêm'), findsOneWidget);
     expect(find.text('Cùng khu vực với chuyến bạn từng đi'), findsNothing);
     expect(find.byKey(ValueKey('recommended-$_tripId')), findsOneWidget);
     expect(find.text('unknown_code'), findsNothing);
@@ -236,6 +271,35 @@ void main() {
     await _openSuggestions(tester);
     expect(adapter.recommendationCalls, 2);
   });
+
+  testWidgets(
+    'saves explicit activities and restores them when reopening preferences',
+    (tester) async {
+      final adapter = await _pump(tester);
+      await _openSuggestions(tester);
+      await tester.tap(find.text('Sửa sở thích'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cắm trại'));
+      final save = find.text('Lưu sở thích');
+      await tester.ensureVisible(save);
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+      expect(adapter.activities, ['camping']);
+      await tester.tap(find.text('Sửa sở thích'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<FilterChip>(
+              find.ancestor(
+                of: find.text('Cắm trại'),
+                matching: find.byType(FilterChip),
+              ),
+            )
+            .selected,
+        isTrue,
+      );
+    },
+  );
 
   testWidgets('asks for preferences first, then suggests after saving', (
     tester,

@@ -102,7 +102,7 @@ Health data must remain server-side and may be used only while sharing consent i
 - `POST /trip-recommendations/regenerate`: Camper-requested regeneration from the latest saved profile, preferences and eligible Trips. Bypass the stored AI order, retain the same consent and eligibility checks.
 - `GET /trip-recommendations/trips/:tripId/explanation`: requires current consent; otherwise return `403` with `HEALTH_CONSENT_REQUIRED`.
 - Web health-profile reads, versioned updates and consent actions use the real `/camper/health-profile` API. No mock fallback or browser-only writes.
-- Rules version `trip-recommendation-rules-v4`; profile-only generations record the `health_profile` signal. Migration `1797400000000-AllowHealthProfileRecommendationSignal` extends the metadata constraint without rewriting history.
+- Rules version `trip-recommendation-rules-v5`; profile-only generations record the `health_profile` signal. Migration `1797400000000-AllowHealthProfileRecommendationSignal` extends the metadata constraint without rewriting history.
 
 ### Health-first suitability
 
@@ -144,3 +144,11 @@ Health data must remain server-side and may be used only while sharing consent i
 ## 12. Open Decisions
 
 Ranking algorithm/model is Technical Design; no specific algorithm is mandated here.
+
+### Structured preference matching (rules v5 / prompt v2)
+
+- Hosts explicitly declare Trip activities; Campers explicitly select preferred activities. Missing activity data never implies a match. Existing rows default to an empty list, without inferring tags from titles, descriptions or personal free text.
+- Base ranking is 80% existing type/difficulty/region/price score, 15% fraction of selected activities offered, and 5% declared experience fit. Health tiers remain authoritative. Declared years are advisory and never certify ability.
+- Activity fields omitted by older clients preserve saved values on update; an explicit empty array clears them. Both Trip drafts and published response types carry activities.
+- Booking signals include linked companions and deduplicate Trips. They describe bookings, never prove that a traveller completed or mastered a Route. Free-text biography and experience are not parsed or sent to AI.
+- Reuse AI ranking only for unchanged structured inputs and candidate facts; refresh forecasts before weather filtering with bounded concurrency. Show health status and validated reasons on suggestion cards in web and mobile.

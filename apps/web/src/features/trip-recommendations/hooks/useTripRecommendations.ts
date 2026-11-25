@@ -81,6 +81,8 @@ export function useSaveTripPreferences(onSaved?: () => void) {
 		mutationFn: (input: TripPreferencesInput) =>
 			tripRecommendationsService.replacePreferences(input),
 		onSuccess: async (saved: TripPreferences) => {
+			if (currentUserId() !== userId) return;
+			client.removeQueries({ queryKey: queryKeys.tripRecommendations.explanations(userId) });
 			client.setQueryData(queryKeys.tripRecommendations.preferences(userId), saved);
 			toast.success("Đã lưu sở thích chuyến đi. Gợi ý đang được cập nhật.");
 			onSaved?.();

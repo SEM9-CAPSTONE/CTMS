@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRIP_ACTIVITY_CODES } from "../trip-activities";
 import { type CreateTripInput, TRIP_TYPES, TRIP_WAYPOINT_TYPES, type Trip } from "../types";
 
 const uuidMessage = "Vui lòng chọn tuyến trekking đã duyệt";
@@ -52,6 +53,11 @@ export const createCreateTripFormSchema = () =>
 				.min(1, "Tên trip là bắt buộc")
 				.max(150, "Tên trip không được vượt quá 150 ký tự"),
 			description: z.string().trim(),
+			activities: z
+				.array(z.enum(TRIP_ACTIVITY_CODES as [string, ...string[]]))
+				.max(TRIP_ACTIVITY_CODES.length)
+				.refine((values) => new Set(values).size === values.length, "Không chọn trùng hoạt động")
+				.optional(),
 			areaCode: z
 				.string({ required_error: "Chọn khu vực của chuyến đi" })
 				.trim()
@@ -172,6 +178,7 @@ export const CREATE_TRIP_DEFAULT_VALUES: CreateTripFormValues = {
 	routeId: "",
 	title: "",
 	description: "",
+	activities: [],
 	areaCode: "",
 	coverImageUrl: "",
 	tripType: "day_trip",
@@ -218,6 +225,7 @@ export function toCreateTripFormValues(trip: Trip): CreateTripFormValues {
 		routeId: trip.routeId,
 		title: trip.title,
 		description: trip.description ?? "",
+		activities: trip.activities ?? [],
 		areaCode: trip.area?.code ?? "",
 		coverImageUrl: trip.coverImageUrl ?? "",
 		tripType: trip.tripType,
@@ -245,6 +253,7 @@ export function toCreateTripInput(values: CreateTripFormValues): CreateTripInput
 	const coverImageUrl = values.coverImageUrl.trim();
 	return {
 		routeId: values.routeId,
+		activities: values.activities ?? [],
 		title: values.title.trim(),
 		...(description ? { description } : {}),
 		...(coverImageUrl ? { coverImageUrl } : {}),
