@@ -35,7 +35,7 @@ export function useSafetyMapSymbols(
 			if (!feature) return;
 			setSelectedId(feature.id);
 		};
-		void import("maplibre-gl").then(({ Marker: MapMarker }) => {
+		void import("../../../core/maps/maplibre").then(({ Marker: MapMarker }) => {
 			if (disposed) return;
 			for (const feature of features) {
 				const point = featureMarkerPoint(feature);

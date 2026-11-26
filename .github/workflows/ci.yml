@@ -55,6 +55,47 @@ jobs:
         working-directory: services/ai
         run: python -m pytest app/test_survival_answers.py app/test_survival_answers_policy.py app/test_feedback_investigation.py -q
 
+  web-production:
+    name: Production Web Runtime Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --no-frozen-lockfile
+      - name: Install test browser
+        run: pnpm --filter @ctms/web exec playwright install --with-deps chromium
+      - name: Build the production web image
+        run: >-
+          docker build -f infra/docker/web.Dockerfile -t ctms-web-runtime-check
+          --build-arg VITE_API_BASE_URL=http://127.0.0.1:4175/api
+          --build-arg VITE_MAPTILER_API_KEY=build-check .
+      - name: Check worker assets through Nginx and draw a route
+        env:
+          CTMS_WEB_TEST_URL: http://127.0.0.1:4175
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --detach --name ctms-web-runtime-check -p 127.0.0.1:4175:80 ctms-web-runtime-check
+          trap 'docker rm -f ctms-web-runtime-check' EXIT
+          docker exec ctms-web-runtime-check nginx -t
+          curl --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:4175/ >/dev/null
+          for pattern in 'maplibre-gl-worker-*.js' 'pdf.worker.min-*.mjs'; do
+            asset=$(docker exec ctms-web-runtime-check find /usr/share/nginx/html/assets -name "$pattern" -type f -print -quit)
+            test -n "$asset"
+            headers=$(curl --fail --silent --show-error --dump-header - --output /dev/null "http://127.0.0.1:4175/assets/${asset##*/}")
+            printf '%s\n' "$headers" | grep -Eiq '^content-type: (application|text)/javascript'
+          done
+          status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' http://127.0.0.1:4175/assets/missing-worker.mjs)
+          test "$status" = 404
+          pnpm --filter @ctms/web exec playwright test --config playwright.loading.config.ts
+
   survival-answer-api:
     name: Survival Answers API Tests
     if: github.event_name == 'pull_request'

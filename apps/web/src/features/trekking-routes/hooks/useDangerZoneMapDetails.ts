@@ -23,7 +23,7 @@ export function useDangerZoneMapDetails(
 			const zone = byId.get(String(event.features?.[0]?.properties?.id));
 			if (zone) setSelectedId(zone.id);
 		};
-		void import("maplibre-gl").then(({ Marker: MapMarker }) => {
+		void import("../../../core/maps/maplibre").then(({ Marker: MapMarker }) => {
 			if (disposed) return;
 			for (const zone of dangerZones) {
 				if (zone.geometry.type !== "Point") continue;

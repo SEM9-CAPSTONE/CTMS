@@ -70,7 +70,7 @@ export function useRoutePreviewMap(
 		for (const marker of markersRef.current) marker.remove();
 		markersRef.current = [];
 
-		void import("maplibre-gl").then(({ Marker: MapMarker }) => {
+		void import("../../../core/maps/maplibre").then(({ Marker: MapMarker }) => {
 			if (disposed) return;
 			markersRef.current = checkpoints.map((checkpoint, index) => {
 				const element = document.createElement("div");

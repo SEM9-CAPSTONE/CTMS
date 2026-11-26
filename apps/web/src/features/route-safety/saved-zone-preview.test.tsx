@@ -10,6 +10,7 @@ import { useSafetyMapSymbols } from "./hooks/useSafetyMapSymbols";
 import type { SafetyFeature } from "./types";
 
 vi.mock("maplibre-gl", () => ({
+	setWorkerUrl: vi.fn(),
 	Marker: class {
 		constructor(private options: { element: HTMLElement }) {}
 		setLngLat() {
