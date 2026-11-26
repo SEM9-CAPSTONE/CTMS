@@ -1,14 +1,11 @@
+import { SafetySymbol } from "../../route-safety/components/SafetySymbol";
+import { HAZARD_MARKER_COLOR } from "../../route-safety/map-symbols";
+
 /** Fallback SVG warning sign for a point hazard, sized in the map's percentage viewBox. */
-export function HazardWarningMark({ x, y, color }: { x: number; y: number; color: string }) {
+export function HazardWarningMark({ x, y }: { x: number; y: number }) {
 	return (
-		<>
-			<polygon
-				points={`${x},${y - 3.6} ${x + 3.8},${y + 2.8} ${x - 3.8},${y + 2.8}`}
-				fill={color}
-			/>
-			<text x={x} y={y + 2.1} textAnchor="middle" fontSize="4" fontWeight="900" fill="white">
-				!
-			</text>
-		</>
+		<g transform={`translate(${x - 4}, ${y - 4})`}>
+			<SafetySymbol kind="hazard" color={HAZARD_MARKER_COLOR} size={8} />
+		</g>
 	);
 }

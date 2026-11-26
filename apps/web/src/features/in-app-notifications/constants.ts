@@ -10,6 +10,7 @@ export const NOTIFICATION_EVENTS = {
 	REVIEW_MODERATION_UNVERIFIED: "trip.review.moderation_unverified",
 	REVIEW_MODERATION_REMINDER: "trip.review.moderation_reminder",
 	REVIEW_MODERATION_ESCALATED: "trip.review.moderation_escalated",
+	TREKKING_ROUTE_APPROVED: "trekking_route.approved",
 } as const;
 export const NOTIFICATION_GROUPS = [
 	{ id: "trips", label: "Chuyến đi" },

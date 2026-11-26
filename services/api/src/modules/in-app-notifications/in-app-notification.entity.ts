@@ -9,6 +9,7 @@ export enum InAppNotificationType {
 	REVIEW_MODERATION_UNVERIFIED = "trip.review.moderation_unverified",
 	REVIEW_MODERATION_REMINDER = "trip.review.moderation_reminder",
 	REVIEW_MODERATION_ESCALATED = "trip.review.moderation_escalated",
+	TREKKING_ROUTE_APPROVED = "trekking_route.approved",
 }
 
 @Entity("in_app_notifications")
@@ -17,6 +18,9 @@ export class InAppNotification {
 	@Column({ name: "recipient_id", type: "uuid" }) recipientId!: string;
 	@Column({ name: "trip_id", type: "uuid", nullable: true }) tripId!: string | null;
 	@Column({ name: "review_id", type: "uuid", nullable: true }) reviewId!: string | null;
+	@Column({ name: "trekking_route_id", type: "uuid", nullable: true }) trekkingRouteId!:
+		| string
+		| null;
 	@Column({ name: "event_type", type: "varchar", length: 50 }) eventType!: InAppNotificationType;
 	@Column({ name: "source_key", type: "varchar", length: 250 }) sourceKey!: string;
 	@Column({ name: "occurred_at", type: "timestamptz" }) occurredAt!: Date;

@@ -1,4 +1,5 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
+import { SAFETY_COLORS } from "../../route-safety/map-symbols";
 import type { Position, RouteCheckpoint, RouteDangerZone, RouteDangerZoneSeverity } from "../types";
 export interface PreviewBounds {
 	minLongitude: number;
@@ -17,7 +18,11 @@ export const checkpointTypeLabels: Record<RouteCheckpoint["type"], string> = {
 };
 export const EMPTY_CHECKPOINTS: RouteCheckpoint[] = [];
 export const EMPTY_DANGER_ZONES: RouteDangerZone[] = [];
-export const severityColors = { low: "#ca8a04", medium: "#ea580c", high: "#dc2626" } as const;
+export const severityColors = {
+	low: SAFETY_COLORS.LOW,
+	medium: SAFETY_COLORS.MEDIUM,
+	high: SAFETY_COLORS.HIGH,
+} as const;
 export const severityLabels: Record<RouteDangerZoneSeverity, string> = {
 	low: "thấp",
 	medium: "trung bình",

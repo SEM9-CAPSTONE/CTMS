@@ -27,6 +27,7 @@ export function HostNotifications({ actor }: { actor: string }) {
 	}));
 	return (
 		<InAppNotificationBell
+			primaryGroupLabel="Chuyến đi và tuyến đường"
 			legacyItems={[...departures, ...bookings]}
 			legacyLoading={inbox.isPending || query.isLoading}
 			legacyError={

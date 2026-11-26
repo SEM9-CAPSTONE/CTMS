@@ -1,4 +1,5 @@
 import { HttpError } from "../../../core/api";
+import { RoutePath } from "../../../routes/routes.config";
 import type { NotificationItem } from "../../../shared/components/NotificationPanel";
 import { NOTIFICATION_EVENTS } from "../constants";
 import type { InAppNotification } from "../types";
@@ -12,6 +13,7 @@ const EVENT_LABELS = {
 	[NOTIFICATION_EVENTS.REVIEW_MODERATION_UNVERIFIED]: "Đánh giá chưa xác minh được",
 	[NOTIFICATION_EVENTS.REVIEW_MODERATION_REMINDER]: "Nhắc xem xét đánh giá quá hạn",
 	[NOTIFICATION_EVENTS.REVIEW_MODERATION_ESCALATED]: "Đánh giá cần quản trị viên kiểm tra",
+	[NOTIFICATION_EVENTS.TREKKING_ROUTE_APPROVED]: "Tuyến trekking đã được phê duyệt",
 } as const;
 
 export function notificationItem(notice: InAppNotification): NotificationItem {
@@ -22,6 +24,8 @@ export function notificationItem(notice: InAppNotification): NotificationItem {
 			href = `/host/review-analysis?trip=${encodeURIComponent(target.tripId)}&reviewId=${encodeURIComponent(target.reviewId)}`;
 		} else if (target.type === "admin_content_reports") {
 			href = "/admin/content-reports";
+		} else if (target.type === "trekking_route") {
+			href = `${RoutePath.HOST_TREKKING_ROUTES}/${encodeURIComponent(target.routeId)}`;
 		} else {
 			href =
 				target.action === "review"
@@ -31,13 +35,14 @@ export function notificationItem(notice: InAppNotification): NotificationItem {
 	}
 	return {
 		id: `in-app:${notice.id}`,
-		tripId: target?.tripId ?? null,
+		tripId: target && "tripId" in target ? target.tripId : null,
 		title: EVENT_LABELS[notice.eventType] ?? "Cập nhật chuyến đi",
 		description: target?.title ?? "Nội dung không còn khả dụng hoặc bạn không còn quyền truy cập.",
 		createdAt: notice.createdAt,
 		unread: notice.readAt === null,
 		kind: "review",
 		href,
+		...(target?.type === "trekking_route" ? { actionLabel: "Xem tuyến đường" } : {}),
 	};
 }
 

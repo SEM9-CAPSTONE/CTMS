@@ -83,6 +83,7 @@ export const API_ENDPOINTS = {
 	},
 	ROUTE_SAFETY: {
 		ANALYZE: "/route-safety/analyze",
+		REVIEW: (routeId: string) => `/route-safety/review/${routeId}`,
 		TERRAIN: "/route-safety/terrain",
 		VERIFIED_ZONES: "/route-safety/verified-zones",
 	},

@@ -6,6 +6,7 @@ import type { ListInAppNotificationsDto } from "./in-app-notifications.dto";
 
 export type NotificationTargetView =
 	| { type: "trip"; tripId: string; title: string; action: "review" | "view" }
+	| { type: "trekking_route"; routeId: string; title: string; action: "view" }
 	| {
 			type: "trip_review";
 			tripId: string;
@@ -40,6 +41,7 @@ interface NotificationRow {
 	read_at: Date | null;
 	trip_id: string | null;
 	review_id: string | null;
+	trekking_route_id: string | null;
 	title: string | null;
 	accessible: boolean;
 }
@@ -58,7 +60,11 @@ const HAS_HOST_ROLE = HAS_ADMIN_ROLE.replaceAll("'admin'", "'host'");
 
 const SELECT_NOTIFICATION = `SELECT n.id, n.event_type, n.occurred_at, n.created_at, n.read_at,
 	to_char(n.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_time,
-	n.trip_id, n.review_id, t.title, (t.id IS NOT NULL AND u.status = 'active' AND CASE
+	n.trip_id, n.review_id, n.trekking_route_id, COALESCE(route.name, t.title) AS title,
+	(u.status = 'active' AND CASE
+		WHEN n.event_type = '${InAppNotificationType.TREKKING_ROUTE_APPROVED}'
+			THEN route.id IS NOT NULL AND route.host_id = u.id AND ${HAS_HOST_ROLE}
+		WHEN t.id IS NULL THEN FALSE
 		WHEN n.event_type IN (
 			'trip.review.moderation_flagged',
 			'trip.review.auto_hidden',
@@ -70,11 +76,29 @@ const SELECT_NOTIFICATION = `SELECT n.id, n.event_type, n.occurred_at, n.created
 		ELSE ${HAS_ADMIN_ROLE} END) AS accessible
 	FROM in_app_notifications n JOIN users u ON u.id = n.recipient_id
 	LEFT JOIN trips t ON t.id = n.trip_id
+	LEFT JOIN trekking_routes route ON route.id = n.trekking_route_id
 	LEFT JOIN trip_reviews tr ON tr.id = n.review_id`;
 
 @Injectable()
 export class InAppNotificationsService {
 	constructor(private readonly dataSource: DataSource) {}
+
+	async enqueueTrekkingRouteApproval(
+		manager: EntityManager,
+		routeId: string,
+		approval: { id: string; createdAt: Date }
+	): Promise<void> {
+		const eventType = InAppNotificationType.TREKKING_ROUTE_APPROVED;
+		await manager.query(
+			`INSERT INTO in_app_notifications
+				(recipient_id, trekking_route_id, event_type, source_key, occurred_at)
+			 SELECT u.id, route.id, $2, $3, $4
+			 FROM trekking_routes route JOIN users u ON u.id = route.host_id
+			 WHERE route.id = $1 AND u.status = 'active' AND ${HAS_HOST_ROLE}
+			 ON CONFLICT (source_key, recipient_id) DO NOTHING`,
+			[routeId, eventType, `${eventType}:${approval.id}`, approval.createdAt]
+		);
+	}
 
 	/** Must be called inside the owning business transaction, never after it commits. */
 	async enqueueTripReview(
@@ -191,7 +215,19 @@ export class InAppNotificationsService {
 
 function notificationView(row: NotificationRow): NotificationView {
 	let target: NotificationTargetView | null = null;
-	if (row.accessible && row.trip_id && row.title) {
+	if (
+		row.accessible &&
+		row.trekking_route_id &&
+		row.title &&
+		row.event_type === InAppNotificationType.TREKKING_ROUTE_APPROVED
+	) {
+		target = {
+			type: "trekking_route",
+			routeId: row.trekking_route_id,
+			title: row.title,
+			action: "view",
+		};
+	} else if (row.accessible && row.trip_id && row.title) {
 		if (HOST_REVIEW_MODERATION_EVENTS.has(row.event_type) && row.review_id) {
 			target = {
 				type: "trip_review",

@@ -12,7 +12,7 @@ import {
 	projectFallbackPosition,
 } from "../../route-safety/utils/verified-zone-map";
 import { useRoutePreviewMap } from "../hooks/useRoutePreviewMap";
-import type { GeoJsonLineString, RouteCheckpoint, RouteDangerZone } from "../types";
+import type { GeoJsonLineString, Position, RouteCheckpoint, RouteDangerZone } from "../types";
 import { EMPTY_CHECKPOINTS, EMPTY_DANGER_ZONES, fallbackCoordinate } from "../utils/route-preview";
 import { DangerZoneDetailsModal } from "./DangerZoneDetailsModal";
 import { RoutePreviewFallback } from "./RoutePreviewFallback";
@@ -21,6 +21,7 @@ import { RoutePreviewLegends } from "./RoutePreviewLegends";
 interface RouteGeometryPreviewProps {
 	geometry: GeoJsonLineString;
 	safetyFeatures?: SafetyCollection;
+	waypoints?: Position[];
 	checkpoints?: RouteCheckpoint[];
 	dangerZones?: RouteDangerZone[];
 	footer?: ReactNode;
@@ -34,6 +35,7 @@ interface RouteGeometryPreviewProps {
 export function RouteGeometryPreview({
 	geometry,
 	safetyFeatures,
+	waypoints,
 	checkpoints: providedCheckpoints,
 	dangerZones: providedDangerZones,
 	footer,
@@ -71,7 +73,7 @@ export function RouteGeometryPreview({
 		bounds,
 		fitAll,
 		dangerZoneDetails,
-	} = useRoutePreviewMap(geometry, checkpoints, dangerZones, originalDangerZones);
+	} = useRoutePreviewMap(geometry, checkpoints, dangerZones, originalDangerZones, waypoints);
 	const details = useSafetyMapLayers(map, mapReady && !useFallback, safetyMapFeatures);
 
 	return (
@@ -103,6 +105,7 @@ export function RouteGeometryPreview({
 				{useFallback && (
 					<RoutePreviewFallback
 						geometry={geometry}
+						waypoints={waypoints}
 						checkpoints={checkpoints}
 						dangerZones={dangerZones}
 						bounds={bounds}

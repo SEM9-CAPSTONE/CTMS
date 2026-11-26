@@ -8,6 +8,7 @@ export interface NotificationItem {
 	kind: "departure" | "booking" | "review" | "level" | "trip";
 	/** null deliberately disables navigation when the backend redacts a target. */
 	href?: string | null;
+	actionLabel?: string;
 }
 
 export interface NotificationPanelProps {
