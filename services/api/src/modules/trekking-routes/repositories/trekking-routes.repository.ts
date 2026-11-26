@@ -6,7 +6,11 @@ import type { TrekkingRouteSort } from "../dto/list-trekking-routes-query.dto";
 import type { RouteDangerZoneResponseDto } from "../dto/route-danger-zone-response.dto";
 import type { TrekkingRouteResponseDto } from "../dto/trekking-route-response.dto";
 import type { TrekkingRouteReviewResponseDto } from "../dto/trekking-route-review-response.dto";
-import type { GeoLineString, TrekkingRouteDifficulty } from "../entities/trekking-route.entity";
+import type {
+	GeoLineString,
+	TrekkingRouteDifficulty,
+	TrekkingRouteDrawing,
+} from "../entities/trekking-route.entity";
 import { type TrekkingRoute, TrekkingRouteStatus } from "../entities/trekking-route.entity";
 
 export interface CreateDraftTrekkingRouteInput {
@@ -14,6 +18,7 @@ export interface CreateDraftTrekkingRouteInput {
 	name: string;
 	description: string | null;
 	geometry: GeoLineString;
+	drawing?: TrekkingRouteDrawing;
 	difficulty: TrekkingRouteDifficulty;
 	expectedDurationMinutes: number;
 }
@@ -24,6 +29,7 @@ interface CreatedRouteRow {
 	name: string;
 	description: string | null;
 	geometry: GeoLineString;
+	drawing?: TrekkingRouteDrawing | null;
 	lengthMeters: number;
 	difficulty: TrekkingRouteDifficulty;
 	expectedDurationMinutes: number;
@@ -71,7 +77,7 @@ const LATEST_REVIEW_AUDIT_SELECT = `
 	END AS "latestRejectionAt"
 `;
 
-const LATEST_REVIEW_AUDIT_JOIN = `
+export const LATEST_REVIEW_AUDIT_JOIN = `
 	LEFT JOIN LATERAL (
 		SELECT audit."action", audit."reason", audit."created_at"
 		FROM "audit_logs" audit
@@ -87,7 +93,7 @@ const LATEST_REVIEW_AUDIT_JOIN = `
 	) latest_review ON TRUE
 `;
 
-const ROUTE_REVIEW_OUTCOME_EXPRESSION = `
+export const ROUTE_REVIEW_OUTCOME_EXPRESSION = `
 	CASE
 		WHEN route."status" = 'pending_approval' THEN 'pending'
 		WHEN latest_review."action" = 'trekking_route.approved' THEN 'approved'
@@ -99,8 +105,10 @@ const ROUTE_REVIEW_OUTCOME_EXPRESSION = `
 `;
 
 function toResponse(row: CreatedRouteRow): TrekkingRouteResponseDto {
+	const { drawing, ...route } = row;
 	return {
-		...row,
+		...route,
+		...(drawing ? { drawing } : {}),
 		lengthMeters: Number(row.lengthMeters),
 		expectedDurationMinutes: Number(row.expectedDurationMinutes),
 	};
@@ -129,6 +137,7 @@ const REVIEW_ROUTE_SELECT = `
 		route."name",
 		route."description",
 		ST_AsGeoJSON(route."route_geom"::geometry)::json AS "geometry",
+		route."route_drawing" AS "drawing",
 		route."length_meters" AS "lengthMeters",
 		route."difficulty",
 		route."expected_duration_minutes" AS "expectedDurationMinutes",
@@ -190,6 +199,7 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 				route."name",
 				route."description",
 				ST_AsGeoJSON(route."route_geom"::geometry)::json AS "geometry",
+				route."route_drawing" AS "drawing",
 				route."length_meters" AS "lengthMeters",
 				route."difficulty",
 				route."expected_duration_minutes" AS "expectedDurationMinutes",
@@ -216,6 +226,7 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 				route."name",
 				route."description",
 				ST_AsGeoJSON(route."route_geom"::geometry)::json AS "geometry",
+				route."route_drawing" AS "drawing",
 				route."length_meters" AS "lengthMeters",
 				route."difficulty",
 				route."expected_duration_minutes" AS "expectedDurationMinutes",
@@ -352,6 +363,7 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 				"name",
 				"description",
 				ST_AsGeoJSON("route_geom"::geometry)::json AS "geometry",
+				"route_drawing" AS "drawing",
 				"length_meters" AS "lengthMeters",
 				"difficulty",
 				"expected_duration_minutes" AS "expectedDurationMinutes",
@@ -375,6 +387,7 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 				route."name",
 				route."description",
 				ST_AsGeoJSON(route."route_geom"::geometry)::json AS "geometry",
+				route."route_drawing" AS "drawing",
 				route."length_meters" AS "lengthMeters",
 				route."difficulty",
 				route."expected_duration_minutes" AS "expectedDurationMinutes",
@@ -419,6 +432,7 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 				route."name",
 				route."description",
 				ST_AsGeoJSON(route."route_geom"::geometry)::json AS "geometry",
+				route."route_drawing" AS "drawing",
 				route."length_meters" AS "lengthMeters",
 				route."difficulty",
 				route."expected_duration_minutes" AS "expectedDurationMinutes",
@@ -479,6 +493,12 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 			), updated AS (
 				UPDATE "trekking_routes" route
 				SET "name" = $2, "description" = $3, "route_geom" = proposed.geom,
+					"route_drawing" = CASE
+						WHEN $8::jsonb IS NOT NULL THEN $8::jsonb
+						WHEN ST_OrderingEquals(route."route_geom"::geometry, proposed.geom::geometry)
+							THEN route."route_drawing"
+						ELSE NULL
+					END,
 					"length_meters" = ST_Length(proposed.geom), "difficulty" = $5,
 					"expected_duration_minutes" = $6, "updated_at" = now()
 				FROM proposed
@@ -488,6 +508,7 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 			)
 			SELECT "id", "host_id" AS "hostId", "name", "description",
 				ST_AsGeoJSON("route_geom"::geometry)::json AS "geometry",
+				"route_drawing" AS "drawing",
 				"length_meters" AS "lengthMeters", "difficulty",
 				"expected_duration_minutes" AS "expectedDurationMinutes",
 				"status", "created_at" AS "createdAt", "updated_at" AS "updatedAt"
@@ -501,6 +522,7 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 				input.difficulty,
 				input.expectedDurationMinutes,
 				input.hostId,
+				input.drawing ? JSON.stringify(input.drawing) : null,
 			]
 		)) as CreatedRouteRow[];
 		if (!rows[0]) {
@@ -532,12 +554,13 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 				"name",
 				"description",
 				"route_geom",
+				"route_drawing",
 				"length_meters",
 				"difficulty",
 				"expected_duration_minutes",
 				"status"
 			)
-			SELECT $1, $2, $3, route_geom, length_meters, $5, $6, $7
+			SELECT $1, $2, $3, route_geom, $8::jsonb, length_meters, $5, $6, $7
 			FROM measured_route
 			WHERE length_meters > 0
 			RETURNING
@@ -546,6 +569,7 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 				"name",
 				"description",
 				ST_AsGeoJSON("route_geom"::geometry)::json AS "geometry",
+				"route_drawing" AS "drawing",
 				"length_meters" AS "lengthMeters",
 				"difficulty",
 				"expected_duration_minutes" AS "expectedDurationMinutes",
@@ -561,6 +585,7 @@ export class TrekkingRoutesRepository extends Repository<TrekkingRoute> {
 				input.difficulty,
 				input.expectedDurationMinutes,
 				TrekkingRouteStatus.DRAFT,
+				input.drawing ? JSON.stringify(input.drawing) : null,
 			]
 		)) as CreatedRouteRow[];
 

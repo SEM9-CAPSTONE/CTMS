@@ -71,9 +71,38 @@ uses the combined result as the saving minimum. Unknown road legs use a provisio
 remains null and marks the result DISTANCE_ONLY. In incomplete cases the saving
 minimum is the distance-only 4 km/h floor, rather than an unverified full assessment.
 
-Long routes have coarser sampling and may miss short steep sections. The drawn
-line must follow the actual trail; this feature does not route or snap straight
-lines to paths. Road metadata does not verify that a trail is currently passable.
+Long routes have coarser sampling and may miss short steep sections. The Host
+editor's **Tự động bám đường** switch defaults to on and controls the next
+segment. In either switch position, earlier segments keep their geometry.
+Terrain, distance, water, and hazard analysis consume the complete validated
+LineString made by joining the committed segments. CTMS estimates trekking
+duration with its existing model.
+
+Each smart segment uses MapTiler's pedestrian profile with a 75 m default snap
+limit. Markers represent the committed endpoints. A shared endpoint must match
+the existing coordinate within the provider's six-decimal rounding precision.
+An incompatible result leaves the committed line intact and asks the Host to
+adjust the point, retry, or explicitly connect the affected segment manually.
+When a new segment found a nearby path with a different start, the Host can
+also confirm a manual approach from the committed endpoint and retain the
+smart portion of the new segment.
+The editor removes duplicate coordinates at joins and keeps the shared
+10,000-coordinate analysis limit. Saving and analysis pause during unresolved
+geometry edits.
+
+Dragging a point updates its adjacent segments in their original modes.
+Deleting a point between different modes asks how to reconnect the remaining
+points. Undo restores the prior geometry and drawing modes.
+
+The existing optional JSON drawing metadata stores hybrid waypoints and
+ordered segment IDs, modes, and end indices into the saved LineString.
+The route save and analysis endpoints accept JSON bodies up to 2 MiB to
+accommodate the geometry and its segment metadata. Older
+routes retain their shape. The editor recovers old internal waypoints that
+identify unique vertices in order. Routes without reliable segment boundaries
+open as one preserved segment with editable endpoints. Mapped data may be
+incomplete, especially for hiking trails. Hosts should check access and trail
+conditions separately.
 
 Provider contract: https://docs.maptiler.com/cloud/api/elevation/
 Standard: https://images.vietnamtourism.gov.vn/vn/dmdocuments/2026/tcvn_14602_2026.pdf

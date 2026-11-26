@@ -5,6 +5,7 @@ import { ROUTE_SAVE_INTENTS } from "../types";
 interface Props {
 	isEditing: boolean;
 	isSubmitting: boolean;
+	geometryBlocked: boolean;
 	isSendingForApproval: boolean;
 	canSubmitForApproval: boolean;
 }
@@ -12,6 +13,7 @@ interface Props {
 export function RouteFormActions({
 	isEditing,
 	isSubmitting,
+	geometryBlocked,
 	isSendingForApproval,
 	canSubmitForApproval,
 }: Props) {
@@ -24,7 +26,7 @@ export function RouteFormActions({
 				type="submit"
 				name="routeAction"
 				value={ROUTE_SAVE_INTENTS.SAVE}
-				disabled={isSubmitting}
+				disabled={isSubmitting || geometryBlocked}
 				className={`flex items-center justify-center gap-2 rounded-xl px-5 py-3 font-bold disabled:opacity-60 ${
 					canSubmitForApproval
 						? "border border-[#cbd9ce] bg-white text-[#164027]"
@@ -39,7 +41,7 @@ export function RouteFormActions({
 					type="submit"
 					name="routeAction"
 					value={ROUTE_SAVE_INTENTS.SUBMIT}
-					disabled={isSubmitting}
+					disabled={isSubmitting || geometryBlocked}
 					className="flex items-center justify-center gap-2 rounded-xl bg-[#164027] px-5 py-3 font-bold text-white disabled:opacity-60"
 				>
 					{isSendingForApproval ? (

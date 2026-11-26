@@ -10,6 +10,8 @@ import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 // biome-ignore lint/style/useImportType: Nest injection metadata
+import { InAppNotificationsService } from "../../in-app-notifications/in-app-notifications.service";
+// biome-ignore lint/style/useImportType: Nest injection metadata
 import { TerrainService } from "../../route-safety/terrain.service";
 import { UserRole } from "../../users/entities/user.entity";
 import type { CreateTrekkingRouteDto } from "../dto/create-trekking-route.dto";
@@ -40,7 +42,8 @@ export class TrekkingRoutesService {
 	constructor(
 		private readonly trekkingRoutesRepository: TrekkingRoutesRepository,
 		private readonly dataSource: DataSource,
-		private readonly terrain: TerrainService
+		private readonly terrain: TerrainService,
+		private readonly notifications: InAppNotificationsService
 	) {}
 
 	async listByHost(hostId: string): Promise<TrekkingRouteResponseDto[]> {
@@ -177,7 +180,7 @@ export class TrekkingRoutesService {
 
 			const targetStatus = this.reviewTargetStatus(dto.action);
 			const updated = await repository.updateStatus(routeId, targetStatus);
-			await manager.getRepository(AuditLog).save({
+			const decision = await manager.getRepository(AuditLog).save({
 				actorId: adminId,
 				action: this.reviewAuditAction(dto.action),
 				targetType: "trekking_route",
@@ -186,6 +189,9 @@ export class TrekkingRoutesService {
 				after: { status: targetStatus },
 				reason: dto.action === ReviewTrekkingRouteAction.APPROVE ? null : (dto.reason ?? null),
 			});
+			if (dto.action === ReviewTrekkingRouteAction.APPROVE) {
+				await this.notifications.enqueueTrekkingRouteApproval(manager, routeId, decision);
+			}
 
 			return {
 				...updated,
@@ -204,6 +210,7 @@ export class TrekkingRoutesService {
 				name: dto.name,
 				description: dto.description ?? null,
 				geometry: dto.geometry,
+				...(dto.drawing ? { drawing: dto.drawing } : {}),
 				difficulty: dto.difficulty,
 				expectedDurationMinutes: dto.expectedDurationMinutes,
 			});
@@ -363,6 +370,15 @@ export class TrekkingRoutesService {
 			difficulty: route.difficulty,
 			expectedDurationMinutes: route.expectedDurationMinutes,
 			status: route.status,
+			...(route.drawing
+				? {
+						drawing: {
+							mode: route.drawing.mode,
+							waypointCount: route.drawing.waypoints.length,
+							...(route.drawing.segments ? { segmentCount: route.drawing.segments.length } : {}),
+						},
+					}
+				: {}),
 			geometry: {
 				type: route.geometry.type,
 				vertexCount: coordinates.length,

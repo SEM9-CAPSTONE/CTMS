@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { TrekkingRouteDifficulty, TrekkingRouteStatus } from "../entities/trekking-route.entity";
-import { GeoJsonLineStringDto } from "./create-trekking-route.dto";
+import { GeoJsonLineStringDto, TrekkingRouteDrawingDto } from "./create-trekking-route.dto";
 
 export class TrekkingRouteResponseDto {
 	@ApiProperty({ format: "uuid" })
@@ -17,6 +17,9 @@ export class TrekkingRouteResponseDto {
 
 	@ApiProperty({ type: GeoJsonLineStringDto })
 	geometry!: GeoJsonLineStringDto;
+
+	@ApiPropertyOptional({ type: TrekkingRouteDrawingDto })
+	drawing?: TrekkingRouteDrawingDto;
 
 	@ApiProperty({ description: "PostGIS ST_Length result in meters" })
 	lengthMeters!: number;
