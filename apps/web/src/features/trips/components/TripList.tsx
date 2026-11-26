@@ -7,6 +7,7 @@ export interface TripListProps {
 	pagination: TripsPagination | null;
 	isLoading: boolean;
 	error: string | null;
+	errorStatus?: number | null;
 	onRetry: () => void;
 	onSelectTrip: (tripId: string) => void;
 	onPageChange: (page: number) => void;
@@ -17,6 +18,7 @@ export function TripList({
 	pagination,
 	isLoading,
 	error,
+	errorStatus,
 	onRetry,
 	onSelectTrip,
 	onPageChange,
@@ -55,17 +57,23 @@ export function TripList({
 				className="rounded-3xl border border-rose-200 bg-rose-50 p-8 text-center text-rose-800 shadow-sm"
 			>
 				<p className="font-extrabold">{error}</p>
-				<p className="mt-1 text-xs text-rose-600">
-					Vui lòng kiểm tra kết nối mạng hoặc thử lại yêu cầu.
-				</p>
-				<button
-					type="button"
-					onClick={onRetry}
-					className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-rose-700 px-5 py-2.5 text-xs font-bold text-white transition hover:bg-rose-800"
-				>
-					<RefreshCw className="size-4" />
-					<span>Tải lại</span>
-				</button>
+				{errorStatus === 401 ? (
+					<a
+						href="/login"
+						className="mt-5 inline-flex rounded-2xl bg-[#164027] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#0f2e1c]"
+					>
+						Đăng nhập
+					</a>
+				) : (
+					<button
+						type="button"
+						onClick={onRetry}
+						className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-rose-700 px-5 py-2.5 text-xs font-bold text-white transition hover:bg-rose-800"
+					>
+						<RefreshCw className="size-4" />
+						<span>Tải lại</span>
+					</button>
+				)}
 			</div>
 		);
 	}

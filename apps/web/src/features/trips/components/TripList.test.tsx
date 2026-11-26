@@ -91,6 +91,24 @@ describe("TripList", () => {
 		expect(screen.getByText("Không tìm thấy chuyến đi nào phù hợp")).toBeInTheDocument();
 	});
 
+	it("offers sign-in for an unauthenticated request without suggesting a network retry", () => {
+		render(
+			<TripList
+				items={[]}
+				pagination={null}
+				isLoading={false}
+				error="Vui lòng đăng nhập để xem danh sách chuyến đi."
+				errorStatus={401}
+				onRetry={vi.fn()}
+				onSelectTrip={vi.fn()}
+				onPageChange={vi.fn()}
+			/>
+		);
+		expect(screen.getByRole("link", { name: "Đăng nhập" })).toHaveAttribute("href", "/login");
+		expect(screen.queryByRole("button", { name: "Tải lại" })).not.toBeInTheDocument();
+		expect(screen.getByRole("alert")).not.toHaveTextContent("kết nối mạng");
+	});
+
 	it("renders trip items and handles pagination", () => {
 		const onSelectTrip = vi.fn();
 		const onPageChange = vi.fn();

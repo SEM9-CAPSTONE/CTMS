@@ -118,7 +118,7 @@ function canUseMapLibre(): boolean {
 
 function fitRoute(map: MapLibreMap, coordinates: Position[]): void {
 	if (coordinates.length === 0) return;
-	void import("maplibre-gl").then((maplibre) => {
+	void import("../../../core/maps/maplibre").then((maplibre) => {
 		const bounds = new maplibre.LngLatBounds(coordinates[0], coordinates[0]);
 		for (const coordinate of coordinates) bounds.extend(coordinate);
 		map.fitBounds(bounds, { padding: 64, maxZoom: 15, duration: 0 });
@@ -235,7 +235,7 @@ export function TripWaypointLocationMap({
 			return;
 		}
 		let disposed = false;
-		void import("maplibre-gl")
+		void import("../../../core/maps/maplibre")
 			.then((maplibre) => {
 				if (disposed || !containerRef.current) return;
 				const map = new maplibre.Map({
@@ -313,7 +313,7 @@ export function TripWaypointLocationMap({
 		for (const marker of markerRefs.current) marker.remove();
 		markerRefs.current = [];
 		let disposed = false;
-		void import("maplibre-gl").then((maplibre) => {
+		void import("../../../core/maps/maplibre").then((maplibre) => {
 			if (disposed || mapRef.current !== map) return;
 			coordinates.forEach((coordinate, routeOrder) => {
 				const isEndpoint = routeOrder === 0 || routeOrder === coordinates.length - 1;

@@ -140,6 +140,28 @@ describe("useSearchTrips", () => {
 		expect(result.current.items).toHaveLength(1);
 	});
 
+	it.each([
+		[401, "Vui lòng đăng nhập để xem danh sách chuyến đi."],
+		[403, "Bạn không có quyền xem danh sách chuyến đi."],
+	])(
+		"distinguishes HTTP %s from a network failure and clears it on retry",
+		async (status, message) => {
+			vi.mocked(tripsService.search).mockRejectedValueOnce(
+				new HttpError("Unauthorized", status as number, {})
+			);
+			const { result } = renderHook(() => useSearchTrips());
+			await waitFor(() => expect(result.current.isLoading).toBe(false));
+			expect(result.current.error).toBe(message);
+			expect(result.current.errorStatus).toBe(status);
+			vi.mocked(tripsService.search).mockResolvedValueOnce(mockPaginatedTrips);
+			await act(async () => {
+				await result.current.retry();
+			});
+			expect(result.current.error).toBeNull();
+			expect(result.current.errorStatus).toBeNull();
+		}
+	);
+
 	it("resets filters to default", () => {
 		const { result } = renderHook(() =>
 			useSearchTrips({

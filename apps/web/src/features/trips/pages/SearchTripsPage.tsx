@@ -65,6 +65,7 @@ export function SearchTripsPage({
 		pagination,
 		isLoading,
 		error,
+		errorStatus,
 		updateFilters,
 		setPage,
 		retry,
@@ -160,6 +161,7 @@ export function SearchTripsPage({
 							pagination={pagination}
 							isLoading={isLoading}
 							error={error}
+							errorStatus={errorStatus}
 							onRetry={retry}
 							onSelectTrip={onNavigateToTripDetail}
 							onPageChange={setPage}

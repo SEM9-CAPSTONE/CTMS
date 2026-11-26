@@ -222,7 +222,7 @@ export function RouteCheckpointMap({
 		setMapReady(false);
 		setMapError("");
 		let disposed = false;
-		void import("maplibre-gl")
+		void import("../../../core/maps/maplibre")
 			.then((maplibre) => {
 				if (disposed || !containerRef.current) return;
 				const map = new maplibre.Map({
@@ -366,7 +366,7 @@ export function RouteCheckpointMap({
 		draftPolygonSource?.setData?.(draftPolygonFeature);
 		for (const marker of markersRef.current) marker.remove();
 		markersRef.current = [];
-		void import("maplibre-gl").then(({ Marker: MapMarker }) => {
+		void import("../../../core/maps/maplibre").then(({ Marker: MapMarker }) => {
 			if (mapRef.current !== map) return;
 			const locations: Array<{
 				point: Position;
@@ -447,7 +447,7 @@ export function RouteCheckpointMap({
 		const markers: Marker[] = [];
 
 		let redraw = () => {};
-		void import("maplibre-gl").then(({ Marker: MapMarker }) => {
+		void import("../../../core/maps/maplibre").then(({ Marker: MapMarker }) => {
 			if (disposed || mapRef.current !== map) return;
 			redraw = () => {
 				for (const marker of markers) marker.remove();

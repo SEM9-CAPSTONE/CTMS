@@ -74,6 +74,8 @@ services:
     logging: *ctms-logging
     container_name: !reset null
     restart: unless-stopped
+    environment:
+      CTMS_API_INTERNAL_URL: http://api:3000
     ports: !reset []
 
   ingestion:

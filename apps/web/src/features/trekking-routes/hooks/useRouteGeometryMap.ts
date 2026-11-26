@@ -62,7 +62,7 @@ export function useRouteGeometryMap(
 		source?.setData?.({ type: "Feature", properties: {}, geometry: value });
 		for (const marker of markersRef.current) marker.remove();
 		markersRef.current = [];
-		void import("maplibre-gl").then((maplibre) => {
+		void import("../../../core/maps/maplibre").then((maplibre) => {
 			if (disposed) return;
 			markersRef.current = value.coordinates.map((position, index) => {
 				const element = document.createElement("button");

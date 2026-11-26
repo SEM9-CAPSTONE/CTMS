@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
 	missingPainter: false,
 }));
 vi.mock("maplibre-gl", () => ({
+	setWorkerUrl: vi.fn(),
 	Map: class {
 		readonly handlers = new Map<string, (event?: Record<string, unknown>) => void>();
 		readonly painter = mocks.missingPainter ? undefined : {};
