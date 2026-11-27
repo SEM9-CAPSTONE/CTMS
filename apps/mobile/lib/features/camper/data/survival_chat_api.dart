@@ -27,6 +27,7 @@ sealed class SurvivalChatResult {
             version is! String) {
           throw const FormatException('Invalid safety assessment');
         }
+        final protocol = json['protocol'];
         return SurvivalChatSafety(
           reportedEmergencyAssessment(
             severity: severity,
@@ -35,6 +36,12 @@ sealed class SurvivalChatResult {
                 ? json['clarificationId'] as String
                 : null,
             policyVersion: version,
+            protocolId: protocol is Map && protocol['id'] is String
+                ? protocol['id'] as String
+                : null,
+            protocolVersion: protocol is Map && protocol['version'] is int
+                ? protocol['version'] as int
+                : null,
           ),
         );
       case 'ANSWERED':

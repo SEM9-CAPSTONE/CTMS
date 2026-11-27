@@ -7,6 +7,7 @@ import '../../auth/domain/user_role.dart';
 import '../../offline_packages/application/offline_trip_providers.dart';
 import '../../offline_packages/domain/offline_trip.dart';
 import '../../sync/application/connectivity_source.dart';
+import '../data/emergency_personal_context.dart';
 import '../data/emergency_safety_engine.dart';
 import '../data/survival_chat_api.dart';
 import '../data/survival_local_model.dart';
@@ -112,6 +113,12 @@ final survivalChatAccountProvider = Provider<String?>((ref) {
   return roles.contains(UserRole.camper) ? user.id : null;
 });
 
+// CTMS-009 has no emergency-assessment grant or authorized offline profile
+// source. Keep this unconfigured until an existing purpose-specific source is available.
+final emergencyHealthSourceProvider = Provider<EmergencyHealthSource?>(
+  (ref) => null,
+);
+
 final _legacyEmergency = RegExp(
   r'không (?:thở|tỉnh)|ngừng thở|bất tỉnh|mất ý thức|co giật|'
   r'nghẹt thở|chảy máu (?:nhiều|không ngừng)|'
@@ -183,7 +190,22 @@ class SurvivalChatController extends Notifier<List<SurvivalChatTurn>> {
         account != null &&
         ref.read(survivalChatAccountProvider) == account;
     if (emergencySafetyEnabled) {
-      final assessment = assessEmergency(pending.question, previous: _incident);
+      var assessment = assessEmergency(pending.question, previous: _incident);
+      if (assessment.severity == EmergencySeverity.warning &&
+          assessment.affectedPerson == AffectedPerson.self &&
+          account != null &&
+          emergencyPersonalRiskRules.isNotEmpty) {
+        final source = ref.read(emergencyHealthSourceProvider);
+        if (source != null) {
+          assessment = await personalizeEmergencyAssessment(
+            assessment,
+            pending.question,
+            account,
+            source,
+          );
+          if (!current() || !state.contains(pending)) return;
+        }
+      }
       _incident = assessment.requiresSafetyResponse ? assessment : null;
       if (assessment.requiresSafetyResponse) {
         _replace(_safetyTurn(pending, assessment));
