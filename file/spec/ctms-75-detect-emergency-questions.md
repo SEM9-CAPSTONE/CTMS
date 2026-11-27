@@ -35,12 +35,13 @@ Acceptance Criteria:
 - Intent, severity, assessment completeness, reassessment, approved Emergency Protocol content and safe fallback.
 - Safety checks before inference and before generated content is shown.
 - An accessible handoff to existing SOS and location capabilities.
+- Optional personal context from CTMS-009 for the Camper's own current incident, subject to emergency-assessment authorization and reviewed rules.
 
 ### Out of Scope
 
 - SOS transport, a new offline queue, replay eligibility, new expiry/reconfirmation policy, idempotency changes, cancellation, acknowledgment and other SOS lifecycle changes.
 - Satellite communication, SMS or any new rescue transport. GPS supplies location only.
-- New health-profile, location, terrain or weather integrations and expanding the accounts, roles or consent under which context can be accessed.
+- New health fields, consent grants, offline health storage or sync, and new location, terrain or weather integrations.
 - Medical diagnosis, prescribing, safety certification, a new chatbot, general RAG changes and unrestricted offline medical advice.
 
 ## 3. Actors & Authorization
@@ -59,7 +60,7 @@ A Camper submits a supported question through the existing assistant. The assess
 | [CTMS-069](ctms-69-ask-ai-about-first-aid-and-survival.md) | Existing mobile and API assistant surfaces invoke CTMS-075 before normal Hybrid AI Chat inference. The normal path retains existing grounding, refusal, retry and mode-fallback contracts. |
 | [CTMS-050](ctms-50-manage-survival-documents.md), [CTMS-051](ctms-51-split-documents-into-knowledge-chunks.md), [CTMS-068](ctms-68-use-retrieval-augmented-generation-rag.md), [CTMS-071](ctms-71-view-knowledge-sources-for-ai-answers.md) | Own source eligibility, provenance, retrieval and citations for existing generated answers. Essential approved protocol content is available independently. |
 | [CTMS-074](ctms-74-send-sos-alert-in-an-emergency.md), [CTMS-076](ctms-76-create-sos-alert-while-offline.md), [CTMS-077](ctms-77-cancel-accidental-sos-alert.md), [CTMS-080](ctms-80-acknowledge-and-close-sos-handling.md) | Own SOS initiation, offline persistence and sync, cancellation and Host acknowledgment respectively. Chat consumes the existing handoff and status contract. |
-| [CTMS-009](ctms-09-store-important-health-information.md) | Existing health privacy rules apply. This story requires no health-profile lookup or new sharing. |
+| [CTMS-009](ctms-09-store-important-health-information.md) | Owns health data and access. A profile read for CTMS-075 requires a current grant for emergency assessment. Trip sharing, trip recommendations and owner self-service are separate purposes. No such emergency grant or authorized secure offline source exists in the current implementation. |
 | [CTMS-098](ctms-98-evaluate-ai-survival-assistant.md) | Owns existing AI release metrics and thresholds. CTMS-075 adds story-level acceptance evidence. |
 
 ## 5. Business Rules
@@ -78,7 +79,7 @@ Shared rules applied by reference:
 
 | BR | Owner or consumer | Application |
 | --- | --- | --- |
-| BR-172, BR-186, BR-187, BR-192 | CTMS-009 and relevant access/audit specs | Enforce access and consent within existing boundaries. Minimize sensitive data and exclude raw health/location details from CTMS-075 telemetry. |
+| BR-172, BR-173, BR-186, BR-187, BR-192, BR-230 | CTMS-009 and relevant access/audit specs | Enforce authorized purpose, ownership, minimum disclosure and revocation. Exclude health material from telemetry and reject offline context without current authorization. |
 | BR-227, BR-228, BR-248, BR-251 | CTMS-050, CTMS-051, CTMS-068, CTMS-071 | Preserve approved source eligibility, provenance, grounded retrieval and actual citations on the existing answer path. |
 | BR-249, BR-495, BR-497, BR-499, BR-507 | CTMS-069 | Apply answer safety before display, preserve offline network isolation, identify unverified answers accurately, respect mode-fallback eligibility and require authoritative live evidence for current operational claims. |
 | BR-254, BR-256, BR-257, BR-244, BR-258, BR-261 | CTMS-074, CTMS-076, CTMS-077, CTMS-080 | Use the existing SOS authorization, location, offline queue, idempotency, cancellation and Host acknowledgment behavior. |
@@ -101,9 +102,9 @@ SOS delivery state is independent of this assessment. A local `pending` record i
 | Use case | Main and alternate flow |
 | --- | --- |
 | UC-01 — Knowledge or prevention | Assess the turn. If NORMAL, hand it to CTMS-069. Validate generated content before display. Show approved fallback when evidence, inference or output checks fail. |
-| UC-02 — Unclear incident | Present a WARNING or explicitly uncertain assessment with approved guidance. Ask a concise question if clarification can help. Reassess on follow-up. Escalate immediately if a credible serious signal appears. |
+| UC-02 - Unclear incident | Present a WARNING or explicitly uncertain assessment with approved guidance. For a current self-reported warning, consult authorized and fresh personal context only when a reviewed rule applies. A match may increase severity and select an approved protocol. Use general guidance for unavailable, denied or insufficient context. Ask a concise question if clarification can help and reassess on follow-up. |
 | UC-03 — Current emergency | Present the applicable fixed protocol immediately, independently of model output. Offer an accessible SOS action when eligible and current location when available and authorized. Opening SOS leads to the existing confirmation workflow. Only the Camper's separate initiation can create a request. |
-| UC-04 — Disconnected or degraded | Apply the same essential assessment and device-resident guidance. Recover safely if the model, network, location or Trip package is unavailable. Present approved local guidance and available contact options. If the Camper confirms an eligible offline SOS, hand off to the existing queue and show its actual state. |
+| UC-04 - Disconnected or degraded | Apply the same essential assessment and device-resident guidance. Consider personal context only from an existing authorized secure local source with evidence of current consent and freshness. Continue with general guidance when that source is unavailable. If the Camper confirms an eligible offline SOS, hand off to the existing queue and show its actual state. |
 
 The [sequence diagram](../../docs/sequence-diagrams/CTMS-75-Detect-Emergency-Questions.drawio) illustrates the flow. Existing SOS can also be opened directly from its current entry points.
 
@@ -112,6 +113,7 @@ The [sequence diagram](../../docs/sequence-diagrams/CTMS-75-Detect-Emergency-Que
 - The assessment needs intent, severity, completeness, an explainable reason, the selected protocol reference when applicable and the evaluated policy version. These are business semantics. Public fields, enums and persistence are deferred to technical design.
 - Use only available, permitted context. When using existing operational context, preserve source, timestamp and location accuracy when available. Mark saved data as historical or last known. An unavailable fix is explicit. Cached evidence alone cannot establish current conditions, a safe evacuation route or drinking-water suitability.
 - Existing account boundaries apply to conversation context. Release evidence should use approved, labelled fixtures. Any diagnostic evidence must be minimal, with no raw symptoms, coordinates or medical-profile payloads in safety telemetry.
+- Check purpose and account before obtaining any personal facts and recheck authorization before applying them. Require meaningful observation time under each approved rule. Empty profile values cannot establish absence of a condition. Use only transient rule-relevant facts, with no raw profile or derived facts in provider requests, logs, chat continuation, or Trip packages.
 - Verify the protocol source, version and approval before presenting it as approved. Missing approval is a release blocker. Normal chat replies retain existing answer/source/feedback semantics.
 
 ## 9. API / Integration Contract
@@ -123,6 +125,7 @@ The [sequence diagram](../../docs/sequence-diagrams/CTMS-75-Detect-Emergency-Que
 - FR-05 — Apply the existing AI safety constraints before displaying generated output, including any future streaming presentation of this path. Withhold unsupported or protocol-conflicting output, diagnoses, prescriptions, safety assurances and advice to continue dangerous activity. Use approved fallback without broadening local inference or bypassing refusal, authorization or the existing transport-fallback rules.
 - FR-06 — Use the present SOS and location entry points and their authorization. Chat performs no SOS creation or sync. Display only supported contact options and confirmed state. Keep direct SOS available. User-facing wording and accessible labels support natural Vietnamese.
 - FR-07 — Record policy/protocol versions in verification evidence. Apply qualified review and the story-level release checks before deployment.
+- FR-08 - Assess serious signals immediately without personal context. For a current warning explicitly about the Camper, optional purpose-authorized facts may only increase severity through a versioned reviewed rule that selects a reviewed protocol. Never apply the Camper's profile to a third-party or mixed-person report. A denied, revoked, stale, incomplete, absent or failed lookup preserves the general assessment. Personalization cannot initiate SOS or supply a diagnosis or prescription.
 
 This story changes no SOS contract, schema or lifecycle. Specific assistant response fields and protocol distribution details remain technical design decisions after audit acceptance.
 
@@ -156,6 +159,8 @@ This story changes no SOS contract, schema or lifecycle. Specific assistant resp
 | AC-12 / FR-06 / BR-244, BR-256, BR-257 | Explicit confirmation while offline, timeout or existing queue reconnect | Pending or unresolved stays distinct from confirmed delivery. Existing idempotent sync retains the same request identity. | Offline integration / E2E |
 | AC-13 / FR-06 / BR-258, BR-261 | Backend accepts, then Host acknowledges or SOS is cancelled/closed | Display server acceptance and acknowledgment separately. Respect later authoritative status. | Contract / UI |
 | AC-14 / FR-07 / BR-186, BR-187, BR-192, BR-212, BR-213, BR-279, BR-282, BR-554 | Approved rule, protocol and labelled regression set with authorized or withdrawn context access | Record source, versions and evidence. Limit sensitive data. Block release on an unapproved protocol or critical mandatory-suite failure. | Review / privacy / evaluation |
+| AC-15 / FR-08 / BR-172, BR-173, BR-186, BR-187, BR-230, BR-554 | Identical current self warning with matching/nonmatching facts. Missing, incomplete, stale, withdrawn, denied, wrong-account or failed input. Offline with and without an authorized secure source. | Increase risk only on an authorized, fresh and approved match. Use the general assessment in all unavailable cases. | API / Dart unit and authorization |
+| AC-16 / FR-08 / BR-192, BR-552, BR-554, BR-555 | Serious signal, third-party or mixed-person report. Inspect external inputs, logs and continuation. | Serious signals return immediately without profile access and incoming personal context cannot downgrade an existing emergency. Third-party inputs read no profile. Keep facts out of provider inputs, logs and continuation. | API / Dart unit and privacy |
 
 Report emergency recall, false-negative and false-positive rates, unsafe-response rate, groundedness, latency, offline reliability and SOS status accuracy with dataset and policy versions. Story release requires no critical failures in the approved mandatory scenarios. CTMS-098 retains its existing numerical gates. Other thresholds require agreement before use as release gates.
 

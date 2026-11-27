@@ -348,6 +348,7 @@ const emergencySafetyPolicyJson = r'''
       ]
     }
   ],
+  "personalRiskRules": [],
   "routes": {
     "WARNING": "cautious-guidance",
     "EMERGENCY": "emergency-essential",

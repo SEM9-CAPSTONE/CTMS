@@ -450,11 +450,28 @@ String? emergencyClarification(String? id) {
 EmergencyProtocol? emergencySafetyFallback() =>
     approvedEmergencyProtocol(_routes['fallback']);
 
+Set<String> personalWarningSignals(String question) {
+  final parts = _clauses(question).toList();
+  if (parts.any((words) => _has(words, 'other'))) return {};
+  return parts
+      .map(_evaluate)
+      .where(
+        (finding) =>
+            finding.person == AffectedPerson.self &&
+            finding.time == TemporalContext.current &&
+            finding.severity == EmergencySeverity.warning,
+      )
+      .expand((finding) => finding.signalIds)
+      .toSet();
+}
+
 EmergencyAssessment reportedEmergencyAssessment({
   required EmergencySeverity severity,
   required AssessmentCompleteness completeness,
   required String policyVersion,
   String? clarificationId,
+  String? protocolId,
+  int? protocolVersion,
 }) => EmergencyAssessment(
   intent: EmergencyIntent.uncertainIntent,
   severity: severity,
@@ -463,7 +480,13 @@ EmergencyAssessment reportedEmergencyAssessment({
   temporalContext: TemporalContext.unknown,
   matchedSignalIds: const [],
   reasonCodes: const ['API_SAFETY_ASSESSMENT'],
-  protocolId: _routes[severity.code],
+  protocolId:
+      protocolId != null &&
+          protocolVersion != null &&
+          policyVersion == _policy['version'] &&
+          approvedEmergencyProtocol(protocolId)?.version == protocolVersion
+      ? protocolId
+      : _routes[severity.code],
   clarificationId: severity == EmergencySeverity.warning
       ? clarificationId
       : null,

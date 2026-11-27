@@ -287,6 +287,27 @@ export function assessEmergency(
 }
 
 type LocalizedProtocol = { title: string; guidance: string[]; warnings: string[] };
+
+// Recheck the current utterance so retained/mixed-person signals cannot select
+// a protocol using the authenticated Camper's profile.
+export function personalWarningSignals(question: string): ReadonlySet<string> {
+	const parts = clauses(question);
+	if (parts.some((words) => has(words, "other"))) return new Set();
+	return new Set(
+		parts
+			.map(evaluate)
+			.flatMap((finding) =>
+				finding.person === "SELF" && finding.time === "CURRENT" && finding.severity === "WARNING"
+					? finding.signalIds
+					: []
+			)
+	);
+}
+
+export function safetyProtocolReference(severity: EmergencySeverity) {
+	return severity === "NORMAL" ? null : policy.routes[severity];
+}
+
 type PolicyProtocol = (typeof policy.protocols)[number] & {
 	locales: Record<string, LocalizedProtocol>;
 };

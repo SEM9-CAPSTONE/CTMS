@@ -4,9 +4,11 @@ import {
 	ConflictException,
 	HttpException,
 	HttpStatus,
+	Inject,
 	Injectable,
 	Logger,
 	NotFoundException,
+	Optional,
 } from "@nestjs/common";
 import type { AuthenticatedUser } from "../auth/jwt.strategy";
 // biome-ignore lint/style/useImportType: Nest injection
@@ -34,6 +36,12 @@ import {
 // biome-ignore lint/style/useImportType: Nest injection
 import { AiGenerationProvider } from "./ai-generation.provider";
 import { TRACE_SCHEMA_VERSION } from "./ai-inference-trace";
+import {
+	EMERGENCY_HEALTH_SOURCE,
+	type EmergencyHealthSource,
+	generalEmergencyContinuation,
+	personalizeEmergencyAssessment,
+} from "./emergency-personal-context";
 import { openEmergencyContext, sealEmergencyContext } from "./emergency-safety-context";
 import {
 	approvedSafetyProtocol,
@@ -67,7 +75,10 @@ export class AiAnswersService {
 		private readonly rag: RagRetrievalService,
 		private readonly evidence: RagRepository,
 		private readonly provider: AiGenerationProvider,
-		private readonly repository: AiAnswersRepository
+		private readonly repository: AiAnswersRepository,
+		@Optional()
+		@Inject(EMERGENCY_HEALTH_SOURCE)
+		private readonly emergencyHealthSource?: EmergencyHealthSource
 	) {}
 
 	async ask(actor: AuthenticatedUser, input: AnswerInput) {
@@ -84,7 +95,16 @@ export class AiAnswersService {
 					? openEmergencyContext(actor.userId, input.emergencyContext)
 					: undefined;
 			if (previous === null) throw invalidQuery();
-			const assessment = assessEmergency(question, previous);
+			const general = assessEmergency(question, previous);
+			const assessment =
+				this.emergencyHealthSource && general.severity === "WARNING"
+					? await personalizeEmergencyAssessment(
+							general,
+							question,
+							actor.userId,
+							this.emergencyHealthSource
+						)
+					: general;
 			if (assessment.severity !== "NORMAL") {
 				return {
 					status: "SAFETY_ASSESSMENT" as const,
@@ -93,7 +113,10 @@ export class AiAnswersService {
 					protocol: approvedSafetyProtocol(assessment.protocolId, locale),
 					clarificationId: assessment.clarificationId,
 					policyVersion: assessment.policyVersion,
-					emergencyContext: sealEmergencyContext(actor.userId, assessment),
+					emergencyContext: sealEmergencyContext(
+						actor.userId,
+						generalEmergencyContinuation(assessment)
+					),
 					answer: null,
 					sources: [],
 				};
