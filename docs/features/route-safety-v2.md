@@ -69,7 +69,7 @@ Maximum 1000 records. The response is `{accepted,rejected,unchanged}`. Raw recor
 
 ## Schema and configuration
 
-Migration `1793270000000-CreateExternalSafetyFeatures` creates `external_safety_features` and `safety_import_rejections`. The feature table enforces unique source identity, accepted geometry types, nonempty valid geometries, severity/source/verification values and increasing validity windows. It stores geography SRID 4326 with a GiST index and timestamps as timestamptz. Queries use Point DWithin or area/segment Intersects and return the distance to the full route.
+Migration `1793270000000-CreateExternalSafetyFeatures` creates `external_safety_features` and `safety_import_rejections`. The feature table enforces unique source identity, accepted geometry types, nonempty valid geometries, severity/source/verification values and increasing validity windows. It stores geography SRID 4326 with a GiST index and timestamps as timestamptz. Queries use ST_DWithin for points, lines and areas and return the distance to the full route.
 
 Environment variables:
 
@@ -115,7 +115,7 @@ Browser tests use installed Playwright Chromium by default. Set `PLAYWRIGHT_CHRO
 
 ## Three-layer route preview (2026-10-30)
 
-The Host create/edit form automatically displays dangerous areas, hazard event points and nearby water in three groups. Water is blue on the map; hazard styling follows severity and lifecycle. Distances are measured by PostGIS geography with ST_DWithin against the full route, including nearby water lines/areas and event points that do not intersect the route. Default proximity is 300 m. The UI never treats an unavailable provider as an empty successful search.
+The Host create/edit form automatically displays dangerous areas, hazard event points and nearby water in three groups. Water is blue on the map; hazard styling follows severity and lifecycle. Distances are measured by PostGIS geography with ST_DWithin against the full route, including nearby water points and lines, hazard areas, and event points that do not intersect the route. Default proximity is 300 m. The UI never treats an unavailable provider as an empty successful search.
 
 ### VNDMS
 

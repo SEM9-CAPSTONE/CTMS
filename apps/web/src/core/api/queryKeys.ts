@@ -96,6 +96,8 @@ export const queryKeys = {
 			["route-terrain", version, hostId, geometry] as const,
 		analyze: (hostId: string, routeId: string | undefined, geometry: string, source?: string) =>
 			["route-safety", hostId, routeId ?? "preview", geometry, source ?? "all"] as const,
+		review: (actorId: string, routeId: string | undefined, geometry: string, source: string) =>
+			["route-safety-review", actorId, routeId, geometry, source] as const,
 	},
 	hostOverview: {
 		forHost: (hostId: string) => ["host-overview", hostId] as const,

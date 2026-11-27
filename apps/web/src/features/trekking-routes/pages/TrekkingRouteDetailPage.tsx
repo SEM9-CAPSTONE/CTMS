@@ -141,6 +141,7 @@ export function TrekkingRouteDetailPage({ routeId, onBack, onEdit }: TrekkingRou
 								<RouteSafetyPreview
 									variant="embedded"
 									geometry={route.geometry}
+									drawing={route.drawing}
 									routeId={route.id}
 								/>
 							</div>

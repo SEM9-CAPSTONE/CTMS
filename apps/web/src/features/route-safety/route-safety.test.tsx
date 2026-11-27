@@ -12,7 +12,9 @@ import { routeSafetyService } from "./services/route-safety.service";
 import type { RouteSafetyResult, SafetyFeature, SafetyProvider, SafetySeverity } from "./types";
 import { uniqueWarningAreas } from "./utils/unique-warning-areas";
 
-vi.mock("./services/route-safety.service", () => ({ routeSafetyService: { analyze: vi.fn() } }));
+vi.mock("./services/route-safety.service", () => ({
+	routeSafetyService: { analyze: vi.fn(), review: vi.fn() },
+}));
 const result = (version: string): RouteSafetyResult => ({
 	liveSource: {
 		source: "NCHMF",
@@ -102,6 +104,29 @@ const warningArea = (area: number, hazard: string, severity: SafetySeverity): Sa
 });
 
 describe("Route safety area counts", () => {
+	it("counts fourteen water segments as two connected groups", () => {
+		const features: SafetyFeature[] = [12, 12.01].flatMap((latitude) =>
+			Array.from({ length: 7 }, (_, index): SafetyFeature => {
+				const feature = warningArea(108, "water_stream", "UNKNOWN");
+				return {
+					...feature,
+					id: `water:${latitude}:${index}`,
+					geometry: {
+						type: "LineString",
+						coordinates: [
+							[108 + index / 1000, latitude],
+							[108 + (index + 1) / 1000, latitude],
+						],
+					},
+					properties: { ...feature.properties, sourceType: "RESOURCE", source: "OSM" },
+				};
+			})
+		);
+		render(<RouteSafetySummary data={{ type: "FeatureCollection", features }} />);
+		const card = screen.getByText("Nguồn nước").parentElement as HTMLElement;
+		expect(within(card).getByText("2")).toBeInTheDocument();
+		expect(within(card).getByText("2 cụm sông, suối")).toBeInTheDocument();
+	});
 	it("counts three areas once even when each has landslide and flash-flood warnings", () => {
 		const features = (["HIGH", "HIGH", "VERY_HIGH"] as const).flatMap((severity, index) =>
 			["landslide", "flash_flood"].map((hazard) => warningArea(108 + index, hazard, severity))
@@ -150,6 +175,22 @@ describe("Route Safety preview BR-480", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		localStorage.setItem("authUser", JSON.stringify({ id: "host" }));
+	});
+	it("reads each Admin review source using the saved route identifier", async () => {
+		vi.mocked(routeSafetyService.review).mockImplementation(async (_routeId, source) =>
+			sourceResult(source, "review")
+		);
+		const hook = renderHook(() => useRouteSafety(line, "saved-route", true), {
+			wrapper: wrapper(),
+		});
+		await waitFor(() => expect(hook.result.current.isFetching).toBe(false));
+		expect(routeSafetyService.review).toHaveBeenCalledTimes(3);
+		expect(routeSafetyService.review).toHaveBeenCalledWith(
+			"saved-route",
+			"OSM",
+			expect.any(AbortSignal)
+		);
+		expect(routeSafetyService.analyze).not.toHaveBeenCalled();
 	});
 	it("debounces changes, clears old results and prevents late responses replacing the new line", async () => {
 		let finishOld: ((value: RouteSafetyResult) => void) | undefined;

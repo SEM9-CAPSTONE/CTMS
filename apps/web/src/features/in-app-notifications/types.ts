@@ -6,10 +6,12 @@ export type NotificationEventType =
 	| "trip.review.auto_hidden"
 	| "trip.review.moderation_unverified"
 	| "trip.review.moderation_reminder"
-	| "trip.review.moderation_escalated";
+	| "trip.review.moderation_escalated"
+	| "trekking_route.approved";
 
 export type NotificationTarget =
 	| { type: "trip"; tripId: string; title: string; action: "review" | "view" }
+	| { type: "trekking_route"; routeId: string; title: string; action: "view" }
 	| {
 			type: "trip_review";
 			tripId: string;

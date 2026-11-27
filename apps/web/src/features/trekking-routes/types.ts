@@ -74,10 +74,30 @@ export interface RouteDangerZone extends CreateRouteDangerZoneBase {
 	updatedAt: string;
 }
 
+export const ROUTE_DRAWING_MODES = { SMART: "smart", MANUAL: "manual" } as const;
+export type RouteDrawingMode = (typeof ROUTE_DRAWING_MODES)[keyof typeof ROUTE_DRAWING_MODES];
+
+export interface RouteSegment {
+	id: string;
+	start: Position;
+	end: Position;
+	mode: RouteDrawingMode;
+	geometry: GeoJsonLineString;
+}
+
+export type RouteDrawing =
+	| { mode: RouteDrawingMode; waypoints: Position[] }
+	| {
+			mode: "hybrid";
+			waypoints: Position[];
+			segments: { id: string; mode: RouteDrawingMode; endIndex: number }[];
+	  };
+
 export interface CreateTrekkingRouteInput {
 	name: string;
 	description?: string;
 	geometry: GeoJsonLineString;
+	drawing?: RouteDrawing;
 	difficulty: RouteDifficulty;
 	expectedDurationMinutes: number;
 }

@@ -4,7 +4,7 @@ import { IsDefined, IsIn, IsOptional, IsUUID, ValidateNested } from "class-valid
 import { GeoJsonLineStringDto } from "../../trekking-routes/dto/create-trekking-route.dto";
 import { SAFETY_PROVIDERS, type SafetyProvider } from "../live-safety.types";
 
-export class AnalyzeRouteDto {
+export class RouteSafetySourceQueryDto {
 	@ApiPropertyOptional({
 		enum: SAFETY_PROVIDERS,
 		description:
@@ -13,7 +13,9 @@ export class AnalyzeRouteDto {
 	@IsOptional()
 	@IsIn(SAFETY_PROVIDERS)
 	source?: SafetyProvider;
+}
 
+export class AnalyzeRouteDto extends RouteSafetySourceQueryDto {
 	@ApiPropertyOptional({
 		format: "uuid",
 		description: "An owned route; geometry may contain unsaved edits",

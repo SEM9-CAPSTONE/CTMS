@@ -1,14 +1,16 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useMemo } from "react";
 import { RouteSafetyPanel } from "../../route-safety/components/RouteSafetyPanel";
 import { RouteSafetySummary } from "../../route-safety/components/RouteSafetySummary";
 import { useRouteSafety } from "../../route-safety/hooks/useRouteSafety";
 import { useRouteDangerZones } from "../hooks/useRouteDangerZones";
-import type { GeoJsonLineString } from "../types";
+import type { GeoJsonLineString, RouteCheckpoint, RouteDangerZone, RouteDrawing } from "../types";
 import { RouteGeometryPreview } from "./RouteGeometryPreview";
 
 interface Props {
 	geometry: GeoJsonLineString;
 	routeId?: string;
+	drawing?: RouteDrawing;
+	review?: { checkpoints: RouteCheckpoint[]; dangerZones: RouteDangerZone[] };
 	footer?: ReactNode;
 	variant?: "card" | "embedded";
 	showSummary?: boolean;
@@ -19,21 +21,35 @@ interface Props {
 export function RouteSafetyPreview({
 	geometry,
 	routeId,
+	drawing,
+	review,
 	footer,
 	variant,
 	showSummary,
 	showMapTitle,
 	mapHeightClassName,
 }: Props) {
-	const safety = useRouteSafety(geometry, routeId);
+	const safety = useRouteSafety(geometry, routeId, Boolean(review));
 	// The route's own danger zones (Host-marked or added from a confirmed safety hotspot).
-	const dangerZones = useRouteDangerZones(routeId);
+	const dangerZones = useRouteDangerZones(review ? undefined : routeId);
+	const waypoints = useMemo(() => {
+		const coordinates = geometry.coordinates;
+		return (
+			drawing?.waypoints ??
+			(coordinates.length > 1 ? [coordinates[0], coordinates[coordinates.length - 1]] : undefined)
+		);
+	}, [drawing, geometry.coordinates]);
+	const hasManualSegments =
+		drawing?.mode === "manual" ||
+		(drawing?.mode === "hybrid" && drawing.segments.some((segment) => segment.mode === "manual"));
 	return (
 		<div>
 			<RouteGeometryPreview
 				geometry={geometry}
 				safetyFeatures={safety.data?.features}
-				dangerZones={dangerZones.items}
+				dangerZones={review?.dangerZones ?? dangerZones.items}
+				checkpoints={review?.checkpoints}
+				waypoints={waypoints}
 				variant={variant}
 				showTitle={showMapTitle}
 				heightClassName={mapHeightClassName}
@@ -48,6 +64,11 @@ export function RouteSafetyPreview({
 					/>
 				}
 			/>
+			{hasManualSegments && (
+				<p className="mt-2 text-sm text-amber-800">
+					Tuyến có đoạn vẽ thủ công chưa được đối chiếu với dữ liệu đường đi.
+				</p>
+			)}
 			{dangerZones.error && (
 				<div
 					role="alert"
@@ -63,12 +84,7 @@ export function RouteSafetyPreview({
 					</button>
 				</div>
 			)}
-			{showSummary && (
-				<RouteSafetySummary
-					data={safety.data?.features}
-					sources={safety.sources ?? safety.data?.sources}
-				/>
-			)}
+			{showSummary && <RouteSafetySummary data={safety.data?.features} />}
 			{footer}
 		</div>
 	);

@@ -34,6 +34,23 @@ export interface GeoLineString {
 	coordinates: Array<[number, number]>;
 }
 
+export enum TrekkingRouteDrawingMode {
+	SMART = "smart",
+	MANUAL = "manual",
+}
+
+export interface TrekkingRouteDrawing {
+	mode: TrekkingRouteDrawingMode | "hybrid";
+	waypoints: GeoLineString["coordinates"];
+	segments?: TrekkingRouteDrawingSegment[];
+}
+
+export interface TrekkingRouteDrawingSegment {
+	id: string;
+	mode: TrekkingRouteDrawingMode;
+	endIndex: number;
+}
+
 @Entity({ name: "trekking_routes" })
 export class TrekkingRoute {
 	@PrimaryGeneratedColumn("uuid")
@@ -60,6 +77,9 @@ export class TrekkingRoute {
 
 	@Column({ name: "route_geom", type: "geography", spatialFeatureType: "LineString", srid: 4326 })
 	routeGeom!: GeoLineString;
+
+	@Column({ name: "route_drawing", type: "jsonb", nullable: true })
+	routeDrawing!: TrekkingRouteDrawing | null;
 
 	@Column({ name: "length_meters", type: "double precision" })
 	lengthMeters!: number;

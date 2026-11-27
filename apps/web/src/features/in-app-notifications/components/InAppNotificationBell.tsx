@@ -9,6 +9,7 @@ import { useInAppNotifications } from "../hooks/useInAppNotifications";
 import { notificationError, notificationItem } from "../utils/notification-view";
 
 interface Props {
+	primaryGroupLabel?: string;
 	legacyItems: NotificationItem[];
 	legacyLoading: boolean;
 	legacyError?: string;
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export function InAppNotificationBell({
+	primaryGroupLabel,
 	legacyItems,
 	legacyLoading,
 	legacyError,
@@ -34,6 +36,9 @@ export function InAppNotificationBell({
 	const legacyUnread = legacyItems.filter((item) => item.unread).length;
 	const count = inbox.count.data === undefined ? null : inbox.count.data.unreadCount + legacyUnread;
 	const error = inbox.list.error ?? inbox.count.error;
+	const groups = primaryGroupLabel
+		? [{ ...NOTIFICATION_GROUPS[0], label: primaryGroupLabel }, NOTIFICATION_GROUPS[1]]
+		: NOTIFICATION_GROUPS;
 	return (
 		<NotificationPanel
 			items={trips ? notices : legacyItems}
@@ -41,7 +46,7 @@ export function InAppNotificationBell({
 			error={trips ? (error ? notificationError(error) : undefined) : legacyError}
 			unreadCount={count}
 			unreadCountStale={inbox.count.isError && inbox.count.data !== undefined}
-			groups={NOTIFICATION_GROUPS}
+			groups={groups}
 			activeGroup={group}
 			onGroupChange={setGroup}
 			onUnreadChange={setUnread}

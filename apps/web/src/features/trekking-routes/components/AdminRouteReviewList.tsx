@@ -1,5 +1,6 @@
 import { Clock3, MapPinned, Mountain, Route } from "lucide-react";
 import type { AdminTrekkingRouteReview } from "../types";
+import { difficultyLabels, formatLength } from "../utils/route-presentation";
 
 const OUTCOME_LABELS = {
 	pending: "Chờ duyệt",
@@ -18,10 +19,6 @@ interface Props {
 	items: AdminTrekkingRouteReview[];
 	selectedId?: string;
 	onSelect: (route: AdminTrekkingRouteReview) => void;
-}
-
-function formatLength(meters: number): string {
-	return meters >= 1000 ? `${(meters / 1000).toFixed(2)} km` : `${meters.toFixed(0)} m`;
 }
 
 export function AdminRouteReviewList({ items, selectedId, onSelect }: Props) {
@@ -56,7 +53,7 @@ export function AdminRouteReviewList({ items, selectedId, onSelect }: Props) {
 					<div className="mt-4 grid grid-cols-2 gap-2 text-xs font-bold text-[#52665b]">
 						<span className="flex items-center gap-1">
 							<Mountain className="size-3.5" />
-							{route.difficulty}
+							{difficultyLabels[route.difficulty]}
 						</span>
 						<span className="flex items-center gap-1">
 							<Clock3 className="size-3.5" />
@@ -66,10 +63,12 @@ export function AdminRouteReviewList({ items, selectedId, onSelect }: Props) {
 							<Route className="size-3.5" />
 							{formatLength(route.lengthMeters)}
 						</span>
-						<span className="flex items-center gap-1">
-							<MapPinned className="size-3.5" />
-							{route.geometry.coordinates.length} đỉnh vẽ
-						</span>
+						{route.drawing && (
+							<span className="flex items-center gap-1">
+								<MapPinned className="size-3.5" />
+								{route.drawing.waypoints.length} điểm vẽ
+							</span>
+						)}
 					</div>
 				</button>
 			))}

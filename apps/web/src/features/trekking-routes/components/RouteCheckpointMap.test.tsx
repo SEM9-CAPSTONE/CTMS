@@ -290,12 +290,12 @@ describe("RouteCheckpointMap fallback", () => {
 		const pointMarker = screen.getByTestId("persisted-hazard-point-marker-point");
 		const polygon = screen.getByTestId("persisted-hazard-polygon");
 		expect(shelterMarker).toHaveTextContent("S");
-		// A point hazard is only its warning sign: no radius ring and no outline.
+		// A point hazard uses a warning triangle without a surrounding radius ring.
 		expect(screen.queryByTestId("persisted-hazard-point")).not.toBeInTheDocument();
 		expect(pointMarker.querySelector("circle")).toBeNull();
-		expect(pointMarker.querySelector("polygon")).toHaveAttribute("fill", "#dc2626");
-		expect(pointMarker.querySelector("polygon")).not.toHaveAttribute("stroke");
-		expect(pointMarker).toHaveTextContent("!");
+		const warningIcon = pointMarker.querySelector("svg.lucide-triangle-alert");
+		expect(warningIcon).toHaveStyle({ "--hazard-fill": "#ffcc00" });
+		expect(warningIcon).toHaveAttribute("stroke", "#991b1b");
 		expect(pointMarker).toHaveAttribute("data-severity", "high");
 		expect(pointMarker).toHaveAccessibleName("Điểm nguy hiểm mức cao: Rockfall");
 		expect(polygon).toHaveAttribute("fill-opacity", "0.28");

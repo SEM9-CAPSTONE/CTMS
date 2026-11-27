@@ -1,4 +1,5 @@
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
+import type { InAppNotificationsService } from "../../in-app-notifications/in-app-notifications.service";
 import type { TerrainService } from "../../route-safety/terrain.service";
 import { UserRole, UserStatus } from "../../users/entities/user.entity";
 import { RouteReviewOutcome } from "../dto/list-route-reviews-query.dto";
@@ -11,6 +12,7 @@ const HOST_ID = "11111111-1111-4111-8111-111111111111";
 const ROUTE_ID = "33333333-3333-4333-8333-333333333333";
 const OTHER_HOST_ID = "44444444-4444-4444-8444-444444444444";
 const ADMIN_ID = "55555555-5555-4555-8555-555555555555";
+const DECISION = { id: "approval-audit", createdAt: new Date("2026-11-27T00:00:00Z") };
 
 function createDto() {
 	return {
@@ -70,9 +72,11 @@ describe("TrekkingRoutesService", () => {
 	let dataSource: { getRepository: jest.Mock; transaction: jest.Mock };
 	let service: TrekkingRoutesService;
 	let terrain: { validateMinimumDuration: jest.Mock };
+	let notifications: { enqueueTrekkingRouteApproval: jest.Mock };
 
 	beforeEach(() => {
 		terrain = { validateMinimumDuration: jest.fn().mockResolvedValue(undefined) };
+		notifications = { enqueueTrekkingRouteApproval: jest.fn().mockResolvedValue(undefined) };
 		routeRepository = {
 			createDraft: jest.fn().mockResolvedValue(createdRoute()),
 			updateDraft: jest.fn().mockResolvedValue(createdRoute()),
@@ -96,7 +100,7 @@ describe("TrekkingRoutesService", () => {
 				Promise.resolve(createdRoute(status))
 			),
 		};
-		auditRepository = { save: jest.fn().mockResolvedValue({}) };
+		auditRepository = { save: jest.fn().mockResolvedValue(DECISION) };
 		dataSource = {
 			getRepository: jest.fn().mockReturnValue(auditRepository),
 			transaction: jest.fn(async (callback: (manager: unknown) => unknown) =>
@@ -109,7 +113,8 @@ describe("TrekkingRoutesService", () => {
 		service = new TrekkingRoutesService(
 			routeRepository as unknown as TrekkingRoutesRepository,
 			dataSource as never,
-			terrain as unknown as TerrainService
+			terrain as unknown as TerrainService,
+			notifications as unknown as InAppNotificationsService
 		);
 	});
 
@@ -406,8 +411,8 @@ describe("TrekkingRoutesService", () => {
 			expect(routeRepository.findPendingReview).toHaveBeenCalledTimes(1);
 		});
 
-		it("approves a valid pending Route and audits the status transition", async () => {
-			const result = await service.review(HOST_ID, ROUTE_ID, {
+		it("approves a valid pending Route, audits the decision and enqueues a notification", async () => {
+			const result = await service.review(ADMIN_ID, ROUTE_ID, {
 				action: ReviewTrekkingRouteAction.APPROVE,
 			});
 
@@ -419,7 +424,7 @@ describe("TrekkingRoutesService", () => {
 			);
 			expect(result.status).toBe(TrekkingRouteStatus.ACTIVE);
 			expect(auditRepository.save).toHaveBeenCalledWith({
-				actorId: HOST_ID,
+				actorId: ADMIN_ID,
 				action: "trekking_route.approved",
 				targetType: "trekking_route",
 				targetId: ROUTE_ID,
@@ -427,6 +432,12 @@ describe("TrekkingRoutesService", () => {
 				after: { status: TrekkingRouteStatus.ACTIVE },
 				reason: null,
 			});
+			expect(notifications.enqueueTrekkingRouteApproval).toHaveBeenCalledTimes(1);
+			expect(notifications.enqueueTrekkingRouteApproval).toHaveBeenCalledWith(
+				expect.objectContaining({ withRepository: expect.any(Function) }),
+				ROUTE_ID,
+				DECISION
+			);
 		});
 
 		it("returns a declined Route to draft and audits the reason", async () => {
@@ -436,6 +447,7 @@ describe("TrekkingRoutesService", () => {
 			});
 
 			expect(routeRepository.validateApprovalIntegrity).not.toHaveBeenCalled();
+			expect(notifications.enqueueTrekkingRouteApproval).not.toHaveBeenCalled();
 			expect(routeRepository.updateStatus).toHaveBeenCalledWith(
 				ROUTE_ID,
 				TrekkingRouteStatus.DRAFT
@@ -469,6 +481,7 @@ describe("TrekkingRoutesService", () => {
 				).rejects.toMatchObject({ status: 409 });
 				expect(routeRepository.updateStatus).not.toHaveBeenCalled();
 				expect(auditRepository.save).not.toHaveBeenCalled();
+				expect(notifications.enqueueTrekkingRouteApproval).not.toHaveBeenCalled();
 			}
 		);
 

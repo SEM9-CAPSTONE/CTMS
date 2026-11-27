@@ -66,6 +66,7 @@ export function HostRouteDetail({ route, onEdit, onDetail }: Props) {
 			</header>
 			<RouteSafetyPreview
 				geometry={route.geometry}
+				drawing={route.drawing}
 				routeId={route.id}
 				variant="embedded"
 				showSummary

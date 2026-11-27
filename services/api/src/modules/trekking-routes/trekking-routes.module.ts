@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { DataSource } from "typeorm";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
+import { InAppNotificationsModule } from "../in-app-notifications/in-app-notifications.module";
 import { RouteSafetyModule } from "../route-safety/route-safety.module";
 import { TrekkingRoutesController } from "./controllers/trekking-routes.controller";
 import { Checkpoint } from "./entities/checkpoint.entity";
@@ -15,7 +16,7 @@ import { RouteDangerZonesService } from "./services/route-danger-zones.service";
 import { TrekkingRoutesService } from "./services/trekking-routes.service";
 
 @Module({
-	imports: [RouteSafetyModule],
+	imports: [RouteSafetyModule, InAppNotificationsModule],
 	controllers: [TrekkingRoutesController],
 	providers: [
 		TrekkingRoutesService,

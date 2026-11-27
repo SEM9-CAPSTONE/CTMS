@@ -716,7 +716,7 @@ export function RouteCheckpointMap({
 								aria-label={accessibleLabel}
 							>
 								<title>{accessibleLabel}</title>
-								<HazardWarningMark x={x} y={y} color={severityColors[zone.severity]} />
+								<HazardWarningMark x={x} y={y} />
 							</g>
 						);
 					})}

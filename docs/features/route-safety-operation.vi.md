@@ -143,8 +143,7 @@ Khung bao tuyến giúp giới hạn dữ liệu cần tải từ NCHMF/OSM. Đ�
 | Nhóm dữ liệu | Điều kiện đưa vào kết quả hiện tại |
 | --- | --- |
 | Dữ liệu vừa lấy từ NCHMF, VNDMS, OSM | `ST_DWithin(feature, route, proximity)` cho mọi geometry được chấp nhận |
-| Dữ liệu nhập sẵn: Point | Cách tuyến không quá `proximity` |
-| Dữ liệu nhập sẵn: LineString/Polygon/MultiPolygon | Có giao với tuyến bằng `ST_Intersects` |
+| Dữ liệu nhập sẵn | Cách tuyến không quá `proximity`, kể cả đoạn hoặc vùng gần tuyến |
 | Vùng Host dạng Point | Thuộc bất kỳ tuyến nào của Host đang đăng nhập; tâm cách đường đang vẽ không quá `proximity + radius_m` |
 | Vùng Host dạng Polygon | Thuộc bất kỳ tuyến nào của Host đang đăng nhập; vùng cách đường đang vẽ không quá `proximity`, gồm cả trường hợp giao nhau |
 | Sự cố Trip | Có vị trí, thuộc Trip của Host và cách tuyến không quá `proximity`; nếu có `routeId` thì thêm điều kiện cùng route |
@@ -166,7 +165,7 @@ Mỗi feature có hai thuộc tính độc lập:
 2. Các bản ghi `BASE_HISTORICAL` còn lại thành `HISTORICAL`.
 3. `validFrom` trong tương lai thành `SCHEDULED`; `validUntil` đã qua thành `EXPIRED`.
 4. Vùng `HOST_DEFINED` hoặc bản ghi có `validUntil` còn hiệu lực được coi là `ACTIVE`.
-5. Nếu không có hạn kết thúc, dùng `issuedAt`, hoặc `observedAt` khi thiếu `issuedAt`, để so tuổi dữ liệu. Mặc định là **360 phút** cho cảnh báo và **1440 phút** cho sự cố hiện trường.
+5. Sự kiện VNDMS lấy trạng thái kết thúc từ trường `da_ketthuc` của nguồn. Với các dữ liệu còn lại không có hạn kết thúc, dùng `issuedAt`, hoặc `observedAt` khi thiếu `issuedAt`, để so tuổi dữ liệu. Mặc định là **360 phút** cho cảnh báo và **1440 phút** cho sự cố hiện trường.
 6. Thiếu mốc thời gian thành `UNKNOWN`, mốc tương lai thành `SCHEDULED`, quá tuổi thành `STALE`; còn lại là `ACTIVE`.
 
 `fetchedAt` chỉ là thời điểm nhận dữ liệu. Lấy lại dữ liệu cũ không làm mới hiệu lực.

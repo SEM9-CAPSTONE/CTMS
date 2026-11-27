@@ -7,9 +7,12 @@ import { VerifiedDangerZonesLayer } from "../../route-safety/components/Verified
 import { useRouteSafety } from "../../route-safety/hooks/useRouteSafety";
 import { useSafetyMapLayers } from "../../route-safety/hooks/useSafetyMapLayers";
 import { excludeSafetyFeatures } from "../../route-safety/utils/verified-zone-map";
+import { useRouteDrawing } from "../hooks/useRouteDrawing";
 import { useRouteGeometryMap } from "../hooks/useRouteGeometryMap";
-import type { GeoJsonLineString } from "../types";
+import type { GeoJsonLineString, RouteDrawing } from "../types";
 import { approximateLengthMeters } from "../utils/route-import";
+import type { RouteLineHit } from "../utils/route-line-hit";
+import { RouteDrawingControls } from "./RouteDrawingControls";
 import { RouteGeometryFallback } from "./RouteGeometryFallback";
 import { RouteGeometryToolbar } from "./RouteGeometryToolbar";
 
@@ -17,14 +20,37 @@ interface Props {
 	value: GeoJsonLineString;
 	disabled?: boolean;
 	routeId?: string;
-	onChange: (value: GeoJsonLineString) => void;
+	initialDrawing?: RouteDrawing;
+	onChange: (value: GeoJsonLineString, drawing?: RouteDrawing) => void;
+	onBlockedChange?: (blocked: boolean) => void;
 }
 
-export function RouteGeometryEditor({ value, disabled = false, onChange, routeId }: Props) {
+const EMPTY_GEOMETRY: GeoJsonLineString = { type: "LineString", coordinates: [] };
+
+export function RouteGeometryEditor({
+	value,
+	disabled = false,
+	onChange,
+	routeId,
+	initialDrawing,
+	onBlockedChange,
+}: Props) {
 	const [selected, setSelected] = useState<number | null>(null);
 	const [verifiedIds, setVerifiedIds] = useState<string[]>([]);
-	const map = useRouteGeometryMap(value, disabled, onChange, setSelected);
-	const safety = useRouteSafety(value, routeId);
+	const drawing = useRouteDrawing({ value, initialDrawing, onChange, onBlockedChange });
+	const insertPoint = (hit: RouteLineHit) => {
+		setSelected(null);
+		drawing.insertPoint(hit);
+	};
+	const map = useRouteGeometryMap(
+		value,
+		drawing.waypoints,
+		disabled,
+		drawing.updateWaypoints,
+		setSelected,
+		insertPoint
+	);
+	const safety = useRouteSafety(drawing.blocked ? EMPTY_GEOMETRY : value, routeId);
 	const analyzedFeatures = useMemo(
 		() => excludeSafetyFeatures(safety.data?.features, verifiedIds),
 		[safety.data?.features, verifiedIds]
@@ -43,16 +69,17 @@ export function RouteGeometryEditor({ value, disabled = false, onChange, routeId
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div>
 					<h2 className="font-extrabold text-[#10221b]">Vẽ tuyến đường</h2>
-					<p className="text-xs text-[#667a6d]">Click để thêm điểm; kéo điểm để điều chỉnh.</p>
 				</div>
 				<p
 					data-testid="preview-length"
 					className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800"
 				>
-					≈ {approximateLengthMeters(value.coordinates).toFixed(0)} m · {value.coordinates.length}{" "}
-					điểm
+					{drawing.blocked ? "—" : `≈ ${approximateLengthMeters(value.coordinates).toFixed(0)} m`}
+					{" · "}
+					{drawing.waypoints.length} điểm vẽ
 				</p>
 			</div>
+			<RouteDrawingControls {...drawing} disabled={disabled} />
 			<div
 				data-testid="route-map-surface"
 				className="relative mt-4 h-96 overflow-hidden rounded-xl border border-[#cbd9ce] bg-[linear-gradient(135deg,#dcebdd,#f7faf5_48%,#cfe3da)]"
@@ -61,11 +88,13 @@ export function RouteGeometryEditor({ value, disabled = false, onChange, routeId
 				{map.fallback && (
 					<RouteGeometryFallback
 						value={value}
+						waypoints={drawing.waypoints}
 						disabled={disabled}
 						selected={selected}
 						containerRef={map.containerRef}
-						onChange={onChange}
+						onChange={drawing.updateWaypoints}
 						onSelect={setSelected}
+						onInsert={insertPoint}
 					/>
 				)}
 				{map.fallback && (
@@ -98,11 +127,21 @@ export function RouteGeometryEditor({ value, disabled = false, onChange, routeId
 					onRetry={() => void safety.refetch()}
 				/>
 			</div>
+			{(!map.fallback || value.coordinates.length >= 2) && (
+				<div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-[#667a6d]">
+					<a href="https://www.maptiler.com/" target="_blank" rel="noreferrer">
+						<img className="h-4" src="https://api.maptiler.com/resources/logo.svg" alt="MapTiler" />
+					</a>
+				</div>
+			)}
 			<RouteGeometryToolbar
-				value={value}
+				waypoints={drawing.waypoints}
+				canUndo={drawing.canUndo}
+				onUndo={drawing.undo}
 				disabled={disabled}
 				selected={selected}
-				onChange={onChange}
+				onRemove={drawing.remove}
+				onClear={drawing.clear}
 				onSelect={setSelected}
 			/>
 		</section>

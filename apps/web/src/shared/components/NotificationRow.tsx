@@ -41,7 +41,8 @@ export function NotificationRow({ item, onRead, onNavigate }: Props) {
 				<p className="mt-1 text-sm leading-relaxed text-[#53685a]">{item.description}</p>
 				{href && (
 					<span className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-primary">
-						Xem chuyến <ArrowRight aria-hidden="true" className="size-3.5" />
+						{item.actionLabel ?? "Xem chuyến"}{" "}
+						<ArrowRight aria-hidden="true" className="size-3.5" />
 					</span>
 				)}
 				{!href && (

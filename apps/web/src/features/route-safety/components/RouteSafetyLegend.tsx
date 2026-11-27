@@ -1,5 +1,11 @@
 import { Loader2, RefreshCw } from "lucide-react";
-import { SAFETY_COLORS, WATER_COLOR, isDisplayableFeature, isMutedFeature } from "../map-symbols";
+import {
+	HAZARD_MARKER_COLOR,
+	SAFETY_COLORS,
+	WATER_COLOR,
+	isDisplayableFeature,
+	isMutedFeature,
+} from "../map-symbols";
 import { safetyText as t } from "../messages";
 import type { LiveSafetySource, RouteSafetyResult } from "../types";
 import { SafetySymbol } from "./SafetySymbol";
@@ -38,7 +44,7 @@ export function RouteSafetyLegend({ data, loading, error, valid, onRetry }: Safe
 				</button>
 			</div>
 			<div className="mt-1 flex items-center gap-2">
-				<SafetySymbol kind="hazard" color={SAFETY_COLORS.HIGH} />
+				<SafetySymbol kind="hazard" color={HAZARD_MARKER_COLOR} outlined={false} />
 				<span>Điểm nguy hiểm</span>
 				<SafetySymbol kind="water" color={WATER_COLOR} />
 				<span>Nguồn nước</span>

@@ -62,6 +62,10 @@ describe("RouteGeometryPreview", () => {
 		vi.stubEnv("VITE_MAPTILER_API_KEY", "");
 		render(
 			<RouteGeometryPreview
+				waypoints={[
+					[108.2, 16.05],
+					[108.23, 16.08],
+				]}
 				geometry={{
 					type: "LineString",
 					coordinates: [
@@ -75,6 +79,9 @@ describe("RouteGeometryPreview", () => {
 
 		const line = screen.getByTestId("route-preview-line");
 		expect(line.getAttribute("points")?.trim().split(/\s+/)).toHaveLength(3);
+		expect(screen.getByLabelText("Điểm bắt đầu")).toBeInTheDocument();
+		expect(screen.getByLabelText("Điểm kết thúc")).toBeInTheDocument();
+		expect(screen.queryByLabelText("Điểm trung gian 1")).not.toBeInTheDocument();
 		expect(screen.queryByText(/Bắt đầu:|Kết thúc:/)).not.toBeInTheDocument();
 	});
 });

@@ -1,27 +1,39 @@
 import type { MapMouseEvent, Marker } from "maplibre-gl";
 import { useEffect, useRef } from "react";
 import type { GeoJsonLineString, Position } from "../types";
-import { addVertex } from "../utils/route-geometry";
+import { type RouteLineHit, findRouteLineHit } from "../utils/route-line-hit";
+import { DRAWING_POINT_CLASS, drawingPointLabel } from "../utils/route-map";
 import { useRouteMapSurface } from "./useRouteMapSurface";
+
+function waypointPosition({ lng, lat }: { lng: number; lat: number }): Position {
+	const longitude = lng < -180 || lng > 180 ? ((((lng + 180) % 360) + 360) % 360) - 180 : lng;
+	return [Number(longitude.toFixed(6)), Number(lat.toFixed(6))];
+}
 
 export function useRouteGeometryMap(
 	value: GeoJsonLineString,
+	waypoints: Position[],
 	disabled: boolean,
-	onChange: (value: GeoJsonLineString) => void,
-	onSelect: (index: number) => void
+	onChange: (waypoints: Position[]) => void,
+	onSelect: (index: number) => void,
+	onInsert?: (hit: RouteLineHit) => void
 ) {
 	const markersRef = useRef<Marker[]>([]);
 	const onChangeRef = useRef(onChange);
 	const onSelectRef = useRef(onSelect);
+	const onInsertRef = useRef(onInsert);
 	const valueRef = useRef(value);
+	const waypointsRef = useRef(waypoints);
 	const disabledRef = useRef(disabled);
 
 	useEffect(() => {
 		onChangeRef.current = onChange;
 		onSelectRef.current = onSelect;
+		onInsertRef.current = onInsert;
 		valueRef.current = value;
+		waypointsRef.current = waypoints;
 		disabledRef.current = disabled;
-	}, [disabled, onChange, onSelect, value]);
+	}, [disabled, onChange, onInsert, onSelect, value, waypoints]);
 
 	const surface = useRouteMapSurface(
 		(map) => {
@@ -40,16 +52,23 @@ export function useRouteGeometryMap(
 			const target = event.originalEvent.target;
 			if (
 				target instanceof Element &&
-				target.closest("[data-safety-ui], .maplibregl-popup, .maplibregl-ctrl")
+				target.closest("[data-safety-ui], .maplibregl-marker, .maplibregl-popup, .maplibregl-ctrl")
 			)
 				return;
-			if (!disabledRef.current)
-				onChangeRef.current(
-					addVertex(valueRef.current, [
-						Number(event.lngLat.lng.toFixed(6)),
-						Number(event.lngLat.lat.toFixed(6)),
-					])
+			if (disabledRef.current) return;
+			if (onInsertRef.current) {
+				const hit = findRouteLineHit(
+					valueRef.current.coordinates,
+					event.point,
+					(point) => event.target.project(point),
+					10
 				);
+				if (hit) {
+					onInsertRef.current(hit);
+					return;
+				}
+			}
+			onChangeRef.current([...waypointsRef.current, waypointPosition(event.lngLat)]);
 		},
 		value.coordinates[0]
 	);
@@ -57,19 +76,23 @@ export function useRouteGeometryMap(
 
 	useEffect(() => {
 		if (!map || !mapReady) return;
-		let disposed = false;
 		const source = map.getSource("route") as { setData?: (data: object) => void } | undefined;
 		source?.setData?.({ type: "Feature", properties: {}, geometry: value });
+	}, [map, mapReady, value]);
+
+	useEffect(() => {
+		if (!map || !mapReady) return;
+		let disposed = false;
 		for (const marker of markersRef.current) marker.remove();
 		markersRef.current = [];
 		void import("../../../core/maps/maplibre").then((maplibre) => {
 			if (disposed) return;
-			markersRef.current = value.coordinates.map((position, index) => {
+			markersRef.current = waypoints.map((position, index) => {
 				const element = document.createElement("button");
 				element.type = "button";
-				element.className = "size-5 rounded-full border-2 border-white bg-[#164027] shadow";
+				element.className = DRAWING_POINT_CLASS;
 				element.style.zIndex = "10";
-				element.ariaLabel = `Đỉnh ${index + 1}`;
+				element.ariaLabel = drawingPointLabel(index);
 				element.onclick = (event) => {
 					event.stopPropagation();
 					onSelectRef.current(index);
@@ -78,10 +101,12 @@ export function useRouteGeometryMap(
 					.setLngLat(position)
 					.addTo(map);
 				marker.on("dragend", () => {
-					const next = [...valueRef.current.coordinates] as Position[];
-					const point = marker.getLngLat();
-					next[index] = [Number(point.lng.toFixed(6)), Number(point.lat.toFixed(6))];
-					onChangeRef.current({ type: "LineString", coordinates: next });
+					if (disposed || disabledRef.current || waypointsRef.current !== waypoints) return;
+					const next = [...waypointsRef.current];
+					next[index] = waypointPosition(marker.getLngLat());
+					// A drag is a proposal until all affected segments have been resolved.
+					marker.setLngLat(waypoints[index]);
+					onChangeRef.current(next);
 				});
 				return marker;
 			});
@@ -91,7 +116,7 @@ export function useRouteGeometryMap(
 			for (const marker of markersRef.current) marker.remove();
 			markersRef.current = [];
 		};
-	}, [disabled, map, mapReady, value]);
+	}, [disabled, map, mapReady, waypoints]);
 
 	return surface;
 }

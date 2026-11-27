@@ -1,6 +1,7 @@
 import { useState } from "react";
-import type { GeoJsonLineString, RouteCheckpoint, RouteDangerZone } from "../types";
+import type { GeoJsonLineString, Position, RouteCheckpoint, RouteDangerZone } from "../types";
 import { dangerZonePolygon } from "../utils/danger-zone-map";
+import { waypointMarker } from "../utils/route-map";
 import {
 	type PreviewBounds,
 	dangerZoneDescription,
@@ -13,11 +14,18 @@ import { HazardWarningMark } from "./HazardWarningMark";
 import { RoutePreviewCheckpoint } from "./RoutePreviewCheckpoint";
 interface Props {
 	geometry: GeoJsonLineString;
+	waypoints?: Position[];
 	checkpoints: RouteCheckpoint[];
 	dangerZones: RouteDangerZone[];
 	bounds: PreviewBounds;
 }
-export function RoutePreviewFallback({ geometry, checkpoints, dangerZones, bounds }: Props) {
+export function RoutePreviewFallback({
+	geometry,
+	waypoints,
+	checkpoints,
+	dangerZones,
+	bounds,
+}: Props) {
 	const [selectedId, setSelectedId] = useState<string>();
 	const selected = dangerZones.find((zone) => zone.id === selectedId);
 	const points = fallbackPoints(geometry.coordinates, bounds);
@@ -64,6 +72,26 @@ export function RoutePreviewFallback({ geometry, checkpoints, dangerZones, bound
 					strokeLinecap="round"
 					strokeLinejoin="round"
 				/>
+				{waypoints?.map((point, index) => {
+					const [x, y] = fallbackCoordinate(point, bounds);
+					const { label, symbol } = waypointMarker(index, waypoints.length);
+					return (
+						<g key={label} aria-label={label}>
+							<title>{label}</title>
+							<circle cx={x} cy={y} r="2.2" fill="#164027" stroke="white" strokeWidth="0.5" />
+							<text
+								x={x}
+								y={y}
+								textAnchor="middle"
+								dominantBaseline="central"
+								fontSize="2.2"
+								fill="white"
+							>
+								{symbol}
+							</text>
+						</g>
+					);
+				})}
 				{checkpoints.map((checkpoint, index) => (
 					<RoutePreviewCheckpoint
 						key={checkpoint.id}
@@ -94,7 +122,7 @@ export function RoutePreviewFallback({ geometry, checkpoints, dangerZones, bound
 							aria-label={description}
 						>
 							<title>{description}</title>
-							<HazardWarningMark x={x} y={y} color={severityColors[dangerZone.severity]} />
+							<HazardWarningMark x={x} y={y} />
 						</g>
 					);
 				})}

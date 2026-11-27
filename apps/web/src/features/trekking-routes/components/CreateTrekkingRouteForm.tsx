@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, RefreshCw } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { RouteDurationAdvice } from "../../route-safety/components/RouteDurationAdvice";
 import { useRouteTerrain } from "../../route-safety/hooks/useRouteTerrain";
@@ -15,6 +15,7 @@ import {
 	type CreateTrekkingRouteInput,
 	type CreatedTrekkingRoute,
 	ROUTE_SAVE_INTENTS,
+	type RouteDrawing,
 	type RouteSaveIntent,
 } from "../types";
 import { RouteFormActions } from "./RouteFormActions";
@@ -46,6 +47,7 @@ export function CreateTrekkingRouteForm({
 		register,
 		control,
 		handleSubmit,
+		getValues,
 		setFocus,
 		formState: { errors },
 	} = useForm<CreateTrekkingRouteFormValues>({
@@ -62,10 +64,17 @@ export function CreateTrekkingRouteForm({
 	});
 	const geometry = useWatch({ control, name: "geometry" });
 	const duration = useWatch({ control, name: "expectedDurationMinutes" });
-	const assessment = useRouteTerrain(geometry, duration);
+	const [geometryBlocked, setGeometryBlocked] = useState(false);
+	const blockedRef = useRef(false);
+	const drawingRef = useRef<RouteDrawing | undefined>(route?.drawing);
+	const assessment = useRouteTerrain(
+		geometryBlocked ? CREATE_TREKKING_ROUTE_DEFAULT_VALUES.geometry : geometry,
+		duration
+	);
 	const submittedGeometry = useRef<string>();
 	const lastIntent = useRef<RouteSaveIntent>(ROUTE_SAVE_INTENTS.SAVE);
 	const serverDurationError =
+		!geometryBlocked &&
 		error?.minimumMinutes &&
 		submittedGeometry.current === JSON.stringify(geometry) &&
 		Number(duration) > 0 &&
@@ -77,7 +86,13 @@ export function CreateTrekkingRouteForm({
 		<form
 			className="grid gap-5"
 			onSubmit={handleSubmit(async (values, event) => {
-				if (isSubmitting) return;
+				if (
+					isSubmitting ||
+					blockedRef.current ||
+					JSON.stringify(values.geometry.coordinates) !==
+						JSON.stringify(getValues("geometry").coordinates)
+				)
+					return;
 				if (assessment.warning || serverDurationError) {
 					setFocus("expectedDurationMinutes");
 					return;
@@ -90,7 +105,10 @@ export function CreateTrekkingRouteForm({
 						: ROUTE_SAVE_INTENTS.SAVE;
 				const action =
 					lastIntent.current === ROUTE_SAVE_INTENTS.SUBMIT ? onSubmitForApproval : onSubmit;
-				await action?.(toCreateTrekkingRouteInput(values));
+				await action?.({
+					...toCreateTrekkingRouteInput(values),
+					...(drawingRef.current ? { drawing: drawingRef.current } : {}),
+				});
 			})}
 		>
 			<section className="rounded-2xl border border-[#e0ebe0] bg-white p-5 shadow-sm">
@@ -169,8 +187,16 @@ export function CreateTrekkingRouteForm({
 					<RouteGeometryEditor
 						routeId={route?.id}
 						value={field.value}
+						initialDrawing={route?.drawing}
 						disabled={isSubmitting}
-						onChange={field.onChange}
+						onChange={(next, drawing) => {
+							drawingRef.current = drawing;
+							field.onChange(next);
+						}}
+						onBlockedChange={(blocked) => {
+							blockedRef.current = blocked;
+							setGeometryBlocked(blocked);
+						}}
 					/>
 				)}
 			/>
@@ -194,7 +220,7 @@ export function CreateTrekkingRouteForm({
 							type="submit"
 							name="routeAction"
 							value={lastIntent.current}
-							disabled={isSubmitting}
+							disabled={isSubmitting || geometryBlocked}
 							className="mt-3 rounded-lg border border-red-300 px-3 py-2 font-bold"
 						>
 							<RefreshCw className="mr-1 inline size-4" />
@@ -206,6 +232,7 @@ export function CreateTrekkingRouteForm({
 			<RouteFormActions
 				isEditing={Boolean(route)}
 				isSubmitting={isSubmitting}
+				geometryBlocked={geometryBlocked}
 				isSendingForApproval={isSendingForApproval}
 				canSubmitForApproval={Boolean(onSubmitForApproval)}
 			/>

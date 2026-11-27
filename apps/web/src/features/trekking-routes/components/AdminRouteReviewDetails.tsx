@@ -1,5 +1,6 @@
 import type { AdminTrekkingRouteReview } from "../types";
-import { RouteGeometryPreview } from "./RouteGeometryPreview";
+import { difficultyLabels, formatLength } from "../utils/route-presentation";
+import { RouteSafetyPreview } from "./RouteSafetyPreview";
 
 const OUTCOME_LABELS = {
 	pending: "Chờ duyệt",
@@ -28,6 +29,9 @@ export function AdminRouteReviewDetails({ route, onReview }: Props) {
 				<div className="flex flex-wrap items-start justify-between gap-4">
 					<div>
 						<h2 className="text-xl font-extrabold">{route.name}</h2>
+						{route.description && (
+							<p className="mt-2 text-sm text-[#667a6d]">{route.description}</p>
+						)}
 					</div>
 					{canReview ? (
 						<button
@@ -54,11 +58,11 @@ export function AdminRouteReviewDetails({ route, onReview }: Props) {
 					</div>
 					<div className="rounded-xl bg-[#f4f7f2] p-3">
 						<p className="text-xs text-[#667a6d]">Độ khó</p>
-						<strong>{route.difficulty}</strong>
+						<strong>{difficultyLabels[route.difficulty]}</strong>
 					</div>
 					<div className="rounded-xl bg-[#f4f7f2] p-3">
 						<p className="text-xs text-[#667a6d]">Độ dài</p>
-						<strong>{route.lengthMeters.toFixed(0)} m</strong>
+						<strong>{formatLength(route.lengthMeters)}</strong>
 					</div>
 					<div className="rounded-xl bg-[#f4f7f2] p-3">
 						<p className="text-xs text-[#667a6d]">Thời lượng</p>
@@ -66,7 +70,13 @@ export function AdminRouteReviewDetails({ route, onReview }: Props) {
 					</div>
 				</div>
 			</section>
-			<RouteGeometryPreview geometry={route.geometry} dangerZones={route.dangerZones} />
+			<RouteSafetyPreview
+				geometry={route.geometry}
+				routeId={route.id}
+				drawing={route.drawing}
+				review={{ checkpoints: route.checkpoints, dangerZones: route.dangerZones }}
+				showSummary
+			/>
 		</div>
 	);
 }
