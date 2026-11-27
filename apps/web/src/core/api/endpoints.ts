@@ -118,6 +118,15 @@ export const API_ENDPOINTS = {
 		LOGOUT: "/auth/logout",
 		ME: "/auth/me",
 	},
+	TERMS: {
+		CURRENT: "/terms/current",
+		VERSIONS: "/terms/versions",
+		VERSION_BY_CODE: (version: string) => `/terms/versions/${encodeURIComponent(version)}`,
+		MY_STATUS: "/terms/my-status",
+		ACCEPT: "/terms/accept",
+		ADMIN_PUBLISH_VERSION: "/terms/admin/versions",
+		ADMIN_UPDATE_VERSION: (id: string) => `/terms/admin/versions/${encodeURIComponent(id)}`,
+	},
 	BOOKINGS: {
 		CANCELLATION_NOTICES: "/booking-cancellation-notices",
 		READ_CANCELLATION_NOTICE: (noticeId: string) =>

@@ -17,6 +17,7 @@ import {
 import type { HostReportTab } from "../features/host-reports/pages/HostReportsPage";
 import { HostTripMapPage } from "../features/role-landing/pages/HostTripMapPage";
 import type { RoleKey } from "../features/role-landing/types";
+import { AdminTermsManagementPage, TermsPage, TermsReconsentGate } from "../features/terms";
 import { PageSkeleton } from "../shared/components/PageSkeleton";
 import { AppRoleGuard } from "./AppRoleGuard";
 import { getAuthenticatedHomePath, getGuestOnlyRedirectPath } from "./authRedirect";
@@ -299,6 +300,7 @@ export function AppRoutes() {
 				<AppRouteContent />
 			</Suspense>
 			<EmergencyBroadcastAlerts />
+			<TermsReconsentGate />
 		</>
 	);
 }
@@ -335,6 +337,7 @@ function AppRouteContent() {
 			window.history.pushState(state, "", normalizedPath);
 			setCurrentPath(nextLocation.pathname.toLowerCase());
 			setCurrentSearch(nextLocation.search);
+			window.dispatchEvent(new Event("ctms-navigation"));
 		});
 	const handleBookingLoaded = useCallback((booking: BookingDetails) => {
 		setRestoredTripBooking(booking);
@@ -794,12 +797,59 @@ function AppRouteContent() {
 				/>
 			);
 
+		case "/terms": {
+			const canonicalUrl = `${RoutePath.TERMS}${currentSearch}`;
+			window.history.replaceState({}, "", canonicalUrl);
+			return (
+				<TermsPage
+					onBackToHome={() => navigateTo(RoutePath.HOME)}
+					onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
+					onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
+					onBackToRegister={() => navigateTo(RoutePath.REGISTER)}
+					onNavigateToDashboard={() =>
+						navigateTo(storedUser ? getAuthenticatedHomePath(storedUser) : RoutePath.HOME)
+					}
+					fromRegister={navigationContext.get("from") === "register"}
+				/>
+			);
+		}
+
+		case RoutePath.TERMS:
+			return (
+				<TermsPage
+					onBackToHome={() => navigateTo(RoutePath.HOME)}
+					onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
+					onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
+					onBackToRegister={() => navigateTo(RoutePath.REGISTER)}
+					onNavigateToDashboard={() =>
+						navigateTo(storedUser ? getAuthenticatedHomePath(storedUser) : RoutePath.HOME)
+					}
+					fromRegister={navigationContext.get("from") === "register"}
+				/>
+			);
+
+		case RoutePath.ADMIN_TERMS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminTermsManagementPage
+						onLogout={handleLogout}
+						onOpenPublicTerms={() => navigateTo(RoutePath.TERMS)}
+					/>
+				</AppRoleGuard>
+			);
+
 		case RoutePath.REGISTER:
 			return (
 				<RegisterPage
 					onBackToHome={() => navigateTo(RoutePath.HOME)}
 					onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
 					onNavigateToVerifyOtp={() => navigateTo(RoutePath.VERIFY_OTP)}
+					onNavigateToTerms={() => navigateTo(`${RoutePath.TERMS}?from=register`)}
 				/>
 			);
 

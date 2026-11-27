@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { Transform } from "class-transformer";
 import {
+	IsBoolean,
 	IsEmail,
 	IsIn,
 	IsInt,
@@ -21,6 +22,7 @@ import {
 } from "../../../shared/utils/normalize.util";
 import { AtLeastOneContactMethod } from "../../../shared/validators/at-least-one-contact-method.validator";
 import { IsNormalizedStringArray } from "../../profiles/dto/normalized-string-array.validator";
+import { type TermsPlatform, normalizeTermsVersion } from "../../terms/terms-content";
 import { UserRole } from "../../users/entities/user.entity";
 
 /**
@@ -94,4 +96,30 @@ export class RegisterDto {
 	)
 	@IsNormalizedStringArray()
 	certifications?: string[];
+
+	@ApiProperty({
+		example: "1.0",
+		description: "Active Terms and Conditions version explicitly accepted by the user",
+	})
+	@Transform(({ value }) => (typeof value === "string" ? normalizeTermsVersion(value) : value))
+	@IsString({ message: "acceptedTermsVersion must be a valid version string" })
+	@IsNotEmpty({ message: "You must accept the current Terms and Conditions before registering" })
+	@MaxLength(32)
+	acceptedTermsVersion!: string;
+
+	@ApiPropertyOptional({
+		enum: ["web", "mobile", "api"],
+		description: "Platform where the user accepted Terms and Conditions",
+	})
+	@IsOptional()
+	@IsIn(["web", "mobile", "api"])
+	termsPlatform?: TermsPlatform;
+
+	@ApiPropertyOptional({
+		default: false,
+		description: "Camper only: optional consent to share Health Profile for safety support",
+	})
+	@IsOptional()
+	@IsBoolean()
+	healthProfileConsent?: boolean;
 }

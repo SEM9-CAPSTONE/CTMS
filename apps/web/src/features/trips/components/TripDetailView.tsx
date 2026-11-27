@@ -49,7 +49,8 @@ export interface TripDetailViewProps {
 	onBook?: (
 		tripId: string,
 		numPeople: number,
-		equipment?: SelectedEquipmentItem[]
+		equipment?: SelectedEquipmentItem[],
+		options?: { healthProfileConsent?: boolean }
 	) => void | Promise<void>;
 	isBooking?: boolean;
 	bookingError?: string | null;
@@ -232,10 +233,16 @@ export function TripDetailView({
 		}
 	};
 
-	const handleBookSubmit = async (targetTripId: string, count: number) => {
+	const handleBookSubmit = async (
+		targetTripId: string,
+		count: number,
+		options?: { healthProfileConsent?: boolean }
+	) => {
 		if (selectedPreBookingEquipment.length > 0) {
-			await onBook?.(targetTripId, count, selectedPreBookingEquipment);
+			await onBook?.(targetTripId, count, selectedPreBookingEquipment, options);
 			setSelectedPreBookingEquipment([]);
+		} else if (options?.healthProfileConsent) {
+			await onBook?.(targetTripId, count, undefined, options);
 		} else {
 			await onBook?.(targetTripId, count);
 		}

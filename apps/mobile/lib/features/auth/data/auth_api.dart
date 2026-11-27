@@ -103,12 +103,21 @@ class AuthApi {
     return _withRoleFallback(AuthUser.fromJson(response.data ?? const {}));
   }
 
-  Future<RegisterResult> register(RegisterFormData data) async {
+  Future<RegisterResult> register(
+    RegisterFormData data, {
+    String? acceptedTermsVersion,
+    bool healthProfileConsent = false,
+  }) async {
     final payload = <String, dynamic>{
       'email': data.email,
       'phone': data.phone,
       'password': data.password,
       'role': data.role?.name,
+      if (acceptedTermsVersion != null && acceptedTermsVersion.trim().isNotEmpty)
+        'acceptedTermsVersion': acceptedTermsVersion.trim(),
+      'termsPlatform': 'mobile',
+      if (data.role == UserRole.camper && healthProfileConsent)
+        'healthProfileConsent': true,
     };
 
     final response = await _client.post<Map<String, dynamic>>(

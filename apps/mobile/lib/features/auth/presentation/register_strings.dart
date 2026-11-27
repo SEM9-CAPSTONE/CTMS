@@ -58,7 +58,19 @@ class RegisterStrings {
   static const verificationStepSubtitle = 'Kiểm tra lại toàn bộ thông tin trước khi gửi.';
   static const accountSectionTitle = 'Thông tin tài khoản';
   static const personalSectionTitle = 'Thông tin cá nhân';
-  static const termsLabel = 'Tôi xác nhận các thông tin trên là chính xác.';
+  static const consentSectionTitle = 'Xác nhận và đồng ý';
+  static const termsLabel = 'Tôi xác nhận thông tin đăng ký là chính xác.';
+  static const termsAgreementPrefix = 'Tôi đã đọc và đồng ý với ';
+  static const termsAgreementLink = 'Điều khoản và Điều kiện sử dụng';
+  static const termsAgreementSuffix = ' của CTMS.';
+  static const healthProfileConsentLabel =
+      'Tôi đồng ý chia sẻ Hồ sơ sức khỏe để nhận hỗ trợ an toàn tốt hơn (không bắt buộc).';
+  static const termsRequiredError =
+      'Vui lòng đọc và đồng ý với Điều khoản và Điều kiện sử dụng CTMS trước khi đăng ký.';
+  static const termsLoadError =
+      'Không thể tải phiên bản điều khoản hiện hành. Vui lòng thử lại.';
+  static const termsOutdatedError =
+      'Điều khoản sử dụng vừa được cập nhật phiên bản mới. Vui lòng xem lại và đồng ý trước khi hoàn tất đăng ký.';
   static const submit = 'Hoàn tất đăng ký';
   static const submitErrorTitle = 'Không thể hoàn tất đăng ký';
 

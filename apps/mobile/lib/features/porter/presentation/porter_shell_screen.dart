@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../terms/presentation/widgets/terms_reconsent_dialog.dart';
 
 /// Porter navigation with overview, the combined trip workspace, and alerts.
 /// "Thêm" opens team, incident, and profile routes in a sheet.
@@ -123,8 +124,9 @@ class PorterShellScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: navigationShell,
+    return TermsReconsentGate(
+      child: Scaffold(
+        body: navigationShell,
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: AppColors.brandPrimary,
@@ -180,6 +182,7 @@ class PorterShellScreen extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }

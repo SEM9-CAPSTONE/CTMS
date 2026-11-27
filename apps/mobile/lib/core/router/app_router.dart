@@ -23,6 +23,7 @@ import '../../features/trip_operations/presentation/porter_trips_screen.dart';
 import '../../features/porter/presentation/porter_settings_screen.dart';
 import '../../features/porter/presentation/porter_shell_screen.dart';
 import '../../features/porter/presentation/porter_team_screen.dart';
+import '../../features/terms/presentation/terms_screen.dart';
 
 /// Default landing tab per role — also doubles as the "does this location
 /// belong to this role" prefix check in [redirect] below.
@@ -44,6 +45,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (authState.isLoading) return null;
 
       final user = authState.valueOrNull;
+      final isPublicTermsRoute =
+          state.matchedLocation == '/terms' ||
+          state.matchedLocation == '/terms-and-policy';
+      if (isPublicTermsRoute) return null;
+
       final onAuthScreen =
           state.matchedLocation == '/login' ||
           state.matchedLocation == '/register' ||
@@ -86,6 +92,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/forgot-password',
         builder: (context, state) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: '/terms-and-policy',
+        builder: (context, state) => const TermsScreen(),
+      ),
+      GoRoute(
+        path: '/terms',
+        builder: (context, state) => const TermsScreen(),
       ),
       GoRoute(
         path: '/verify',

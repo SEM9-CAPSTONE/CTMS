@@ -44,6 +44,7 @@ class _BookTripScreenState extends ConsumerState<BookTripScreen> {
   late final String _createKey = newIdempotencyKey('booking:${widget.trip.id}');
   _Step _step = _Step.people;
   int _people = 1;
+  bool _healthProfileConsent = false;
   final Map<String, int> _quantities = {};
   CamperBooking? _booking;
   bool _busy = false;
@@ -65,7 +66,12 @@ class _BookTripScreenState extends ConsumerState<BookTripScreen> {
     try {
       final booking = await ref
           .read(camperBookingsApiProvider)
-          .createBooking(tripId: widget.trip.id, numPeople: _people, idempotencyKey: _createKey);
+          .createBooking(
+            tripId: widget.trip.id,
+            numPeople: _people,
+            idempotencyKey: _createKey,
+            healthProfileConsent: _healthProfileConsent,
+          );
       ref.invalidate(reviewBookingsProvider);
       if (mounted) {
         setState(() {
@@ -172,6 +178,54 @@ class _BookTripScreenState extends ConsumerState<BookTripScreen> {
           const SizedBox(height: AppSpacing.md),
           CtmsKeyValueRow(label: 'Giá mỗi người', value: formatVnd(trip.pricePerPerson.toDouble())),
           CtmsKeyValueRow(label: 'Tạm tính', value: formatVnd(trip.pricePerPerson.toDouble() * _people)),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Checkbox(
+                key: const ValueKey('booking-health-consent-checkbox'),
+                value: _healthProfileConsent,
+                onChanged: _busy
+                    ? null
+                    : (value) => setState(() => _healthProfileConsent = value ?? false),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.sm),
+                  child: GestureDetector(
+                    onTap: _busy
+                        ? null
+                        : () => setState(() => _healthProfileConsent = !_healthProfileConsent),
+                    child: Text(
+                      'Tôi đồng ý chia sẻ Hồ sơ sức khỏe để nhận hỗ trợ an toàn tốt hơn (không bắt buộc).',
+                      style: AppTypography.body.copyWith(color: AppColors.textPrimary),
+                    ),
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Thông tin chia sẻ Hồ sơ sức khỏe',
+                icon: const Icon(Icons.info_outline, size: 20, color: AppColors.textSecondary),
+                onPressed: () {
+                  showDialog<void>(
+                    context: context,
+                    builder: (dialogContext) => AlertDialog(
+                      title: const Text('Chia sẻ Hồ sơ sức khỏe'),
+                      content: const Text(
+                        'Khi bạn đồng ý, thông tin nhóm máu, dị ứng, bệnh nền và liên hệ khẩn cấp trong Hồ sơ sức khỏe sẽ được chia sẻ cho đơn vị tổ chức và người dẫn đường phụ trách chuyến đi này. Tùy chọn này không bắt buộc và bạn có thể thay đổi bất cứ lúc nào trong Hồ sơ cá nhân.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(dialogContext).pop(),
+                          child: const Text('Đã hiểu'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
           const SizedBox(height: AppSpacing.lg),
           CtmsButton(
             label: 'Tiếp tục',

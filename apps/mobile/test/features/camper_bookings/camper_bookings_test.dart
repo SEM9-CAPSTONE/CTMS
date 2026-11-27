@@ -111,6 +111,7 @@ class FakeApi implements CamperBookingsApi {
     required String tripId,
     required int numPeople,
     required String idempotencyKey,
+    bool healthProfileConsent = false,
   }) async {
     calls.add('create:$numPeople:${idempotencyKey.startsWith('ctms-mobile:booking:')}');
     if (createError != null) throw createError!;

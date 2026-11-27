@@ -5,6 +5,7 @@ import {
 	Copy,
 	CreditCard,
 	ExternalLink,
+	Info,
 	Loader2,
 	Minus,
 	Plus,
@@ -60,7 +61,11 @@ export interface BookingPanelProps {
 	canRetry?: boolean;
 	equipmentRentalTotal?: number;
 	equipmentRentalCount?: number;
-	onBook?: (tripId: string, numPeople: number) => void | Promise<void>;
+	onBook?: (
+		tripId: string,
+		numPeople: number,
+		options?: { healthProfileConsent?: boolean }
+	) => void | Promise<void>;
 	onRetry?: () => unknown;
 	onReset?: () => void;
 	onSignIn?: () => void;
@@ -387,6 +392,8 @@ export function BookingPanel({
 	const errorId = `${inputId}-error`;
 	const [numPeople, setNumPeople] = useState("1");
 	const [localError, setLocalError] = useState<string | null>(null);
+	const [healthProfileConsent, setHealthProfileConsent] = useState(false);
+	const [showHealthInfo, setShowHealthInfo] = useState(false);
 	const parsedValue = Number(numPeople);
 	const displayedValue = Number.isFinite(parsedValue) ? parsedValue : 0;
 	const fieldError = localError ?? fieldErrors.numPeople ?? null;
@@ -417,7 +424,13 @@ export function BookingPanel({
 
 	const submit = () => {
 		const value = validate();
-		if (value !== null) void onBook?.(trip.id, value);
+		if (value !== null) {
+			if (healthProfileConsent) {
+				void onBook?.(trip.id, value, { healthProfileConsent: true });
+			} else {
+				void onBook?.(trip.id, value);
+			}
+		}
 	};
 
 	if (booking) {
@@ -569,6 +582,40 @@ export function BookingPanel({
 						</span>
 					</div>
 				)}
+
+				<div className="mt-4 rounded-xl border border-[#dfe8df] bg-[#f9fbf8] p-3">
+					<div className="flex items-start gap-2.5">
+						<input
+							id={`${inputId}-health-consent`}
+							type="checkbox"
+							checked={healthProfileConsent}
+							onChange={(event) => setHealthProfileConsent(event.target.checked)}
+							disabled={isBooking}
+							className="mt-0.5 size-4 shrink-0 cursor-pointer rounded border-[#b8c7bc] accent-[#164027]"
+						/>
+						<label
+							htmlFor={`${inputId}-health-consent`}
+							className="flex-1 cursor-pointer text-xs leading-relaxed text-[#2f4c40]"
+						>
+							Tôi đồng ý chia sẻ Hồ sơ sức khỏe để nhận hỗ trợ an toàn tốt hơn (không bắt buộc).
+						</label>
+						<button
+							type="button"
+							aria-label="Thông tin chia sẻ Hồ sơ sức khỏe"
+							onClick={() => setShowHealthInfo((prev) => !prev)}
+							className="mt-0.5 shrink-0 cursor-pointer rounded-full p-0.5 text-[#54655a] hover:bg-[#e8f3eb] hover:text-[#164027]"
+						>
+							<Info className="size-4" />
+						</button>
+					</div>
+					{showHealthInfo && (
+						<p className="mt-2 border-t border-[#e5ede5] pt-2 text-[11px] leading-relaxed text-[#54655a]">
+							Thông tin nhóm máu, dị ứng, bệnh nền và liên hệ khẩn cấp trong Hồ sơ sức khỏe sẽ được
+							chia sẻ cho đơn vị tổ chức và người dẫn đường phụ trách chuyến đi này. Bạn có thể bật
+							hoặc thu hồi bất cứ lúc nào trong Hồ sơ cá nhân.
+						</p>
+					)}
+				</div>
 			</div>
 
 			<button

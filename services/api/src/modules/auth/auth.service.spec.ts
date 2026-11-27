@@ -11,6 +11,10 @@ import type { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcrypt";
 import type { DataSource, EntityManager } from "typeorm";
 import { QueryFailedError } from "typeorm";
+import { HealthProfile } from "../profiles/entities/health-profile.entity";
+import { TermsVersion } from "../terms/entities/terms-version.entity";
+import { UserTermsAcceptance } from "../terms/entities/user-terms-acceptance.entity";
+import { TERMS_VERSION_OUTDATED_CODE } from "../terms/terms-registration.helper";
 import { UserRole, UserStatus } from "../users/entities/user.entity";
 import type { UsersRepository } from "../users/users.repository";
 import { AuthService } from "./auth.service";
@@ -74,6 +78,8 @@ function buildDto(overrides: Partial<RegisterDto> = {}): RegisterDto {
 		phone: "+84900000001",
 		password: "plain-password",
 		role: UserRole.CAMPER,
+		acceptedTermsVersion: "1.0",
+		termsPlatform: "web",
 		...overrides,
 	} as RegisterDto;
 }
@@ -97,6 +103,9 @@ describe("AuthService.register", () => {
 	let usersRepository: MockUsersRepository;
 	let transactionalUsersRepository: MockUsersRepository;
 	let auditLogRepository: { save: jest.Mock };
+	let termsVersionRepository: { findOne: jest.Mock };
+	let userTermsAcceptanceRepository: { save: jest.Mock };
+	let healthProfileRepository: { save: jest.Mock };
 	let manager: { withRepository: jest.Mock; getRepository: jest.Mock };
 	let dataSource: { transaction: jest.Mock };
 	let loggerLogSpy: jest.SpyInstance;
@@ -107,6 +116,26 @@ describe("AuthService.register", () => {
 		loggerLogSpy = jest.spyOn(Logger.prototype, "log").mockImplementation(() => undefined);
 
 		auditLogRepository = { save: jest.fn() };
+		termsVersionRepository = {
+			findOne: jest.fn().mockResolvedValue({
+				id: "terms-v1-id",
+				version: "1.0",
+				effectiveDate: "2026-11-27",
+				isActive: true,
+			}),
+		};
+		userTermsAcceptanceRepository = {
+			save: jest.fn().mockImplementation(async (payload: Record<string, unknown>) => ({
+				id: "terms-acc-id",
+				...payload,
+			})),
+		};
+		healthProfileRepository = {
+			save: jest.fn().mockImplementation(async (payload: Record<string, unknown>) => ({
+				id: "health-profile-id",
+				...payload,
+			})),
+		};
 		transactionalUsersRepository = {
 			findByEmailOrPhone: jest.fn(),
 			createUser: jest.fn(),
@@ -116,6 +145,15 @@ describe("AuthService.register", () => {
 			getRepository: jest.fn().mockImplementation((entityClass) => {
 				if (entityClass === AuditLog) {
 					return auditLogRepository;
+				}
+				if (entityClass === TermsVersion) {
+					return termsVersionRepository;
+				}
+				if (entityClass === UserTermsAcceptance) {
+					return userTermsAcceptanceRepository;
+				}
+				if (entityClass === HealthProfile) {
+					return healthProfileRepository;
 				}
 				return null;
 			}),
@@ -384,9 +422,62 @@ describe("AuthService.register", () => {
 			targetType: "user",
 			targetId: "22222222-2222-2222-2222-222222222222",
 			before: null,
-			after: { role: UserRole.CAMPER },
+			after: { role: UserRole.CAMPER, acceptedTermsVersion: "1.0" },
 			reason: null,
 		});
+		expect(userTermsAcceptanceRepository.save).toHaveBeenCalledWith(
+			expect.objectContaining({
+				userId: "22222222-2222-2222-2222-222222222222",
+				termsVersionId: "terms-v1-id",
+				version: "1.0",
+				source: "registration",
+				platform: "web",
+			})
+		);
+		expect(healthProfileRepository.save).not.toHaveBeenCalled();
+	});
+
+	it("records optional Camper health profile consent separately when opted in", async () => {
+		const dto = buildDto({
+			email: "camper-health@example.com",
+			phone: "+84987654325",
+			role: UserRole.CAMPER,
+			healthProfileConsent: true,
+		});
+		const createdUser = buildUser({
+			id: "44444444-4444-4444-4444-444444444444",
+			email: "camper-health@example.com",
+			phone: "+84987654325",
+			role: UserRole.CAMPER,
+		});
+		usersRepository.findByEmailOrPhone.mockResolvedValue(null);
+		transactionalUsersRepository.createUser.mockResolvedValue(createdUser);
+
+		await authService.register(dto);
+
+		expect(healthProfileRepository.save).toHaveBeenCalledWith(
+			expect.objectContaining({
+				userId: createdUser.id,
+				isConsentGranted: true,
+			})
+		);
+	});
+
+	it("rejects registration with 409 TERMS_VERSION_OUTDATED if active terms changed", async () => {
+		const dto = buildDto({
+			email: "outdated-terms@example.com",
+			phone: "+84987654326",
+			acceptedTermsVersion: "0.9",
+		});
+		usersRepository.findByEmailOrPhone.mockResolvedValue(null);
+		transactionalUsersRepository.createUser.mockResolvedValue(buildUser());
+
+		const err = await authService.register(dto).catch((e) => e);
+		expect(err).toBeInstanceOf(ConflictException);
+		const res = (err as ConflictException).getResponse() as Record<string, unknown>;
+		expect(res.code).toBe(TERMS_VERSION_OUTDATED_CODE);
+		expect(res.currentVersion).toBe("1.0");
+		expect(userTermsAcceptanceRepository.save).not.toHaveBeenCalled();
 	});
 
 	it("propagates error and rolls back when the audit log write fails during registration", async () => {

@@ -50,6 +50,16 @@ describe("BookingPanel", () => {
 		expect(onBook).toHaveBeenCalledWith("trip-1", 2);
 	});
 
+	it("keeps optional health profile sharing unchecked by default and forwards consent when checked", () => {
+		const onBook = vi.fn();
+		render(<BookingPanel trip={trip} onBook={onBook} />);
+		const checkbox = screen.getByRole("checkbox", { name: /hồ sơ sức khỏe/i });
+		expect(checkbox).not.toBeChecked();
+		fireEvent.click(checkbox);
+		fireEvent.click(screen.getByRole("button", { name: "Đặt chỗ ngay" }));
+		expect(onBook).toHaveBeenCalledWith("trip-1", 1, { healthProfileConsent: true });
+	});
+
 	it.each([
 		["", "Số lượng khách là bắt buộc"],
 		["0", "Số lượng khách phải ít nhất là 1"],

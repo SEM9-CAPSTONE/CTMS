@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
@@ -999,6 +1000,35 @@ class _CamperProfileScreenState extends ConsumerState<CamperProfileScreen> {
               const PushNotificationsSettingsCard(),
               const SizedBox(height: AppSpacing.lg),
               const NotificationPreferencesCard(),
+
+              const SizedBox(height: AppSpacing.lg),
+
+              CtmsSectionCard(
+                title: 'Pháp lý và điều khoản',
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(
+                    Icons.description_outlined,
+                    color: AppColors.textPrimary,
+                  ),
+                  title: const Text(
+                    'Điều khoản và Điều kiện sử dụng',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  subtitle: const Text(
+                    'Xem toàn văn 12 mục và lịch sử phiên bản',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                    color: AppColors.textSecondary,
+                  ),
+                  onTap: () => context.push('/terms-and-policy'),
+                ),
+              ),
 
               const SizedBox(height: AppSpacing.xl),
 

@@ -42,6 +42,7 @@ import { ScheduleProgressModule } from "./schedule-progress/schedule-progress.mo
 import { SosModule } from "./sos/sos.module";
 import { SurvivalDocumentsModule } from "./survival-documents/survival-documents.module";
 import { SyncEvaluationModule } from "./sync-evaluation/sync-evaluation.module";
+import { TermsModule } from "./terms/terms.module";
 import { TrekkingRoutesModule } from "./trekking-routes/trekking-routes.module";
 import { TripRecommendationsModule } from "./trip-recommendations/trip-recommendations.module";
 import { TripReviewModerationModule } from "./trip-review-moderation/trip-review-moderation.module";
@@ -93,6 +94,7 @@ import { WeatherModule } from "./weather/weather.module";
 		PlatformBankAccountsModule,
 		GeoAreasModule,
 		SyncEvaluationModule,
+		TermsModule,
 		UsersModule,
 		TrekkingRoutesModule,
 		TripsModule,

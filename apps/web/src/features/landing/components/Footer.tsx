@@ -13,8 +13,8 @@ export const Footer: React.FC = () => {
 				<a href="/privacy" className="font-semibold text-[#425048] hover:text-[#1c442f]">
 					Chính sách
 				</a>
-				<a href="/terms" className="font-semibold text-[#425048] hover:text-[#1c442f]">
-					Điều khoản
+				<a href="/terms-and-policy" className="font-semibold text-[#425048] hover:text-[#1c442f]">
+					Điều khoản và Chính sách
 				</a>
 				<a href="/contact" className="font-semibold text-[#425048] hover:text-[#1c442f]">
 					Liên hệ

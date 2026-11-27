@@ -20,6 +20,7 @@ abstract interface class CamperBookingsApi {
     required String tripId,
     required int numPeople,
     required String idempotencyKey,
+    bool healthProfileConsent = false,
   });
   Future<CamperBooking> syncItems(String bookingId, Map<String, int> quantities);
   Future<CamperBooking> fetchBooking(String bookingId);
@@ -67,10 +68,15 @@ class HttpCamperBookingsApi implements CamperBookingsApi {
     required String tripId,
     required int numPeople,
     required String idempotencyKey,
+    bool healthProfileConsent = false,
   }) async {
     final response = await _client.post<Map<String, Object?>>(
       _endpoints.create,
-      data: {'tripId': tripId, 'numPeople': numPeople},
+      data: {
+        'tripId': tripId,
+        'numPeople': numPeople,
+        if (healthProfileConsent) 'healthProfileConsent': true,
+      },
       headers: {'Idempotency-Key': idempotencyKey},
     );
     return CamperBooking.fromJson(response.data!);

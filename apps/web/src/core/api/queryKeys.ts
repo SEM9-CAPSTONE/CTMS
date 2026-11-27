@@ -133,6 +133,13 @@ export const queryKeys = {
 	auth: {
 		me: ["auth", "me"] as const,
 	},
+	terms: {
+		all: ["terms"] as const,
+		current: ["terms", "current"] as const,
+		versions: ["terms", "versions"] as const,
+		version: (version: string) => ["terms", "version", version] as const,
+		myStatus: (userId: string) => ["terms", "my-status", userId] as const,
+	},
 	bookings: {
 		camperMap: (userId: string) => ["bookings", "camper-map", userId] as const,
 		cancellationNotices: (userId: string) => ["bookings", "cancellation-notices", userId] as const,

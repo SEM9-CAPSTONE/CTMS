@@ -4,6 +4,7 @@ class ApiEndpoints {
   ApiEndpoints._();
 
   static const auth = AuthEndpoints();
+  static const terms = TermsEndpoints();
   static const bookings = BookingEndpoints();
   static const porterReviews = PorterReviewEndpoints();
   static const trekking = TrekkingEndpoints();
@@ -27,6 +28,17 @@ class AuthEndpoints {
   String get refresh => '/auth/refresh';
   String get logout => '/auth/logout';
   String get me => '/auth/me';
+}
+
+class TermsEndpoints {
+  const TermsEndpoints();
+
+  String get current => '/terms/current';
+  String get versions => '/terms/versions';
+  String versionByCode(String version) =>
+      '/terms/versions/${Uri.encodeComponent(version)}';
+  String get myStatus => '/terms/my-status';
+  String get accept => '/terms/accept';
 }
 
 class BookingEndpoints {

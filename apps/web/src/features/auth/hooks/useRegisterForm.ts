@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "../../../shared/components/Toast";
+import { type TermsVersionDetail, isTermsVersionOutdatedError, termsService } from "../../terms";
 import { authService } from "../services/auth.service";
 import type {
 	AdminRegisterFormData,
@@ -15,6 +17,11 @@ import {
 	isValidPhoneNumber,
 	toApiSubmitError,
 } from "../utils/auth.utils";
+import {
+	clearRegisterDraft,
+	getRegisterDraft,
+	setRegisterDraft,
+} from "../utils/registerDraftStore";
 import { setVerifyRegistration } from "../utils/verifyRegistrationStorage";
 
 function selectActiveForm(
@@ -34,16 +41,26 @@ function selectActiveForm(
 	}
 }
 
-function buildRegisterPayload(role: UserRole, formData: BaseRegisterFormData): RegisterApiPayload {
+function buildRegisterPayload(
+	role: UserRole,
+	formData: BaseRegisterFormData,
+	acceptedTermsVersion: string,
+	healthProfileConsent: boolean
+): RegisterApiPayload {
 	// Email and phone are both mandatory (business flow update) — the form's
 	// `required` fields guarantee non-empty values by the time this runs.
 	const fullName = formData.fullName.trim();
+	const normalizedRole: "camper" | "host" | "porter" =
+		role === "host" || role === "porter" ? role : "camper";
 	const payload: RegisterApiPayload = {
 		email: formData.email,
 		phone: formData.phone,
 		password: formData.password,
-		role: role === "host" || role === "porter" ? role : "camper",
+		role: normalizedRole,
+		acceptedTermsVersion,
+		termsPlatform: "web",
 		...(fullName ? { fullName } : {}),
+		...(normalizedRole === "camper" && healthProfileConsent ? { healthProfileConsent: true } : {}),
 	};
 	if (role === "porter") {
 		// Seeds the Porter profile so the Admin sees it while reviewing the certificate.
@@ -56,48 +73,109 @@ function buildRegisterPayload(role: UserRole, formData: BaseRegisterFormData): R
 }
 
 export function useRegisterForm(onRegisterSuccess: () => void) {
-	const [currentStep, setCurrentStep] = useState(1);
-	const [selectedRole, setSelectedRole] = useState<UserRole>("camper");
+	const initialDraft = getRegisterDraft();
 
-	const [camperForm, setCamperForm] = useState<CamperRegisterFormData>({
-		fullName: "",
-		email: "",
-		phone: "",
-		password: "",
-		confirmPassword: "",
-		bloodType: "O",
-		fitnessLevel: "MEDIUM",
-		emergencyContactPhone: "",
-	});
+	const [currentStep, setCurrentStep] = useState(initialDraft?.currentStep ?? 1);
+	const [selectedRole, setSelectedRole] = useState<UserRole>(
+		initialDraft?.selectedRole ?? "camper"
+	);
 
-	const [hostForm, setHostForm] = useState<HostRegisterFormData>({
-		fullName: "",
-		email: "",
-		phone: "",
-		password: "",
-		confirmPassword: "",
-		province: "",
-		businessLicense: "",
-	});
+	const [camperForm, setCamperForm] = useState<CamperRegisterFormData>(
+		initialDraft?.camperForm ?? {
+			fullName: "",
+			email: "",
+			phone: "",
+			password: "",
+			confirmPassword: "",
+			bloodType: "O",
+			fitnessLevel: "MEDIUM",
+			emergencyContactPhone: "",
+		}
+	);
 
-	const [porterForm, setPorterForm] = useState<PorterRegisterFormData>({
-		fullName: "",
-		email: "",
-		phone: "",
-		password: "",
-		confirmPassword: "",
-		experienceYears: 1,
-		certificationCode: "",
-	});
+	const [hostForm, setHostForm] = useState<HostRegisterFormData>(
+		initialDraft?.hostForm ?? {
+			fullName: "",
+			email: "",
+			phone: "",
+			password: "",
+			confirmPassword: "",
+			province: "",
+			businessLicense: "",
+		}
+	);
 
-	const [adminForm, setAdminForm] = useState<AdminRegisterFormData>({
-		fullName: "",
-		email: "",
-		phone: "",
-		password: "",
-		confirmPassword: "",
-		adminSecretKey: "",
-	});
+	const [porterForm, setPorterForm] = useState<PorterRegisterFormData>(
+		initialDraft?.porterForm ?? {
+			fullName: "",
+			email: "",
+			phone: "",
+			password: "",
+			confirmPassword: "",
+			experienceYears: 1,
+			certificationCode: "",
+		}
+	);
+
+	const [adminForm, setAdminForm] = useState<AdminRegisterFormData>(
+		initialDraft?.adminForm ?? {
+			fullName: "",
+			email: "",
+			phone: "",
+			password: "",
+			confirmPassword: "",
+			adminSecretKey: "",
+		}
+	);
+
+	// Always unchecked by default unless restored from an active draft during the same session.
+	const [acceptedTerms, setAcceptedTerms] = useState<boolean>(initialDraft?.acceptedTerms ?? false);
+	const [healthProfileConsent, setHealthProfileConsent] = useState<boolean>(
+		initialDraft?.healthProfileConsent ?? false
+	);
+
+	const [currentTerms, setCurrentTerms] = useState<TermsVersionDetail | null>(null);
+	const [isLoadingTerms, setIsLoadingTerms] = useState<boolean>(true);
+	const [termsLoadError, setTermsLoadError] = useState<string | null>(null);
+
+	const loadCurrentTerms = useCallback(async () => {
+		setIsLoadingTerms(true);
+		setTermsLoadError(null);
+		try {
+			const terms = await termsService.getCurrent();
+			setCurrentTerms(terms);
+		} catch {
+			setTermsLoadError("Không thể tải phiên bản điều khoản hiện hành. Vui lòng thử lại.");
+		} finally {
+			setIsLoadingTerms(false);
+		}
+	}, []);
+
+	useEffect(() => {
+		void loadCurrentTerms();
+	}, [loadCurrentTerms]);
+
+	const saveDraftForTermsNavigation = useCallback(() => {
+		setRegisterDraft({
+			currentStep,
+			selectedRole,
+			camperForm,
+			hostForm,
+			porterForm,
+			adminForm,
+			acceptedTerms,
+			healthProfileConsent,
+		});
+	}, [
+		currentStep,
+		selectedRole,
+		camperForm,
+		hostForm,
+		porterForm,
+		adminForm,
+		acceptedTerms,
+		healthProfileConsent,
+	]);
 
 	const updateCamperForm = (field: keyof CamperRegisterFormData, value: unknown) => {
 		setCamperForm((prev) => ({ ...prev, [field]: value }));
@@ -116,8 +194,6 @@ export function useRegisterForm(onRegisterSuccess: () => void) {
 	};
 
 	const handleNextStep = () => {
-		// Only role-selection (1) -> form (2) now; Step 3 was the static
-		// success screen, replaced by navigating to VerifyOtpPage on success.
 		if (currentStep < 2) {
 			setCurrentStep((prev) => prev + 1);
 		}
@@ -141,15 +217,33 @@ export function useRegisterForm(onRegisterSuccess: () => void) {
 		}
 
 		setSubmitError(null);
+
+		if (!currentTerms) {
+			setSubmitError({
+				message: "Chưa tải được phiên bản Điều khoản sử dụng hiện hành. Vui lòng thử tải lại.",
+			});
+			return;
+		}
+
+		if (!acceptedTerms) {
+			setSubmitError({
+				message:
+					"Vui lòng đọc và đồng ý với Điều khoản và Điều kiện sử dụng CTMS trước khi đăng ký.",
+			});
+			return;
+		}
+
 		setIsSubmitting(true);
 
 		try {
 			const activeForm = selectActiveForm(selectedRole, camperForm, hostForm, porterForm);
-			const payload = buildRegisterPayload(selectedRole, activeForm);
+			const payload = buildRegisterPayload(
+				selectedRole,
+				activeForm,
+				currentTerms.version,
+				healthProfileConsent
+			);
 
-			// Block only on wrong format for a filled field. Both email and phone
-			// empty is intentionally left to the backend, which returns 422 per
-			// the existing API contract (no cross-field validation added here).
 			if (payload.email && !isValidEmail(payload.email)) {
 				setSubmitError({ message: "Email không đúng định dạng" });
 				return;
@@ -160,9 +254,8 @@ export function useRegisterForm(onRegisterSuccess: () => void) {
 			}
 
 			const result = await authService.register(payload);
+			clearRegisterDraft();
 
-			// Phase 2 Decision Gate: userId/email/phone are handed to
-			// VerifyOtpPage via sessionStorage, never a URL query param.
 			setVerifyRegistration({
 				userId: result.id,
 				email: result.email ?? "",
@@ -170,6 +263,15 @@ export function useRegisterForm(onRegisterSuccess: () => void) {
 			});
 			onRegisterSuccess();
 		} catch (error) {
+			if (isTermsVersionOutdatedError(error)) {
+				setAcceptedTerms(false);
+				void loadCurrentTerms();
+				const msg =
+					"Điều khoản sử dụng vừa được cập nhật phiên bản mới. Vui lòng xem lại và đồng ý trước khi hoàn tất đăng ký.";
+				setSubmitError({ message: msg });
+				toast.warning(msg);
+				return;
+			}
 			// BR-242: entered data is left untouched (no reset), only the error is captured.
 			setSubmitError(toApiSubmitError(error, "Đăng ký thất bại. Vui lòng thử lại."));
 		} finally {
@@ -189,6 +291,15 @@ export function useRegisterForm(onRegisterSuccess: () => void) {
 		updatePorterForm,
 		adminForm,
 		updateAdminForm,
+		acceptedTerms,
+		setAcceptedTerms,
+		healthProfileConsent,
+		setHealthProfileConsent,
+		currentTerms,
+		isLoadingTerms,
+		termsLoadError,
+		reloadTerms: loadCurrentTerms,
+		saveDraftForTermsNavigation,
 		handleNextStep,
 		handlePrevStep,
 		handleRegisterSubmit,

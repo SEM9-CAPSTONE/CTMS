@@ -5,6 +5,8 @@ export enum RoutePath {
 	REGISTER = "/register",
 	VERIFY_OTP = "/verify-otp",
 	FORGOT_PASSWORD = "/forgot-password",
+	TERMS = "/terms-and-policy",
+	ADMIN_TERMS = "/admin/terms-and-policy",
 	DASHBOARD = "/dashboard",
 	TRIPS = "/trips",
 	TRIP_DETAIL = "/trips/:id",
@@ -81,4 +83,5 @@ export const PUBLIC_ROUTES: RouteItem[] = [
 	{ path: RoutePath.TRIPS, label: "Chuyến đi" },
 	{ path: RoutePath.TREKKING, label: "Trekking Routes" },
 	{ path: RoutePath.SAFETY, label: "Safety Center" },
+	{ path: RoutePath.TERMS, label: "Điều khoản và Chính sách" },
 ];

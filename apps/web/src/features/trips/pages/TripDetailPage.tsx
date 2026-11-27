@@ -186,7 +186,12 @@ export function TripDetailPage({
 	}, [showOperationalRoster, currentUserId, trip?.hostId, canManageThisTrip]);
 
 	const handleBook = useCallback(
-		async (targetTripId: string, numPeople: number, equipmentItems?: SelectedEquipmentItem[]) => {
+		async (
+			targetTripId: string,
+			numPeople: number,
+			equipmentItems?: SelectedEquipmentItem[],
+			options?: { healthProfileConsent?: boolean }
+		) => {
 			if (onBook) {
 				if (equipmentItems && equipmentItems.length > 0) {
 					await onBook(targetTripId, numPeople, equipmentItems);
@@ -195,7 +200,11 @@ export function TripDetailPage({
 				}
 				return;
 			}
-			const result = await book({ tripId: targetTripId, numPeople });
+			const result = await book({
+				tripId: targetTripId,
+				numPeople,
+				...(options?.healthProfileConsent ? { healthProfileConsent: true } : {}),
+			});
 			if (result) {
 				if (equipmentItems && equipmentItems.length > 0) {
 					setIsAddingEquipment(true);

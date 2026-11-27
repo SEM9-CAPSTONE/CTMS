@@ -24,7 +24,9 @@ import { isUniqueViolation } from "../../shared/database/postgres-error-codes";
 import { normalizeEmail, normalizeVietnamPhone } from "../../shared/utils/normalize.util";
 
 import { normalizeStringArray } from "../profiles/dto/normalized-string-array.validator";
+import { HealthProfile } from "../profiles/entities/health-profile.entity";
 import { PorterProfile } from "../profiles/entities/porter-profile.entity";
+import { recordRegistrationTermsAcceptance } from "../terms/terms-registration.helper";
 import { type User, UserRole, UserStatus } from "../users/entities/user.entity";
 
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
@@ -144,6 +146,21 @@ export class AuthService {
 						})
 					: null;
 
+			const termsAcceptance = await recordRegistrationTermsAcceptance(manager, {
+				userId: createdUser.id,
+				acceptedTermsVersion: dto.acceptedTermsVersion,
+				platform: dto.termsPlatform,
+			});
+
+			// Optional, strictly separate Camper health-profile sharing consent.
+			if (dto.role === UserRole.CAMPER && dto.healthProfileConsent === true) {
+				await manager.getRepository(HealthProfile).save({
+					userId: createdUser.id,
+					isConsentGranted: true,
+					consentGrantedAt: new Date(),
+				});
+			}
+
 			await auditLogRepository.save({
 				actorId: createdUser.id,
 				action: "auth.register",
@@ -152,6 +169,10 @@ export class AuthService {
 				before: null,
 				after: {
 					role: createdUser.role,
+					acceptedTermsVersion: termsAcceptance.version,
+					...(dto.role === UserRole.CAMPER && dto.healthProfileConsent === true
+						? { healthProfileConsent: true }
+						: {}),
 					...(createdUser.fullName ? { fullName: createdUser.fullName } : {}),
 					...(porterProfile
 						? {

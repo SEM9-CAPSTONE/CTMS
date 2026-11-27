@@ -43,6 +43,7 @@ export interface RegisterPageProps {
 	onBackToHome: () => void;
 	onNavigateToLogin: () => void;
 	onNavigateToVerifyOtp: () => void;
+	onNavigateToTerms?: () => void;
 }
 
 export interface VerifyOtpPageProps {
@@ -101,6 +102,10 @@ export interface RegisterApiPayload {
 	experienceYears?: number;
 	/** Porter only. */
 	certifications?: string[];
+	acceptedTermsVersion: string;
+	termsPlatform?: "web" | "mobile";
+	/** Camper only: optional health-profile sharing consent. */
+	healthProfileConsent?: boolean;
 }
 
 export interface RegisterApiResponse {
