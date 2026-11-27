@@ -6,6 +6,13 @@ on:
       - develop
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ctms-dev-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   docker:
     name: Build Dev Images
@@ -65,3 +72,152 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/ctms-ingestion:dev
             ${{ secrets.DOCKERHUB_USERNAME }}/ctms-ingestion:dev-${{ github.sha }}
+
+  mobile_pwa:
+    name: Build Dev Mobile PWA
+    runs-on: ubuntu-latest
+    if: ${{ vars.ENABLE_DEPLOY_DEV == 'true' && github.ref == 'refs/heads/develop' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.9"
+          cache: true
+
+      - name: Build Flutter Web PWA
+        working-directory: apps/mobile
+        env:
+          DEV_PUBLIC_URL: ${{ vars.DEV_PUBLIC_URL || 'https://dev.ditrek.io.vn' }}
+          GOOGLE_SERVER_CLIENT_ID: ${{ vars.MOBILE_GOOGLE_SERVER_CLIENT_ID || vars.VITE_GOOGLE_CLIENT_ID || '' }}
+        shell: bash
+        run: |
+          dev_url="${DEV_PUBLIC_URL%/}"
+          build_args=(
+            --release
+            --base-href /mobile/
+            "--dart-define=API_BASE_URL=${dev_url}/api"
+          )
+          if [[ -n "$GOOGLE_SERVER_CLIENT_ID" ]]; then
+            build_args+=("--dart-define=GOOGLE_SERVER_CLIENT_ID=${GOOGLE_SERVER_CLIENT_ID}")
+          fi
+
+          flutter pub get
+          flutter build web "${build_args[@]}"
+
+          for required_file in index.html flutter_bootstrap.js manifest.json version.json; do
+            if [[ ! -f "build/web/${required_file}" ]]; then
+              echo "Missing expected Flutter Web output: build/web/${required_file}" >&2
+              exit 1
+            fi
+          done
+
+          chmod -R a+rX build/web
+          tar -czf "$RUNNER_TEMP/mobile-web.tar.gz" -C build/web .
+
+      - name: Upload Mobile PWA bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-mobile-web-${{ github.sha }}
+          path: ${{ runner.temp }}/mobile-web.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy:
+    name: Deploy to Dev VM
+    needs: [docker, mobile_pwa]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment:
+      name: dev
+      url: ${{ vars.DEV_PUBLIC_URL || 'https://dev.ditrek.io.vn' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Mobile PWA bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: dev-mobile-web-${{ github.sha }}
+          path: ${{ runner.temp }}/mobile-web-artifact
+
+      - name: Deploy release and check public endpoints
+        env:
+          DEV_VPS_HOST: ${{ secrets.DEV_VPS_HOST }}
+          DEV_VPS_USER: ${{ secrets.DEV_VPS_USER }}
+          DEV_VPS_SSH_PORT: ${{ vars.DEV_VPS_SSH_PORT || '22' }}
+          DEV_VPS_SSH_PRIVATE_KEY: ${{ secrets.DEV_VPS_SSH_PRIVATE_KEY }}
+          DEV_VPS_SSH_KNOWN_HOSTS: ${{ secrets.DEV_VPS_SSH_KNOWN_HOSTS }}
+          DEV_PUBLIC_URL: ${{ vars.DEV_PUBLIC_URL || 'https://dev.ditrek.io.vn' }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        shell: bash
+        run: |
+          branch_head=$(git ls-remote --exit-code origin "$GITHUB_REF" | cut -f1)
+          if [[ "$branch_head" != "$GITHUB_SHA" ]]; then
+            echo "Skipping ${GITHUB_SHA}; ${GITHUB_REF_NAME} has advanced to ${branch_head}."
+            exit 0
+          fi
+
+          : "${DEV_VPS_SSH_PRIVATE_KEY:?Set DEV_VPS_SSH_PRIVATE_KEY}" "${DEV_VPS_SSH_KNOWN_HOSTS:?Set DEV_VPS_SSH_KNOWN_HOSTS}"
+          if ! [[ "$DEV_VPS_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.:-]*$ && "$DEV_VPS_USER" =~ ^[a-z_][a-z0-9_-]*$ && "$DEV_VPS_SSH_PORT" =~ ^[0-9]{1,5}$ && "$DOCKERHUB_USERNAME" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
+            echo 'Check DEV_VPS_HOST, DEV_VPS_USER, DEV_VPS_SSH_PORT and DOCKERHUB_USERNAME.' >&2
+            exit 1
+          fi
+
+          ssh_dir=$(mktemp -d)
+          trap 'rm -rf -- "$ssh_dir"' EXIT
+          umask 077
+          printf '%s\n' "$DEV_VPS_SSH_PRIVATE_KEY" > "$ssh_dir/key"
+          printf '%s\n' "$DEV_VPS_SSH_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
+          cat > "$ssh_dir/config" <<EOF
+          Host ctms-dev-vm
+            HostName $DEV_VPS_HOST
+            User $DEV_VPS_USER
+            Port $DEV_VPS_SSH_PORT
+            IdentityFile $ssh_dir/key
+            UserKnownHostsFile $ssh_dir/known_hosts
+            GlobalKnownHostsFile /dev/null
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            BatchMode yes
+            ConnectTimeout 15
+            ServerAliveInterval 15
+            ServerAliveCountMax 4
+          EOF
+
+          release_id="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          bundle_dir="$ssh_dir/bundle"
+          mkdir -p "$bundle_dir/mobile-web"
+          git archive --format=tar "$GITHUB_SHA" -- \
+            docker-compose.yml docker-compose.prod.yml docker-compose.dev.yml docker-compose.registry.yml \
+            infra/nginx infra/caddy/dev.Caddyfile scripts/deploy-dev.sh | tar -xf - -C "$bundle_dir"
+          tar -xzf "$RUNNER_TEMP/mobile-web-artifact/mobile-web.tar.gz" -C "$bundle_dir/mobile-web"
+          chmod -R a+rX "$bundle_dir/mobile-web"
+          tar -czf "$ssh_dir/release.tar.gz" -C "$bundle_dir" .
+
+          ssh -F "$ssh_dir/config" ctms-dev-vm 'install -d -m 700 -- "$HOME/.ctms-dev-ci"'
+          scp -F "$ssh_dir/config" "$ssh_dir/release.tar.gz" "ctms-dev-vm:.ctms-dev-ci/${release_id}.tar.gz"
+          ssh -F "$ssh_dir/config" ctms-dev-vm bash -s -- "$GITHUB_SHA" "$DOCKERHUB_USERNAME" "$release_id" dev \
+            < scripts/deploy-vps-release.sh
+
+          dev_url="${DEV_PUBLIC_URL%/}"
+          curl_options=(--fail --silent --show-error --location --retry 4 --retry-all-errors --max-time 15)
+          curl "${curl_options[@]}" --output /dev/null -- "$dev_url/"
+          curl "${curl_options[@]}" -- "$dev_url/api/health" | jq -e '.service == "ctms-api" and .status == "ok"'
+
+          mobile_html=$(curl "${curl_options[@]}" -- "$dev_url/mobile/")
+          grep -Fq '<base href="/mobile/">' <<< "$mobile_html"
+
+          mobile_headers=$(curl "${curl_options[@]}" --head -- "$dev_url/mobile/")
+          grep -Eiq '^cache-control:.*no-cache' <<< "$mobile_headers"
+
+          bootstrap_headers=$(curl "${curl_options[@]}" --head -- "$dev_url/mobile/flutter_bootstrap.js")
+          grep -Eiq '^cache-control:.*no-cache' <<< "$bootstrap_headers"
+
+          curl "${curl_options[@]}" -- "$dev_url/mobile/version.json" \
+            | jq -e '(.version | type == "string") and (.version | length > 0)'
