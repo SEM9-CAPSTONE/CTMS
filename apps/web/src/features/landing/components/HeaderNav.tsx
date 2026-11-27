@@ -1,4 +1,5 @@
 import type React from "react";
+import { handlePublicLinkClick } from "../../public-pages/utils/spaNavigate";
 import { NAV_ITEMS } from "../constants";
 
 interface HeaderNavProps {
@@ -10,23 +11,39 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
 	onNavigateToLogin,
 	onNavigateToRegister,
 }) => {
+	const currentPath = typeof window !== "undefined" ? window.location.pathname.toLowerCase() : "/";
+
 	return (
 		<header className="mb-10 flex flex-wrap items-center justify-between gap-5">
-			<div className="flex items-center gap-9">
-				<div className="flex items-center gap-3 text-2xl font-extrabold tracking-tight text-[#1c442f]">
+			<div className="flex flex-wrap items-center gap-6 md:gap-9">
+				<a
+					href="/"
+					onClick={(event) => handlePublicLinkClick(event, "/")}
+					className="flex items-center gap-3 text-2xl font-extrabold tracking-tight text-[#1c442f]"
+				>
 					<img src="/ctms_logo.png" alt="CTMS Logo" className="h-13 w-auto object-contain" />
 					<span>CTMS</span>
-				</div>
-				<nav className="hidden flex-wrap items-center gap-7 md:flex" aria-label="Điều hướng chính">
-					{NAV_ITEMS.map((item) => (
-						<a
-							key={item.label}
-							href={item.href}
-							className="text-sm font-semibold text-[#2f4c40] transition hover:text-[#1c442f]"
-						>
-							{item.label}
-						</a>
-					))}
+				</a>
+				<nav className="flex flex-wrap items-center gap-5 md:gap-7" aria-label="Điều hướng chính">
+					{NAV_ITEMS.map((item) => {
+						const isActive =
+							item.href === "/" ? currentPath === "/" : currentPath.startsWith(item.href);
+						return (
+							<a
+								key={item.label}
+								href={item.href}
+								onClick={(event) => handlePublicLinkClick(event, item.href)}
+								aria-current={isActive ? "page" : undefined}
+								className={`text-sm font-semibold transition ${
+									isActive
+										? "text-[#164027] underline underline-offset-8"
+										: "text-[#2f4c40] hover:text-[#1c442f]"
+								}`}
+							>
+								{item.label}
+							</a>
+						);
+					})}
 				</nav>
 			</div>
 

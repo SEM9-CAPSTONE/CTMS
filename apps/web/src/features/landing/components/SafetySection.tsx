@@ -1,5 +1,6 @@
 import { CheckCircle2, MapPin } from "lucide-react";
 import type React from "react";
+import { navigatePublicPath } from "../../public-pages/utils/spaNavigate";
 import { SAFETY_CHECKLIST } from "../constants";
 
 export const SafetySection: React.FC = () => {
@@ -41,6 +42,7 @@ export const SafetySection: React.FC = () => {
 				</div>
 				<button
 					type="button"
+					onClick={() => navigatePublicPath("/safety")}
 					className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full bg-[#1c442f] px-6 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#143323]"
 				>
 					Khám phá tính năng an toàn

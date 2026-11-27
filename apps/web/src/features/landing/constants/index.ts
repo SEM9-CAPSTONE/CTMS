@@ -2,7 +2,7 @@ import { Bot, CloudRain, Map as MapIcon, Radio, Search, WifiOff } from "lucide-r
 
 export const NAV_ITEMS = [
 	{ label: "Trang chủ", href: "/" },
-	{ label: "Khám phá", href: "/trekking" },
+	{ label: "Khám phá", href: "/trips" },
 	{ label: "Trekking", href: "/trekking" },
 	{ label: "An toàn", href: "/safety" },
 	{ label: "Giới thiệu", href: "/about" },

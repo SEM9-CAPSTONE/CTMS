@@ -26,6 +26,11 @@ export enum RoutePath {
 	HOST_TRIP_MAP = "/host/trip-map",
 	TREKKING = "/trekking",
 	SAFETY = "/safety",
+	ABOUT = "/about",
+	PRIVACY = "/privacy",
+	CONTACT = "/contact",
+	SUPPORT = "/support",
+	MOBILE_APP = "/mobile-app",
 	CAMPER_PROFILE = "/camper/profile",
 	PORTER_PROFILE = "/porter/profile",
 	PORTER_REQUESTS = "/porter/requests",
@@ -79,9 +84,14 @@ export interface RouteItem {
 }
 
 export const PUBLIC_ROUTES: RouteItem[] = [
-	{ path: RoutePath.HOME, label: "Home" },
+	{ path: RoutePath.HOME, label: "Trang chủ" },
 	{ path: RoutePath.TRIPS, label: "Chuyến đi" },
-	{ path: RoutePath.TREKKING, label: "Trekking Routes" },
-	{ path: RoutePath.SAFETY, label: "Safety Center" },
+	{ path: RoutePath.TREKKING, label: "Tuyến đường" },
+	{ path: RoutePath.SAFETY, label: "Trung tâm an toàn" },
+	{ path: RoutePath.ABOUT, label: "Giới thiệu" },
+	{ path: RoutePath.PRIVACY, label: "Chính sách bảo mật" },
+	{ path: RoutePath.CONTACT, label: "Liên hệ" },
+	{ path: RoutePath.SUPPORT, label: "Hỗ trợ" },
+	{ path: RoutePath.MOBILE_APP, label: "Ứng dụng di động" },
 	{ path: RoutePath.TERMS, label: "Điều khoản và Chính sách" },
 ];

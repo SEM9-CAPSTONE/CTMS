@@ -1,5 +1,6 @@
 import { ArrowLeft, ArrowRight, HelpCircle, Home, RefreshCw } from "lucide-react";
 import type React from "react";
+import { handlePublicLinkClick } from "../../public-pages/utils/spaNavigate";
 import { formatTermsDate, formatTermsVersionLabel } from "../../terms";
 import { CamperRegisterForm } from "../components/CamperRegisterForm";
 import { HostRegisterForm } from "../components/HostRegisterForm";
@@ -261,7 +262,8 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
 							<span>Trang chủ</span>
 						</button>
 						<a
-							href="#help"
+							href="/support"
+							onClick={(event) => handlePublicLinkClick(event, "/support")}
 							className="inline-flex items-center gap-1.5 font-bold text-[#425048] hover:text-[#164027]"
 						>
 							<HelpCircle size={14} />

@@ -1,4 +1,5 @@
 import type React from "react";
+import { navigatePublicPath } from "../../public-pages/utils/spaNavigate";
 
 export const MobileAppSection: React.FC = () => {
 	return (
@@ -37,15 +38,17 @@ export const MobileAppSection: React.FC = () => {
 						📊 Nhật ký hành trình
 					</div>
 				</div>
-				<div className="flex gap-3.5">
+				<div className="flex flex-wrap gap-3.5">
 					<button
 						type="button"
+						onClick={() => navigatePublicPath("/mobile-app?platform=android")}
 						className="inline-flex cursor-pointer items-center justify-center rounded-full border border-[#dfe8df] bg-white px-6 py-3.5 text-sm font-semibold text-[#10221b] transition hover:bg-[#f7faf6]"
 					>
 						Tải trên Google Play
 					</button>
 					<button
 						type="button"
+						onClick={() => navigatePublicPath("/mobile-app?platform=ios")}
 						className="inline-flex cursor-pointer items-center justify-center rounded-full border border-[#dfe8df] bg-white px-6 py-3.5 text-sm font-semibold text-[#10221b] transition hover:bg-[#f7faf6]"
 					>
 						Tải trên App Store
