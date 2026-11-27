@@ -49,7 +49,6 @@ export enum RoutePath {
 	ADMIN_WEATHER_PENALTIES = "/admin/weather-penalties",
 	ADMIN_REFUNDS = "/admin/refunds",
 	ADMIN_SETTLEMENTS = "/admin/settlements",
-	ADMIN_PLATFORM_BANK_ACCOUNT = "/admin/penalty-bank-account",
 	ADMIN_PERFORMANCE_REPORTS = "/admin/reports/performance",
 	HOST_PERFORMANCE_REPORTS = "/host/reports/performance",
 	ADMIN_REVENUE_ANALYTICS = "/admin/reports/revenue",

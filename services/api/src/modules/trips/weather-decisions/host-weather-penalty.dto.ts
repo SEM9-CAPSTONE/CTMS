@@ -13,7 +13,6 @@ import {
 	MaxLength,
 } from "class-validator";
 import { minorToMoney, moneyToMinor } from "../../bookings/cancellation-policy";
-import { PlatformPaymentAccountDto } from "../../platform-bank-accounts/platform-bank-account.dto";
 
 function trimmed(value: unknown): unknown {
 	return typeof value === "string" ? value.trim() : value;
@@ -60,22 +59,6 @@ export class ReviewWeatherPenaltyWaiverDto {
 	note!: string;
 }
 
-export class ConfirmWeatherPenaltyPaymentDto {
-	@ApiProperty({ maxLength: 100, description: "Bank transfer reference the Host paid with" })
-	@Transform(({ value }) => trimmed(value))
-	@IsString()
-	@IsNotEmpty()
-	@MaxLength(100)
-	reference!: string;
-
-	@ApiPropertyOptional({ maxLength: 500 })
-	@Transform(({ value }) => trimmed(value))
-	@IsOptional()
-	@IsString()
-	@MaxLength(500)
-	note?: string;
-}
-
 export class AdminWeatherPenaltyQueryDto {
 	@ApiPropertyOptional({ enum: ADMIN_PENALTY_FILTERS })
 	@IsOptional()
@@ -113,7 +96,7 @@ export class WeatherPenaltyPaymentDto {
 	@ApiProperty({ description: "Money still owed after that deadline: Trip create/submit blocked" })
 	overdue!: boolean;
 
-	@ApiProperty({ example: "0.00", description: "Paid by bank transfer, confirmed by an Admin" })
+	@ApiProperty({ example: "0.00", description: "Paid by the Host through PayOS" })
 	collectedAmount!: string;
 
 	@ApiPropertyOptional({ format: "date-time", nullable: true })
@@ -163,13 +146,6 @@ export class HostWeatherPenaltyListDto {
 	@ApiPropertyOptional({ format: "date-time", nullable: true })
 	hostingBlockedUntil!: string | null;
 	@ApiProperty() suspended!: boolean;
-	@ApiPropertyOptional({
-		type: PlatformPaymentAccountDto,
-		nullable: true,
-		description:
-			"Where to transfer what the settlements did not cover; null until an Admin sets it",
-	})
-	paymentAccount!: PlatformPaymentAccountDto | null;
 }
 
 export interface HostWeatherPenaltyRow {

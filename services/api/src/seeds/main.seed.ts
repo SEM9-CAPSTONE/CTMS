@@ -10941,14 +10941,6 @@ export async function seedWeatherOperationsDemo(): Promise<void> {
 	);
 
 	// --- Host weather penalties (policy §6) ----------------------------------------------------
-	// Account Hosts transfer unpaid penalties to (Admin › Tài chính); an Admin's own edit is kept.
-	await dataSource.query(
-		`INSERT INTO "platform_bank_accounts"
-		   ("purpose", "bank_name", "account_number", "account_holder_name", "updated_by")
-		 VALUES ('weather_penalty', 'Vietcombank', '1028374659', 'CONG TY TNHH CTMS VIET NAM', $1)
-		 ON CONFLICT ("purpose") DO NOTHING`,
-		[adminId]
-	);
 	const ensureWallet = async (host: string): Promise<{ id: string; balance: number }> => {
 		const rows: Array<{ id: string; balance: string }> = await dataSource.query(
 			`INSERT INTO "host_wallets" ("host_id", "balance") VALUES ($1, '0.00')

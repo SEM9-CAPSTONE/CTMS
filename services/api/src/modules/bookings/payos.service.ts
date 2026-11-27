@@ -65,6 +65,18 @@ export class PayOSService {
 		return this.client.webhooks.verify(body);
 	}
 
+	async cancelPaymentLink(orderCode: number, reason: string): Promise<PaymentLink> {
+		if (!this.client) {
+			throw new Error("PayOS client is not configured.");
+		}
+		return this.client.paymentRequests.cancel(orderCode, reason);
+	}
+
+	/** Absolute web URL for `path`, on the web origin the PayOS return URL points to. */
+	webAppUrl(path: string): string {
+		return new URL(path, this.returnUrl).toString();
+	}
+
 	async getPaymentLinkInformation(orderId: number | string): Promise<PaymentLink> {
 		if (!this.client) {
 			throw new Error("PayOS client is not configured.");

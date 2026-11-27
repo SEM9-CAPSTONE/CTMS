@@ -2,17 +2,21 @@ import { API_ENDPOINTS, httpClient } from "../../../core/api";
 import type {
 	AdminPenaltyFilter,
 	MyWeatherPenalties,
-	PaymentConfirmationInput,
 	UploadedEvidence,
 	WaiverRequestInput,
 	WaiverReviewInput,
 	WeatherPenalty,
+	WeatherPenaltyCheckout,
 } from "../types";
 
 const EVIDENCE_FOLDER = "weather-penalty-waivers";
 
 export const weatherPenaltiesService = {
-	listMine: () => httpClient.get<MyWeatherPenalties>(API_ENDPOINTS.WEATHER.MY_PENALTIES),
+	/** The server first records any PayOS payment, so a paid penalty shows as paid without a webhook. */
+	listMine: () =>
+		httpClient.post<MyWeatherPenalties>(API_ENDPOINTS.WEATHER.MY_PENALTIES_PAYOS_SYNC),
+	createCheckout: (penaltyId: string) =>
+		httpClient.post<WeatherPenaltyCheckout>(API_ENDPOINTS.WEATHER.PENALTY_PAYOS_PAYMENT(penaltyId)),
 	requestWaiver: (penaltyId: string, input: WaiverRequestInput) =>
 		httpClient.post<WeatherPenalty>(API_ENDPOINTS.WEATHER.PENALTY_WAIVER_REQUEST(penaltyId), input),
 	uploadEvidence: (file: File) => {
@@ -33,6 +37,4 @@ export const weatherPenaltiesService = {
 		httpClient.get<WeatherPenalty>(API_ENDPOINTS.WEATHER.ADMIN_PENALTY(penaltyId)),
 	reviewWaiver: (penaltyId: string, input: WaiverReviewInput) =>
 		httpClient.post<WeatherPenalty>(API_ENDPOINTS.WEATHER.ADMIN_PENALTY_REVIEW(penaltyId), input),
-	confirmPayment: (penaltyId: string, input: PaymentConfirmationInput) =>
-		httpClient.post<WeatherPenalty>(API_ENDPOINTS.WEATHER.ADMIN_PENALTY_PAYMENT(penaltyId), input),
 };

@@ -25,7 +25,6 @@ import { OfflinePackageDownloadModule } from "./offline-package-download/offline
 import { OfflinePackagesModule } from "./offline-packages/offline-packages.module";
 import { OverbookingEvaluationModule } from "./overbooking-evaluation/overbooking-evaluation.module";
 import { PerformanceReportsModule } from "./performance-reports/performance-reports.module";
-import { PlatformBankAccountsModule } from "./platform-bank-accounts/platform-bank-accounts.module";
 import { PorterLevelsModule } from "./porter-levels/porter-levels.module";
 import { PorterReviewsModule } from "./porter-reviews/porter-reviews.module";
 import { ProfilesModule } from "./profiles/profiles.module";
@@ -90,7 +89,6 @@ import { WeatherModule } from "./weather/weather.module";
 		DangerZoneProposalsModule,
 		PerformanceReportsModule,
 		RevenueAnalyticsModule,
-		PlatformBankAccountsModule,
 		GeoAreasModule,
 		SyncEvaluationModule,
 		UsersModule,

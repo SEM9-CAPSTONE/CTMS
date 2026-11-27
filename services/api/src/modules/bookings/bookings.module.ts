@@ -39,6 +39,8 @@ import { TripBookingsController } from "./trip-bookings.controller";
 import { TripBookingsService } from "./trip-bookings.service";
 import { TripRosterController } from "./trip-roster.controller";
 import { TripRosterService } from "./trip-roster.service";
+import { WeatherPenaltyPaymentsController } from "./weather-penalty-payments.controller";
+import { WeatherPenaltyPaymentsService } from "./weather-penalty-payments.service";
 
 @Module({
 	imports: [TripsModule, WeatherModule, EquipmentCatalogModule, ProfilesModule, RealtimeModule],
@@ -52,6 +54,7 @@ import { TripRosterService } from "./trip-roster.service";
 		BookingMemberStatusController,
 		TripRosterController,
 		TripBookingsController,
+		WeatherPenaltyPaymentsController,
 	],
 	providers: [
 		BookingCancellationNoticesService,
@@ -67,6 +70,7 @@ import { TripRosterService } from "./trip-roster.service";
 		PayOSService,
 		RefundsService,
 		SettlementsService,
+		WeatherPenaltyPaymentsService,
 		JwtAuthGuard,
 		RolesGuard,
 		{

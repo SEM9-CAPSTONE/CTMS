@@ -13,6 +13,8 @@ import type { PayOSWebhookDto } from "./dto/payos-webhook.dto";
 import { PaymentsService } from "./payments.service";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
 import { PayOSService } from "./payos.service";
+// biome-ignore lint/style/useImportType: constructor-injected by NestJS DI
+import { WeatherPenaltyPaymentsService } from "./weather-penalty-payments.service";
 
 @ApiTags("Payments")
 @Controller("bookings/payment-webhook")
@@ -21,7 +23,8 @@ export class PaymentWebhookController {
 
 	constructor(
 		private readonly payosService: PayOSService,
-		private readonly paymentsService: PaymentsService
+		private readonly paymentsService: PaymentsService,
+		private readonly penaltyPayments: WeatherPenaltyPaymentsService
 	) {}
 
 	@Post()
@@ -38,6 +41,8 @@ export class PaymentWebhookController {
 		try {
 			const verifiedData = await this.payosService.verifyWebhook(dto);
 			this.logger.log(`PayOS webhook verified for orderCode: ${verifiedData.orderCode}`);
+			// One webhook URL serves both PayOS flows: a Host's weather penalty or a Camper's Booking.
+			if (await this.penaltyPayments.handlePayOSWebhook(verifiedData)) return { success: true };
 			await this.paymentsService.handlePayOSWebhook(verifiedData);
 			return { success: true };
 		} catch (error) {

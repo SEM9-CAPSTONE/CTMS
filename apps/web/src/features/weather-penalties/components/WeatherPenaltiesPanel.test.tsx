@@ -1,6 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import type { platformBankAccountService } from "../../platform-bank-account/services/platform-bank-account.service";
 import type { weatherPenaltiesService } from "../services/weather-penalties.service";
 import type { WeatherPenalty } from "../types";
 import { WeatherPenaltiesPanel } from "./WeatherPenaltiesPanel";
@@ -52,17 +51,6 @@ function service(items: WeatherPenalty[]) {
 		uploadEvidence: vi.fn(),
 		listForAdmin: vi.fn().mockResolvedValue(items),
 		getForAdmin: vi.fn(),
-		confirmPayment: vi.fn().mockImplementation(async (_id: string, input: { reference: string }) =>
-			penalty({
-				outstandingAmount: "0.00",
-				payment: {
-					...penalty().payment,
-					collectedAmount: "430000.00",
-					collectedAt: "2030-01-11T00:00:00.000Z",
-					reference: input.reference,
-				},
-			})
-		),
 		reviewWaiver: vi.fn().mockImplementation(async (_id: string, input: { approve: boolean }) =>
 			penalty({
 				status: input.approve ? "waived" : "applied",
@@ -78,25 +66,11 @@ function service(items: WeatherPenalty[]) {
 	} as unknown as typeof weatherPenaltiesService & Record<string, ReturnType<typeof vi.fn>>;
 }
 
-const bankAccountService = {
-	get: vi.fn().mockResolvedValue({
-		account: {
-			purpose: "weather_penalty",
-			bankName: "Vietcombank",
-			accountNumber: "1028374659",
-			accountHolderName: "CONG TY TNHH CTMS VIET NAM",
-			updatedAt: "2030-01-01T00:00:00.000Z",
-			updatedByName: "Lê Minh Tuấn",
-		},
-	}),
-	save: vi.fn(),
-} as unknown as typeof platformBankAccountService;
-
 afterEach(() => vi.restoreAllMocks());
 
 it("lists the waiver requests waiting first and switches filters", async () => {
 	const api = service([penalty()]);
-	render(<WeatherPenaltiesPanel service={api} bankAccountService={bankAccountService} />);
+	render(<WeatherPenaltiesPanel service={api} />);
 	const row = await screen.findByTestId("weather-penalty-row");
 	expect(row).toHaveTextContent("Host A");
 	expect(row).toHaveTextContent("Chờ duyệt miễn");
@@ -115,13 +89,13 @@ it("flags a waiver request past its 5 working days", async () => {
 	const api = service([
 		penalty({ waiver: { ...penalty().waiver, reviewDueAt: "2020-01-01T00:00:00.000Z" } }),
 	]);
-	render(<WeatherPenaltiesPanel service={api} bankAccountService={bankAccountService} />);
+	render(<WeatherPenaltiesPanel service={api} />);
 	expect(await screen.findByTestId("weather-penalty-row")).toHaveTextContent("Quá hạn xem");
 });
 
-it("lists unpaid penalties, flags an overdue one and records the Host's transfer", async () => {
+it("lists unpaid penalties and flags an overdue one without any manual payment confirmation", async () => {
 	const api = service([penalty({ payment: { ...penalty().payment, overdue: true } })]);
-	render(<WeatherPenaltiesPanel service={api} bankAccountService={bankAccountService} />);
+	render(<WeatherPenaltiesPanel service={api} />);
 	fireEvent.click(screen.getByRole("tab", { name: "Chưa nộp đủ" }));
 	await waitFor(() => expect(api.listForAdmin).toHaveBeenCalledWith("unpaid"));
 	const row = await screen.findByTestId("weather-penalty-row");
@@ -129,33 +103,33 @@ it("lists unpaid penalties, flags an overdue one and records the Host's transfer
 	fireEvent.click(row);
 	const dialog = await screen.findByTestId("admin-weather-penalty-dialog");
 	expect(dialog).toHaveTextContent("Doanh thu Host của chuyến");
-	const form = within(dialog).getByTestId("weather-penalty-payment-form");
-	expect(await within(form).findByTestId("penalty-receiving-account")).toHaveTextContent(
-		"Đối chiếu sao kê tài khoản Vietcombank · 1028374659"
-	);
-	fireEvent.click(within(form).getByRole("button", { name: "Xác nhận đã nhận tiền" }));
-	expect(form).toHaveTextContent("Nhập mã giao dịch");
-	expect(api.confirmPayment).not.toHaveBeenCalled();
-	fireEvent.change(within(form).getByLabelText("Mã giao dịch ngân hàng (bắt buộc)"), {
-		target: { value: " FT2611230045 " },
-	});
-	fireEvent.click(within(form).getByRole("button", { name: "Xác nhận đã nhận tiền" }));
-	const confirm = await screen.findByTestId("confirm-modal");
-	expect(confirm).toHaveTextContent(/430\.000/);
-	fireEvent.click(within(confirm).getByRole("button", { name: "Xác nhận" }));
-	await waitFor(() =>
-		expect(api.confirmPayment).toHaveBeenCalledWith("p-1", {
-			reference: "FT2611230045",
-			note: undefined,
-		})
-	);
-	expect(await within(dialog).findByText(/Mã giao dịch FT2611230045/)).toBeVisible();
-	expect(within(dialog).queryByTestId("weather-penalty-payment-form")).not.toBeInTheDocument();
+	expect(dialog).toHaveTextContent("Host đã nộp qua PayOS");
+	expect(
+		within(dialog).queryByRole("button", { name: "Xác nhận đã nhận tiền" })
+	).not.toBeInTheDocument();
+});
+
+it("shows a penalty the Host paid through PayOS", async () => {
+	const api = service([
+		penalty({
+			outstandingAmount: "0.00",
+			payment: {
+				...penalty().payment,
+				collectedAmount: "430000.00",
+				collectedAt: "2030-01-11T00:00:00.000Z",
+				reference: "PayOS 12345671234",
+			},
+		}),
+	]);
+	render(<WeatherPenaltiesPanel service={api} />);
+	fireEvent.click(await screen.findByTestId("weather-penalty-row"));
+	const dialog = await screen.findByTestId("admin-weather-penalty-dialog");
+	expect(dialog).toHaveTextContent(/Host đã nộp 430\.000.* qua PayOS lúc/);
 });
 
 it("shows the evidence and approves the waiver with a mandatory note", async () => {
 	const api = service([penalty()]);
-	render(<WeatherPenaltiesPanel service={api} bankAccountService={bankAccountService} />);
+	render(<WeatherPenaltiesPanel service={api} />);
 	fireEvent.click(await screen.findByTestId("weather-penalty-row"));
 	const dialog = await screen.findByTestId("admin-weather-penalty-dialog");
 	expect(within(dialog).getByText("Host nhập viện cấp cứu")).toBeVisible();
@@ -198,7 +172,7 @@ it("rejects a waiver and has no review form when the Host has not asked", async 
 			},
 		}),
 	]);
-	render(<WeatherPenaltiesPanel service={api} bankAccountService={bankAccountService} />);
+	render(<WeatherPenaltiesPanel service={api} />);
 	const rows = await screen.findAllByTestId("weather-penalty-row");
 	fireEvent.click(rows[1]);
 	let dialog = await screen.findByTestId("admin-weather-penalty-dialog");

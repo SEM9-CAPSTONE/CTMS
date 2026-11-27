@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpError } from "../../../core/api";
 import { createFakeConnection } from "../../../core/realtime/fakeRealtimeSocket.test-utils";
+import { toast } from "../../../shared/components/Toast";
 import type { weatherPenaltiesService } from "../services/weather-penalties.service";
 import type { MyWeatherPenalties, WeatherPenalty } from "../types";
 import { hostingBlockedMessage } from "../utils/weather-penalty-labels";
@@ -58,11 +59,6 @@ function mine(overrides: Partial<MyWeatherPenalties> = {}): MyWeatherPenalties {
 		overdueTotal: "0.00",
 		hostingBlockedUntil: "2030-01-24T01:00:00.000Z",
 		suspended: false,
-		paymentAccount: {
-			bankName: "Vietcombank",
-			accountNumber: "1028374659",
-			accountHolderName: "CONG TY TNHH CTMS VIET NAM",
-		},
 		...overrides,
 	};
 }
@@ -189,34 +185,69 @@ describe("HostWeatherPenaltiesCard", () => {
 		expect(within(items[0]).getByTestId("weather-penalty-payment-due")).toHaveTextContent(
 			"Đã quá hạn nộp"
 		);
-		expect(items[0]).toHaveTextContent('"Phạt thời tiết – Tà Năng – Phan Dũng"');
+		expect(within(items[0]).getByTestId("weather-penalty-payment-due")).toHaveTextContent(
+			"Nộp qua PayOS bằng mã QR"
+		);
+		expect(within(items[0]).getByRole("button", { name: /Nộp phạt 1\.000\.000/ })).toBeVisible();
 		expect(within(items[1]).queryByTestId("weather-penalty-payment-due")).not.toBeInTheDocument();
-		expect(items[1]).toHaveTextContent("mã giao dịch FT2611230045");
+		expect(within(items[1]).queryByRole("button", { name: /Nộp phạt/ })).not.toBeInTheDocument();
+		expect(items[1]).toHaveTextContent(/Đã nộp 1\.000\.000.* qua PayOS lúc/);
+		expect(screen.queryByText(/chuyển khoản/)).not.toBeInTheDocument();
 	});
 
-	it("shows where to transfer the penalty, copies the account number, and explains when none is set", async () => {
-		const writeText = vi.fn().mockResolvedValue(undefined);
-		Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
-		const api = service();
-		renderCard(api);
-		const account = await screen.findByTestId("weather-penalty-payment-account");
-		expect(account).toHaveTextContent("Vietcombank");
-		expect(account).toHaveTextContent("1028374659");
-		expect(account).toHaveTextContent("CONG TY TNHH CTMS VIET NAM");
-		expect(screen.getAllByTestId("weather-penalty-payment-due")[0]).toHaveTextContent(
-			"vào tài khoản CTMS ở trên"
+	it("opens the PayOS payment page for exactly what is still owed", async () => {
+		const redirect = vi.fn();
+		const api = service({
+			createCheckout: vi.fn().mockResolvedValue({
+				checkoutUrl: "https://pay.payos.vn/web/12345671234",
+				amount: "1000000.00",
+				orderCode: 12345671234,
+			}),
+		});
+		render(
+			<HostWeatherPenaltiesCard
+				service={api}
+				connection={createFakeConnection().connection}
+				now={() => NOW}
+				redirect={redirect}
+			/>
 		);
-		fireEvent.click(within(account).getByRole("button", { name: "Sao chép số tài khoản" }));
-		await waitFor(() => expect(writeText).toHaveBeenCalledWith("1028374659"));
+		fireEvent.click(await screen.findByRole("button", { name: /Nộp phạt 1\.000\.000/ }));
+		await waitFor(() =>
+			expect(redirect).toHaveBeenCalledWith("https://pay.payos.vn/web/12345671234")
+		);
+		expect(api.createCheckout).toHaveBeenCalledWith("p-1");
+		expect(screen.getByRole("button", { name: "Đang mở PayOS…" })).toBeDisabled();
 	});
 
-	it("asks the Host to contact an Admin while no receiving account is set", async () => {
-		const api = service({ listMine: vi.fn().mockResolvedValue(mine({ paymentAccount: null })) });
+	it("explains in Vietnamese when PayOS cannot be opened", async () => {
+		const errorToast = vi.spyOn(toast, "error");
+		const api = service({
+			createCheckout: vi
+				.fn()
+				.mockRejectedValue(
+					new HttpError("Service Unavailable", 503, { message: "Online payment is not configured" })
+				),
+		});
 		renderCard(api);
-		expect(await screen.findByTestId("weather-penalty-payment-account-missing")).toHaveTextContent(
-			"Quản trị viên chưa cập nhật tài khoản nhận tiền phạt"
+		fireEvent.click(await screen.findByRole("button", { name: /Nộp phạt/ }));
+		await waitFor(() =>
+			expect(errorToast).toHaveBeenCalledWith(
+				"Chưa mở được trang thanh toán PayOS. Vui lòng thử lại sau ít phút."
+			)
 		);
-		expect(screen.queryByTestId("weather-penalty-payment-account")).not.toBeInTheDocument();
+		expect(screen.getByRole("button", { name: /Nộp phạt 1\.000\.000/ })).toBeEnabled();
+	});
+
+	it("tells the Host the outcome after PayOS sends them back and cleans the address", async () => {
+		const infoToast = vi.spyOn(toast, "info");
+		window.history.replaceState(null, "", "/host/wallet?penaltyPayment=cancel");
+		renderCard(service());
+		await screen.findByTestId("host-weather-penalties-card");
+		expect(infoToast).toHaveBeenCalledWith(
+			"Bạn đã huỷ thanh toán tiền phạt. Khoản phạt vẫn chờ bạn nộp."
+		);
+		expect(window.location.search).toBe("");
 	});
 
 	it("hides the waiver button after the deadline or once requested, and shows the suspension", async () => {

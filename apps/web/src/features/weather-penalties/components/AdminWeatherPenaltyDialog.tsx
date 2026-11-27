@@ -3,14 +3,8 @@ import { useId, useState } from "react";
 import { ConfirmModal } from "../../../shared/components/ConfirmModal";
 import { Modal } from "../../../shared/components/Modal";
 import { StatusBadge } from "../../../shared/components/StatusBadge";
-import { toast } from "../../../shared/components/Toast";
 import { formatBookingMoney } from "../../booking-details/utils/booking-details-formatters";
-import { usePlatformBankAccount } from "../../platform-bank-account/hooks/usePlatformBankAccount";
-import type { platformBankAccountService } from "../../platform-bank-account/services/platform-bank-account.service";
-import {
-	useConfirmWeatherPenaltyPayment,
-	useReviewWeatherPenaltyWaiver,
-} from "../hooks/useWeatherPenalties";
+import { useReviewWeatherPenaltyWaiver } from "../hooks/useWeatherPenalties";
 import type { weatherPenaltiesService } from "../services/weather-penalties.service";
 import type { WeatherPenalty } from "../types";
 import {
@@ -19,7 +13,6 @@ import {
 	evidenceFileName,
 	formatPenaltyDate,
 	formatPenaltyDateTime,
-	hasAmountOwed,
 	isPaymentOverdue,
 	isReviewOverdue,
 	penaltyDisplayStatus,
@@ -30,64 +23,29 @@ export interface AdminWeatherPenaltyDialogProps {
 	penalty: WeatherPenalty;
 	onClose: () => void;
 	service?: typeof weatherPenaltiesService;
-	bankAccountService?: typeof platformBankAccountService;
 }
 
 /**
- * Policy §6: the Admin reads the penalty and the Host's evidence, then waives or keeps it, and
- * records the Host's bank transfer for what the settlements did not cover.
+ * Policy §6: the Admin reads the penalty and the Host's evidence, then waives or keeps it. What
+ * the settlements did not cover the Host pays through PayOS; it is recorded without the Admin.
  */
 export function AdminWeatherPenaltyDialog({
 	penalty: initial,
 	onClose,
 	service,
-	bankAccountService,
 }: AdminWeatherPenaltyDialogProps) {
 	const noteId = useId();
-	const referenceId = useId();
-	const paymentNoteId = useId();
 	const [penalty, setPenalty] = useState(initial);
 	const [note, setNote] = useState("");
 	const [pending, setPending] = useState<boolean | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const review = useReviewWeatherPenaltyWaiver(service);
-	const confirmPayment = useConfirmWeatherPenaltyPayment(service);
-	const receivingAccount = usePlatformBankAccount(bankAccountService).data ?? null;
-	const [reference, setReference] = useState("");
-	const [paymentNote, setPaymentNote] = useState("");
-	const [referenceError, setReferenceError] = useState<string | null>(null);
-	const [confirmingPayment, setConfirmingPayment] = useState(false);
 	const status = penaltyDisplayStatus(penalty);
 	const canReview = Boolean(penalty.waiver.requestedAt && !penalty.waiver.decision);
-	const owed = hasAmountOwed(penalty);
-	const busy = review.isPending || confirmPayment.isPending;
+	const busy = review.isPending;
 	const paidSoFar = (
 		Number(penalty.deductedAmount) + Number(penalty.payment.collectedAmount)
 	).toFixed(2);
-
-	function askPaymentConfirmation() {
-		if (!reference.trim()) {
-			setReferenceError("Nhập mã giao dịch trên sao kê ngân hàng.");
-			return;
-		}
-		setReferenceError(null);
-		setConfirmingPayment(true);
-	}
-
-	async function submitPayment() {
-		try {
-			const saved = await confirmPayment.mutateAsync({
-				penaltyId: penalty.id,
-				input: { reference: reference.trim(), note: paymentNote.trim() || undefined },
-			});
-			setPenalty(saved);
-			toast.success("Đã ghi nhận Host nộp đủ tiền phạt.");
-		} catch (paymentError) {
-			toast.error(weatherPenaltyErrorMessage(paymentError));
-		} finally {
-			setConfirmingPayment(false);
-		}
-	}
 
 	function ask(approve: boolean) {
 		if (!note.trim()) {
@@ -156,7 +114,7 @@ export function AdminWeatherPenaltyDialog({
 						<dd className="font-bold">{formatBookingMoney(penalty.deductedAmount)}</dd>
 					</div>
 					<div>
-						<dt className="text-[#7d8d83]">Host đã nộp bằng chuyển khoản</dt>
+						<dt className="text-[#7d8d83]">Host đã nộp qua PayOS</dt>
 						<dd className="font-bold">{formatBookingMoney(penalty.payment.collectedAmount)}</dd>
 					</div>
 					<div>
@@ -182,75 +140,9 @@ export function AdminWeatherPenaltyDialog({
 				{penalty.payment.collectedAt && (
 					<p className="flex items-start gap-2 rounded-2xl bg-[#f1f5f0] p-3 text-xs font-semibold">
 						<CheckCircle2 className="size-4 shrink-0 text-[#164027]" />
-						Đã xác nhận nhận {formatBookingMoney(penalty.payment.collectedAmount)} lúc{" "}
-						{formatPenaltyDateTime(penalty.payment.collectedAt)}
-						{penalty.payment.reference ? ` · Mã giao dịch ${penalty.payment.reference}` : ""}
-						{penalty.payment.note ? ` · ${penalty.payment.note}` : ""}
+						Host đã nộp {formatBookingMoney(penalty.payment.collectedAmount)} qua PayOS lúc{" "}
+						{formatPenaltyDateTime(penalty.payment.collectedAt)}.
 					</p>
-				)}
-
-				{owed && (
-					<div
-						className="space-y-3 rounded-2xl border border-[#dfe8df] p-4 text-xs"
-						data-testid="weather-penalty-payment-form"
-					>
-						<div>
-							<p className="font-extrabold">Host chuyển khoản nộp phạt</p>
-							<p className="mt-1 text-[#667a6d]">
-								Host còn phải nộp {formatBookingMoney(penalty.outstandingAmount)}. Chỉ xác nhận khi
-								tiền đã vào tài khoản CTMS. Sau khi xác nhận, Host tạo Trip lại được nếu đang bị
-								chặn vì quá hạn nộp.
-							</p>
-							<p
-								className="mt-1 font-semibold text-[#164027]"
-								data-testid="penalty-receiving-account"
-							>
-								{receivingAccount
-									? `Đối chiếu sao kê tài khoản ${receivingAccount.bankName} · ${receivingAccount.accountNumber} · ${receivingAccount.accountHolderName}.`
-									: "Chưa cấu hình tài khoản nhận tiền phạt (Tài chính › Tài khoản nhận tiền phạt)."}
-							</p>
-						</div>
-						<div className="grid gap-3 sm:grid-cols-2">
-							<div>
-								<label htmlFor={referenceId} className="font-extrabold">
-									Mã giao dịch ngân hàng (bắt buộc)
-								</label>
-								<input
-									id={referenceId}
-									value={reference}
-									maxLength={100}
-									onChange={(event) => setReference(event.target.value)}
-									aria-invalid={Boolean(referenceError)}
-									className="mt-1 w-full rounded-xl border border-[#dfe8df] px-3 py-2 text-sm outline-none focus:border-[#164027]"
-								/>
-								{referenceError && (
-									<p className="mt-1 font-semibold text-rose-700">{referenceError}</p>
-								)}
-							</div>
-							<div>
-								<label htmlFor={paymentNoteId} className="font-extrabold">
-									Ghi chú
-								</label>
-								<input
-									id={paymentNoteId}
-									value={paymentNote}
-									maxLength={500}
-									onChange={(event) => setPaymentNote(event.target.value)}
-									className="mt-1 w-full rounded-xl border border-[#dfe8df] px-3 py-2 text-sm outline-none focus:border-[#164027]"
-								/>
-							</div>
-						</div>
-						<div className="flex justify-end">
-							<button
-								type="button"
-								onClick={askPaymentConfirmation}
-								disabled={busy}
-								className="rounded-xl bg-[#164027] px-4 py-2 text-xs font-bold text-white hover:bg-[#0d2617] disabled:opacity-50"
-							>
-								Xác nhận đã nhận tiền
-							</button>
-						</div>
-					</div>
 				)}
 
 				<div className="rounded-2xl border border-[#edf3ed] p-4 text-xs">
@@ -354,17 +246,6 @@ export function AdminWeatherPenaltyDialog({
 				cancelText="Quay lại"
 				variant={pending ? "success" : "danger"}
 				isLoading={review.isPending}
-			/>
-			<ConfirmModal
-				isOpen={confirmingPayment}
-				onClose={() => setConfirmingPayment(false)}
-				onConfirm={submitPayment}
-				title={`Xác nhận đã nhận ${formatBookingMoney(penalty.outstandingAmount)}?`}
-				description={`Mã giao dịch ${reference.trim()}. Khoản phạt sẽ được ghi là Host đã nộp đủ.`}
-				confirmText="Xác nhận"
-				cancelText="Quay lại"
-				variant="success"
-				isLoading={confirmPayment.isPending}
 			/>
 		</Modal>
 	);
