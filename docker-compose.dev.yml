@@ -1,0 +1,39 @@
+# Use with docker-compose.yml and docker-compose.prod.yml.
+name: ditrek-dev
+
+services:
+  api:
+    environment:
+      API_PUBLIC_URL: https://${CTMS_DEV_DOMAIN:?Set CTMS_DEV_DOMAIN in .env.dev}
+      PAYOS_RETURN_URL: https://${CTMS_DEV_DOMAIN}/trips
+      PAYOS_CANCEL_URL: https://${CTMS_DEV_DOMAIN}/trips
+
+  web:
+    build:
+      args:
+        VITE_API_BASE_URL: /api
+
+  nginx:
+    ports: !reset []
+    volumes:
+      - ./infra/nginx/dev.conf:/etc/nginx/conf.d/default.conf:ro
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      CTMS_DEV_DOMAIN: ${CTMS_DEV_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/caddy/dev.Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      nginx:
+        condition: service_healthy
+
+volumes:
+  caddy-data:
+  caddy-config:
