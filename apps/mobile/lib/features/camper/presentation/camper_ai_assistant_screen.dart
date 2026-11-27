@@ -290,7 +290,7 @@ class _CamperAiAssistantScreenState
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Trợ lý sinh tồn CTMS AI',
+                                  'Trợ lý sinh tồn DiTrek AI',
                                   style: AppTypography.h3.copyWith(
                                     fontWeight: FontWeight.w800,
                                     color: AppColors.textPrimary,

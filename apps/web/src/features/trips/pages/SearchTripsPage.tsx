@@ -12,6 +12,8 @@ export interface SearchTripsPageProps {
 	/** Opens a Trip chosen from the suggestions, so its detail can explain why it was suggested. */
 	onNavigateToRecommendedTrip?: (tripId: string) => void;
 	initialFilters?: SearchTripsQuery;
+	/** Renders flush inside the shared public 1240px shell (used for unauthenticated guests). */
+	publicLayout?: boolean;
 }
 
 interface CategoryOption {
@@ -58,6 +60,7 @@ export function SearchTripsPage({
 	onNavigateToTripDetail,
 	onNavigateToRecommendedTrip,
 	initialFilters,
+	publicLayout = false,
 }: SearchTripsPageProps) {
 	const {
 		query,
@@ -74,9 +77,19 @@ export function SearchTripsPage({
 	const isCamper = hasAnyRole(getStoredAuthUser(), ["camper"]);
 
 	return (
-		<div className="min-h-screen bg-[#f4f7f2] font-sans text-[#10221b] antialiased">
-			<main className="flex-1 p-4 sm:p-6 lg:p-8">
-				<div className="mx-auto flex max-w-[1440px] flex-col gap-6">
+		<div
+			className={
+				publicLayout
+					? "font-sans text-[#10221b] antialiased"
+					: "min-h-screen bg-[#f4f7f2] font-sans text-[#10221b] antialiased"
+			}
+		>
+			<main className={publicLayout ? "pb-14" : "flex-1 p-4 sm:p-6 lg:p-8"}>
+				<div
+					className={
+						publicLayout ? "flex flex-col gap-6" : "mx-auto flex max-w-[1440px] flex-col gap-6"
+					}
+				>
 					{/* Khối 1: Hero Canvas Cover Panel với ảnh người leo núi & sắc xanh lá nhẹ dịu mắt */}
 					<section className="relative overflow-hidden rounded-[28px] border border-[#dfe8df] bg-[#163323] text-white shadow-sm motion-safe:animate-in motion-safe:fade-in duration-700">
 						{/* Ảnh nền người đang leo núi trên thảo nguyên xanh mướt */}

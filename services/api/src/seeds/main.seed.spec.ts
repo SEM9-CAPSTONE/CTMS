@@ -12,6 +12,8 @@ import {
 	PORTER_NON_CONFLICT_TARGET_TRIP,
 	PORTER_SEED_FIXTURES,
 	PORTER_SEED_ROUTE_NAMES,
+	SURVIVAL_DOCUMENT_PRESERVED_TABLES,
+	cleanDatabase,
 	porterLifecycleFixtureId,
 	porterSeedTripWindowsOverlap,
 	refreshDaNangSeedData,
@@ -341,5 +343,102 @@ describe("Readable demo copy", () => {
 		} finally {
 			environment.restore();
 		}
+	});
+});
+
+describe("cleanDatabase fresh seed behavior", () => {
+	const sampleTables = [
+		"migrations",
+		"spatial_ref_sys",
+		"geo_areas",
+		"users",
+		"user_roles",
+		"audit_logs",
+		"trips",
+		"bookings",
+		"ai_investigation_history",
+		...SURVIVAL_DOCUMENT_PRESERVED_TABLES,
+	];
+
+	it("preserves survival documents, RAG tables, survival audit logs, and referenced users by default", async () => {
+		const adminId = "11111111-1111-4111-8111-111111111111";
+		const query = jest.fn(async (sql: string) => {
+			if (sql.includes("FROM pg_tables")) {
+				return sampleTables.map((tablename) => ({ tablename }));
+			}
+			if (sql.includes("AS user_id")) {
+				return [{ user_id: adminId }];
+			}
+			return [];
+		});
+		const ds = { isInitialized: true, query } as unknown as DataSource;
+
+		await cleanDatabase(ds);
+
+		const truncateCall = query.mock.calls.find(([sql]) => sql.startsWith("TRUNCATE TABLE"));
+		expect(truncateCall).toBeDefined();
+		const truncateSql = truncateCall?.[0] ?? "";
+		expect(truncateSql).toContain('"trips"');
+		expect(truncateSql).toContain('"bookings"');
+		expect(truncateSql).toContain('"ai_investigation_history"');
+		for (const protectedTable of [
+			"migrations",
+			"spatial_ref_sys",
+			"geo_areas",
+			"users",
+			"user_roles",
+			"audit_logs",
+			...SURVIVAL_DOCUMENT_PRESERVED_TABLES,
+		]) {
+			expect(truncateSql).not.toContain(`"${protectedTable}"`);
+		}
+
+		expect(query).toHaveBeenCalledWith(
+			`DELETE FROM "audit_logs" WHERE "target_type" IS DISTINCT FROM 'survival_document'`
+		);
+		expect(query).toHaveBeenCalledWith(
+			`DELETE FROM "user_roles" WHERE NOT ("user_id" = ANY($1::uuid[]))`,
+			[[adminId]]
+		);
+		expect(query).toHaveBeenCalledWith(`DELETE FROM "users" WHERE NOT ("id" = ANY($1::uuid[]))`, [
+			[adminId],
+		]);
+	});
+
+	it("deletes all users without TRUNCATE CASCADE when no survival documents exist yet", async () => {
+		const query = jest.fn(async (sql: string) => {
+			if (sql.includes("FROM pg_tables")) {
+				return sampleTables.map((tablename) => ({ tablename }));
+			}
+			return [];
+		});
+		const ds = { isInitialized: true, query } as unknown as DataSource;
+
+		await cleanDatabase(ds);
+
+		const truncateCall = query.mock.calls.find(([sql]) => sql.startsWith("TRUNCATE TABLE"));
+		expect(truncateCall?.[0]).not.toContain('"users"');
+		expect(query).toHaveBeenCalledWith(`DELETE FROM "user_roles"`);
+		expect(query).toHaveBeenCalledWith(`DELETE FROM "users"`);
+	});
+
+	it("wipes survival documents too only when preserveSurvivalDocuments is explicitly false", async () => {
+		const query = jest.fn(async (sql: string) => {
+			if (sql.includes("FROM pg_tables")) {
+				return sampleTables.map((tablename) => ({ tablename }));
+			}
+			return [];
+		});
+		const ds = { isInitialized: true, query } as unknown as DataSource;
+
+		await cleanDatabase(ds, { preserveSurvivalDocuments: false });
+
+		const truncateCall = query.mock.calls.find(([sql]) => sql.startsWith("TRUNCATE TABLE"));
+		const truncateSql = truncateCall?.[0] ?? "";
+		expect(truncateSql).toContain('"users"');
+		expect(truncateSql).toContain('"survival_documents"');
+		expect(truncateSql).toContain('"knowledge_chunks"');
+		expect(truncateSql).not.toContain('"migrations"');
+		expect(truncateSql).not.toContain('"geo_areas"');
 	});
 });

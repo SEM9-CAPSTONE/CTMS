@@ -5,8 +5,8 @@ export const AppFooter: React.FC = () => {
 		<footer className="mt-auto border-t border-emerald-950/10 bg-white py-6 text-center text-xs text-gray-500">
 			<div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 md:flex-row">
 				<p>
-					© {new Date().getFullYear()} CTMS - Camping Site & Trekking Management System. All rights
-					reserved.
+					© {new Date().getFullYear()} DiTrek - Camping Site & Trekking Management System. All
+					rights reserved.
 				</p>
 				<div className="flex gap-4">
 					<a href="#privacy" className="hover:text-emerald-700">

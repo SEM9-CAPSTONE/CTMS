@@ -311,7 +311,7 @@ void main() {
         data: {'eventId': 'e', 'n': 1},
       );
       expect(withId.key, 'e');
-      expect(withId.title, 'Thông báo CTMS');
+      expect(withId.title, 'Thông báo DiTrek');
       expect(withId.data['n'], '1');
       final withoutId = PushNotice.fromMessage(
         title: 'A',

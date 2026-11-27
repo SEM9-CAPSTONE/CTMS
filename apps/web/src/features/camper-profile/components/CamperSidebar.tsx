@@ -43,12 +43,12 @@ export function CamperSidebar({
 					<HomeLink className="flex items-center gap-3 px-2 pt-1">
 						<img
 							src="/ctms_logo.png"
-							alt="CTMS Logo"
+							alt="DiTrek Logo"
 							className="h-10 w-auto shrink-0 object-contain"
 						/>
 						<div>
 							<div className="flex items-center gap-1.5">
-								<span className="text-lg font-extrabold tracking-tight text-[#164027]">CTMS</span>
+								<span className="text-lg font-extrabold tracking-tight text-[#164027]">DiTrek</span>
 								<span className="rounded-md bg-[#eef7f0] px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#164027]">
 									Camper
 								</span>

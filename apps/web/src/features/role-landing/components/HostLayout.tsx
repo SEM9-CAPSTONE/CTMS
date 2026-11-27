@@ -131,7 +131,7 @@ export function HostLayout({
 			allowMobile
 			mobileBrand={
 				<HomeLink className="flex items-center gap-2.5">
-					<img src="/ctms_logo.png" alt="CTMS Logo" className="h-8 w-auto object-contain" />
+					<img src="/ctms_logo.png" alt="DiTrek Logo" className="h-8 w-auto object-contain" />
 					<p className="font-bold text-brand-dark">{config.productLabel}</p>
 				</HomeLink>
 			}

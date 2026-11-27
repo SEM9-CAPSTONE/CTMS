@@ -99,7 +99,7 @@ final _caption = AppTypography.caption.copyWith(color: AppColors.textSecondary);
       label: 'Đang tắt',
       status: CtmsStatus.warning,
       text:
-          'Bạn đã tắt quyền thông báo. Hãy bật lại trong Cài đặt của điện thoại (Ứng dụng › CTMS › Thông báo), rồi bấm "Thử lại".',
+          'Bạn đã tắt quyền thông báo. Hãy bật lại trong Cài đặt của điện thoại (Ứng dụng › DiTrek › Thông báo), rồi bấm "Thử lại".',
     ),
     PushAvailability.unavailable => (
       label: 'Không khả dụng',

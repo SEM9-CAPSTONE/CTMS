@@ -1,5 +1,7 @@
-import { ArrowLeft, ArrowRight, HelpCircle, Home } from "lucide-react";
+import { ArrowLeft, ArrowRight, HelpCircle, Home, RefreshCw } from "lucide-react";
 import type React from "react";
+import { handlePublicLinkClick } from "../../public-pages/utils/spaNavigate";
+import { formatTermsDate, formatTermsVersionLabel } from "../../terms";
 import { CamperRegisterForm } from "../components/CamperRegisterForm";
 import { HostRegisterForm } from "../components/HostRegisterForm";
 import { PorterRegisterForm } from "../components/PorterRegisterForm";
@@ -13,6 +15,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
 	onBackToHome,
 	onNavigateToLogin,
 	onNavigateToVerifyOtp,
+	onNavigateToTerms,
 }) => {
 	const {
 		currentStep,
@@ -24,6 +27,13 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
 		updateHostForm,
 		porterForm,
 		updatePorterForm,
+		acceptedTerms,
+		setAcceptedTerms,
+		currentTerms,
+		isLoadingTerms,
+		termsLoadError,
+		reloadTerms,
+		saveDraftForTermsNavigation,
 		handleNextStep,
 		handlePrevStep,
 		handleRegisterSubmit,
@@ -31,13 +41,21 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
 		submitError,
 	} = useRegisterForm(onNavigateToVerifyOtp);
 
-	// 409 -> submitError.message directly; 422 -> flatten backend's per-field
-	// errors (also covers "Either email or phone must be provided").
 	const errorMessages = submitError
 		? submitError.fieldErrors
 			? submitError.fieldErrors.flatMap((fieldError) => fieldError.errors)
 			: [submitError.message]
 		: [];
+
+	const handleOpenTerms = () => {
+		saveDraftForTermsNavigation();
+		if (onNavigateToTerms) {
+			onNavigateToTerms();
+			return;
+		}
+		window.history.pushState({}, "", "/terms-and-policy?from=register");
+		window.dispatchEvent(new PopStateEvent("popstate"));
+	};
 
 	const renderRoleForm = () => {
 		switch (selectedRole) {
@@ -55,11 +73,11 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
 	const getRoleTitle = () => {
 		switch (selectedRole) {
 			case "camper":
-				return "Tài khoản Camper (Khách cắm trại)";
+				return "Tài khoản Camper";
 			case "host":
-				return "Tài khoản Host (Chủ bãi trại)";
+				return "Tài khoản Host";
 			case "porter":
-				return "Tài khoản Porter (Người dẫn đường)";
+				return "Tài khoản Porter";
 			default:
 				return "Tài khoản người dùng";
 		}
@@ -71,7 +89,9 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
 				<div>
 					{/* Header Title */}
 					<div className="mb-4 text-center">
-						<h1 className="text-2xl font-extrabold tracking-tight text-[#164027]">Tham gia CTMS</h1>
+						<h1 className="text-2xl font-extrabold tracking-tight text-[#164027]">
+							Tham gia DiTrek
+						</h1>
 					</div>
 
 					{/* Stepper Progress Bar (Step 3 "Xác minh OTP" happens on VerifyOtpPage) */}
@@ -82,19 +102,18 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
 
 					<div className="my-4 border-t border-[#f0f4f0]" />
 
-					{/* Step 1: Role Selection (Vertical Stacked Cards) */}
+					{/* Step 1: Role Selection */}
 					{currentStep === 1 && (
 						<div>
 							<div className="mb-4">
 								<h2 className="text-xl font-extrabold tracking-tight text-[#10221b]">
-									Chào bạn, bạn muốn tham gia CTMS với vai trò nào?
+									Chào bạn, bạn muốn tham gia DiTrek với vai trò nào?
 								</h2>
 								<p className="mt-0.5 text-xs font-medium text-[#54655a]">
 									Chọn vai trò phù hợp nhất với nhu cầu của bạn để hệ thống tối ưu giao diện.
 								</p>
 							</div>
 
-							{/* 3 Vertical Stacked Role Cards */}
 							<div className="flex flex-col gap-3">
 								{ROLE_OPTIONS.map((option) => (
 									<RoleSelectionCard
@@ -106,7 +125,6 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
 								))}
 							</div>
 
-							{/* Action Button */}
 							<div className="mt-6 flex justify-end">
 								<button
 									type="button"
@@ -139,7 +157,56 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
 
 							{renderRoleForm()}
 
-							{/* Submit error summary (409 duplicate / 422 validation) */}
+							{/* Terms & Optional Health Profile Consent */}
+							<div className="mt-5 space-y-3 border-t border-[#eef2ee] pt-4">
+								<p className="text-xs font-bold tracking-wide text-[#425048]">Xác nhận và đồng ý</p>
+
+								{termsLoadError && (
+									<div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900">
+										<span>{termsLoadError}</span>
+										<button
+											type="button"
+											onClick={() => {
+												void reloadTerms();
+											}}
+											className="inline-flex cursor-pointer items-center gap-1 font-bold text-[#164027] underline hover:no-underline"
+										>
+											<RefreshCw size={12} />
+											<span>Tải lại</span>
+										</button>
+									</div>
+								)}
+
+								<label className="flex cursor-pointer items-start gap-2.5 text-xs leading-relaxed text-[#2f4c40]">
+									<input
+										type="checkbox"
+										name="acceptedTerms"
+										checked={acceptedTerms}
+										onChange={(event) => setAcceptedTerms(event.target.checked)}
+										disabled={isLoadingTerms || !currentTerms}
+										className="mt-0.5 size-4 shrink-0 rounded border-[#b8c7bc] accent-[#164027]"
+									/>
+									<span>
+										Tôi đã đọc và đồng ý với{" "}
+										<button
+											type="button"
+											onClick={handleOpenTerms}
+											className="cursor-pointer font-bold text-[#164027] underline hover:text-[#0f2e1c]"
+										>
+											Điều khoản và Chính sách sử dụng
+										</button>{" "}
+										của DiTrek.
+										{currentTerms && (
+											<span className="ml-1.5 inline-block rounded-full bg-[#eef7f0] px-2 py-0.5 text-[11px] font-semibold text-[#164027]">
+												{formatTermsVersionLabel(currentTerms.version)} · Hiệu lực{" "}
+												{formatTermsDate(currentTerms.effectiveDate)}
+											</span>
+										)}
+									</span>
+								</label>
+							</div>
+
+							{/* Submit error summary (409 duplicate / 422 validation / terms error) */}
 							{errorMessages.length > 0 && (
 								<div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
 									{errorMessages.map((msg) => (
@@ -197,7 +264,8 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
 							<span>Trang chủ</span>
 						</button>
 						<a
-							href="#help"
+							href="/support"
+							onClick={(event) => handlePublicLinkClick(event, "/support")}
 							className="inline-flex items-center gap-1.5 font-bold text-[#425048] hover:text-[#164027]"
 						>
 							<HelpCircle size={14} />

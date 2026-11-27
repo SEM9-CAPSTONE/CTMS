@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight, Compass, Sparkles } from "lucide-react";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
+import { handlePublicLinkClick } from "../../public-pages/utils/spaNavigate";
 import { FEATURED_DESTINATIONS } from "../constants";
 import type { DestinationCard } from "../types";
 import { DestinationCardItem } from "./DestinationCardItem";
@@ -118,11 +119,7 @@ export const FeaturedLocationsSection: React.FC<FeaturedLocationsSectionProps> =
 				<div className="flex flex-wrap items-center gap-3">
 					<a
 						href="/trekking"
-						onClick={(e) => {
-							e.preventDefault();
-							window.history.pushState({}, "", "/trekking");
-							window.dispatchEvent(new PopStateEvent("popstate"));
-						}}
+						onClick={(e) => handlePublicLinkClick(e, "/trekking")}
 						className="inline-flex items-center gap-1 text-sm font-bold text-[#276143] hover:underline mr-2"
 					>
 						Xem tất cả <ChevronRight size={16} />

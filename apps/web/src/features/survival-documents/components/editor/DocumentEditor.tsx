@@ -67,7 +67,9 @@ export function DocumentEditor({
 			title={titles[kind]}
 			icon={<FileText className="size-6" aria-hidden="true" />}
 			description={
-				addingPdf ? "Tải lên tài liệu PDF và cung cấp thông tin để quản lý trong CTMS." : undefined
+				addingPdf
+					? "Tải lên tài liệu PDF và cung cấp thông tin để quản lý trong DiTrek."
+					: undefined
 			}
 			size={editorSize[method]}
 		>

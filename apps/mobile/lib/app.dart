@@ -31,7 +31,7 @@ class CtmsApp extends ConsumerWidget {
     // comment for the frozen scope of what it does on resume.
     return AppLifecycleObserver(
       child: MaterialApp.router(
-        title: 'CTMS',
+        title: 'DiTrek',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
         darkTheme: AppTheme.light(),

@@ -71,7 +71,15 @@ class AuthRepository {
   /// `AuthController.clearSession()`) cannot afford this to throw.
   Future<void> clearLocalSession() => _tokenStorage.clear();
 
-  Future<RegisterResult> register(RegisterFormData data) => _api.register(data);
+  Future<RegisterResult> register(
+    RegisterFormData data, {
+    String? acceptedTermsVersion,
+    bool healthProfileConsent = false,
+  }) => _api.register(
+    data,
+    acceptedTermsVersion: acceptedTermsVersion,
+    healthProfileConsent: healthProfileConsent,
+  );
 
   /// CTMS-02 [Mobile]. No session is adopted by any of these three -- the
   /// account stays `pending_verification` until [verifyOtp] succeeds, and

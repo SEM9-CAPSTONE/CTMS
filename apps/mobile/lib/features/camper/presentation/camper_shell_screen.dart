@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:mobile/core/theme/app_colors.dart';
+import '../../terms/presentation/widgets/terms_reconsent_dialog.dart';
 import 'widgets/camper_sidebar.dart';
 
 /// Navigation frame for the Camper role with responsive Sidebar and BottomNavigationBar.
@@ -44,55 +45,59 @@ class CamperShellScreen extends StatelessWidget {
     final isWide = MediaQuery.sizeOf(context).width >= 900;
 
     if (isWide) {
-      return Scaffold(
-        body: Row(
-          children: [
-            CamperSidebar(
-              currentIndex: navigationShell.currentIndex,
-              onSelectIndex: (index) => navigationShell.goBranch(
-                index,
-                initialLocation: index == navigationShell.currentIndex,
+      return TermsReconsentGate(
+        child: Scaffold(
+          body: Row(
+            children: [
+              CamperSidebar(
+                currentIndex: navigationShell.currentIndex,
+                onSelectIndex: (index) => navigationShell.goBranch(
+                  index,
+                  initialLocation: index == navigationShell.currentIndex,
+                ),
               ),
-            ),
-            Expanded(child: navigationShell),
-          ],
+              Expanded(child: navigationShell),
+            ],
+          ),
         ),
       );
     }
 
-    return Scaffold(
-      drawer: CamperSidebar(
-        currentIndex: navigationShell.currentIndex,
-        onSelectIndex: (index) => navigationShell.goBranch(
-          index,
-          initialLocation: index == navigationShell.currentIndex,
-        ),
-        isDrawer: true,
-      ),
-      body: navigationShell,
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: AppColors.brandPrimary,
-          border: Border(
-            top: BorderSide(color: Color(0xFF0F2E1C), width: 1),
+    return TermsReconsentGate(
+      child: Scaffold(
+        drawer: CamperSidebar(
+          currentIndex: navigationShell.currentIndex,
+          onSelectIndex: (index) => navigationShell.goBranch(
+            index,
+            initialLocation: index == navigationShell.currentIndex,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Color(0x33164027),
-              blurRadius: 10,
-              offset: Offset(0, -2),
-            ),
-          ],
+          isDrawer: true,
         ),
-        child: SafeArea(
-          top: false,
-          child: NavigationBar(
-            selectedIndex: navigationShell.currentIndex,
-            onDestinationSelected: (index) => navigationShell.goBranch(
-              index,
-              initialLocation: index == navigationShell.currentIndex,
+        body: navigationShell,
+        bottomNavigationBar: Container(
+          decoration: const BoxDecoration(
+            color: AppColors.brandPrimary,
+            border: Border(
+              top: BorderSide(color: Color(0xFF0F2E1C), width: 1),
             ),
-            destinations: _destinations,
+            boxShadow: [
+              BoxShadow(
+                color: Color(0x33164027),
+                blurRadius: 10,
+                offset: Offset(0, -2),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: NavigationBar(
+              selectedIndex: navigationShell.currentIndex,
+              onDestinationSelected: (index) => navigationShell.goBranch(
+                index,
+                initialLocation: index == navigationShell.currentIndex,
+              ),
+              destinations: _destinations,
+            ),
           ),
         ),
       ),

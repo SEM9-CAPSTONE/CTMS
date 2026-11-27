@@ -1,7 +1,20 @@
 import { Calendar, Compass, MapPin, Search, Users } from "lucide-react";
 import type React from "react";
+import { useState } from "react";
+import { navigatePublicPath } from "../../public-pages/utils/spaNavigate";
 
 export const SearchPanelSection: React.FC = () => {
+	const [locationQuery, setLocationQuery] = useState("Đà Nẵng");
+
+	const handleSearch = () => {
+		const trimmed = locationQuery.trim();
+		const searchTarget =
+			trimmed && trimmed.toLowerCase() !== "đà nẵng"
+				? `/trips?q=${encodeURIComponent(trimmed)}`
+				: "/trips";
+		navigatePublicPath(searchTarget);
+	};
+
 	return (
 		<section className="mb-12 rounded-3xl border border-[#dfe8df] bg-white p-8 shadow-xl shadow-[#1c442f]/5">
 			<div className="mb-6 flex flex-wrap items-end justify-between gap-4">
@@ -14,39 +27,48 @@ export const SearchPanelSection: React.FC = () => {
 					</h2>
 				</div>
 				<span className="text-xs font-semibold text-[#54655a]">
-					Hỗ trợ tìm kiếm theo thời tiết thực & GPS offline
+					Hỗ trợ tìm kiếm theo thời tiết thực và bản đồ ngoại tuyến
 				</span>
 			</div>
 
 			<div className="grid grid-cols-1 items-end gap-4 sm:grid-cols-2 lg:grid-cols-[repeat(4,1fr)_auto]">
 				<div className="flex flex-col gap-2">
-					<label className="text-xs font-bold text-[#425048]">Địa điểm</label>
+					<label htmlFor="landing-search-location" className="text-xs font-bold text-[#425048]">
+						Địa điểm
+					</label>
 					<div className="flex h-13 items-center gap-2.5 rounded-2xl border border-[#e0ebe0] bg-[#f7faf6] px-4">
 						<MapPin size={18} className="shrink-0 text-[#276143]" />
 						<input
+							id="landing-search-location"
 							type="text"
-							defaultValue="Đà Nẵng, Việt Nam"
+							value={locationQuery}
+							onChange={(event) => setLocationQuery(event.target.value)}
 							placeholder="Nhập địa điểm..."
 							className="w-full bg-transparent text-sm text-[#10221b] outline-none"
 						/>
 					</div>
 				</div>
 				<div className="flex flex-col gap-2">
-					<label className="text-xs font-bold text-[#425048]">Ngày đi</label>
+					<label htmlFor="landing-search-date" className="text-xs font-bold text-[#425048]">
+						Ngày đi
+					</label>
 					<div className="flex h-13 items-center gap-2.5 rounded-2xl border border-[#e0ebe0] bg-[#f7faf6] px-4">
 						<Calendar size={18} className="shrink-0 text-[#276143]" />
 						<input
-							type="text"
-							defaultValue="dd/mm/yyyy"
+							id="landing-search-date"
+							type="date"
 							className="w-full bg-transparent text-sm text-[#10221b] outline-none"
 						/>
 					</div>
 				</div>
 				<div className="flex flex-col gap-2">
-					<label className="text-xs font-bold text-[#425048]">Số người</label>
+					<label htmlFor="landing-search-people" className="text-xs font-bold text-[#425048]">
+						Số người
+					</label>
 					<div className="flex h-13 items-center gap-2.5 rounded-2xl border border-[#e0ebe0] bg-[#f7faf6] px-4">
 						<Users size={18} className="shrink-0 text-[#276143]" />
 						<select
+							id="landing-search-people"
 							defaultValue="1-2"
 							className="w-full bg-transparent text-sm text-[#10221b] outline-none"
 						>
@@ -57,24 +79,24 @@ export const SearchPanelSection: React.FC = () => {
 					</div>
 				</div>
 				<div className="flex flex-col gap-2">
-					<label className="text-xs font-bold text-[#425048]">Loại hình</label>
+					<label htmlFor="landing-search-type" className="text-xs font-bold text-[#425048]">
+						Loại hình
+					</label>
 					<div className="flex h-13 items-center gap-2.5 rounded-2xl border border-[#e0ebe0] bg-[#f7faf6] px-4">
 						<Compass size={18} className="shrink-0 text-[#276143]" />
 						<select
+							id="landing-search-type"
 							defaultValue="trekking"
 							className="w-full bg-transparent text-sm text-[#10221b] outline-none"
 						>
-							<option value="trekking">Trekking</option>
-							<option value="combo">Combo Trekking</option>
+							<option value="trekking">Đi bộ đường dài</option>
+							<option value="combo">Cắm trại kết hợp</option>
 						</select>
 					</div>
 				</div>
 				<button
 					type="button"
-					onClick={() => {
-						window.history.pushState({}, "", "/trekking");
-						window.dispatchEvent(new PopStateEvent("popstate"));
-					}}
+					onClick={handleSearch}
 					className="mt-auto inline-flex h-13 min-w-[160px] cursor-pointer items-center justify-center gap-2 rounded-full bg-[#1c442f] px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-[#143323]"
 				>
 					<Search size={18} /> Tìm kiếm

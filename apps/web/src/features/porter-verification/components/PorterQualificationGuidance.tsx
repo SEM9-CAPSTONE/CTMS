@@ -6,7 +6,7 @@ export function PorterQualificationGuidance() {
 			</summary>
 			<p className="mt-3">
 				Porter hỗ trợ mang đồ và người hành nghề hướng dẫn du lịch có vai trò khác nhau. Duyệt hồ sơ
-				trên CTMS là bước kiểm tra nội bộ; quyền dẫn đoàn còn phụ thuộc hoạt động và phạm vi giấy
+				trên DiTrek là bước kiểm tra nội bộ; quyền dẫn đoàn còn phụ thuộc hoạt động và phạm vi giấy
 				tờ.
 			</p>
 			<ul className="mt-3 list-disc space-y-2 pl-5">

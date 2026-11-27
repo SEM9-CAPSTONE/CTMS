@@ -4,6 +4,7 @@ import * as bcrypt from "bcrypt";
 import request from "supertest";
 import { DataSource } from "typeorm";
 import { AppModule } from "../src/modules/app.module";
+import { DEFAULT_TERMS_VERSION } from "../src/modules/terms/terms-content";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
 
 describe("POST /api/auth/register (integration, real Postgres)", () => {
@@ -90,7 +91,13 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 
 		const response = await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ email, phone: local, password: "correct-horse", role: "camper" })
+			.send({
+				email,
+				phone: local,
+				password: "correct-horse",
+				role: "camper",
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+			})
 			.expect(201);
 
 		expect(response.body).toMatchObject({
@@ -120,7 +127,10 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 		expect(auditRows[0].target_type).toBe("user");
 		expect(auditRows[0].target_id).toBe(response.body.id);
 		expect(auditRows[0].before).toBeNull();
-		expect(auditRows[0].after).toEqual({ role: "camper" });
+		expect(auditRows[0].after).toEqual({
+			role: "camper",
+			acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+		});
 	});
 
 	// --- Normalization ------------------------------------------------------
@@ -137,7 +147,13 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 
 		const response = await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ email: raw, phone: local, password: "x", role: "camper" })
+			.send({
+				email: raw,
+				phone: local,
+				password: "x",
+				role: "camper",
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+			})
 			.expect(201);
 
 		expect(response.body.email).toBe(canonical);
@@ -157,7 +173,13 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 
 		const response = await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ email, phone: local, password: "x", role: "camper" })
+			.send({
+				email,
+				phone: local,
+				password: "x",
+				role: "camper",
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+			})
 			.expect(201);
 
 		expect(response.body.phone).toBe(expectedE164);
@@ -181,12 +203,24 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 
 		await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ email, phone: firstLocal, password: "x", role: "camper" })
+			.send({
+				email,
+				phone: firstLocal,
+				password: "x",
+				role: "camper",
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+			})
 			.expect(201);
 
 		const response = await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ email: email.toUpperCase(), phone: secondLocal, password: "y", role: "host" })
+			.send({
+				email: email.toUpperCase(),
+				phone: secondLocal,
+				password: "y",
+				role: "host",
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+			})
 			.expect(409);
 
 		expect(response.body.statusCode).toBe(409);
@@ -205,12 +239,24 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 
 		await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ email: firstEmail, phone: local, password: "x", role: "camper" })
+			.send({
+				email: firstEmail,
+				phone: local,
+				password: "x",
+				role: "camper",
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+			})
 			.expect(201);
 
 		const response = await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ email: secondEmail, phone: e164, password: "y", role: "host" })
+			.send({
+				email: secondEmail,
+				phone: e164,
+				password: "y",
+				role: "host",
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+			})
 			.expect(409);
 
 		expect(response.body.statusCode).toBe(409);
@@ -228,7 +274,12 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 
 		const response = await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ phone: local, password: "x", role: "camper" })
+			.send({
+				phone: local,
+				password: "x",
+				role: "camper",
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+			})
 			.expect(422);
 
 		expect(response.body.statusCode).toBe(422);
@@ -243,7 +294,12 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 
 		const response = await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ email, password: "x", role: "camper" })
+			.send({
+				email,
+				password: "x",
+				role: "camper",
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+			})
 			.expect(422);
 
 		expect(response.body.statusCode).toBe(422);
@@ -257,7 +313,7 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 
 		const response = await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ password: "x", role: "camper" })
+			.send({ password: "x", role: "camper", acceptedTermsVersion: DEFAULT_TERMS_VERSION })
 			.expect(422);
 
 		expect(response.body.statusCode).toBe(422);
@@ -274,7 +330,13 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 
 		const response = await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ email, phone: local, password: "x", role: "admin" })
+			.send({
+				email,
+				phone: local,
+				password: "x",
+				role: "admin",
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+			})
 			.expect(422);
 
 		expect(response.body.statusCode).toBe(422);
@@ -293,7 +355,13 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 
 		const response = await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ email, phone: local, password: "x", role: "camper" })
+			.send({
+				email,
+				phone: local,
+				password: "x",
+				role: "camper",
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+			})
 			.expect(201);
 
 		expect(Object.hasOwn(response.body, "passwordHash")).toBe(false);
@@ -311,7 +379,13 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 
 		await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ email, phone: local, password: plainPassword, role: "camper" })
+			.send({
+				email,
+				phone: local,
+				password: plainPassword,
+				role: "camper",
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+			})
 			.expect(201);
 
 		const rows = await dataSource.query('SELECT "password_hash" FROM "users" WHERE "email" = $1', [
@@ -332,7 +406,13 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 
 		const response = await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ email, phone: local, password: "x", role: "camper" })
+			.send({
+				email,
+				phone: local,
+				password: "x",
+				role: "camper",
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+			})
 			.expect(201);
 
 		expect(response.body.status).toBe("pending_verification");
@@ -351,7 +431,14 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 
 		const response = await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ email, phone: local, password: "x", role: "host", fullName: "  Nguyễn Văn Host  " })
+			.send({
+				email,
+				phone: local,
+				password: "x",
+				role: "host",
+				fullName: "  Nguyễn Văn Host  ",
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+			})
 			.expect(201);
 
 		const rows = await dataSource.query('SELECT "full_name" FROM "users" WHERE "id" = $1', [
@@ -381,6 +468,7 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 				fullName: "Lý A Porter",
 				experienceYears: 6,
 				certifications: [" PTR-8821 "],
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
 			})
 			.expect(201);
 
@@ -403,6 +491,7 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 		);
 		expect(auditRows[0].after).toEqual({
 			role: "porter",
+			acceptedTermsVersion: DEFAULT_TERMS_VERSION,
 			fullName: "Lý A Porter",
 			experienceYears: 6,
 			certifications: ["PTR-8821"],
@@ -416,12 +505,43 @@ describe("POST /api/auth/register (integration, real Postgres)", () => {
 
 		await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ email, phone: local, password: "x", role: "porter", experienceYears: -1 })
+			.send({
+				email,
+				phone: local,
+				password: "x",
+				role: "porter",
+				experienceYears: -1,
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+			})
 			.expect(422);
 		await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ email, phone: local, password: "x", role: "porter", fullName: "A" })
+			.send({
+				email,
+				phone: local,
+				password: "x",
+				role: "porter",
+				fullName: "A",
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+			})
 			.expect(422);
+
+		const rows = await dataSource.query('SELECT 1 FROM "users" WHERE "email" = $1', [email]);
+		expect(rows).toHaveLength(0);
+	});
+
+	it("rejects registration without acceptedTermsVersion (422) and creates no row", async () => {
+		const email = uniqueEmail("missing-terms");
+		const local = uniqueLocalPhone();
+		cleanupEmails.push(email);
+		cleanupPhones.push(`+84${local.slice(1)}`);
+
+		const response = await request(app.getHttpServer())
+			.post("/api/auth/register")
+			.send({ email, phone: local, password: "x", role: "camper" })
+			.expect(422);
+
+		expect(response.body.statusCode).toBe(422);
 
 		const rows = await dataSource.query('SELECT 1 FROM "users" WHERE "email" = $1', [email]);
 		expect(rows).toHaveLength(0);

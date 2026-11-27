@@ -8,6 +8,7 @@ import {
 	GoogleIdTokenVerifier,
 	type GoogleIdentity,
 } from "../src/modules/auth/providers/google-id-token.verifier";
+import { DEFAULT_TERMS_VERSION } from "../src/modules/terms/terms-content";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
 
 /**
@@ -113,7 +114,13 @@ describe("POST /api/auth/google (integration, real Postgres)", () => {
 		const phone = `09${String(20000000 + seq).padStart(8, "0")}`;
 		const response = await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ email, phone, password: "S3curePass!", role: "camper" })
+			.send({
+				email,
+				phone,
+				password: "S3curePass!",
+				role: "camper",
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+			})
 			.expect(201);
 		const userId: string = response.body.id;
 		cleanupUserIds.push(userId);

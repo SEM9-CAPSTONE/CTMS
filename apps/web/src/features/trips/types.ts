@@ -511,6 +511,7 @@ export type BookingBlockedReason =
 export interface BookTripInput {
 	tripId: string;
 	numPeople: number;
+	healthProfileConsent?: boolean;
 }
 
 export interface BookTripResponse {

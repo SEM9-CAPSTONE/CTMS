@@ -7,7 +7,7 @@ import '../../application/survival_chat_controller.dart';
 
 const _unsafeLabel = 'Báo cáo câu trả lời không an toàn';
 const _localDisclosure =
-    'Khi gửi phản hồi, CTMS sẽ nhận câu hỏi, câu trả lời và thông tin kỹ thuật '
+    'Khi gửi phản hồi, DiTrek sẽ nhận câu hỏi, câu trả lời và thông tin kỹ thuật '
     'của lượt này (nếu có).';
 
 class AiAnswerFeedbackActions extends ConsumerWidget {

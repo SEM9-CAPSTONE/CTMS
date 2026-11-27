@@ -12,9 +12,11 @@ export const LoginHeroBanner: React.FC = () => {
 
 			<div className="relative z-10 flex items-center gap-3.5">
 				<div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/95 p-2 shadow-lg backdrop-blur-md">
-					<img src="/ctms_logo.png" alt="CTMS Logo" className="h-10 w-auto object-contain" />
+					<img src="/ctms_logo.png" alt="DiTrek Logo" className="h-10 w-auto object-contain" />
 				</div>
-				<span className="text-3xl font-extrabold tracking-tight text-white drop-shadow">CTMS</span>
+				<span className="text-3xl font-extrabold tracking-tight text-white drop-shadow">
+					DiTrek
+				</span>
 			</div>
 
 			<div className="relative z-10 max-w-[500px]">

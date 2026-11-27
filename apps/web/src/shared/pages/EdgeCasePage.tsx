@@ -11,7 +11,7 @@ export interface EdgeCasePageProps {
 
 export const EdgeCasePage: React.FC<EdgeCasePageProps> = ({
 	title = "Đang ở chế độ Ngoại tuyến (Offline)",
-	description = "Kết nối mạng internet bị gián đoạn hoặc không có sóng. CTMS đã tự động chuyển sang chế độ lưu trữ ngoại tuyến.",
+	description = "Kết nối mạng internet bị gián đoạn hoặc không có sóng. DiTrek đã tự động chuyển sang chế độ lưu trữ ngoại tuyến.",
 	onRetryConnection,
 	onOpenOfflineGuide,
 }) => {

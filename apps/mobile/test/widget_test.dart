@@ -18,6 +18,19 @@ import 'package:mobile/features/camper/data/camper_explore_api.dart';
 import 'package:mobile/features/camper/domain/published_trip.dart';
 import 'package:mobile/features/camper/overview/data/camper_overview_repository.dart';
 import 'package:mobile/features/camper/overview/domain/camper_overview_models.dart';
+import 'package:mobile/features/terms/application/terms_providers.dart';
+import 'package:mobile/features/terms/domain/terms_models.dart';
+
+const _stubTerms = TermsVersionDetail(
+  id: 'terms-v1',
+  version: '1.0',
+  title: 'Điều khoản và Điều kiện sử dụng CTMS',
+  effectiveDate: '2026-11-27',
+  isActive: true,
+  requiresReconsent: true,
+  publishedAt: '2026-11-27T00:00:00.000Z',
+  sections: [],
+);
 
 /// Avoids touching the flutter_secure_storage platform channel (unavailable
 /// under flutter_test) and the network — [login]/[register] return
@@ -87,7 +100,11 @@ class _FakeAuthRepository extends AuthRepository {
   /// [RegisterResult] from [loginResult] instead of echoing it back
   /// directly.
   @override
-  Future<RegisterResult> register(RegisterFormData data) async {
+  Future<RegisterResult> register(
+    RegisterFormData data, {
+    String? acceptedTermsVersion,
+    bool healthProfileConsent = false,
+  }) async {
     registerCallCount++;
     if (registerGate != null) await registerGate!.future;
     final user = loginResult;
@@ -169,6 +186,8 @@ Future<void> _login(WidgetTester tester, AuthUser user) async {
             totalPages: 0,
           ),
         ),
+        myTermsStatusProvider.overrideWith((ref) async => null),
+        currentTermsProvider.overrideWith((ref) async => _stubTerms),
       ],
       child: const CtmsApp(),
     ),
@@ -195,7 +214,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('CTMS'), findsOneWidget);
+    expect(find.text('DiTrek'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Đăng nhập →'), findsOneWidget);
   });
 
@@ -205,7 +224,10 @@ void main() {
       final repository = _FakeAuthRepository();
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [authRepositoryProvider.overrideWithValue(repository)],
+          overrides: [
+            authRepositoryProvider.overrideWithValue(repository),
+            currentTermsProvider.overrideWith((ref) async => _stubTerms),
+          ],
           child: const CtmsApp(),
         ),
       );
@@ -246,7 +268,10 @@ void main() {
       );
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [authRepositoryProvider.overrideWithValue(repository)],
+          overrides: [
+            authRepositoryProvider.overrideWithValue(repository),
+            currentTermsProvider.overrideWith((ref) async => _stubTerms),
+          ],
           child: const CtmsApp(),
         ),
       );
@@ -324,7 +349,10 @@ void main() {
       );
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [authRepositoryProvider.overrideWithValue(repository)],
+          overrides: [
+            authRepositoryProvider.overrideWithValue(repository),
+            currentTermsProvider.overrideWith((ref) async => _stubTerms),
+          ],
           child: const CtmsApp(),
         ),
       );
@@ -362,7 +390,10 @@ void main() {
       );
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [authRepositoryProvider.overrideWithValue(repository)],
+          overrides: [
+            authRepositoryProvider.overrideWithValue(repository),
+            currentTermsProvider.overrideWith((ref) async => _stubTerms),
+          ],
           child: const CtmsApp(),
         ),
       );
@@ -398,7 +429,10 @@ void main() {
       );
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [authRepositoryProvider.overrideWithValue(repository)],
+          overrides: [
+            authRepositoryProvider.overrideWithValue(repository),
+            currentTermsProvider.overrideWith((ref) async => _stubTerms),
+          ],
           child: const CtmsApp(),
         ),
       );
@@ -432,7 +466,14 @@ void main() {
         find.widgetWithText(ElevatedButton, 'Tiếp tục'),
       );
 
-      await _tapVisible(tester, find.byType(Checkbox));
+      await _tapVisible(
+        tester,
+        find.byKey(const ValueKey('register-accuracy-checkbox')),
+      );
+      await _tapVisible(
+        tester,
+        find.byKey(const ValueKey('register-terms-checkbox')),
+      );
 
       final submitButton = find.widgetWithText(
         ElevatedButton,
@@ -587,6 +628,7 @@ void main() {
             authRepositoryProvider.overrideWithValue(
               _FakeAuthRepository(loginResult: newUser),
             ),
+            currentTermsProvider.overrideWith((ref) async => _stubTerms),
           ],
           child: const CtmsApp(),
         ),
@@ -598,7 +640,7 @@ void main() {
         tester,
         find.text('Đăng ký ngay'),
       );
-      expect(find.text('Tham gia CTMS'), findsOneWidget);
+      expect(find.text('Tham gia DiTrek'), findsOneWidget);
 
       // Step 1 — Vai trò.
       await _tapVisible(tester, find.text('Porter (Người dẫn đường)'));
@@ -633,7 +675,14 @@ void main() {
 
       // Step 4 — Xác nhận đăng ký: accuracy checkbox rồi submit.
       expect(find.text('Xác nhận đăng ký'), findsOneWidget);
-      await _tapVisible(tester, find.byType(Checkbox));
+      await _tapVisible(
+        tester,
+        find.byKey(const ValueKey('register-accuracy-checkbox')),
+      );
+      await _tapVisible(
+        tester,
+        find.byKey(const ValueKey('register-terms-checkbox')),
+      );
       await _tapVisible(
         tester,
         find.widgetWithText(ElevatedButton, 'Hoàn tất đăng ký'),
@@ -648,7 +697,7 @@ void main() {
         tester,
         find.widgetWithText(TextButton, 'Quay lại đăng nhập'),
       );
-      expect(find.text('CTMS'), findsOneWidget);
+      expect(find.text('DiTrek'), findsOneWidget);
     },
   );
 }

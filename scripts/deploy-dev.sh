@@ -24,10 +24,18 @@ compose() {
     -f docker-compose.registry.yml "$@"
 }
 
+prune_unused_docker_cache() {
+  # Removes images not referenced by any container and unused build cache; volumes are untouched.
+  sudo -n docker image prune -af || echo "Warning: docker image prune failed." >&2
+  sudo -n docker builder prune -af || echo "Warning: docker builder prune failed." >&2
+}
+
 compose config --quiet
+prune_unused_docker_cache
 compose pull --policy missing postgres redis nginx caddy
 compose pull --policy always api web ai ingestion
 compose up -d --no-build --wait --wait-timeout 300
 compose exec -T nginx nginx -t
 compose exec -T --user nginx nginx test -r /usr/share/nginx/html/mobile/index.html
 compose exec -T nginx nginx -s reload
+prune_unused_docker_cache

@@ -15,7 +15,7 @@ String renderLocalPromptV1(String question) {
       'Trả lời ngắn gọn bằng tiếng Việt. Chỉ đưa lời khuyên chuẩn bị '
       'trekking và sinh tồn phổ thông. Không chẩn đoán, kê thuốc, '
       'hướng dẫn thủ thuật hay khẳng định tình trạng thực tế. '
-      'Không nhận là CTMS đã kiểm chứng. Nếu không an toàn, chỉ trả '
+      'Không nhận là DiTrek đã kiểm chứng. Nếu không an toàn, chỉ trả '
       'lời TỪ CHỐI.<|im_end|>\n'
       '<|im_start|>user\n$input<|im_end|>\n<|im_start|>assistant\n';
 }

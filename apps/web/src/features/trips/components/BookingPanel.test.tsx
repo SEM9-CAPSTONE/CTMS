@@ -33,9 +33,25 @@ const booking: BookTripResponse = {
 
 describe("BookingPanel", () => {
 	it("renders anonymous and non-Camper access states without a submit action", () => {
-		const { rerender } = render(<BookingPanel trip={trip} bookingAccess="anonymous" />);
-		expect(screen.getByText(/đăng nhập bằng tài khoản Camper/i)).toBeVisible();
+		const onSignIn = vi.fn();
+		const onRegister = vi.fn();
+		const { rerender } = render(
+			<BookingPanel
+				trip={trip}
+				bookingAccess="anonymous"
+				onSignIn={onSignIn}
+				onRegister={onRegister}
+			/>
+		);
+		expect(screen.getByText(/đăng nhập hoặc đăng ký tài khoản để đặt chỗ/i)).toBeVisible();
+		expect(screen.getByRole("button", { name: "Đăng nhập để đặt chỗ" })).toBeVisible();
+		expect(screen.getByRole("button", { name: "Đăng ký tài khoản" })).toBeVisible();
 		expect(screen.queryByRole("button", { name: /đặt chỗ ngay/i })).not.toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: "Đăng nhập để đặt chỗ" }));
+		expect(onSignIn).toHaveBeenCalledTimes(1);
+		fireEvent.click(screen.getByRole("button", { name: "Đăng ký tài khoản" }));
+		expect(onRegister).toHaveBeenCalledTimes(1);
 
 		rerender(<BookingPanel trip={trip} bookingAccess="non-camper" />);
 		expect(screen.getByText(/không có quyền đặt chỗ/i)).toBeVisible();
@@ -48,6 +64,16 @@ describe("BookingPanel", () => {
 		fireEvent.change(screen.getByLabelText("Số lượng khách"), { target: { value: "2" } });
 		fireEvent.click(screen.getByRole("button", { name: "Đặt chỗ ngay" }));
 		expect(onBook).toHaveBeenCalledWith("trip-1", 2);
+	});
+
+	it("keeps optional health profile sharing unchecked by default and forwards consent when checked", () => {
+		const onBook = vi.fn();
+		render(<BookingPanel trip={trip} onBook={onBook} />);
+		const checkbox = screen.getByRole("checkbox", { name: /hồ sơ sức khỏe/i });
+		expect(checkbox).not.toBeChecked();
+		fireEvent.click(checkbox);
+		fireEvent.click(screen.getByRole("button", { name: "Đặt chỗ ngay" }));
+		expect(onBook).toHaveBeenCalledWith("trip-1", 1, { healthProfileConsent: true });
 	});
 
 	it.each([

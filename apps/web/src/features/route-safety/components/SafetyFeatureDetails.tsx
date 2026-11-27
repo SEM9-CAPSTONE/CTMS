@@ -34,7 +34,7 @@ export function SafetyFeatureDetails({ feature }: { feature: SafetyFeature }) {
 				Quan sát: {time(p.observedAt)} · Phát tin / cập nhật nguồn: {time(p.issuedAt)}
 			</p>
 			<p>
-				CTMS lấy dữ liệu: {time(p.fetchedAt)} · Hiệu lực từ: {time(p.validFrom)} · Đến:{" "}
+				DiTrek lấy dữ liệu: {time(p.fetchedAt)} · Hiệu lực từ: {time(p.validFrom)} · Đến:{" "}
 				{time(p.validUntil)}
 			</p>
 			<p>

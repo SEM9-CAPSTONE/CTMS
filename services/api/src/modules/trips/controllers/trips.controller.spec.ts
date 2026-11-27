@@ -91,6 +91,20 @@ describe("TripsController", () => {
 			expect(tripsService.search).toHaveBeenCalledWith(query, "camper-1");
 			expect(result).toBe(mockResult);
 		});
+
+		it("allows public guest browsing without a signed-in user", async () => {
+			const mockResult: PaginatedTripsResponseDto = {
+				items: [],
+				pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+			};
+			tripsService.search.mockResolvedValue(mockResult);
+
+			const query: SearchTripsQueryDto = { page: 1, limit: 20 };
+			const result = await controller.search(query, {});
+
+			expect(tripsService.search).toHaveBeenCalledWith(query, undefined);
+			expect(result).toBe(mockResult);
+		});
 	});
 
 	describe("getAvailablePorters", () => {

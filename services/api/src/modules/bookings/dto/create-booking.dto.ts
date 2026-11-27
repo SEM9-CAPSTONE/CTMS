@@ -1,6 +1,6 @@
-import { ApiProperty } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { Type } from "class-transformer";
-import { IsInt, IsUUID, Min } from "class-validator";
+import { IsBoolean, IsInt, IsOptional, IsUUID, Min } from "class-validator";
 
 export class CreateBookingDto {
 	@ApiProperty({ format: "uuid", description: "Published Trip to book" })
@@ -12,4 +12,13 @@ export class CreateBookingDto {
 	@IsInt()
 	@Min(1)
 	numPeople!: number;
+
+	@ApiPropertyOptional({
+		default: false,
+		description:
+			"Optional Camper consent to share Health Profile for safety support on this booking",
+	})
+	@IsOptional()
+	@IsBoolean()
+	healthProfileConsent?: boolean;
 }

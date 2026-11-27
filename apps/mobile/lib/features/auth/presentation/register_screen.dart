@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../terms/application/terms_providers.dart';
 import '../application/register_controller.dart';
 import '../domain/register_models.dart';
 import 'register_strings.dart';
@@ -116,7 +117,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> with Restoratio
         controller.goNext();
       case RegisterStep.verification:
         if (!wizardState.data.acceptedTerms || wizardState.isSubmitting) return;
-        controller.submit();
+        final activeVersion =
+            ref.read(currentTermsProvider).valueOrNull?.version;
+        controller.submit(activeTermsVersion: activeVersion);
     }
   }
 
@@ -139,13 +142,34 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> with Restoratio
         fullNameController: _fullNameController.value,
         phoneController: _phoneController.value,
       ),
-      RegisterStep.verification => RegisterVerificationStep(
-        data: wizardState.data,
-        acceptedTerms: wizardState.data.acceptedTerms,
-        onAcceptedTermsChanged: controller.setAcceptedTerms,
-        submitError: wizardState.submitError,
-      ),
+      RegisterStep.verification => _buildVerificationStep(wizardState, controller),
     };
+  }
+
+  Widget _buildVerificationStep(
+    RegisterWizardState wizardState,
+    RegisterController controller,
+  ) {
+    final termsAsync = ref.watch(currentTermsProvider);
+    final currentTerms = termsAsync.valueOrNull;
+
+    return RegisterVerificationStep(
+      data: wizardState.data,
+      acceptedTerms: wizardState.data.acceptedTerms,
+      onAcceptedTermsChanged: controller.setAcceptedTerms,
+      agreedToTermsDocument: wizardState.agreedToTermsDocument,
+      onAgreedToTermsDocumentChanged: (value) =>
+          controller.setAgreedToTermsDocument(
+            value,
+            version: currentTerms?.version,
+          ),
+      onOpenTerms: () => context.push('/terms-and-policy'),
+      currentTerms: currentTerms,
+      isLoadingTerms: termsAsync.isLoading,
+      hasTermsError: termsAsync.hasError,
+      onRetryTerms: () => ref.invalidate(currentTermsProvider),
+      submitError: wizardState.submitError,
+    );
   }
 
   @override
