@@ -1,14 +1,4 @@
-import {
-	Bold,
-	Italic,
-	List,
-	ListOrdered,
-	Plus,
-	Quote,
-	Redo2,
-	Underline,
-	Undo2,
-} from "lucide-react";
+import { Bold, Italic, List, ListOrdered, Quote, Redo2, Underline, Undo2 } from "lucide-react";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import type { TermsSection } from "../types";
@@ -21,6 +11,19 @@ export interface TermsWordEditorProps {
 }
 
 type BlockFormatValue = "h2" | "h3" | "p" | "blockquote";
+type FontSizeOption = "12" | "14" | "16" | "18" | "20";
+
+const FONT_SIZE_OPTIONS: ReadonlyArray<{
+	value: FontSizeOption;
+	label: string;
+	execValue: string;
+}> = [
+	{ value: "12", label: "12", execValue: "1" },
+	{ value: "14", label: "14", execValue: "2" },
+	{ value: "16", label: "16", execValue: "3" },
+	{ value: "18", label: "18", execValue: "4" },
+	{ value: "20", label: "20", execValue: "5" },
+];
 
 export const TermsWordEditor: React.FC<TermsWordEditorProps> = ({
 	documentKey,
@@ -30,10 +33,12 @@ export const TermsWordEditor: React.FC<TermsWordEditorProps> = ({
 	const editorRef = useRef<HTMLDivElement>(null);
 	const lastSyncedKeyRef = useRef<string>("");
 	const [blockFormat, setBlockFormat] = useState<BlockFormatValue>("p");
+	const [fontSize, setFontSize] = useState<FontSizeOption>("14");
 
 	// Hydrate innerHTML only when switching versions/drafts so typing caret never jumps.
 	useEffect(() => {
 		if (!editorRef.current) return;
+		if (documentKey === "init" && sections.length === 0) return;
 		if (lastSyncedKeyRef.current === documentKey) return;
 		editorRef.current.innerHTML = sectionsToHtml(sections);
 		lastSyncedKeyRef.current = documentKey;
@@ -47,10 +52,25 @@ export const TermsWordEditor: React.FC<TermsWordEditorProps> = ({
 		}
 	};
 
-	const detectCurrentBlockFormat = () => {
+	const detectCurrentSelectionStyles = () => {
 		const selection = window.getSelection();
 		if (!selection || !selection.anchorNode || !editorRef.current) return;
 		let node: Node | null = selection.anchorNode;
+
+		const anchorEl =
+			node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node.parentElement;
+		if (anchorEl && editorRef.current.contains(anchorEl)) {
+			const computedPx = Math.round(Number.parseFloat(window.getComputedStyle(anchorEl).fontSize));
+			if (Number.isFinite(computedPx)) {
+				const closest = FONT_SIZE_OPTIONS.reduce((best, opt) =>
+					Math.abs(Number(opt.value) - computedPx) < Math.abs(Number(best.value) - computedPx)
+						? opt
+						: best
+				);
+				setFontSize(closest.value);
+			}
+		}
+
 		while (node && node !== editorRef.current) {
 			if (node.nodeType === Node.ELEMENT_NODE) {
 				const tag = (node as Element).tagName.toLowerCase();
@@ -69,7 +89,7 @@ export const TermsWordEditor: React.FC<TermsWordEditorProps> = ({
 		if (typeof document.execCommand === "function") {
 			document.execCommand(command, false, value);
 		}
-		detectCurrentBlockFormat();
+		detectCurrentSelectionStyles();
 		syncToParent();
 	};
 
@@ -78,34 +98,25 @@ export const TermsWordEditor: React.FC<TermsWordEditorProps> = ({
 		runCommand("formatBlock", `<${nextTag}>`);
 	};
 
-	const handleAppendNewSection = () => {
-		if (!editorRef.current) return;
-		const currentSections = htmlToSections(editorRef.current.innerHTML);
-		const nextNumber = currentSections.length + 1;
+	const handleFontSizeChange = (nextSize: FontSizeOption) => {
+		setFontSize(nextSize);
+		const editor = editorRef.current;
+		if (!editor) return;
+		editor.focus();
+		const option = FONT_SIZE_OPTIONS.find((item) => item.value === nextSize);
+		if (!option) return;
 
-		const h2 = document.createElement("h2");
-		h2.textContent = `${nextNumber}. Chính sách mục ${nextNumber}`;
-
-		const h3 = document.createElement("h3");
-		h3.textContent = `${nextNumber}.1. Nội dung chi tiết`;
-
-		const p = document.createElement("p");
-		p.textContent = "Nhập nội dung chi tiết cho mục chính sách mới tại đây.";
-
-		editorRef.current.appendChild(h2);
-		editorRef.current.appendChild(h3);
-		editorRef.current.appendChild(p);
-
-		// Scroll to bottom and select the new H2 title so Admin can type immediately
-		editorRef.current.scrollTop = editorRef.current.scrollHeight;
-		const selection = window.getSelection();
-		if (selection) {
-			const range = document.createRange();
-			range.selectNodeContents(h2);
-			selection.removeAllRanges();
-			selection.addRange(range);
+		if (typeof document.execCommand === "function") {
+			document.execCommand("fontSize", false, option.execValue);
+			// Replace deprecated <font size="..."> elements with clean inline font-size spans
+			const fontTags = editor.querySelectorAll(`font[size="${option.execValue}"]`);
+			for (const fontTag of Array.from(fontTags)) {
+				const span = document.createElement("span");
+				span.style.fontSize = `${nextSize}px`;
+				span.innerHTML = fontTag.innerHTML;
+				fontTag.replaceWith(span);
+			}
 		}
-		setBlockFormat("h2");
 		syncToParent();
 	};
 
@@ -140,10 +151,27 @@ export const TermsWordEditor: React.FC<TermsWordEditorProps> = ({
 					onChange={(event) => handleBlockFormatChange(event.target.value as BlockFormatValue)}
 					className="h-8 rounded-lg border border-[#d6e2d7] bg-white px-2.5 text-xs font-semibold text-[#10221b] outline-none focus:border-[#164027]"
 				>
-					<option value="h2">Tiêu đề mục (H2)</option>
-					<option value="h3">Tiêu đề nhỏ (H3)</option>
+					<option value="h2">Tiêu đề mục</option>
+					<option value="h3">Tiêu đề nhỏ</option>
 					<option value="p">Đoạn văn</option>
 					<option value="blockquote">Ghi chú lưu ý</option>
+				</select>
+
+				<label htmlFor="terms-word-font-size" className="sr-only">
+					Cỡ chữ
+				</label>
+				<select
+					id="terms-word-font-size"
+					aria-label="Cỡ chữ"
+					value={fontSize}
+					onChange={(event) => handleFontSizeChange(event.target.value as FontSizeOption)}
+					className="h-8 w-16 rounded-lg border border-[#d6e2d7] bg-white px-2 text-xs font-semibold text-[#10221b] outline-none focus:border-[#164027]"
+				>
+					{FONT_SIZE_OPTIONS.map((opt) => (
+						<option key={opt.value} value={opt.value}>
+							{opt.label}
+						</option>
+					))}
 				</select>
 
 				<div className="mx-1 h-5 w-px bg-[#dfe8df]" />
@@ -212,18 +240,6 @@ export const TermsWordEditor: React.FC<TermsWordEditorProps> = ({
 					<Quote className="size-4" />
 				</button>
 
-				<div className="mx-1 h-5 w-px bg-[#dfe8df]" />
-
-				<button
-					type="button"
-					onMouseDown={preventFocusLoss}
-					onClick={handleAppendNewSection}
-					className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-lg border border-[#cde0d1] bg-[#f3faf5] px-2.5 text-xs font-semibold text-[#164027] transition hover:bg-[#e5f3e9]"
-				>
-					<Plus className="size-3.5" />
-					<span>Thêm mục mới</span>
-				</button>
-
 				<div className="ml-auto flex items-center gap-0.5">
 					<button
 						type="button"
@@ -258,8 +274,8 @@ export const TermsWordEditor: React.FC<TermsWordEditorProps> = ({
 				contentEditable
 				suppressContentEditableWarning
 				onInput={syncToParent}
-				onKeyUp={detectCurrentBlockFormat}
-				onMouseUp={detectCurrentBlockFormat}
+				onKeyUp={detectCurrentSelectionStyles}
+				onMouseUp={detectCurrentSelectionStyles}
 				onPaste={handlePaste}
 				className="h-[460px] overflow-y-auto bg-white px-6 py-5 text-sm leading-relaxed text-[#35463c] outline-none [&_blockquote]:my-3 [&_blockquote]:rounded-lg [&_blockquote]:border-l-4 [&_blockquote]:border-[#164027] [&_blockquote]:bg-[#f4f7f2] [&_blockquote]:px-3.5 [&_blockquote]:py-2 [&_blockquote]:text-xs [&_blockquote]:text-[#254431] [&_h2]:mt-6 [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-extrabold [&_h2]:tracking-tight [&_h2]:text-[#10221b] [&_h2:first-child]:mt-0 [&_h3]:mt-3.5 [&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:text-[#10221b] [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mb-2 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5"
 			/>

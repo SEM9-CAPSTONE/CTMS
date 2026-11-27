@@ -80,7 +80,7 @@ describe("AdminTermsManagementPage", () => {
 		expect(screen.queryByText(/Công bố phiên bản/i)).not.toBeInTheDocument();
 	});
 
-	it("renders Word-like rich document editor and appends a new policy section cleanly", async () => {
+	it("renders Word-like toolbar with font size selector and without Thêm mục mới button", async () => {
 		const user = userEvent.setup();
 		renderPage();
 
@@ -88,11 +88,16 @@ describe("AdminTermsManagementPage", () => {
 		const editor = screen.getByRole("textbox", {
 			name: "Trình soạn thảo nội dung Điều khoản và Chính sách",
 		});
-		expect(editor).toHaveTextContent("1. Quy định chung");
-		expect(editor).toHaveTextContent("1.1. Phạm vi áp dụng");
+		await waitFor(() => {
+			expect(editor).toHaveTextContent("1. Quy định chung");
+			expect(editor).toHaveTextContent("1.1. Phạm vi áp dụng");
+		});
+		expect(screen.queryByRole("button", { name: /Thêm mục mới/i })).not.toBeInTheDocument();
 
-		await user.click(screen.getByRole("button", { name: /Thêm mục mới/i }));
-		expect(editor).toHaveTextContent("2. Chính sách mục 2");
+		const fontSizeSelect = screen.getByRole("combobox", { name: "Cỡ chữ" });
+		expect(fontSizeSelect).toHaveValue("14");
+		await user.selectOptions(fontSizeSelect, "18");
+		expect(fontSizeSelect).toHaveValue("18");
 	});
 
 	it("creates a new version draft, opens preview, and publishes via Cập nhật phiên bản", async () => {
