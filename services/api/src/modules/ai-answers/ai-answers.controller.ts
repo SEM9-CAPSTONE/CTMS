@@ -11,7 +11,7 @@ import {
 	UseGuards,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
-import { IsString, IsUUID, Matches, MaxLength } from "class-validator";
+import { IsOptional, IsString, IsUUID, Matches, MaxLength } from "class-validator";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { Roles } from "../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -23,6 +23,7 @@ import { UserRole } from "../users/entities/user.entity";
 import { AiAnswersService } from "./ai-answers.service";
 // biome-ignore lint/style/useImportType: Nest injection
 import { AiFeedbackService } from "./ai-feedback.service";
+import { MAX_EMERGENCY_CONTEXT_LENGTH } from "./emergency-safety-context";
 
 class AskSurvivalQuestionDto {
 	@IsUUID("4")
@@ -35,6 +36,11 @@ class AskSurvivalQuestionDto {
 	@IsString()
 	@Matches(/^[a-z]{2,3}(?:-[A-Z]{2})?$/)
 	locale!: string;
+
+	@IsOptional()
+	@IsString()
+	@MaxLength(MAX_EMERGENCY_CONTEXT_LENGTH)
+	emergencyContext?: string;
 }
 
 @ApiTags("AI Answers")

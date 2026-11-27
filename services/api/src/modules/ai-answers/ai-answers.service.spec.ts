@@ -354,6 +354,20 @@ describe("CTMS-069 survival answers", () => {
 		expect(repo.save).not.toHaveBeenCalled();
 	});
 
+	it.each(["Bạn hoàn toàn an toàn.", "Cứu hộ đang đến.", "Thời tiết hiện tại mát."])(
+		"CTMS-075 withholds a configured unsupported output before saving: %s",
+		async (answerText) => {
+			const { service, provider, repo } = setup();
+			provider.generate.mockResolvedValue({ ...selection, answerText });
+			expect(await service.ask(actor, input)).toMatchObject({
+				status: "REFUSED",
+				answer: null,
+				sources: [],
+			});
+			expect(repo.save).not.toHaveBeenCalled();
+		}
+	);
+
 	it("distinguishes a provider refusal from a failure without persisting either", async () => {
 		const { service, provider, repo } = setup();
 		provider.generate

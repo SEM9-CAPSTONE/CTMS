@@ -34,6 +34,14 @@ import {
 // biome-ignore lint/style/useImportType: Nest injection
 import { AiGenerationProvider } from "./ai-generation.provider";
 import { TRACE_SCHEMA_VERSION } from "./ai-inference-trace";
+import { openEmergencyContext, sealEmergencyContext } from "./emergency-safety-context";
+import {
+	approvedSafetyProtocol,
+	assessEmergency,
+	blocksEmergencyConflictingOutput,
+	emergencySafetyEnabled,
+	emergencySafetyFallback,
+} from "./emergency-safety-engine";
 
 function withinDeadline<T>(task: Promise<T>, signal: AbortSignal): Promise<T> {
 	return new Promise((resolve, reject) => {
@@ -44,7 +52,12 @@ function withinDeadline<T>(task: Promise<T>, signal: AbortSignal): Promise<T> {
 	});
 }
 
-type AnswerInput = { requestId: string; question: string; locale: string };
+type AnswerInput = {
+	requestId: string;
+	question: string;
+	locale: string;
+	emergencyContext?: string;
+};
 
 @Injectable()
 export class AiAnswersService {
@@ -63,6 +76,28 @@ export class AiAnswersService {
 		const question = input.question.trim();
 		if (!question || input.question.length > MAX_QUERY_LENGTH || question.includes("\0")) {
 			throw invalidQuery();
+		}
+		const safetyEnabled = emergencySafetyEnabled();
+		if (safetyEnabled) {
+			const previous =
+				typeof input.emergencyContext === "string"
+					? openEmergencyContext(actor.userId, input.emergencyContext)
+					: undefined;
+			if (previous === null) throw invalidQuery();
+			const assessment = assessEmergency(question, previous);
+			if (assessment.severity !== "NORMAL") {
+				return {
+					status: "SAFETY_ASSESSMENT" as const,
+					severity: assessment.severity,
+					completeness: assessment.completeness,
+					protocol: approvedSafetyProtocol(assessment.protocolId, locale),
+					clarificationId: assessment.clarificationId,
+					policyVersion: assessment.policyVersion,
+					emergencyContext: sealEmergencyContext(actor.userId, assessment),
+					answer: null,
+					sources: [],
+				};
+			}
 		}
 		const requestHash = createHash("sha256")
 			.update(JSON.stringify({ question, locale }))
@@ -87,7 +122,7 @@ export class AiAnswersService {
 				signal
 			);
 			if (stored) {
-				const result = await this.replay(stored, requestHash, signal);
+				const result = await this.replay(stored, requestHash, signal, locale, safetyEnabled);
 				telemetry.outcome = result.status;
 				return result;
 			}
@@ -107,7 +142,7 @@ export class AiAnswersService {
 				signal
 			);
 			if (completed) {
-				const result = await this.replay(completed, requestHash, signal);
+				const result = await this.replay(completed, requestHash, signal, locale, safetyEnabled);
 				telemetry.outcome = result.status;
 				return result;
 			}
@@ -124,23 +159,27 @@ export class AiAnswersService {
 			telemetry.outcome = "INSUFFICIENT_CONTEXT";
 			if (rag.status === "INSUFFICIENT_CONTEXT") {
 				telemetry.reason = rag.reason;
-				return unavailableAnswer("AI_KNOWLEDGE_INSUFFICIENT");
+				return this.fallback("AI_KNOWLEDGE_INSUFFICIENT", locale, safetyEnabled);
 			}
 			const body = generationInput(rag, question, locale);
-			if (!body) return unavailableAnswer("AI_KNOWLEDGE_INSUFFICIENT");
+			if (!body) return this.fallback("AI_KNOWLEDGE_INSUFFICIENT", locale, safetyEnabled);
 
 			const generation = await measure("providerMs", () => this.provider.generate(body, signal));
 			if (generation.status === "INSUFFICIENT_CONTEXT") {
 				telemetry.reason = "GENERATION_TOKEN_BUDGET";
-				return unavailableAnswer("AI_KNOWLEDGE_INSUFFICIENT");
+				return this.fallback("AI_KNOWLEDGE_INSUFFICIENT", locale, safetyEnabled);
 			}
 			const validateAndSave = async () => {
 				const verified =
 					generation.status === "ANSWERED"
 						? groundedAnswer(generation, rag.selectedChunks, locale)
 						: null;
-				if (!verified || generation.status !== "ANSWERED")
-					return unavailableAnswer("AI_SAFETY_REFUSAL");
+				if (
+					!verified ||
+					generation.status !== "ANSWERED" ||
+					(safetyEnabled && blocksEmergencyConflictingOutput(generation.answerText))
+				)
+					return this.fallback("AI_SAFETY_REFUSAL", locale, safetyEnabled);
 				const retrieved = rag.selectedChunks.map(evidenceRef);
 				const cited = verified.cited.map(evidenceRef);
 				const saved = await this.evidence.withCurrentEvidence(
@@ -180,7 +219,9 @@ export class AiAnswersService {
 					cited
 				);
 				if (signal.aborted) throw aiUnavailable("AI_TIMEOUT");
-				return saved ? answered(saved) : unavailableAnswer("AI_KNOWLEDGE_INSUFFICIENT");
+				return saved
+					? answered(saved)
+					: this.fallback("AI_KNOWLEDGE_INSUFFICIENT", locale, safetyEnabled);
 			};
 			const result = await measure("validationAndPersistenceMs", () =>
 				withinDeadline(validateAndSave(), signal)
@@ -202,6 +243,16 @@ export class AiAnswersService {
 				typeof response === "object" && "code" in response
 					? String(response.code)
 					: "AI_UNAVAILABLE";
+			if (
+				safetyEnabled &&
+				typeof response === "object" &&
+				["AI_TIMEOUT", "AI_UNAVAILABLE", "RETRIEVAL_UNAVAILABLE"].includes(telemetry.outcome)
+			) {
+				const safetyFallback = emergencySafetyFallback(locale);
+				if (safetyFallback) {
+					throw new HttpException({ ...response, safetyFallback }, failure.getStatus());
+				}
+			}
 			throw failure;
 		} finally {
 			if (leaseId) {
@@ -236,13 +287,32 @@ export class AiAnswersService {
 		return Math.min(remaining, 1500);
 	}
 
-	private async replay(row: StoredAnswer, requestHash: string, signal: AbortSignal) {
+	private fallback(
+		code: Parameters<typeof unavailableAnswer>[0],
+		locale: string,
+		safetyEnabled: boolean
+	) {
+		const result = unavailableAnswer(code);
+		const fallback = safetyEnabled ? emergencySafetyFallback(locale) : null;
+		return fallback ? { ...result, safetyFallback: fallback } : result;
+	}
+
+	private async replay(
+		row: StoredAnswer,
+		requestHash: string,
+		signal: AbortSignal,
+		locale: string,
+		safetyEnabled: boolean
+	) {
 		if (row.request_hash !== requestHash) {
 			throw new ConflictException({ code: "AI_REQUEST_ID_CONFLICT" });
 		}
 		const cited = citedEvidence(row);
+		if (safetyEnabled && blocksEmergencyConflictingOutput(row.answer)) {
+			return this.fallback("AI_SAFETY_REFUSAL", locale, safetyEnabled);
+		}
 		if (cited.length === 0 || cited.length !== row.cited_chunk_ids.length) {
-			return unavailableAnswer("AI_KNOWLEDGE_INSUFFICIENT");
+			return this.fallback("AI_KNOWLEDGE_INSUFFICIENT", locale, safetyEnabled);
 		}
 		return (
 			(await withinDeadline(
@@ -253,7 +323,7 @@ export class AiAnswersService {
 					cited
 				),
 				signal
-			)) ?? unavailableAnswer("AI_KNOWLEDGE_INSUFFICIENT")
+			)) ?? this.fallback("AI_KNOWLEDGE_INSUFFICIENT", locale, safetyEnabled)
 		);
 	}
 }
