@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import type { Position } from "../../src/features/trekking-routes/types";
 
 test("login and reload only request the current page chunk", async ({ page }) => {
 	const scripts: string[] = [];
@@ -43,7 +44,9 @@ test("trip discovery offers sign-in when the server requires authentication", as
 	await expect(alert).not.toContainText("kết nối mạng");
 });
 
-test("production route editor loads its real worker and draws route vertices", async ({ page }) => {
+test("production route editor loads its real worker and draws a pedestrian route", async ({
+	page,
+}) => {
 	const user = {
 		id: "host",
 		role: "host",
@@ -74,6 +77,25 @@ test("production route editor loads its real worker and draws route vertices", a
 			},
 		})
 	);
+	let routedCoordinates: Position[] = [];
+	await page.route("https://api.maptiler.com/routing/v1/directions?*", (route) => {
+		const request = route.request();
+		const { profile, locations } = request.postDataJSON() as {
+			profile: string;
+			locations: { lon: number; lat: number }[];
+		};
+		expect(request.method()).toBe("POST");
+		expect(profile).toBe("pedestrian");
+		expect(locations).toHaveLength(2);
+		const [start, end] = locations;
+		// Use the actual click coordinates so both endpoints satisfy the snap limit.
+		routedCoordinates = [
+			[start.lon, start.lat],
+			[start.lon, end.lat],
+			[end.lon, end.lat],
+		];
+		return route.fulfill({ json: { route: { legs: [{ geometry: routedCoordinates }] } } });
+	});
 	await page.route(
 		(url) => url.pathname.startsWith("/api/"),
 		(route) => {
@@ -118,14 +140,25 @@ test("production route editor loads its real worker and draws route vertices", a
 	expect(response.headers()["content-type"]).toMatch(/javascript/);
 	expect(await response.text()).not.toMatch(/<!doctype html/i);
 
-	const canvas = page.getByTestId("route-map-surface").locator("canvas");
+	const map = page.getByTestId("route-map-surface");
+	const canvas = map.locator("canvas");
+	const markers = map.locator("button.maplibregl-marker");
+	const preview = page.getByTestId("preview-length");
 	await expect(canvas).toBeVisible();
 	await canvas.click({ position: { x: 160, y: 170 } });
+	await expect(preview).toContainText("1 điểm");
+	await expect(markers).toHaveCount(1);
+	const safetyRequest = page.waitForRequest(
+		(request) => new URL(request.url()).pathname === "/api/route-safety/analyze"
+	);
 	await canvas.click({ position: { x: 280, y: 200 } });
-	await expect(page.getByTestId("preview-length")).toContainText("2 điểm");
-	await expect(page.getByRole("button", { name: "Đỉnh 1", exact: true })).toBeVisible();
-	await expect(page.getByRole("button", { name: "Đỉnh 2", exact: true })).toBeVisible();
-	await page.getByRole("button", { name: "Xóa điểm cuối", exact: true }).click();
-	await expect(page.getByTestId("preview-length")).toContainText("1 điểm");
+	await expect(preview).toContainText("2 điểm");
+	await expect(markers).toHaveCount(2);
+	expect((await safetyRequest).postDataJSON()).toMatchObject({
+		geometry: { type: "LineString", coordinates: routedCoordinates },
+	});
+	await page.getByRole("button", { name: "Hoàn tác", exact: true }).click();
+	await expect(preview).toContainText("1 điểm");
+	await expect(markers).toHaveCount(1);
 	expect(errors).toEqual([]);
 });
