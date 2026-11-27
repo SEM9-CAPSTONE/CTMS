@@ -30,8 +30,8 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 /** Same jsdom-navigation workaround as authSessionSync.test.ts. */
-function setLocationPathname(pathname: string): { pathname: string; href: string } {
-	const location = { pathname, href: `http://localhost${pathname}` };
+function setLocationPathname(pathname: string, origin = "http://localhost") {
+	const location = { pathname, href: `${origin}${pathname}`, origin };
 	Object.defineProperty(window, "location", {
 		value: location,
 		writable: true,
@@ -66,6 +66,7 @@ describe("httpClient interceptor (CTMS-04-T02)", () => {
 	});
 
 	afterEach(() => {
+		vi.unstubAllEnvs();
 		vi.unstubAllGlobals();
 		vi.restoreAllMocks();
 		Object.defineProperty(window, "location", {
@@ -73,6 +74,22 @@ describe("httpClient interceptor (CTMS-04-T02)", () => {
 			writable: true,
 			configurable: true,
 		});
+	});
+
+	it("sends login to the current origin when VITE_API_BASE_URL is /api", async () => {
+		setLocationPathname("/login", "https://dev.example.com");
+		vi.stubEnv("VITE_API_BASE_URL", "/api");
+		vi.resetModules();
+		const { httpClient: sameOriginClient } = await import("./httpClient");
+		fetchMock.mockResolvedValueOnce(jsonResponse(200, { ok: true }));
+
+		await expect(
+			sameOriginClient.post("/auth/login", { identifier: "host@example.com", password: "example" })
+		).resolves.toEqual({ ok: true });
+		expect(fetchMock).toHaveBeenCalledWith(
+			"https://dev.example.com/api/auth/login",
+			expect.objectContaining({ method: "POST" })
+		);
 	});
 
 	// --- 1. Token attachment (pre-existing behavior, unchanged) -----------------
