@@ -1,6 +1,6 @@
 import "./setup-survival-source-policy";
 
-const DEFAULT_TEST_DATABASE_URL = "postgresql://ctms:ctms@127.0.0.1:5432/ctms_test";
+const DEFAULT_TEST_DATABASE_URL = "postgresql://ctms:ctms@127.0.0.1:55451/ctms_test";
 
 const databaseUrl = process.env.TEST_DATABASE_URL ?? DEFAULT_TEST_DATABASE_URL;
 const databaseName = new URL(databaseUrl).pathname.replace(/^\//, "");

@@ -31,11 +31,14 @@ class CtmsButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final height = size == CtmsButtonSize.lg ? 48.0 : 42.0;
-    final horizontalPadding = size == CtmsButtonSize.lg ? AppSpacing.xxl : AppSpacing.xl;
+    final horizontalPadding = size == CtmsButtonSize.lg
+        ? AppSpacing.xxl
+        : AppSpacing.xl;
 
     final onColor = switch (variant) {
       CtmsButtonVariant.primary => Colors.white,
-      CtmsButtonVariant.secondary => Colors.black, // Pure black on white background
+      CtmsButtonVariant.secondary =>
+        Colors.black, // Pure black on white background
       CtmsButtonVariant.soft => AppColors.brandPrimary,
       CtmsButtonVariant.ghost => Colors.black,
       CtmsButtonVariant.danger => Colors.white,
@@ -51,10 +54,21 @@ class CtmsButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (icon != null) ...[Icon(icon, size: 18, color: onColor), const SizedBox(width: AppSpacing.sm)],
-              Text(
-                label,
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: onColor),
+              if (icon != null) ...[
+                Icon(icon, size: 18, color: onColor),
+                const SizedBox(width: AppSpacing.sm),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  softWrap: true,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: onColor,
+                  ),
+                ),
               ),
             ],
           );
@@ -62,7 +76,9 @@ class CtmsButton extends StatelessWidget {
     final pressed = isLoading ? null : onPressed;
     final sizeStyle = ButtonStyle(
       minimumSize: WidgetStatePropertyAll(Size(64, height)),
-      padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: horizontalPadding)),
+      padding: WidgetStatePropertyAll(
+        EdgeInsets.symmetric(horizontal: horizontalPadding),
+      ),
       shape: const WidgetStatePropertyAll(StadiumBorder()),
     );
 
