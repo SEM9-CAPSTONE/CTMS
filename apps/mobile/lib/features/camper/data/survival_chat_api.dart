@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_client.dart';
+import 'emergency_safety_engine.dart';
 import 'survival_local_policy_v1.dart';
 
 const survivalQuestionLimit = 2000;
@@ -12,6 +13,30 @@ sealed class SurvivalChatResult {
     if (json == null) throw const FormatException('Missing answer');
     final sources = json['sources'];
     switch (json['status']) {
+      case 'SAFETY_ASSESSMENT':
+        final severity = EmergencySeverity.values
+            .where((value) => value.code == json['severity'])
+            .firstOrNull;
+        final completeness = AssessmentCompleteness.values
+            .where((value) => value.code == json['completeness'])
+            .firstOrNull;
+        final version = json['policyVersion'];
+        if (severity == null ||
+            severity == EmergencySeverity.normal ||
+            completeness == null ||
+            version is! String) {
+          throw const FormatException('Invalid safety assessment');
+        }
+        return SurvivalChatSafety(
+          reportedEmergencyAssessment(
+            severity: severity,
+            completeness: completeness,
+            clarificationId: json['clarificationId'] is String
+                ? json['clarificationId'] as String
+                : null,
+            policyVersion: version,
+          ),
+        );
       case 'ANSWERED':
         final id = json['answerId'];
         final text = json['answer'];
@@ -39,6 +64,12 @@ sealed class SurvivalChatResult {
         throw const FormatException('Unknown answer status');
     }
   }
+}
+
+class SurvivalChatSafety extends SurvivalChatResult {
+  const SurvivalChatSafety(this.assessment);
+
+  final EmergencyAssessment assessment;
 }
 
 class SurvivalChatAnswer extends SurvivalChatResult {

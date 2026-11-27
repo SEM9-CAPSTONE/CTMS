@@ -37,6 +37,9 @@ jobs:
       - name: Lint Node workspaces
         run: pnpm lint:all
 
+      - name: Validate the shared emergency safety policy
+        run: node scripts/emergency-safety-policy.cjs
+
       - name: Build Node workspaces
         run: pnpm build:all
 
@@ -146,4 +149,4 @@ jobs:
           flutter-version: '3.44.9'
           cache: true
       - run: flutter pub get
-      - run: flutter test --no-pub test/features/camper/survival_chat_test.dart
+      - run: flutter test --no-pub test/features/camper/survival_chat_test.dart test/features/camper/emergency_safety_engine_test.dart
