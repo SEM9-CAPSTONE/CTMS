@@ -22,14 +22,14 @@ export const HeroSection: React.FC = () => {
 				<div className="mb-8 flex flex-wrap gap-3.5">
 					<button
 						type="button"
-						onClick={() => navigatePublicPath("/trekking")}
+						onClick={() => navigatePublicPath("/trips")}
 						className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full bg-[#1c442f] px-6 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#143323] hover:shadow-md"
 					>
 						Khám phá ngay <ArrowRight size={18} />
 					</button>
 					<button
 						type="button"
-						onClick={() => navigatePublicPath("/trips")}
+						onClick={() => navigatePublicPath("/trekking")}
 						className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-[#dfe8df] bg-white px-6 py-3.5 text-sm font-semibold text-[#10221b] transition hover:-translate-y-0.5 hover:bg-[#f7faf6]"
 					>
 						Tìm tour thêm

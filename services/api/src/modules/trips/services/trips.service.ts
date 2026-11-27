@@ -169,14 +169,17 @@ export class TripsService {
 		);
 	}
 
-	async getTripDetails(actor: AuthenticatedUser, tripId: string): Promise<TripResponseDto> {
+	async getTripDetails(
+		actor: AuthenticatedUser | undefined,
+		tripId: string
+	): Promise<TripResponseDto> {
 		const trip = await this.tripsRepository.findById(tripId);
 		if (!trip) {
 			throw new NotFoundException("Trip not found");
 		}
 
-		const isOwningHost = trip.hostId === actor.userId;
-		const isAdmin = actor.roles?.includes(UserRole.ADMIN) ?? false;
+		const isOwningHost = Boolean(actor && trip.hostId === actor.userId);
+		const isAdmin = actor?.roles?.includes(UserRole.ADMIN) ?? false;
 
 		// Ongoing/completed Trips stay viewable so booked Campers keep access once the schedule advances.
 		if (!PUBLICLY_VIEWABLE_TRIP_STATUSES.has(trip.status) && !isOwningHost && !isAdmin) {
@@ -184,7 +187,7 @@ export class TripsService {
 		}
 
 		const details = isOwningHost || isAdmin ? trip : { ...trip, routeId: undefined };
-		if (!actor.roles?.includes(UserRole.CAMPER)) return details;
+		if (!actor?.roles?.includes(UserRole.CAMPER)) return details;
 
 		const ratings = await readReviewReputations(this.dataSource, "host", [trip.hostId]);
 		return { ...details, hostReputation: reputationFor(ratings, trip.hostId) };

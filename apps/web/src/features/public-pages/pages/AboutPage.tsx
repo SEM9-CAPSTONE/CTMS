@@ -1,73 +1,49 @@
-import { ArrowRight, CheckCircle2, Compass, ShieldCheck, Smartphone, Users } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import type React from "react";
 import { Button } from "../../../shared/components";
 import { PublicPageLayout, type PublicPageProps } from "../components/PublicPageLayout";
 
-const ROLE_CARDS = [
+const PHOTO_STORIES = [
 	{
-		role: "Người tham gia",
-		summary: "Tìm kiếm chuyến đi theo nhu cầu, đặt chỗ trực tuyến và theo dõi hành trình an toàn.",
-		points: [
-			"Lọc chuyến đi theo khu vực, độ khó, thời gian và cảnh báo thời tiết",
-			"Tùy chọn chia sẻ Hồ sơ sức khỏe khi đặt chỗ để được hỗ trợ tốt hơn",
-			"Quản lý rõ ràng giữa hủy đặt chỗ trước chuyến đi và yêu cầu hoàn tiền sau chuyến đi",
-		],
+		image:
+			"https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?auto=format&fit=crop&w=900&q=80",
+		fallback: "/figma_assets/card_1.png",
+		tag: "Điểm đến chọn lọc",
+		title: "Cắm trại và leo núi đúng chuẩn",
+		caption: "Lịch trình, sức chứa và mức độ khó được công khai rõ ràng trước khi đặt chỗ.",
 	},
 	{
-		role: "Đơn vị tổ chức",
-		summary:
-			"Xây dựng tuyến đường, mở bán chuyến đi, điều phối nhân sự và theo dõi doanh thu minh bạch.",
-		points: [
-			"Tạo tuyến đường chi tiết với điểm kiểm soát và danh mục thiết bị đi kèm",
-			"Mời người dẫn đường đã xác minh, quản lý danh sách thành viên và điểm danh",
-			"Theo dõi báo cáo vận hành, đối soát và xử lý tín hiệu khẩn cấp theo thời gian thực",
-		],
+		image: "/figma_assets/safety_map.png",
+		fallback: "/figma_assets/card_2.png",
+		tag: "An toàn thực địa",
+		title: "Bản đồ tuyến và cảnh báo thời tiết",
+		caption: "Giám sát rủi ro thời tiết, mốc kiểm soát và vùng nguy hiểm theo từng khu vực.",
 	},
 	{
-		role: "Người dẫn đường",
-		summary: "Đồng hành trực tiếp ngoài thực địa với hồ sơ chứng chỉ được hệ thống kiểm duyệt.",
-		points: [
-			"Nộp chứng chỉ chuyên môn và cấp bậc dẫn đoàn để quản trị viên xác minh",
-			"Nhận lời mời phụ trách chuyến đi và kiểm tra danh sách đoàn trước giờ xuất phát",
-			"Hỗ trợ điểm danh thành viên và cập nhật tình huống thực địa kịp thời",
-		],
-	},
-	{
-		role: "Quản trị viên",
-		summary:
-			"Giám sát chất lượng tuyến đường, quy tắc thời tiết, khiếu nại và tính minh bạch toàn hệ thống.",
-		points: [
-			"Kiểm duyệt tuyến đường, điểm nguy hiểm và hồ sơ xác minh người dẫn đường",
-			"Thiết lập ngưỡng cảnh báo thời tiết, xử lý hoàn tiền và quyết toán theo quy trình truy vết",
-			"Quản lý điều khoản sử dụng, nhật ký kiểm toán và tài liệu kỹ năng sinh tồn",
-		],
+		image: "/figma_assets/mobile_app.png",
+		fallback: "/figma_assets/card_3.png",
+		tag: "Đồng hành di động",
+		title: "Dẫn đường ổn định cả khi mất sóng",
+		caption: "Tải trước bản đồ ngoại tuyến, điểm danh chặng và kết nối cứu hộ trên điện thoại.",
 	},
 ];
 
-const HIGHLIGHTS = [
+const ROLES = [
 	{
-		icon: Compass,
-		title: "Chuẩn hóa vận hành dã ngoại",
-		description:
-			"Gắn kết dữ liệu tuyến đường, lịch trình chuyến đi, thiết bị cần thiết và phân công người dẫn đường trên một nền tảng thống nhất.",
+		title: "Người tham gia",
+		description: "Xem chuyến đi công khai, đặt chỗ minh bạch và chủ động chuẩn bị an toàn.",
 	},
 	{
-		icon: ShieldCheck,
-		title: "Minh bạch từ đặt chỗ đến quyết toán",
-		description:
-			"Mọi bước gửi yêu cầu, xét duyệt và xác nhận chuyển tiền đều tách bạch trạng thái rõ ràng để bảo vệ cả người tham gia và đơn vị tổ chức.",
+		title: "Đơn vị tổ chức",
+		description: "Tạo tuyến, mở chuyến, điều phối người dẫn đường và theo dõi đối soát.",
 	},
 	{
-		icon: Smartphone,
-		title: "Đồng bộ giữa trang web và ứng dụng di động",
-		description:
-			"Lập kế hoạch và quản lý thuận tiện trên web, đồng thời sử dụng bản đồ ngoại tuyến và công cụ hỗ trợ an toàn trên điện thoại khi vào rừng.",
+		title: "Người dẫn đường",
+		description: "Hồ sơ chứng chỉ được xác minh, đồng hành điểm danh và hỗ trợ thực địa.",
 	},
 	{
-		icon: Users,
-		title: "Phân vai rõ ràng theo trách nhiệm",
-		description:
-			"Mỗi vai trò có không gian làm việc riêng, giảm thao tác thừa và đảm bảo đúng quyền hạn cho từng nghiệp vụ.",
+		title: "Quản trị viên",
+		description: "Kiểm duyệt tuyến đường, ngưỡng thời tiết, hoàn tiền và tính minh bạch hệ thống.",
 	},
 ];
 
@@ -80,9 +56,9 @@ export const AboutPage: React.FC<PublicPageProps> = ({
 }) => {
 	return (
 		<PublicPageLayout
-			eyebrow="Về nền tảng CTMS"
-			title="Hệ thống Quản lý Điểm cắm trại và Chuyến đi Dã ngoại"
-			subtitle="CTMS được xây dựng nhằm kết nối người tham gia, đơn vị tổ chức và người dẫn đường trên một quy trình vận hành an toàn, minh bạch và phù hợp với đặc thù địa hình tại Việt Nam."
+			eyebrow="Về CTMS"
+			title="Nền tảng tổ chức cắm trại và leo núi an toàn"
+			subtitle="Kết nối người tham gia, đơn vị tổ chức và người dẫn đường trên một quy trình minh bạch — từ tìm chuyến đi đến hoàn tất hành trình."
 			onBackToHome={onBackToHome}
 			onNavigateToLogin={onNavigateToLogin}
 			onNavigateToRegister={onNavigateToRegister}
@@ -99,68 +75,106 @@ export const AboutPage: React.FC<PublicPageProps> = ({
 				</Button>
 			}
 		>
-			{/* Core Values */}
-			<section className="grid grid-cols-1 gap-4 md:grid-cols-2">
-				{HIGHLIGHTS.map((item) => {
-					const Icon = item.icon;
-					return (
-						<article
-							key={item.title}
-							className="rounded-2xl border border-[#dfe8df] bg-white p-6 shadow-xs"
-						>
-							<div className="flex size-10 items-center justify-center rounded-xl bg-[#eef7f0] text-[#164027]">
-								<Icon className="size-5" />
+			{/* Visual Hero Feature */}
+			<section className="overflow-hidden rounded-3xl border border-[#dfe8df] bg-white shadow-xs">
+				<div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr]">
+					<div className="relative min-h-[260px] bg-[#163323] sm:min-h-[340px]">
+						<img
+							src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1400&q=80"
+							alt="Cung đường núi rừng và hồ nước dã ngoại CTMS"
+							className="h-full w-full object-cover"
+							onError={(event) => {
+								event.currentTarget.src = "/figma_assets/hero_image.png";
+							}}
+						/>
+						<div className="absolute inset-0 bg-gradient-to-t from-[#10221b]/60 via-transparent to-transparent" />
+						<p className="absolute right-5 bottom-4 left-5 text-xs font-medium text-white/95">
+							Đồng bộ hành trình giữa trang web lập kế hoạch và ứng dụng di động ngoài thực địa.
+						</p>
+					</div>
+
+					<div className="flex flex-col justify-between p-6 sm:p-8">
+						<div>
+							<p className="text-xs font-semibold tracking-wide text-[#2d5a27]">
+								Trải nghiệm trọn vẹn
+							</p>
+							<h2 className="mt-2 text-xl font-bold tracking-tight text-[#10221b] sm:text-2xl">
+								Chuẩn bị nhẹ nhàng, vận hành rõ ràng
+							</h2>
+							<p className="mt-3 text-sm leading-relaxed text-[#425048]">
+								CTMS tập trung toàn bộ lịch trình, điều kiện thời tiết, thiết bị cần mang và hỗ trợ
+								khẩn cấp vào một nơi duy nhất để mỗi chuyến đi diễn ra suôn sẻ.
+							</p>
+						</div>
+
+						<div className="mt-6 grid grid-cols-3 gap-4 border-t border-[#eef2ee] pt-5">
+							<div>
+								<p className="text-xs font-medium text-[#667a6d]">Hệ sinh thái</p>
+								<p className="mt-1 text-xl font-bold text-[#10221b]">4 vai trò</p>
 							</div>
-							<h2 className="mt-4 text-base font-bold text-[#10221b]">{item.title}</h2>
-							<p className="mt-2 text-sm leading-relaxed text-[#425048]">{item.description}</p>
-						</article>
-					);
-				})}
+							<div>
+								<p className="text-xs font-medium text-[#667a6d]">Nền tảng</p>
+								<p className="mt-1 text-xl font-bold text-[#10221b]">Web &amp; Di động</p>
+							</div>
+							<div>
+								<p className="text-xs font-medium text-[#667a6d]">Cảnh báo</p>
+								<p className="mt-1 text-xl font-bold text-[#10221b]">3 mức độ</p>
+							</div>
+						</div>
+					</div>
+				</div>
 			</section>
 
-			{/* 4 Roles Ecosystem */}
-			<section className="mt-6 rounded-2xl border border-[#dfe8df] bg-white p-6 shadow-xs sm:p-8">
-				<h2 className="text-lg font-semibold text-[#10221b]">
-					Hệ sinh thái bốn vai trò trong CTMS
-				</h2>
-				<p className="mt-1.5 text-sm leading-relaxed text-[#425048]">
-					Mỗi nhóm người dùng đều có công cụ chuyên biệt để phối hợp trơn tru trước, trong và sau
-					mỗi chuyến đi.
-				</p>
+			{/* Photo Gallery Story Strip */}
+			<section className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-3">
+				{PHOTO_STORIES.map((story) => (
+					<article
+						key={story.title}
+						className="overflow-hidden rounded-2xl border border-[#dfe8df] bg-white shadow-xs"
+					>
+						<div className="h-52 w-full overflow-hidden bg-[#10221b]">
+							<img
+								src={story.image}
+								alt={story.title}
+								className="h-full w-full object-cover transition duration-300 hover:scale-105"
+								onError={(event) => {
+									event.currentTarget.src = story.fallback;
+								}}
+							/>
+						</div>
+						<div className="p-5">
+							<p className="text-xs font-semibold text-[#2d5a27]">{story.tag}</p>
+							<h3 className="mt-1 text-base font-bold text-[#10221b]">{story.title}</h3>
+							<p className="mt-1.5 text-xs leading-relaxed text-[#425048]">{story.caption}</p>
+						</div>
+					</article>
+				))}
+			</section>
 
-				<div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-					{ROLE_CARDS.map((card) => (
-						<div
-							key={card.role}
-							className="border-t border-[#eef2ee] pt-5 first:border-t-0 first:pt-0 md:border-t md:pt-5"
-						>
-							<h3 className="text-base font-bold text-[#164027]">{card.role}</h3>
-							<p className="mt-1.5 text-sm text-[#425048]">{card.summary}</p>
-							<ul className="mt-3 space-y-2">
-								{card.points.map((point) => (
-									<li key={point} className="flex items-start gap-2 text-sm text-[#2d3e34]">
-										<CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#164027]" />
-										<span>{point}</span>
-									</li>
-								))}
-							</ul>
+			{/* Compact 4-Role Strip */}
+			<section className="mt-6 rounded-2xl border border-[#dfe8df] bg-white p-6 shadow-xs">
+				<h2 className="text-base font-bold text-[#10221b]">Bốn vai trò phối hợp trong CTMS</h2>
+				<div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+					{ROLES.map((item) => (
+						<div key={item.title} className="border-t border-[#eef2ee] pt-3">
+							<h3 className="text-sm font-bold text-[#164027]">{item.title}</h3>
+							<p className="mt-1 text-xs leading-relaxed text-[#425048]">{item.description}</p>
 						</div>
 					))}
 				</div>
 			</section>
 
-			{/* Bottom CTA */}
+			{/* Clean Bottom CTA */}
 			<section className="mt-6 flex flex-col items-start justify-between gap-4 rounded-2xl border border-[#dfe8df] bg-white p-6 shadow-xs sm:flex-row sm:items-center">
 				<div>
-					<h2 className="text-base font-bold text-[#10221b]">Sẵn sàng bắt đầu cùng CTMS?</h2>
-					<p className="mt-1 text-sm text-[#425048]">
-						Tạo tài khoản để đặt chuyến đi, đăng ký làm đơn vị tổ chức hoặc tham gia đội ngũ người
-						dẫn đường.
+					<h2 className="text-base font-bold text-[#10221b]">Bắt đầu hành trình cùng CTMS</h2>
+					<p className="mt-1 text-xs text-[#425048]">
+						Xem trước toàn bộ chuyến đi đang mở, chỉ cần đăng nhập hoặc đăng ký khi đặt chỗ.
 					</p>
 				</div>
 				<div className="flex flex-wrap gap-2.5">
-					<Button variant="outline" size="sm" onClick={() => onNavigateToPath("/contact")}>
-						Liên hệ đội ngũ
+					<Button variant="outline" size="sm" onClick={() => onNavigateToPath("/trips")}>
+						Xem chuyến đi
 					</Button>
 					<Button
 						variant="primary"

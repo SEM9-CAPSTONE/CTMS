@@ -44,6 +44,7 @@ export interface TripDetailPageProps {
 	) => void | Promise<void>;
 	bookingAccess?: BookingAccess;
 	onSignIn?: () => void;
+	onRegister?: () => void;
 	onViewBookingDetails?: (bookingId: string) => void;
 	restoredBookingDetails?: BookingDetails | null;
 	onClearRestoredBooking?: () => void;
@@ -94,6 +95,7 @@ export function TripDetailPage({
 	onBook,
 	bookingAccess = "camper",
 	onSignIn,
+	onRegister,
 	onViewBookingDetails,
 	restoredBookingDetails = null,
 	onClearRestoredBooking,
@@ -460,6 +462,7 @@ export function TripDetailPage({
 											: undefined
 									}
 									onSignIn={onSignIn}
+									onRegister={onRegister}
 									onConflictDismiss={clearConflict}
 									onConflictReload={handleConflictReload}
 									onConflictRetry={retryBooking}

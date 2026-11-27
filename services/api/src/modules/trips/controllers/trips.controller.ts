@@ -22,6 +22,7 @@ import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
 import { Roles } from "../../auth/decorators/roles.decorator";
 import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { OptionalJwtAuthGuard } from "../../auth/guards/optional-jwt-auth.guard";
 import { RolesGuard } from "../../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../../auth/jwt.strategy";
 import { UserRole } from "../../users/entities/user.entity";
@@ -87,10 +88,12 @@ interface AuthenticatedRequest {
 	user: AuthenticatedUser;
 }
 
+interface OptionalAuthenticatedRequest {
+	user?: AuthenticatedUser;
+}
+
 @ApiTags("trips")
-@ApiBearerAuth()
 @Controller("trips")
-@UseGuards(JwtAuthGuard, RolesGuard)
 export class TripsController {
 	constructor(
 		private readonly tripsService: TripsService,
@@ -102,19 +105,20 @@ export class TripsController {
 	) {}
 
 	@Get()
-	@Roles(UserRole.CAMPER, UserRole.HOST, UserRole.ADMIN, UserRole.PORTER)
-	@ApiOperation({ summary: "Search and list published trekking trips" })
+	@UseGuards(OptionalJwtAuthGuard)
+	@ApiOperation({ summary: "Search and list published trekking trips (publicly browsable)" })
 	@ApiResponse({ status: 200, type: PaginatedTripsResponseDto })
-	@ApiResponse({ status: 401, description: "Authentication required" })
 	@ApiResponse({ status: 422, description: "Invalid search query parameters" })
 	search(
 		@Query() query: SearchTripsQueryDto,
-		@Req() request: AuthenticatedRequest
+		@Req() request: OptionalAuthenticatedRequest
 	): Promise<PaginatedTripsResponseDto> {
-		return this.tripsService.search(query, request.user.userId);
+		return this.tripsService.search(query, request.user?.userId);
 	}
 
 	@Get("pending-review")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.ADMIN)
 	@ApiOperation({ summary: "List Trips pending Admin approval" })
 	@ApiResponse({ status: 200, type: TripResponseDto, isArray: true })
@@ -125,6 +129,8 @@ export class TripsController {
 	}
 
 	@Get("admin-reviews")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.ADMIN)
 	@ApiOperation({ summary: "List Trip review outcomes for Admin" })
 	@ApiResponse({ status: 200, type: PaginatedTripReviewsResponseDto })
@@ -138,6 +144,8 @@ export class TripsController {
 	}
 
 	@Get("mine")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.HOST)
 	@ApiOperation({ summary: "List trips owned by the current Host" })
 	@ApiResponse({ status: 200, type: TripResponseDto, isArray: true })
@@ -148,6 +156,8 @@ export class TripsController {
 	}
 
 	@Get("porter-candidates")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.HOST)
 	@ApiOperation({ summary: "List upcoming owned Trips available for Porter search" })
 	@ApiResponse({ status: 200, type: TripResponseDto, isArray: true })
@@ -158,6 +168,8 @@ export class TripsController {
 	}
 
 	@Get("porter-assignments")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.HOST)
 	@ApiOperation({ summary: "List Porter assignment history for Trips owned by the current Host" })
 	@ApiResponse({ status: 200, type: HostPorterAssignmentTripDto, isArray: true })
@@ -171,6 +183,8 @@ export class TripsController {
 
 	@Get("assigned")
 	@Header("Cache-Control", "private, no-store")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.PORTER)
 	@ApiOperation({ summary: "List Trips currently assigned to the authenticated Porter" })
 	@ApiResponse({ status: 200, type: PorterAssignedTripResponseDto, isArray: true })
@@ -182,6 +196,8 @@ export class TripsController {
 
 	@Get("assigned/:tripId")
 	@Header("Cache-Control", "private, no-store")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.PORTER)
 	@ApiOperation({
 		summary: "View operational data for a Trip assigned to the authenticated Porter",
@@ -200,6 +216,8 @@ export class TripsController {
 
 	@Post(":tripId/checkpoints/:checkpointId/arrival")
 	@Header("Cache-Control", "private, no-store")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.PORTER)
 	@ApiOperation({
 		summary: "Confirm Checkpoint arrival for an assigned Trip (CTMS-056 / BR-234)",
@@ -223,6 +241,8 @@ export class TripsController {
 
 	@Post(":tripId/checkpoints/sync")
 	@Header("Cache-Control", "private, no-store")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.PORTER)
 	@ApiOperation({
 		summary: "Synchronize offline Checkpoint arrival events idempotently (CTMS-056 / BR-234)",
@@ -245,6 +265,8 @@ export class TripsController {
 
 	@Get(":tripId/progress")
 	@Header("Cache-Control", "private, no-store")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.PORTER, UserRole.HOST, UserRole.ADMIN, UserRole.CAMPER)
 	@ApiOperation({
 		summary:
@@ -260,6 +282,8 @@ export class TripsController {
 
 	@Get(":tripId/route-map")
 	@Header("Cache-Control", "private, no-store")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.CAMPER)
 	@ApiOperation({ summary: "View saved route map for a Trip booked by the current Camper" })
 	@ApiResponse({ status: 200, type: TripRouteMapResponseDto })
@@ -272,6 +296,8 @@ export class TripsController {
 	}
 
 	@Get("porter-requests/mine")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.PORTER)
 	@ApiOperation({ summary: "List Porter Requests received by the authenticated Porter" })
 	@ApiResponse({ status: 200, type: PorterRequestResponseDto, isArray: true })
@@ -282,6 +308,8 @@ export class TripsController {
 	}
 
 	@Get("porter-requests/host")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.HOST)
 	@ApiOperation({
 		summary: "List pending, accepted, and declined Porter Requests sent by the Host",
@@ -296,6 +324,8 @@ export class TripsController {
 	}
 
 	@Patch("porter-requests/:requestId/accept")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.PORTER)
 	@ApiOperation({ summary: "Accept a Porter Request and create the Trip assignment atomically" })
 	@ApiResponse({ status: 200, type: PorterRequestResponseDto })
@@ -311,6 +341,8 @@ export class TripsController {
 	}
 
 	@Patch("porter-requests/:requestId/decline")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.PORTER)
 	@ApiOperation({ summary: "Decline a Porter Request" })
 	@ApiResponse({ status: 200, type: PorterRequestResponseDto })
@@ -326,6 +358,8 @@ export class TripsController {
 	}
 
 	@Get(":tripId/available-porters")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.HOST)
 	@ApiOperation({ summary: "List eligible, currently available Porters for an owned Trip" })
 	@ApiResponse({ status: 200, type: PaginatedAvailablePortersResponseDto })
@@ -342,6 +376,8 @@ export class TripsController {
 	}
 
 	@Post(":tripId/porter-requests")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.HOST)
 	@ApiOperation({ summary: "Request an eligible Porter for an owned Trip" })
 	@ApiResponse({ status: 201, type: PorterRequestResponseDto })
@@ -359,6 +395,8 @@ export class TripsController {
 	}
 
 	@Get(":tripId/porter-requests/pending")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.HOST)
 	@ApiOperation({ summary: "Get an active pending Porter Request for an owned Trip and Porter" })
 	@ApiResponse({ status: 200, type: PorterRequestResponseDto })
@@ -379,6 +417,8 @@ export class TripsController {
 	}
 
 	@Get(":tripId/porter-requests")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.HOST)
 	@ApiOperation({ summary: "List Porter Requests for an owned Trip" })
 	@ApiResponse({ status: 200, type: PorterRequestResponseDto, isArray: true })
@@ -393,6 +433,8 @@ export class TripsController {
 	}
 
 	@Patch(":tripId/porter-requests/:requestId/cancel")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.HOST)
 	@ApiOperation({ summary: "Cancel a pending Porter Request for an owned Trip" })
 	@ApiResponse({ status: 200, type: PorterRequestResponseDto })
@@ -408,19 +450,20 @@ export class TripsController {
 	}
 
 	@Get(":tripId")
-	@Roles(UserRole.CAMPER, UserRole.HOST, UserRole.ADMIN, UserRole.PORTER)
-	@ApiOperation({ summary: "View trip details" })
+	@UseGuards(OptionalJwtAuthGuard)
+	@ApiOperation({ summary: "View trip details (publicly viewable for published trips)" })
 	@ApiResponse({ status: 200, type: TripResponseDto })
-	@ApiResponse({ status: 401, description: "Authentication required" })
 	@ApiResponse({ status: 404, description: "Trip not found" })
 	getTripDetails(
-		@Req() request: AuthenticatedRequest,
+		@Req() request: OptionalAuthenticatedRequest,
 		@Param() params: TripIdParamDto
 	): Promise<TripResponseDto> {
 		return this.tripsService.getTripDetails(request.user, params.tripId);
 	}
 
 	@Patch(":tripId/waypoints")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.HOST)
 	@ApiOperation({ summary: "Configure waypoints and submit an owned draft Trip for approval" })
 	@ApiResponse({ status: 200, type: TripResponseDto })
@@ -438,6 +481,8 @@ export class TripsController {
 	}
 
 	@Post(":tripId/waypoints")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.HOST)
 	@ApiOperation({ summary: "Add a waypoint to an owned draft Trip" })
 	@ApiResponse({ status: 201, type: TripResponseDto })
@@ -454,6 +499,8 @@ export class TripsController {
 	}
 
 	@Put(":tripId/waypoints/:waypointId")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.HOST)
 	@ApiOperation({ summary: "Update a waypoint of an owned draft Trip" })
 	@ApiResponse({ status: 200, type: TripResponseDto })
@@ -475,6 +522,8 @@ export class TripsController {
 	}
 
 	@Delete(":tripId/waypoints/:waypointId")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.HOST)
 	@ApiOperation({ summary: "Delete a stop waypoint of an owned draft Trip" })
 	@ApiResponse({ status: 200, type: TripResponseDto })
@@ -490,6 +539,8 @@ export class TripsController {
 
 	@Post(":tripId/submit")
 	@HttpCode(200)
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.HOST)
 	@ApiOperation({ summary: "Submit an owned draft Trip for approval with its stored waypoints" })
 	@ApiResponse({ status: 200, type: TripResponseDto })
@@ -510,6 +561,8 @@ export class TripsController {
 	}
 
 	@Post()
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.HOST)
 	@ApiOperation({ summary: "Create a draft Trip from an approved active Route" })
 	@ApiResponse({ status: 201, type: TripResponseDto })
@@ -526,6 +579,8 @@ export class TripsController {
 	}
 
 	@Patch(":tripId/pending-update")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.HOST)
 	@UseInterceptors(
 		FilesInterceptor("images", 5, {
@@ -553,6 +608,8 @@ export class TripsController {
 	}
 
 	@Patch(":tripId")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.HOST)
 	@ApiOperation({
 		summary: "Edit an owned pre-published Trip without changing its identity",
@@ -577,6 +634,8 @@ export class TripsController {
 	}
 
 	@Patch(":tripId/reschedule")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.HOST)
 	@ApiOperation({ summary: "Reschedule an owned published Trip" })
 	@ApiResponse({ status: 200, type: TripResponseDto })
@@ -594,6 +653,8 @@ export class TripsController {
 	}
 
 	@Patch(":tripId/cancel")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.HOST)
 	@ApiOperation({ summary: "Cancel an owned Trip before completion" })
 	@ApiResponse({ status: 200, type: TripResponseDto })
@@ -611,6 +672,8 @@ export class TripsController {
 	}
 
 	@Patch(":tripId/review")
+	@ApiBearerAuth()
+	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles(UserRole.ADMIN)
 	@ApiOperation({ summary: "Approve (publish) or decline a Trip pending approval" })
 	@ApiResponse({ status: 200, type: TripResponseDto })

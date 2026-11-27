@@ -10,8 +10,8 @@ export const SearchPanelSection: React.FC = () => {
 		const trimmed = locationQuery.trim();
 		const searchTarget =
 			trimmed && trimmed.toLowerCase() !== "đà nẵng"
-				? `/trekking?q=${encodeURIComponent(trimmed)}`
-				: "/trekking";
+				? `/trips?q=${encodeURIComponent(trimmed)}`
+				: "/trips";
 		navigatePublicPath(searchTarget);
 	};
 

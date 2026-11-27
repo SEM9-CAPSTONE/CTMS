@@ -3,9 +3,8 @@ import { Bot, CloudRain, Map as MapIcon, Radio, Search, WifiOff } from "lucide-r
 export const NAV_ITEMS = [
 	{ label: "Trang chủ", href: "/" },
 	{ label: "Khám phá", href: "/trips" },
-	{ label: "Trekking", href: "/trekking" },
-	{ label: "An toàn", href: "/safety" },
 	{ label: "Giới thiệu", href: "/about" },
+	{ label: "Chính sách", href: "/terms-and-policy" },
 ];
 
 export const HERO_BADGES = [

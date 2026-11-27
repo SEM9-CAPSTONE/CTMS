@@ -69,6 +69,7 @@ export interface BookingPanelProps {
 	onRetry?: () => unknown;
 	onReset?: () => void;
 	onSignIn?: () => void;
+	onRegister?: () => void;
 	onConflictDismiss?: () => void;
 	onConflictReload?: () => void;
 	onViewBookingDetails?: (bookingId: string) => void;
@@ -384,6 +385,7 @@ export function BookingPanel({
 	onRetry,
 	onReset,
 	onSignIn,
+	onRegister,
 	onConflictDismiss,
 	onConflictReload,
 	onViewBookingDetails,
@@ -448,16 +450,29 @@ export function BookingPanel({
 		return (
 			<div className="rounded-2xl border border-[#dfe8df] bg-[#f8faf7] p-4 text-center text-xs text-[#52665b]">
 				<p className="font-bold text-[#10221b]">
-					Vui lòng đăng nhập bằng tài khoản Camper để đặt chỗ.
+					Vui lòng đăng nhập hoặc đăng ký tài khoản để đặt chỗ chuyến đi này.
 				</p>
-				{onSignIn && (
-					<button
-						type="button"
-						onClick={onSignIn}
-						className="mt-3 rounded-xl bg-[#164027] px-5 py-2.5 font-bold text-white"
-					>
-						Đăng nhập để đặt chỗ
-					</button>
+				{(onSignIn || onRegister) && (
+					<div className="mt-3 flex flex-col gap-2">
+						{onSignIn && (
+							<button
+								type="button"
+								onClick={onSignIn}
+								className="w-full cursor-pointer rounded-xl bg-[#164027] px-5 py-2.5 font-bold text-white transition hover:bg-[#0f2e1c]"
+							>
+								Đăng nhập để đặt chỗ
+							</button>
+						)}
+						{onRegister && (
+							<button
+								type="button"
+								onClick={onRegister}
+								className="w-full cursor-pointer rounded-xl border border-[#cfdcd0] bg-white px-5 py-2.5 font-bold text-[#164027] transition hover:bg-[#f1f6f1]"
+							>
+								Đăng ký tài khoản
+							</button>
+						)}
+					</div>
 				)}
 			</div>
 		);

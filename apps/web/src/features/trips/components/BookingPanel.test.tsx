@@ -33,9 +33,25 @@ const booking: BookTripResponse = {
 
 describe("BookingPanel", () => {
 	it("renders anonymous and non-Camper access states without a submit action", () => {
-		const { rerender } = render(<BookingPanel trip={trip} bookingAccess="anonymous" />);
-		expect(screen.getByText(/đăng nhập bằng tài khoản Camper/i)).toBeVisible();
+		const onSignIn = vi.fn();
+		const onRegister = vi.fn();
+		const { rerender } = render(
+			<BookingPanel
+				trip={trip}
+				bookingAccess="anonymous"
+				onSignIn={onSignIn}
+				onRegister={onRegister}
+			/>
+		);
+		expect(screen.getByText(/đăng nhập hoặc đăng ký tài khoản để đặt chỗ/i)).toBeVisible();
+		expect(screen.getByRole("button", { name: "Đăng nhập để đặt chỗ" })).toBeVisible();
+		expect(screen.getByRole("button", { name: "Đăng ký tài khoản" })).toBeVisible();
 		expect(screen.queryByRole("button", { name: /đặt chỗ ngay/i })).not.toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole("button", { name: "Đăng nhập để đặt chỗ" }));
+		expect(onSignIn).toHaveBeenCalledTimes(1);
+		fireEvent.click(screen.getByRole("button", { name: "Đăng ký tài khoản" }));
+		expect(onRegister).toHaveBeenCalledTimes(1);
 
 		rerender(<BookingPanel trip={trip} bookingAccess="non-camper" />);
 		expect(screen.getByText(/không có quyền đặt chỗ/i)).toBeVisible();

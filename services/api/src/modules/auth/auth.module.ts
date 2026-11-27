@@ -15,6 +15,7 @@ import { AuditLog } from "./entities/audit-log.entity";
 import { RefreshToken } from "./entities/refresh-token.entity";
 import { VerificationOtp } from "./entities/verification-otp.entity";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
+import { OptionalJwtAuthGuard } from "./guards/optional-jwt-auth.guard";
 import { RolesGuard } from "./guards/roles.guard";
 import { JwtStrategy } from "./jwt.strategy";
 import { OtpDeliveryService } from "./otp-delivery.service";
@@ -55,6 +56,7 @@ import { VerificationOtpRepository } from "./verification-otp.repository";
 		GoogleIdTokenVerifier,
 		JwtStrategy,
 		JwtAuthGuard,
+		OptionalJwtAuthGuard,
 		RolesGuard,
 		{
 			provide: VerificationOtpRepository,
@@ -75,6 +77,6 @@ import { VerificationOtpRepository } from "./verification-otp.repository";
 			inject: [DataSource],
 		},
 	],
-	exports: [AuthService, JwtAuthGuard, RolesGuard],
+	exports: [AuthService, JwtAuthGuard, OptionalJwtAuthGuard, RolesGuard],
 })
 export class AuthModule {}

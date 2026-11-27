@@ -35,7 +35,7 @@ describe("AppRoutes public landing pages", () => {
 	it.each([
 		["/trekking", "Khám phá các tuyến đường nổi bật trên CTMS"],
 		["/safety", "Hệ thống bảo vệ nhiều lớp trên mọi hành trình CTMS"],
-		["/about", "Hệ thống Quản lý Điểm cắm trại và Chuyến đi Dã ngoại"],
+		["/about", "Nền tảng tổ chức cắm trại và leo núi an toàn"],
 		["/privacy", "Chính sách bảo mật dữ liệu CTMS"],
 		["/contact", "Liên hệ và hợp tác vận hành"],
 		["/support", "Hướng dẫn sử dụng và câu hỏi thường gặp"],
@@ -49,26 +49,30 @@ describe("AppRoutes public landing pages", () => {
 		expect(screen.queryByText(/không tìm thấy trang/i)).not.toBeInTheDocument();
 	});
 
-	it("navigates from LandingPage hero, safety, mobile and footer actions to real pages", async () => {
+	it("navigates from LandingPage compact 4-item header, hero and footer actions to real pages", async () => {
 		const user = userEvent.setup();
 		renderRoutes();
 		await waitForRoute();
 
-		// Hero CTA: Khám phá ngay -> /trekking
+		// HeaderNav has the compact 4-item navigation
+		expect(screen.getByRole("link", { name: "Trang chủ" })).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "Khám phá" })).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "Giới thiệu" })).toBeInTheDocument();
+		expect(screen.getAllByRole("link", { name: "Chính sách" }).length).toBeGreaterThanOrEqual(1);
+
+		// Hero CTA: Khám phá ngay -> /trips
 		await user.click(await screen.findByRole("button", { name: /Khám phá ngay/i }));
 		await waitForRoute();
-		expect(window.location.pathname).toBe("/trekking");
-		expect(
-			await screen.findByRole("heading", { name: "Khám phá các tuyến đường nổi bật trên CTMS" })
-		).toBeInTheDocument();
+		expect(window.location.pathname).toBe("/trips");
+		expect(await screen.findByRole("heading", { name: "Khám phá chuyến đi" })).toBeInTheDocument();
 
-		// HeaderNav: An toàn -> /safety
-		await user.click(screen.getByRole("link", { name: "An toàn" }));
+		// HeaderNav: Giới thiệu -> /about
+		await user.click(screen.getByRole("link", { name: "Giới thiệu" }));
 		await waitForRoute();
-		expect(window.location.pathname).toBe("/safety");
+		expect(window.location.pathname).toBe("/about");
 		expect(
 			await screen.findByRole("heading", {
-				name: "Hệ thống bảo vệ nhiều lớp trên mọi hành trình CTMS",
+				name: "Nền tảng tổ chức cắm trại và leo núi an toàn",
 			})
 		).toBeInTheDocument();
 
@@ -87,12 +91,6 @@ describe("AppRoutes public landing pages", () => {
 		expect(
 			await screen.findByRole("heading", { name: "Hướng dẫn sử dụng và câu hỏi thường gặp" })
 		).toBeInTheDocument();
-
-		// HeaderNav: Khám phá -> /trips
-		await user.click(screen.getByRole("link", { name: "Khám phá" }));
-		await waitForRoute();
-		expect(window.location.pathname).toBe("/trips");
-		expect(await screen.findByRole("heading", { name: "Khám phá chuyến đi" })).toBeInTheDocument();
 	});
 
 	it("navigates from LandingPage Safety and Mobile buttons to /safety and /mobile-app", async () => {

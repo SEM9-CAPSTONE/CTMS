@@ -717,6 +717,7 @@ function AppRouteContent() {
 					!storedUser ? "anonymous" : currentRoles.includes("camper") ? "camper" : "non-camper"
 				}
 				onSignIn={() => navigateTo(RoutePath.LOGIN)}
+				onRegister={() => navigateTo(RoutePath.REGISTER)}
 				onEditTrip={(tripId) => navigateTo(`/host/trips/${tripId}/edit`)}
 				onManagePorters={(tripId) =>
 					navigateTo(`${RoutePath.HOST_PORTER}?tripId=${encodeURIComponent(tripId)}`)
@@ -1111,8 +1112,10 @@ function AppRouteContent() {
 			);
 
 		case RoutePath.TRIPS: {
+			const initialSearch = navigationContext.get("q")?.trim();
 			const searchView = (
 				<SearchTripsPage
+					initialFilters={initialSearch ? { search: initialSearch } : undefined}
 					onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
 					onNavigateToTripDetail={(tripId) => navigateTo(`/trips/${tripId}`)}
 					onNavigateToRecommendedTrip={(tripId) =>
