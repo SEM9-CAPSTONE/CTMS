@@ -70,11 +70,25 @@ describe("AdminTermsManagementPage", () => {
 		expect(screen.getByRole("heading", { name: "Cập nhật phiên bản" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Cập nhật phiên bản" })).toBeInTheDocument();
 
-		// Removed sub-tabs (Image 2) and bottom version history table
+		// Removed subtitle, sub-tabs (Image 2), and bottom version history table
+		expect(
+			screen.queryByText(/Quản lý nội dung, phiên bản và phạm vi áp dụng/i)
+		).not.toBeInTheDocument();
 		expect(screen.queryByText("Thống kê chấp thuận")).not.toBeInTheDocument();
 		expect(screen.queryByText("Cài đặt")).not.toBeInTheDocument();
 		expect(screen.queryByText("Lịch sử phiên bản")).not.toBeInTheDocument();
 		expect(screen.queryByText(/Công bố phiên bản/i)).not.toBeInTheDocument();
+	});
+
+	it("allows adding a new major policy section (e.g. section 2 / 13) and publishing", async () => {
+		const user = userEvent.setup();
+		renderPage();
+
+		await screen.findByRole("heading", { name: "Chỉnh sửa phiên bản v1.0" });
+		await user.click(screen.getByRole("button", { name: /Thêm mục lớn/i }));
+
+		expect(screen.getByDisplayValue("Chính sách mục 2")).toBeInTheDocument();
+		expect(screen.getByText("Mục 2/2")).toBeInTheDocument();
 	});
 
 	it("creates a new version draft, opens preview, and publishes via Cập nhật phiên bản", async () => {

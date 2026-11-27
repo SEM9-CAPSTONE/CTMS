@@ -134,6 +134,47 @@ export const AdminTermsManagementPage: React.FC<AdminTermsManagementPageProps> =
 		);
 	};
 
+	const handleAddSection = () => {
+		const nextNumber =
+			sections.reduce((max, item) => (item.number > max ? item.number : max), 0) + 1;
+		const nextSection: TermsSection = {
+			number: nextNumber,
+			slug: `muc-${nextNumber}`,
+			title: `Chính sách mục ${nextNumber}`,
+			subsections: [
+				{
+					code: `${nextNumber}.1`,
+					title: "Nội dung chi tiết",
+					body: "",
+				},
+			],
+		};
+		setSections((prev) => [...prev, nextSection]);
+		setActiveSectionNumber(nextNumber);
+	};
+
+	const handleRemoveSection = (sectionNumber: number) => {
+		if (sections.length <= 1) return;
+		const remaining = sections
+			.filter((item) => item.number !== sectionNumber)
+			.map((item, idx) => {
+				const newNum = idx + 1;
+				return {
+					...item,
+					number: newNum,
+					subsections: item.subsections.map((sub, subIdx) => {
+						const expectedOldPrefix = `${item.number}.`;
+						const code = sub.code.startsWith(expectedOldPrefix)
+							? `${newNum}.${sub.code.slice(expectedOldPrefix.length)}`
+							: sub.code || `${newNum}.${subIdx + 1}`;
+						return { ...sub, code };
+					}),
+				};
+			});
+		setSections(remaining);
+		setActiveSectionNumber(Math.min(sectionNumber, remaining.length));
+	};
+
 	const handleCreateNewDraft = () => {
 		const base = currentQuery.data ?? sourceVersion;
 		if (!base) return;
@@ -280,66 +321,68 @@ export const AdminTermsManagementPage: React.FC<AdminTermsManagementPageProps> =
 
 	return (
 		<AdminLayout activeItem="terms-and-policy" onLogout={onLogout}>
-			<main className="mx-auto max-w-[1400px] space-y-6 p-4 sm:p-6 lg:p-8">
-				{/* Clean Page Header */}
-				<header className="border-b border-[#dfe8df] pb-5">
-					<h1 className="text-2xl font-bold tracking-tight text-[#10221b]">
-						Điều khoản và Chính sách sử dụng
-					</h1>
-					<p className="mt-1 text-sm text-[#54655a]">
-						Quản lý nội dung, phiên bản và phạm vi áp dụng Điều khoản và Chính sách cho toàn hệ
-						thống CTMS.
-					</p>
+			<div className="min-h-screen">
+				{/* Sticky Page Header */}
+				<header className="sticky top-0 z-20 border-b border-[#dfe8df] bg-white/95 backdrop-blur-xs">
+					<div className="mx-auto flex max-w-[1400px] items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+						<h1 className="text-xl font-bold tracking-tight text-[#10221b] sm:text-2xl">
+							Điều khoản và Chính sách sử dụng
+						</h1>
+					</div>
 				</header>
 
-				{isLoading && <PageSkeleton />}
+				<div className="mx-auto max-w-[1400px] space-y-6 p-4 sm:p-6 lg:p-8">
+					{isLoading && <PageSkeleton />}
 
-				{!isLoading && (isCreatingDraft || sourceVersion) && (
-					<div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[260px_minmax(0,1fr)_310px]">
-						<AdminTermsVersionSidebar
-							versions={versions}
-							selectedVersionCode={sourceVersion?.version ?? null}
-							isCreatingDraft={isCreatingDraft}
-							draftVersionCode={savedDraft?.versionCode ?? ""}
-							draftUpdatedAtLabel={savedDraft?.updatedAtLabel ?? null}
-							onCreateNewDraft={handleCreateNewDraft}
-							onSelectDraft={handleSelectDraft}
-							onSelectVersion={handleSelectVersion}
-						/>
+					{!isLoading && (isCreatingDraft || sourceVersion) && (
+						<div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[260px_minmax(0,1fr)_310px]">
+							<AdminTermsVersionSidebar
+								versions={versions}
+								selectedVersionCode={sourceVersion?.version ?? null}
+								isCreatingDraft={isCreatingDraft}
+								draftVersionCode={savedDraft?.versionCode ?? ""}
+								draftUpdatedAtLabel={savedDraft?.updatedAtLabel ?? null}
+								onCreateNewDraft={handleCreateNewDraft}
+								onSelectDraft={handleSelectDraft}
+								onSelectVersion={handleSelectVersion}
+							/>
 
-						<AdminTermsEditorPanel
-							versionCode={versionCode}
-							statusTone={activeStatusTone}
-							statusLabel={activeStatusLabel}
-							isCreatingDraft={isCreatingDraft}
-							title={title}
-							effectiveDate={effectiveDate}
-							sections={sections}
-							activeSectionNumber={activeSectionNumber}
-							isSaving={updateMutation.isPending}
-							onChangeVersionCode={setVersionCode}
-							onChangeTitle={setTitle}
-							onChangeEffectiveDate={setEffectiveDate}
-							onSelectSectionNumber={setActiveSectionNumber}
-							onUpdateSection={handleUpdateSection}
-							onOpenPreview={() => setIsPreviewOpen(true)}
-							onSaveDraftOrChanges={
-								isCreatingDraft ? handleSaveDraftLocally : () => void handleSaveExistingVersion()
-							}
-						/>
+							<AdminTermsEditorPanel
+								versionCode={versionCode}
+								statusTone={activeStatusTone}
+								statusLabel={activeStatusLabel}
+								isCreatingDraft={isCreatingDraft}
+								title={title}
+								effectiveDate={effectiveDate}
+								sections={sections}
+								activeSectionNumber={activeSectionNumber}
+								isSaving={updateMutation.isPending}
+								onChangeVersionCode={setVersionCode}
+								onChangeTitle={setTitle}
+								onChangeEffectiveDate={setEffectiveDate}
+								onSelectSectionNumber={setActiveSectionNumber}
+								onUpdateSection={handleUpdateSection}
+								onAddSection={handleAddSection}
+								onRemoveSection={handleRemoveSection}
+								onOpenPreview={() => setIsPreviewOpen(true)}
+								onSaveDraftOrChanges={
+									isCreatingDraft ? handleSaveDraftLocally : () => void handleSaveExistingVersion()
+								}
+							/>
 
-						<AdminTermsUpdatePanel
-							summary={summary}
-							requiresReconsent={requiresReconsent}
-							isSubmitting={publishMutation.isPending || updateMutation.isPending}
-							onChangeSummary={setSummary}
-							onChangeRequiresReconsent={setRequiresReconsent}
-							onSubmitVersion={() => void handleSubmitVersion()}
-							onOpenPublicTerms={onOpenPublicTerms}
-						/>
-					</div>
-				)}
-			</main>
+							<AdminTermsUpdatePanel
+								summary={summary}
+								requiresReconsent={requiresReconsent}
+								isSubmitting={publishMutation.isPending || updateMutation.isPending}
+								onChangeSummary={setSummary}
+								onChangeRequiresReconsent={setRequiresReconsent}
+								onSubmitVersion={() => void handleSubmitVersion()}
+								onOpenPublicTerms={onOpenPublicTerms}
+							/>
+						</div>
+					)}
+				</div>
+			</div>
 
 			<AdminTermsPreviewModal
 				isOpen={isPreviewOpen}

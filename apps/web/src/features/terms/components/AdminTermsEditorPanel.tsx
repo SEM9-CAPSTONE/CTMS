@@ -22,6 +22,8 @@ export interface AdminTermsEditorPanelProps {
 		sectionNumber: number,
 		updater: (section: TermsSection) => TermsSection
 	) => void;
+	onAddSection: () => void;
+	onRemoveSection: (sectionNumber: number) => void;
 	onOpenPreview: () => void;
 	onSaveDraftOrChanges: () => void;
 }
@@ -41,6 +43,8 @@ export const AdminTermsEditorPanel: React.FC<AdminTermsEditorPanelProps> = ({
 	onChangeEffectiveDate,
 	onSelectSectionNumber,
 	onUpdateSection,
+	onAddSection,
+	onRemoveSection,
 	onOpenPreview,
 	onSaveDraftOrChanges,
 }) => {
@@ -186,14 +190,35 @@ export const AdminTermsEditorPanel: React.FC<AdminTermsEditorPanelProps> = ({
 							</span>
 						</div>
 
-						<button
-							type="button"
-							onClick={handleAddSubsection}
-							className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-[#d6e2d7] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#164027] transition hover:bg-[#eef7f0]"
-						>
-							<Plus className="size-3.5" />
-							<span>Thêm điều mục</span>
-						</button>
+						<div className="flex flex-wrap items-center gap-1.5">
+							<button
+								type="button"
+								onClick={onAddSection}
+								className="inline-flex cursor-pointer items-center gap-1 rounded-lg bg-[#164027] px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#0f2e1c]"
+							>
+								<Plus className="size-3.5" />
+								<span>Thêm mục lớn</span>
+							</button>
+							<button
+								type="button"
+								onClick={handleAddSubsection}
+								className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-[#d6e2d7] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#164027] transition hover:bg-[#eef7f0]"
+							>
+								<Plus className="size-3.5" />
+								<span>Thêm điều mục</span>
+							</button>
+							{sections.length > 1 && (
+								<button
+									type="button"
+									onClick={() => onRemoveSection(activeSection.number)}
+									aria-label={`Xóa mục ${activeSection.number}`}
+									title={`Xóa mục ${activeSection.number}`}
+									className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-[#e5ede6] bg-white p-1.5 text-[#809287] transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+								>
+									<Trash2 className="size-3.5" />
+								</button>
+							)}
+						</div>
 					</div>
 
 					{/* Editable Document Canvas */}
