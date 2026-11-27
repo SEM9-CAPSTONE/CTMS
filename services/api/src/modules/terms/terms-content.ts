@@ -17,7 +17,7 @@ export interface TermsSection {
 
 export const DEFAULT_TERMS_VERSION = "1.0";
 export const DEFAULT_TERMS_EFFECTIVE_DATE = "2026-11-27";
-export const DEFAULT_TERMS_TITLE = "Điều khoản và Chính sách sử dụng CTMS";
+export const DEFAULT_TERMS_TITLE = "Điều khoản và Chính sách sử dụng DiTrek";
 export const DEFAULT_TERMS_SUMMARY =
 	"Phiên bản khởi tạo gồm đầy đủ 12 mục về tài khoản, đặt chỗ, hủy chuyến, an toàn dã ngoại và leo núi, bản đồ và thời tiết, trợ lý sinh tồn trí tuệ nhân tạo, tín hiệu cầu cứu khẩn cấp và dữ liệu người dùng.";
 
@@ -34,16 +34,16 @@ export const DEFAULT_TERMS_V1_SECTIONS: TermsSection[] = [
 			{
 				code: "1.1",
 				title: "Phạm vi áp dụng",
-				body: "Điều khoản và Chính sách sử dụng này áp dụng cho tất cả cá nhân, tổ chức khi truy cập, đăng ký tài khoản hoặc sử dụng trang web, ứng dụng di động và các dịch vụ thuộc hệ thống quản lý điểm cắm trại và chuyến đi dã ngoại, leo núi CTMS.",
+				body: "Điều khoản và Chính sách sử dụng này áp dụng cho tất cả cá nhân, tổ chức khi truy cập, đăng ký tài khoản hoặc sử dụng trang web, ứng dụng di động và các dịch vụ thuộc hệ thống quản lý điểm cắm trại và chuyến đi dã ngoại, leo núi DiTrek.",
 			},
 			{
 				code: "1.2",
 				title: "Chấp thuận điều khoản",
-				body: "Khi tạo tài khoản hoặc xác nhận đồng ý phiên bản điều khoản đang hiệu lực trên CTMS, bạn xác nhận đã đọc, hiểu và đồng ý tuân thủ toàn bộ nội dung của Điều khoản này.",
+				body: "Khi tạo tài khoản hoặc xác nhận đồng ý phiên bản điều khoản đang hiệu lực trên DiTrek, bạn xác nhận đã đọc, hiểu và đồng ý tuân thủ toàn bộ nội dung của Điều khoản này.",
 			},
 		],
 		callout:
-			"Điều khoản này có thể được cập nhật theo từng phiên bản. Khi có thay đổi quan trọng, CTMS sẽ thông báo và có thể yêu cầu bạn xem lại và chấp thuận lại.",
+			"Điều khoản này có thể được cập nhật theo từng phiên bản. Khi có thay đổi quan trọng, DiTrek sẽ thông báo và có thể yêu cầu bạn xem lại và chấp thuận lại.",
 	},
 	{
 		number: 2,
@@ -53,12 +53,12 @@ export const DEFAULT_TERMS_V1_SECTIONS: TermsSection[] = [
 			{
 				code: "2.1",
 				title: "Đăng ký và xác thực tài khoản",
-				body: "Để tạo tài khoản trên CTMS, bạn cần cung cấp thông tin chính xác gồm địa chỉ thư điện tử và số điện thoại hợp lệ, sau đó hoàn tất bước xác thực mã một lần hoặc đăng nhập bằng phương thức được hệ thống hỗ trợ. Bạn chịu trách nhiệm bảo mật mật khẩu và mọi hoạt động phát sinh từ tài khoản của mình.",
+				body: "Để tạo tài khoản trên DiTrek, bạn cần cung cấp thông tin chính xác gồm địa chỉ thư điện tử và số điện thoại hợp lệ, sau đó hoàn tất bước xác thực mã một lần hoặc đăng nhập bằng phương thức được hệ thống hỗ trợ. Bạn chịu trách nhiệm bảo mật mật khẩu và mọi hoạt động phát sinh từ tài khoản của mình.",
 			},
 			{
 				code: "2.2",
 				title: "Các vai trò trên hệ thống",
-				body: "CTMS hỗ trợ các vai trò gồm Người tham gia chuyến đi, Đơn vị tổ chức chuyến đi, Người dẫn đường hỗ trợ đoàn và Quản trị viên hệ thống. Mỗi vai trò chỉ được sử dụng các chức năng phù hợp với quyền hạn được cấp và trạng thái xác minh tương ứng.",
+				body: "DiTrek hỗ trợ các vai trò gồm Người tham gia chuyến đi, Đơn vị tổ chức chuyến đi, Người dẫn đường hỗ trợ đoàn và Quản trị viên hệ thống. Mỗi vai trò chỉ được sử dụng các chức năng phù hợp với quyền hạn được cấp và trạng thái xác minh tương ứng.",
 			},
 		],
 	},
@@ -70,7 +70,7 @@ export const DEFAULT_TERMS_V1_SECTIONS: TermsSection[] = [
 			{
 				code: "3.1",
 				title: "Đặt chỗ chuyến đi",
-				body: "Khi đặt chỗ cho một chuyến đi đang mở trên CTMS, hệ thống ghi nhận số lượng khách, thông tin thành viên và lưu lại bản sao lịch trình, mức giá cơ bản cùng chính sách hủy áp dụng tại thời điểm đặt chỗ. Các thay đổi sau đó đối với mô tả chuyến đi không tự động làm thay đổi thông tin đã ghi nhận của đơn đặt chỗ hợp lệ.",
+				body: "Khi đặt chỗ cho một chuyến đi đang mở trên DiTrek, hệ thống ghi nhận số lượng khách, thông tin thành viên và lưu lại bản sao lịch trình, mức giá cơ bản cùng chính sách hủy áp dụng tại thời điểm đặt chỗ. Các thay đổi sau đó đối với mô tả chuyến đi không tự động làm thay đổi thông tin đã ghi nhận của đơn đặt chỗ hợp lệ.",
 			},
 			{
 				code: "3.2",
@@ -133,7 +133,7 @@ export const DEFAULT_TERMS_V1_SECTIONS: TermsSection[] = [
 			{
 				code: "6.2",
 				title: "Xác minh và vai trò của Người dẫn đường",
-				body: "Người dẫn đường hỗ trợ dẫn tuyến, điểm danh, theo dõi an toàn và ghi nhận sự cố trên hành trình theo phân công. Hồ sơ năng lực, chứng chỉ và cấp độ của người dẫn đường trên CTMS phải trải qua bước kiểm tra và xét duyệt của quản trị viên; người dẫn đường chịu trách nhiệm hoàn toàn về tính trung thực của mọi giấy tờ đã nộp.",
+				body: "Người dẫn đường hỗ trợ dẫn tuyến, điểm danh, theo dõi an toàn và ghi nhận sự cố trên hành trình theo phân công. Hồ sơ năng lực, chứng chỉ và cấp độ của người dẫn đường trên DiTrek phải trải qua bước kiểm tra và xét duyệt của quản trị viên; người dẫn đường chịu trách nhiệm hoàn toàn về tính trung thực của mọi giấy tờ đã nộp.",
 			},
 		],
 	},
@@ -145,12 +145,12 @@ export const DEFAULT_TERMS_V1_SECTIONS: TermsSection[] = [
 			{
 				code: "7.1",
 				title: "Dữ liệu tuyến đường và bản đồ ngoại tuyến",
-				body: "Bản đồ tuyến đường, điểm dừng, vùng cảnh báo nguy hiểm và gói dữ liệu ngoại tuyến trên CTMS được cung cấp nhằm hỗ trợ định hướng và chuẩn bị hành trình. Tín hiệu định vị vệ tinh và bản đồ có thể chịu ảnh hưởng bởi địa hình, thiết bị hoặc thay đổi thực địa chưa kịp cập nhật.",
+				body: "Bản đồ tuyến đường, điểm dừng, vùng cảnh báo nguy hiểm và gói dữ liệu ngoại tuyến trên DiTrek được cung cấp nhằm hỗ trợ định hướng và chuẩn bị hành trình. Tín hiệu định vị vệ tinh và bản đồ có thể chịu ảnh hưởng bởi địa hình, thiết bị hoặc thay đổi thực địa chưa kịp cập nhật.",
 			},
 			{
 				code: "7.2",
 				title: "Cảnh báo rủi ro thời tiết",
-				body: "Thông tin dự báo và đánh giá mức độ rủi ro thời tiết trên CTMS dựa trên nguồn dữ liệu khí tượng tích hợp và cập nhật vận hành nhằm hỗ trợ ra quyết định. Khi rủi ro thời tiết ở mức nguy hiểm hoặc thiếu dữ liệu đánh giá hợp lệ, hệ thống có thể tạm khóa đặt chỗ hoặc phát thông báo điều chỉnh, hủy chuyến vì lý do an toàn.",
+				body: "Thông tin dự báo và đánh giá mức độ rủi ro thời tiết trên DiTrek dựa trên nguồn dữ liệu khí tượng tích hợp và cập nhật vận hành nhằm hỗ trợ ra quyết định. Khi rủi ro thời tiết ở mức nguy hiểm hoặc thiếu dữ liệu đánh giá hợp lệ, hệ thống có thể tạm khóa đặt chỗ hoặc phát thông báo điều chỉnh, hủy chuyến vì lý do an toàn.",
 			},
 		],
 	},
@@ -162,7 +162,7 @@ export const DEFAULT_TERMS_V1_SECTIONS: TermsSection[] = [
 			{
 				code: "8.1",
 				title: "Tính chất tham khảo",
-				body: "Trợ lý sinh tồn trí tuệ nhân tạo trên CTMS cung cấp gợi ý và tra cứu kiến thức sinh tồn dựa trên tài liệu được nạp trong hệ thống và ngữ cảnh chuyến đi. Nội dung phản hồi chỉ mang tính tham khảo hỗ trợ chuẩn bị và xử lý tình huống cơ bản.",
+				body: "Trợ lý sinh tồn trí tuệ nhân tạo trên DiTrek cung cấp gợi ý và tra cứu kiến thức sinh tồn dựa trên tài liệu được nạp trong hệ thống và ngữ cảnh chuyến đi. Nội dung phản hồi chỉ mang tính tham khảo hỗ trợ chuẩn bị và xử lý tình huống cơ bản.",
 			},
 			{
 				code: "8.2",
@@ -181,12 +181,12 @@ export const DEFAULT_TERMS_V1_SECTIONS: TermsSection[] = [
 			{
 				code: "9.1",
 				title: "Cơ chế gửi tín hiệu cầu cứu khẩn cấp",
-				body: "Tính năng cầu cứu khẩn cấp cho phép người dùng phát tín hiệu cảnh báo kèm tọa độ gần nhất ghi nhận từ thiết bị tới người phụ trách chuyến đi và bộ phận theo dõi vận hành trên CTMS. Người dùng chỉ sử dụng tính năng này cho tình huống khẩn cấp thực sự và thực hiện xác nhận đúng hướng dẫn trên màn hình.",
+				body: "Tính năng cầu cứu khẩn cấp cho phép người dùng phát tín hiệu cảnh báo kèm tọa độ gần nhất ghi nhận từ thiết bị tới người phụ trách chuyến đi và bộ phận theo dõi vận hành trên DiTrek. Người dùng chỉ sử dụng tính năng này cho tình huống khẩn cấp thực sự và thực hiện xác nhận đúng hướng dẫn trên màn hình.",
 			},
 			{
 				code: "9.2",
 				title: "Giới hạn kết nối và không bảo đảm cứu hộ",
-				body: "Việc truyền tín hiệu cầu cứu phụ thuộc vào vùng phủ sóng di động, kết nối mạng, độ chính xác định vị vệ tinh, pin thiết bị và điều kiện hiện trường. CTMS là công cụ hỗ trợ cảnh báo và điều phối thông tin, không thay thế dịch vụ cứu hộ hoặc cấp cứu công lập và không cam kết thời gian hay kết quả cứu hộ thực tế. Khi có nguy hiểm đe dọa tính mạng, hãy ưu tiên liên hệ trực tiếp cơ quan cứu hộ, công an hoặc y tế địa phương ngay khi có thể.",
+				body: "Việc truyền tín hiệu cầu cứu phụ thuộc vào vùng phủ sóng di động, kết nối mạng, độ chính xác định vị vệ tinh, pin thiết bị và điều kiện hiện trường. DiTrek là công cụ hỗ trợ cảnh báo và điều phối thông tin, không thay thế dịch vụ cứu hộ hoặc cấp cứu công lập và không cam kết thời gian hay kết quả cứu hộ thực tế. Khi có nguy hiểm đe dọa tính mạng, hãy ưu tiên liên hệ trực tiếp cơ quan cứu hộ, công an hoặc y tế địa phương ngay khi có thể.",
 			},
 		],
 	},
@@ -198,7 +198,7 @@ export const DEFAULT_TERMS_V1_SECTIONS: TermsSection[] = [
 			{
 				code: "10.1",
 				title: "Phạm vi dữ liệu xử lý",
-				body: "CTMS xử lý các dữ liệu cần thiết để cung cấp dịch vụ gồm thông tin tài khoản, hồ sơ vai trò, lịch sử đặt chỗ và giao dịch, dữ liệu vị trí và đồng bộ ngoại tuyến trong thời gian tham gia chuyến đi, đánh giá và nhật ký kiểm toán các thao tác quan trọng.",
+				body: "DiTrek xử lý các dữ liệu cần thiết để cung cấp dịch vụ gồm thông tin tài khoản, hồ sơ vai trò, lịch sử đặt chỗ và giao dịch, dữ liệu vị trí và đồng bộ ngoại tuyến trong thời gian tham gia chuyến đi, đánh giá và nhật ký kiểm toán các thao tác quan trọng.",
 			},
 			{
 				code: "10.2",
@@ -220,7 +220,7 @@ export const DEFAULT_TERMS_V1_SECTIONS: TermsSection[] = [
 			{
 				code: "11.2",
 				title: "Biện pháp xử lý",
-				body: "Khi phát hiện dấu hiệu vi phạm hoặc nhận báo cáo hợp lệ, quản trị viên CTMS có thể xem xét, nhắc nhở, gỡ bỏ nội dung vi phạm hoặc tạm khóa tài khoản (đồng thời chấm dứt các phiên đăng nhập hiện hành và ghi nhận nhật ký kiểm toán). Tài khoản chỉ được mở lại sau khi hoàn tất quá trình xem xét theo quy định vận hành.",
+				body: "Khi phát hiện dấu hiệu vi phạm hoặc nhận báo cáo hợp lệ, quản trị viên DiTrek có thể xem xét, nhắc nhở, gỡ bỏ nội dung vi phạm hoặc tạm khóa tài khoản (đồng thời chấm dứt các phiên đăng nhập hiện hành và ghi nhận nhật ký kiểm toán). Tài khoản chỉ được mở lại sau khi hoàn tất quá trình xem xét theo quy định vận hành.",
 			},
 		],
 	},
@@ -232,7 +232,7 @@ export const DEFAULT_TERMS_V1_SECTIONS: TermsSection[] = [
 			{
 				code: "12.1",
 				title: "Cập nhật phiên bản điều khoản",
-				body: "CTMS có thể điều chỉnh, bổ sung Điều khoản và Chính sách này khi có thay đổi về tính năng, quy trình vận hành hoặc yêu cầu pháp lý. Mỗi bản cập nhật được gắn số phiên bản, ngày hiệu lực rõ ràng và lưu giữ trong Lịch sử phiên bản để người dùng tra cứu bất cứ lúc nào.",
+				body: "DiTrek có thể điều chỉnh, bổ sung Điều khoản và Chính sách này khi có thay đổi về tính năng, quy trình vận hành hoặc yêu cầu pháp lý. Mỗi bản cập nhật được gắn số phiên bản, ngày hiệu lực rõ ràng và lưu giữ trong Lịch sử phiên bản để người dùng tra cứu bất cứ lúc nào.",
 			},
 			{
 				code: "12.2",

@@ -68,8 +68,8 @@ export function BookingConflictDialog({
 					</div>
 
 					<p className="leading-relaxed">
-						Theo quy định an toàn hệ thống, CTMS không cho phép vượt quá sức chứa tối đa của chuyến
-						đi.
+						Theo quy định an toàn hệ thống, DiTrek không cho phép vượt quá sức chứa tối đa của
+						chuyến đi.
 						{requestedSeats && requestedSeats > 1 ? ` Bạn đã yêu cầu ${requestedSeats} chỗ. ` : " "}
 						Dữ liệu bạn đã nhập vẫn được giữ nguyên. Vui lòng tải lại để xem số chỗ còn trống mới
 						nhất hoặc điều chỉnh số lượng khách tham gia.

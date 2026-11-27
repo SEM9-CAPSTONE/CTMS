@@ -56,7 +56,7 @@ export const AboutPage: React.FC<PublicPageProps> = ({
 }) => {
 	return (
 		<PublicPageLayout
-			eyebrow="Về CTMS"
+			eyebrow="Về DiTrek"
 			title="Nền tảng tổ chức cắm trại và leo núi an toàn"
 			subtitle="Kết nối người tham gia, đơn vị tổ chức và người dẫn đường trên một quy trình minh bạch — từ tìm chuyến đi đến hoàn tất hành trình."
 			onBackToHome={onBackToHome}
@@ -81,7 +81,7 @@ export const AboutPage: React.FC<PublicPageProps> = ({
 					<div className="relative min-h-[260px] bg-[#163323] sm:min-h-[340px]">
 						<img
 							src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1400&q=80"
-							alt="Cung đường núi rừng và hồ nước dã ngoại CTMS"
+							alt="Cung đường núi rừng và hồ nước dã ngoại DiTrek"
 							className="h-full w-full object-cover"
 							onError={(event) => {
 								event.currentTarget.src = "/figma_assets/hero_image.png";
@@ -102,8 +102,8 @@ export const AboutPage: React.FC<PublicPageProps> = ({
 								Chuẩn bị nhẹ nhàng, vận hành rõ ràng
 							</h2>
 							<p className="mt-3 text-sm leading-relaxed text-[#425048]">
-								CTMS tập trung toàn bộ lịch trình, điều kiện thời tiết, thiết bị cần mang và hỗ trợ
-								khẩn cấp vào một nơi duy nhất để mỗi chuyến đi diễn ra suôn sẻ.
+								DiTrek tập trung toàn bộ lịch trình, điều kiện thời tiết, thiết bị cần mang và hỗ
+								trợ khẩn cấp vào một nơi duy nhất để mỗi chuyến đi diễn ra suôn sẻ.
 							</p>
 						</div>
 
@@ -155,7 +155,7 @@ export const AboutPage: React.FC<PublicPageProps> = ({
 
 			{/* Compact 4-Role Strip */}
 			<section className="mt-6 rounded-2xl border border-[#dfe8df] bg-white p-6 shadow-xs">
-				<h2 className="text-base font-bold text-[#10221b]">Bốn vai trò phối hợp trong CTMS</h2>
+				<h2 className="text-base font-bold text-[#10221b]">Bốn vai trò phối hợp trong DiTrek</h2>
 				<div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 					{ROLES.map((item) => (
 						<div key={item.title} className="border-t border-[#eef2ee] pt-3">
@@ -169,7 +169,7 @@ export const AboutPage: React.FC<PublicPageProps> = ({
 			{/* Clean Bottom CTA */}
 			<section className="mt-6 flex flex-col items-start justify-between gap-4 rounded-2xl border border-[#dfe8df] bg-white p-6 shadow-xs sm:flex-row sm:items-center">
 				<div>
-					<h2 className="text-base font-bold text-[#10221b]">Bắt đầu hành trình cùng CTMS</h2>
+					<h2 className="text-base font-bold text-[#10221b]">Bắt đầu hành trình cùng DiTrek</h2>
 					<p className="mt-1 text-xs text-[#425048]">
 						Xem trước toàn bộ chuyến đi đang mở, chỉ cần đăng nhập hoặc đăng ký khi đặt chỗ.
 					</p>

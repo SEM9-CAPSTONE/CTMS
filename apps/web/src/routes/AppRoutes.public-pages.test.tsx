@@ -33,14 +33,14 @@ describe("AppRoutes public landing pages", () => {
 	});
 
 	it.each([
-		["/trekking", "Khám phá các tuyến đường nổi bật trên CTMS"],
-		["/safety", "Hệ thống bảo vệ nhiều lớp trên mọi hành trình CTMS"],
+		["/trekking", "Khám phá các tuyến đường nổi bật trên DiTrek"],
+		["/safety", "Hệ thống bảo vệ nhiều lớp trên mọi hành trình DiTrek"],
 		["/about", "Nền tảng tổ chức cắm trại và leo núi an toàn"],
-		["/privacy", "Chính sách bảo mật dữ liệu CTMS"],
+		["/privacy", "Chính sách bảo mật dữ liệu DiTrek"],
 		["/contact", "Liên hệ và hợp tác vận hành"],
 		["/support", "Hướng dẫn sử dụng và câu hỏi thường gặp"],
 		["/mobile-app", "Đồng hành trên mọi cung đường ngay cả khi mất sóng"],
-	])("renders real CTMS page at %s without 404", async (path, expectedHeading) => {
+	])("renders real DiTrek page at %s without 404", async (path, expectedHeading) => {
 		window.history.replaceState({}, "", path);
 		renderRoutes();
 		await waitForRoute();
@@ -110,7 +110,7 @@ describe("AppRoutes public landing pages", () => {
 		await waitForRoute();
 		expect(window.location.pathname).toBe("/mobile-app");
 		expect(
-			await screen.findByRole("heading", { name: "Phiên bản CTMS cho iOS" })
+			await screen.findByRole("heading", { name: "Phiên bản DiTrek cho iOS" })
 		).toBeInTheDocument();
 	});
 

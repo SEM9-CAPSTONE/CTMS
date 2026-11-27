@@ -469,7 +469,7 @@ void main() {
     model.modelVersion = '2';
 
     final disclosure = find.text(
-      'Khi gửi phản hồi, CTMS sẽ nhận câu hỏi, câu trả lời và thông tin kỹ thuật '
+      'Khi gửi phản hồi, DiTrek sẽ nhận câu hỏi, câu trả lời và thông tin kỹ thuật '
       'của lượt này (nếu có).',
     );
     final rating = find.byKey(const ValueKey('ai-answer-rating'));

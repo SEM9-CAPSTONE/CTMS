@@ -2,12 +2,12 @@
 /// `docs/design/FIGMA-SCREEN-INVENTORY.md` §A.3 where it gives literal
 /// copy (title, role descriptions); everything else — field copy, the
 /// Porter personal-info/phone-verification flow, the post-submit notice —
-/// was re-specified against CTMS's actual role/approval/database business
+/// was re-specified against DiTrek's actual role/approval/database business
 /// rules rather than the Figma frame, which predates them.
 class RegisterStrings {
   RegisterStrings._();
 
-  static const appBarTitle = 'Tham gia CTMS';
+  static const appBarTitle = 'Tham gia DiTrek';
   static const stepLabels = ['Vai trò', 'Tài khoản', 'Danh tính', 'Xác nhận'];
 
   // Step 1 — Vai trò. Host is dropped: it's a web-only role
@@ -62,11 +62,11 @@ class RegisterStrings {
   static const termsLabel = 'Tôi xác nhận thông tin đăng ký là chính xác.';
   static const termsAgreementPrefix = 'Tôi đã đọc và đồng ý với ';
   static const termsAgreementLink = 'Điều khoản và Điều kiện sử dụng';
-  static const termsAgreementSuffix = ' của CTMS.';
+  static const termsAgreementSuffix = ' của DiTrek.';
   static const healthProfileConsentLabel =
       'Tôi đồng ý chia sẻ Hồ sơ sức khỏe để nhận hỗ trợ an toàn tốt hơn (không bắt buộc).';
   static const termsRequiredError =
-      'Vui lòng đọc và đồng ý với Điều khoản và Điều kiện sử dụng CTMS trước khi đăng ký.';
+      'Vui lòng đọc và đồng ý với Điều khoản và Điều kiện sử dụng DiTrek trước khi đăng ký.';
   static const termsLoadError =
       'Không thể tải phiên bản điều khoản hiện hành. Vui lòng thử lại.';
   static const termsOutdatedError =

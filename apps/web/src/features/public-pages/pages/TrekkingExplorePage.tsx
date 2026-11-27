@@ -66,7 +66,7 @@ export const TrekkingExplorePage: React.FC<TrekkingExplorePageProps> = ({
 	return (
 		<PublicPageLayout
 			eyebrow="Danh mục tuyến dã ngoại và leo núi"
-			title="Khám phá các tuyến đường nổi bật trên CTMS"
+			title="Khám phá các tuyến đường nổi bật trên DiTrek"
 			subtitle="Tra cứu thông số địa hình, thời gian di chuyển, tình trạng tuyến và kết nối trực tiếp đến các chuyến đi đang mở đăng ký của đơn vị tổ chức."
 			onBackToHome={onBackToHome}
 			onNavigateToLogin={onNavigateToLogin}
@@ -183,7 +183,7 @@ export const TrekkingExplorePage: React.FC<TrekkingExplorePageProps> = ({
 						Không tìm thấy tuyến đường phù hợp với bộ lọc hiện tại
 					</p>
 					<p className="mt-1 text-sm text-[#54655a]">
-						Hãy thử xóa từ khóa hoặc chọn khu vực khác để xem toàn bộ tuyến đường trên CTMS.
+						Hãy thử xóa từ khóa hoặc chọn khu vực khác để xem toàn bộ tuyến đường trên DiTrek.
 					</p>
 					<Button variant="outline" size="sm" onClick={resetFilters} className="mt-4">
 						Xem tất cả tuyến đường
@@ -288,7 +288,7 @@ export const TrekkingExplorePage: React.FC<TrekkingExplorePageProps> = ({
 							Kiểm tra điều kiện an toàn trước khi khởi hành
 						</h2>
 						<p className="mt-1 text-sm text-[#425048]">
-							Mọi chuyến đi trên CTMS đều được gắn đánh giá rủi ro thời tiết, điểm kiểm soát tuyến
+							Mọi chuyến đi trên DiTrek đều được gắn đánh giá rủi ro thời tiết, điểm kiểm soát tuyến
 							và hướng dẫn an toàn theo khu vực.
 						</p>
 					</div>

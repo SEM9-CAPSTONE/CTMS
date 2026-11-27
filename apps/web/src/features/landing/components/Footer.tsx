@@ -9,9 +9,9 @@ export const Footer: React.FC = () => {
 				onClick={(event) => handlePublicLinkClick(event, "/")}
 				className="flex items-center gap-3 text-[#425048] transition hover:text-[#1c442f]"
 			>
-				<img src="/ctms_logo.png" alt="CTMS Logo" className="h-9.5 w-auto object-contain" />
+				<img src="/ctms_logo.png" alt="DiTrek Logo" className="h-9.5 w-auto object-contain" />
 				<span>
-					© 2026 CTMS - Hệ thống Quản lý Điểm cắm trại và Dã ngoại. Tất cả quyền được bảo lưu.
+					© 2026 DiTrek - Hệ thống Quản lý Điểm cắm trại và Dã ngoại. Tất cả quyền được bảo lưu.
 				</span>
 			</a>
 			<div className="flex flex-wrap gap-6">

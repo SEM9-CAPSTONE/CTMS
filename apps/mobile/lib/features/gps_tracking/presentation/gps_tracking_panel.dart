@@ -208,7 +208,7 @@ class _GpsTrackingPanelState extends ConsumerState<GpsTrackingPanel> {
         banner(
           CtmsAlertSeverity.warning,
           'Cần quyền vị trí',
-          'Cho phép CTMS truy cập vị trí để ghi lại hành trình an toàn của bạn.',
+          'Cho phép DiTrek truy cập vị trí để ghi lại hành trình an toàn của bạn.',
           [
             CtmsButton(
               key: const Key('gps-request-permission'),
@@ -223,7 +223,7 @@ class _GpsTrackingPanelState extends ConsumerState<GpsTrackingPanel> {
         banner(
           CtmsAlertSeverity.warning,
           'Quyền vị trí đã bị chặn',
-          'Mở Cài đặt của điện thoại và cho phép CTMS truy cập vị trí để ghi GPS.',
+          'Mở Cài đặt của điện thoại và cho phép DiTrek truy cập vị trí để ghi GPS.',
         ),
       ],
       GpsTrackingStatus.serviceDisabled => [

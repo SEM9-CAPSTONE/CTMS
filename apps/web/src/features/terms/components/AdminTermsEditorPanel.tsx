@@ -83,7 +83,7 @@ export const AdminTermsEditorPanel: React.FC<AdminTermsEditorPanelProps> = ({
 						type="text"
 						value={title}
 						onChange={(event) => onChangeTitle(event.target.value)}
-						placeholder="Điều khoản và Chính sách sử dụng CTMS"
+						placeholder="Điều khoản và Chính sách sử dụng DiTrek"
 						className="w-full rounded-xl border border-[#dfe8df] bg-white px-3.5 py-2 text-sm text-[#10221b] outline-none transition focus:border-[#164027]"
 					/>
 				</div>

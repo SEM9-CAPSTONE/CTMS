@@ -48,8 +48,8 @@ export const PublicPageLayout: React.FC<PublicPageLayoutProps> = ({
 							onClick={onNavigateToDashboard ?? onBackToHome}
 							className="flex cursor-pointer items-center gap-3 text-2xl font-extrabold tracking-tight text-[#164027]"
 						>
-							<img src="/ctms_logo.png" alt="Logo CTMS" className="h-13 w-auto object-contain" />
-							<span>CTMS</span>
+							<img src="/ctms_logo.png" alt="Logo DiTrek" className="h-13 w-auto object-contain" />
+							<span>DiTrek</span>
 						</button>
 						<div className="flex items-center gap-3">
 							<Button variant="outline" size="sm" onClick={onNavigateToDashboard ?? onBackToHome}>

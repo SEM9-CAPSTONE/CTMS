@@ -40,7 +40,7 @@ const SAFETY_PILLARS = [
 	{
 		icon: CloudRain,
 		title: "Đánh giá rủi ro thời tiết theo khu vực",
-		body: "CTMS tự động đối chiếu dữ liệu dự báo thời tiết với bộ quy tắc an toàn của từng khu vực dã ngoại trước ngày khởi hành và trong suốt chuyến đi.",
+		body: "DiTrek tự động đối chiếu dữ liệu dự báo thời tiết với bộ quy tắc an toàn của từng khu vực dã ngoại trước ngày khởi hành và trong suốt chuyến đi.",
 	},
 	{
 		icon: MapPin,
@@ -79,7 +79,7 @@ export const SafetyCenterPage: React.FC<PublicPageProps> = ({
 	return (
 		<PublicPageLayout
 			eyebrow="Trung tâm an toàn dã ngoại"
-			title="Hệ thống bảo vệ nhiều lớp trên mọi hành trình CTMS"
+			title="Hệ thống bảo vệ nhiều lớp trên mọi hành trình DiTrek"
 			subtitle="Từ khâu kiểm tra thời tiết trước khi đặt chỗ, quản lý vùng nguy hiểm trên bản đồ cho đến phối hợp xử lý tình huống khẩn cấp cùng đơn vị tổ chức và người dẫn đường."
 			onBackToHome={onBackToHome}
 			onNavigateToLogin={onNavigateToLogin}
@@ -101,8 +101,8 @@ export const SafetyCenterPage: React.FC<PublicPageProps> = ({
 			<section className="rounded-2xl border border-[#dfe8df] bg-white p-6 shadow-xs sm:p-8">
 				<h2 className="text-lg font-semibold text-[#10221b]">Phân cấp cảnh báo rủi ro thời tiết</h2>
 				<p className="mt-1.5 text-sm leading-relaxed text-[#425048]">
-					Mỗi chuyến đi trên CTMS được giám sát theo ba mức cảnh báo thời tiết để người tham gia và
-					đơn vị tổ chức đưa ra quyết định kịp thời.
+					Mỗi chuyến đi trên DiTrek được giám sát theo ba mức cảnh báo thời tiết để người tham gia
+					và đơn vị tổ chức đưa ra quyết định kịp thời.
 				</p>
 
 				<div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -158,7 +158,7 @@ export const SafetyCenterPage: React.FC<PublicPageProps> = ({
 								Đọc Điều khoản và Chính sách
 							</Button>
 							<Button variant="outline" size="sm" onClick={() => onNavigateToPath("/mobile-app")}>
-								Xem ứng dụng di động CTMS
+								Xem ứng dụng di động DiTrek
 							</Button>
 						</div>
 					</div>

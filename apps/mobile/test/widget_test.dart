@@ -214,7 +214,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('CTMS'), findsOneWidget);
+    expect(find.text('DiTrek'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Đăng nhập →'), findsOneWidget);
   });
 
@@ -640,7 +640,7 @@ void main() {
         tester,
         find.text('Đăng ký ngay'),
       );
-      expect(find.text('Tham gia CTMS'), findsOneWidget);
+      expect(find.text('Tham gia DiTrek'), findsOneWidget);
 
       // Step 1 — Vai trò.
       await _tapVisible(tester, find.text('Porter (Người dẫn đường)'));
@@ -697,7 +697,7 @@ void main() {
         tester,
         find.widgetWithText(TextButton, 'Quay lại đăng nhập'),
       );
-      expect(find.text('CTMS'), findsOneWidget);
+      expect(find.text('DiTrek'), findsOneWidget);
     },
   );
 }

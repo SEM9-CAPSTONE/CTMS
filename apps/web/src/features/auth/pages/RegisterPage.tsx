@@ -89,7 +89,9 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
 				<div>
 					{/* Header Title */}
 					<div className="mb-4 text-center">
-						<h1 className="text-2xl font-extrabold tracking-tight text-[#164027]">Tham gia CTMS</h1>
+						<h1 className="text-2xl font-extrabold tracking-tight text-[#164027]">
+							Tham gia DiTrek
+						</h1>
 					</div>
 
 					{/* Stepper Progress Bar (Step 3 "Xác minh OTP" happens on VerifyOtpPage) */}
@@ -105,7 +107,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
 						<div>
 							<div className="mb-4">
 								<h2 className="text-xl font-extrabold tracking-tight text-[#10221b]">
-									Chào bạn, bạn muốn tham gia CTMS với vai trò nào?
+									Chào bạn, bạn muốn tham gia DiTrek với vai trò nào?
 								</h2>
 								<p className="mt-0.5 text-xs font-medium text-[#54655a]">
 									Chọn vai trò phù hợp nhất với nhu cầu của bạn để hệ thống tối ưu giao diện.
@@ -193,7 +195,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({
 										>
 											Điều khoản và Chính sách sử dụng
 										</button>{" "}
-										của CTMS.
+										của DiTrek.
 										{currentTerms && (
 											<span className="ml-1.5 inline-block rounded-full bg-[#eef7f0] px-2 py-0.5 text-[11px] font-semibold text-[#164027]">
 												{formatTermsVersionLabel(currentTerms.version)} · Hiệu lực{" "}

@@ -21,8 +21,8 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
 					onClick={(event) => handlePublicLinkClick(event, "/")}
 					className="flex items-center gap-3 text-2xl font-extrabold tracking-tight text-[#1c442f]"
 				>
-					<img src="/ctms_logo.png" alt="CTMS Logo" className="h-13 w-auto object-contain" />
-					<span>CTMS</span>
+					<img src="/ctms_logo.png" alt="DiTrek Logo" className="h-13 w-auto object-contain" />
+					<span>DiTrek</span>
 				</a>
 				<nav className="flex flex-wrap items-center gap-5 md:gap-7" aria-label="Điều hướng chính">
 					{NAV_ITEMS.map((item) => {

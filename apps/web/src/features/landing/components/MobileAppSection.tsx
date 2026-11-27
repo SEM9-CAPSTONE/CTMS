@@ -8,7 +8,7 @@ export const MobileAppSection: React.FC = () => {
 				<div className="w-full max-w-[460px] overflow-hidden rounded-[48px] border-[10px] border-[#283a2e] bg-white shadow-2xl shadow-black/25 sm:max-w-[500px] lg:max-w-[540px]">
 					<img
 						src="/figma_assets/mobile_app.png"
-						alt="Giao diện ứng dụng di động CTMS từ Figma"
+						alt="Giao diện ứng dụng di động DiTrek từ Figma"
 						className="block h-auto w-full object-cover transition-transform duration-500 hover:scale-105"
 					/>
 				</div>
@@ -18,7 +18,7 @@ export const MobileAppSection: React.FC = () => {
 					ỨNG DỤNG DI ĐỘNG
 				</span>
 				<h2 className="mb-3.5 text-2xl font-extrabold tracking-tight text-[#10221b] sm:text-3xl">
-					Mang CTMS theo bạn trong mọi chuyến đi
+					Mang DiTrek theo bạn trong mọi chuyến đi
 				</h2>
 				<p className="mb-5 text-base text-[#425048]">
 					Ứng dụng di động giúp bạn theo dõi lộ trình, kiểm tra an toàn và nhận hướng dẫn khẩn cấp

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 
-/// Standard CTMS Brand Logo widget with asset loading & resilient web fallbacks.
+/// Standard DiTrek Brand Logo widget with asset loading & resilient web fallbacks.
 class CtmsLogo extends StatelessWidget {
   const CtmsLogo({
     super.key,
@@ -53,7 +53,7 @@ class CtmsLogo extends StatelessWidget {
         if (showText) ...[
           const SizedBox(width: AppSpacing.sm),
           const Text(
-            'CTMS',
+            'DiTrek',
             style: TextStyle(
               color: AppColors.textPrimary,
               fontWeight: FontWeight.w800,

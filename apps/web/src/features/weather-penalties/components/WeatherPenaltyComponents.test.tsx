@@ -204,7 +204,7 @@ describe("HostWeatherPenaltiesCard", () => {
 		expect(account).toHaveTextContent("1028374659");
 		expect(account).toHaveTextContent("CONG TY TNHH CTMS VIET NAM");
 		expect(screen.getAllByTestId("weather-penalty-payment-due")[0]).toHaveTextContent(
-			"vào tài khoản CTMS ở trên"
+			"vào tài khoản DiTrek ở trên"
 		);
 		fireEvent.click(within(account).getByRole("button", { name: "Sao chép số tài khoản" }));
 		await waitFor(() => expect(writeText).toHaveBeenCalledWith("1028374659"));

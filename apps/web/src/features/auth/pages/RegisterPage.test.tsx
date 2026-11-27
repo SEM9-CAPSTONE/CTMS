@@ -102,7 +102,7 @@ describe("RegisterPage", () => {
 			/>
 		);
 		expect(
-			screen.getByText("Chào bạn, bạn muốn tham gia CTMS với vai trò nào?")
+			screen.getByText("Chào bạn, bạn muốn tham gia DiTrek với vai trò nào?")
 		).toBeInTheDocument();
 	});
 

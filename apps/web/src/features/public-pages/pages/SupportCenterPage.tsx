@@ -24,7 +24,7 @@ const FAQ_ITEMS: FaqItem[] = [
 	{
 		id: "register-otp",
 		category: "Tài khoản",
-		question: "Làm thế nào để đăng ký tài khoản và chọn vai trò trên CTMS?",
+		question: "Làm thế nào để đăng ký tài khoản và chọn vai trò trên DiTrek?",
 		answer:
 			"Bạn nhấn Đăng ký ở góc phải màn hình, chọn vai trò phù hợp (Người tham gia, Đơn vị tổ chức hoặc Người dẫn đường), đọc và xác nhận Điều khoản và Chính sách sử dụng, sau đó nhập mã xác thực gửi về thư điện tử để kích hoạt tài khoản.",
 	},
@@ -54,14 +54,14 @@ const FAQ_ITEMS: FaqItem[] = [
 		category: "An toàn và di động",
 		question: "Vì sao một số chuyến đi tạm ngừng nhận đặt chỗ khi thời tiết xấu?",
 		answer:
-			"CTMS theo dõi dự báo thời tiết theo từng khu vực. Khi điều kiện thời tiết chạm ngưỡng nguy cơ cao (Mức Đỏ), hệ thống tự động chặn đặt chỗ mới để bảo vệ an toàn cho người tham gia và hỗ trợ đơn vị tổ chức xử lý hoãn hoặc hủy chuyến.",
+			"DiTrek theo dõi dự báo thời tiết theo từng khu vực. Khi điều kiện thời tiết chạm ngưỡng nguy cơ cao (Mức Đỏ), hệ thống tự động chặn đặt chỗ mới để bảo vệ an toàn cho người tham gia và hỗ trợ đơn vị tổ chức xử lý hoãn hoặc hủy chuyến.",
 	},
 	{
 		id: "offline-map-mobile",
 		category: "An toàn và di động",
 		question: "Cách sử dụng bản đồ khi vào khu vực rừng núi không có sóng di động?",
 		answer:
-			"Trước giờ khởi hành, bạn mở ứng dụng di động CTMS khi còn kết nối mạng để tải sẵn gói bản đồ khu vực và lộ trình chuyến đi. Khi di chuyển trong vùng mất sóng, ứng dụng vẫn hiển thị tuyến đường và hỗ trợ tra cứu hướng dẫn sinh tồn cơ bản.",
+			"Trước giờ khởi hành, bạn mở ứng dụng di động DiTrek khi còn kết nối mạng để tải sẵn gói bản đồ khu vực và lộ trình chuyến đi. Khi di chuyển trong vùng mất sóng, ứng dụng vẫn hiển thị tuyến đường và hỗ trợ tra cứu hướng dẫn sinh tồn cơ bản.",
 	},
 ];
 
@@ -96,7 +96,7 @@ export const SupportCenterPage: React.FC<PublicPageProps> = ({
 
 	return (
 		<PublicPageLayout
-			eyebrow="Trung tâm hỗ trợ CTMS"
+			eyebrow="Trung tâm hỗ trợ DiTrek"
 			title="Hướng dẫn sử dụng và câu hỏi thường gặp"
 			subtitle="Tra cứu nhanh quy trình đăng ký, đặt chỗ, hủy chuyến, hoàn tiền, chia sẻ Hồ sơ sức khỏe và sử dụng ứng dụng di động khi đi dã ngoại."
 			onBackToHome={onBackToHome}
@@ -248,7 +248,7 @@ export const SupportCenterPage: React.FC<PublicPageProps> = ({
 					<div>
 						<h3 className="text-sm font-bold text-[#10221b]">Cần trao đổi trực tiếp?</h3>
 						<p className="mt-1.5 text-xs leading-relaxed text-[#425048]">
-							Gửi yêu cầu chi tiết cho bộ phận phụ trách CTMS nếu câu hỏi của bạn chưa có ở đây.
+							Gửi yêu cầu chi tiết cho bộ phận phụ trách DiTrek nếu câu hỏi của bạn chưa có ở đây.
 						</p>
 					</div>
 					<Button

@@ -322,7 +322,7 @@ class _TermsReconsentDialogState extends State<TermsReconsentDialog> {
                       ? null
                       : () => setState(() => _hasCheckedAgree = !_hasCheckedAgree),
                   child: Text(
-                    'Tôi đã đọc và đồng ý với Điều khoản và Điều kiện sử dụng CTMS (${formatTermsVersionLabel(activeVersion)}).',
+                    'Tôi đã đọc và đồng ý với Điều khoản và Điều kiện sử dụng DiTrek (${formatTermsVersionLabel(activeVersion)}).',
                     style: AppTypography.caption.copyWith(
                       color: AppColors.textPrimary,
                       fontWeight: FontWeight.w600,
@@ -399,7 +399,7 @@ class _TermsReconsentDialogState extends State<TermsReconsentDialog> {
         const SizedBox(height: AppSpacing.sm),
         Text(
           receipt != null
-              ? 'Bạn đã chấp thuận Điều khoản và Điều kiện sử dụng CTMS (phiên bản ${formatTermsVersionLabel(receipt.version)}) vào ${formatTermsDate(receipt.acceptedAt)}.'
+              ? 'Bạn đã chấp thuận Điều khoản và Điều kiện sử dụng DiTrek (phiên bản ${formatTermsVersionLabel(receipt.version)}) vào ${formatTermsDate(receipt.acceptedAt)}.'
               : 'Trạng thái chấp thuận điều khoản đã được lưu cho tài khoản của bạn.',
           style: AppTypography.body.copyWith(
             color: AppColors.textSecondary,

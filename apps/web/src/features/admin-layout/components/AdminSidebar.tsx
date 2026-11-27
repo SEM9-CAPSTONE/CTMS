@@ -29,7 +29,7 @@ export function AdminSidebar({
 
 	return (
 		<SidebarFrame
-			title="Quản trị CTMS"
+			title="Quản trị DiTrek"
 			brandLink={{ href: RoutePath.ADMIN_PERFORMANCE_REPORTS, label: "Về trang Báo cáo hiệu suất" }}
 			collapsed={collapsed}
 			onToggle={onToggle}

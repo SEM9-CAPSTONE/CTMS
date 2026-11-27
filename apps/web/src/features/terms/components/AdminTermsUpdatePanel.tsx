@@ -34,7 +34,7 @@ export const AdminTermsUpdatePanel: React.FC<AdminTermsUpdatePanelProps> = ({
 					<Globe className="mt-0.5 size-4 shrink-0 text-[#164027]" />
 					<div className="text-xs leading-relaxed">
 						<p className="font-bold text-[#164027]">
-							Toàn bộ hệ thống CTMS — Trang web và Ứng dụng di động
+							Toàn bộ hệ thống DiTrek — Trang web và Ứng dụng di động
 						</p>
 						<p className="mt-0.5 text-[#425048]">
 							Áp dụng cho Người tham gia, Đơn vị tổ chức và Người dẫn đường.

@@ -14,8 +14,9 @@ export function AdminPlatformBankAccountPage({
 						<Landmark className="size-7 text-[#164027]" /> Tài khoản nhận tiền phạt
 					</h1>
 					<p className="mt-1 text-sm text-[#667a6d]">
-						Cấu hình tài khoản ngân hàng của CTMS để Host chuyển khoản nộp tiền phạt thời tiết. Sau
-						khi Host chuyển, bạn đối chiếu sao kê và xác nhận trong Quản lý thời tiết › Phạt Host.
+						Cấu hình tài khoản ngân hàng của DiTrek để Host chuyển khoản nộp tiền phạt thời tiết.
+						Sau khi Host chuyển, bạn đối chiếu sao kê và xác nhận trong Quản lý thời tiết › Phạt
+						Host.
 					</p>
 				</div>
 				<PlatformBankAccountPanel />

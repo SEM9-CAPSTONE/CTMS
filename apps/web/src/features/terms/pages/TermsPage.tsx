@@ -132,8 +132,8 @@ export const TermsPage: React.FC<TermsPageProps> = ({
 							onClick={onNavigateToDashboard ?? onBackToHome}
 							className="flex cursor-pointer items-center gap-3 text-2xl font-extrabold tracking-tight text-[#164027]"
 						>
-							<img src="/ctms_logo.png" alt="CTMS Logo" className="h-13 w-auto object-contain" />
-							<span>CTMS</span>
+							<img src="/ctms_logo.png" alt="DiTrek Logo" className="h-13 w-auto object-contain" />
+							<span>DiTrek</span>
 						</button>
 						<div className="flex items-center gap-3">
 							<Button variant="outline" size="sm" onClick={onNavigateToDashboard ?? onBackToHome}>
@@ -174,7 +174,7 @@ export const TermsPage: React.FC<TermsPageProps> = ({
 								Tài liệu pháp lý và vận hành
 							</p>
 							<h1 className="text-2xl font-extrabold tracking-tight text-[#10221b] sm:text-3xl">
-								{activeTerms?.title ?? "Điều khoản và Điều kiện sử dụng CTMS"}
+								{activeTerms?.title ?? "Điều khoản và Điều kiện sử dụng DiTrek"}
 							</h1>
 							{activeTerms && (
 								<div className="flex flex-wrap items-center gap-3 pt-1 text-xs font-medium text-[#425048]">

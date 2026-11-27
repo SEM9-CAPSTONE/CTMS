@@ -7,7 +7,7 @@ const PRIVACY_SECTIONS = [
 	{
 		number: "1",
 		title: "Dữ liệu tài khoản và hồ sơ vai trò",
-		body: "Khi đăng ký tài khoản CTMS, hệ thống thu thập thông tin cơ bản phục vụ định danh và liên lạc như họ tên, địa chỉ thư điện tử, số điện thoại và vai trò sử dụng. Với người dẫn đường và đơn vị tổ chức, hệ thống lưu trữ bổ sung chứng chỉ chuyên môn, hồ sơ năng lực và thông tin tài khoản nhận thanh toán phục vụ xác minh và đối soát.",
+		body: "Khi đăng ký tài khoản DiTrek, hệ thống thu thập thông tin cơ bản phục vụ định danh và liên lạc như họ tên, địa chỉ thư điện tử, số điện thoại và vai trò sử dụng. Với người dẫn đường và đơn vị tổ chức, hệ thống lưu trữ bổ sung chứng chỉ chuyên môn, hồ sơ năng lực và thông tin tài khoản nhận thanh toán phục vụ xác minh và đối soát.",
 	},
 	{
 		number: "2",
@@ -27,7 +27,7 @@ const PRIVACY_SECTIONS = [
 	{
 		number: "5",
 		title: "Kiểm soát truy cập và nhật ký bảo mật",
-		body: "Dữ liệu trên CTMS được phân quyền theo đúng vai trò người dùng. Các tác vụ quan trọng như xác minh người dẫn đường, phê duyệt hoàn tiền, cập nhật điều khoản sử dụng hay khóa tài khoản đều được ghi nhận trong nhật ký hệ thống nhằm bảo đảm khả năng truy vết và phòng chống truy cập trái phép.",
+		body: "Dữ liệu trên DiTrek được phân quyền theo đúng vai trò người dùng. Các tác vụ quan trọng như xác minh người dẫn đường, phê duyệt hoàn tiền, cập nhật điều khoản sử dụng hay khóa tài khoản đều được ghi nhận trong nhật ký hệ thống nhằm bảo đảm khả năng truy vết và phòng chống truy cập trái phép.",
 	},
 ];
 
@@ -41,8 +41,8 @@ export const PrivacyPolicyPage: React.FC<PublicPageProps> = ({
 	return (
 		<PublicPageLayout
 			eyebrow="Bảo mật và quyền riêng tư"
-			title="Chính sách bảo mật dữ liệu CTMS"
-			subtitle="Nguyên tắc thu thập, sử dụng, phân quyền truy cập và bảo vệ thông tin cá nhân trên nền tảng web và ứng dụng di động CTMS."
+			title="Chính sách bảo mật dữ liệu DiTrek"
+			subtitle="Nguyên tắc thu thập, sử dụng, phân quyền truy cập và bảo vệ thông tin cá nhân trên nền tảng web và ứng dụng di động DiTrek."
 			onBackToHome={onBackToHome}
 			onNavigateToLogin={onNavigateToLogin}
 			onNavigateToRegister={onNavigateToRegister}
@@ -105,7 +105,7 @@ export const PrivacyPolicyPage: React.FC<PublicPageProps> = ({
 				</div>
 
 				<div className="mt-8 rounded-2xl border border-[#d6e7da] bg-[#f4f7f2] p-5">
-					<h3 className="text-sm font-bold text-[#164027]">Quyền kiểm soát của bạn trên CTMS</h3>
+					<h3 className="text-sm font-bold text-[#164027]">Quyền kiểm soát của bạn trên DiTrek</h3>
 					<ul className="mt-2.5 space-y-2 text-sm text-[#254431]">
 						<li className="flex items-start gap-2">
 							<CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#164027]" />
@@ -121,7 +121,7 @@ export const PrivacyPolicyPage: React.FC<PublicPageProps> = ({
 						<li className="flex items-start gap-2">
 							<CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#164027]" />
 							<span>
-								Liên hệ đội ngũ CTMS qua trang Hỗ trợ hoặc Liên hệ nếu cần giải đáp về dữ liệu tài
+								Liên hệ đội ngũ DiTrek qua trang Hỗ trợ hoặc Liên hệ nếu cần giải đáp về dữ liệu tài
 								khoản.
 							</span>
 						</li>

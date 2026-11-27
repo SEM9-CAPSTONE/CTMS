@@ -252,7 +252,7 @@ export const TermsReconsentModal: React.FC<TermsReconsentModalProps> = ({
 							className="mt-0.5 size-4 rounded border-[#b8c7bc] accent-[#164027]"
 						/>
 						<span className="leading-snug">
-							Tôi đã đọc và đồng ý với toàn bộ nội dung Điều khoản và Điều kiện sử dụng CTMS phiên
+							Tôi đã đọc và đồng ý với toàn bộ nội dung Điều khoản và Điều kiện sử dụng DiTrek phiên
 							bản {formatTermsVersionLabel(activeVersion)}.
 						</span>
 					</label>
@@ -293,7 +293,7 @@ export const TermsReconsentModal: React.FC<TermsReconsentModalProps> = ({
 					</div>
 					<div className="space-y-1.5">
 						<p className="text-sm leading-relaxed text-[#2f4c40]">
-							Bạn đã chấp thuận Điều khoản và Điều kiện sử dụng CTMS (phiên bản{" "}
+							Bạn đã chấp thuận Điều khoản và Điều kiện sử dụng DiTrek (phiên bản{" "}
 							<strong className="font-bold text-[#10221b]">
 								{formatTermsVersionLabel(acceptedReceipt.version)}
 							</strong>

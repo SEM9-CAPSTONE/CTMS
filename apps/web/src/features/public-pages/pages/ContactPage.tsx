@@ -19,28 +19,28 @@ const CONTACT_CHANNELS: Array<{
 		title: "Hỗ trợ người tham gia",
 		description:
 			"Giải đáp về đăng ký tài khoản, đặt chỗ chuyến đi, hủy trước chuyến đi và hoàn tiền.",
-		email: "support@ctms.local",
+		email: "support@ditrek.local",
 	},
 	{
 		topic: "host",
 		icon: Building2,
 		title: "Hợp tác đơn vị tổ chức",
 		description: "Hướng dẫn thiết lập tuyến đường, mở chuyến đi, quản lý thiết bị và đối soát.",
-		email: "partner@ctms.local",
+		email: "partner@ditrek.local",
 	},
 	{
 		topic: "porter",
 		icon: UserCheck,
 		title: "Xác minh người dẫn đường",
 		description: "Hỗ trợ nộp chứng chỉ chuyên môn, xét duyệt hồ sơ và nhận phân công dẫn đoàn.",
-		email: "guide@ctms.local",
+		email: "guide@ditrek.local",
 	},
 	{
 		topic: "safety",
 		icon: ShieldAlert,
 		title: "Báo cáo an toàn và tuyến đường",
 		description: "Tiếp nhận phản ánh về điểm nguy hiểm, sạt lở, biển báo hoặc vi phạm vận hành.",
-		email: "safety@ctms.local",
+		email: "safety@ditrek.local",
 	},
 ];
 
@@ -92,7 +92,7 @@ export const ContactPage: React.FC<PublicPageProps> = ({
 		}
 
 		toast.success(
-			`Đã ghi nhận yêu cầu "${TOPIC_LABELS[topic]}". Đội ngũ CTMS sẽ phản hồi tới ${email.trim()} trong thời gian sớm nhất.`
+			`Đã ghi nhận yêu cầu "${TOPIC_LABELS[topic]}". Đội ngũ DiTrek sẽ phản hồi tới ${email.trim()} trong thời gian sớm nhất.`
 		);
 		setFullName("");
 		setEmail("");
@@ -102,9 +102,9 @@ export const ContactPage: React.FC<PublicPageProps> = ({
 
 	return (
 		<PublicPageLayout
-			eyebrow="Kết nối với đội ngũ CTMS"
+			eyebrow="Kết nối với đội ngũ DiTrek"
 			title="Liên hệ và hợp tác vận hành"
-			subtitle="Chọn nhóm nội dung phù hợp hoặc gửi thông tin trực tiếp để bộ phận phụ trách CTMS hỗ trợ bạn kịp thời."
+			subtitle="Chọn nhóm nội dung phù hợp hoặc gửi thông tin trực tiếp để bộ phận phụ trách DiTrek hỗ trợ bạn kịp thời."
 			onBackToHome={onBackToHome}
 			onNavigateToLogin={onNavigateToLogin}
 			onNavigateToRegister={onNavigateToRegister}
@@ -247,7 +247,7 @@ export const ContactPage: React.FC<PublicPageProps> = ({
 									setMessage(event.target.value);
 									if (errors.message) setErrors((prev) => ({ ...prev, message: undefined }));
 								}}
-								placeholder="Mô tả rõ chuyến đi, tuyến đường hoặc nội dung bạn muốn CTMS hỗ trợ..."
+								placeholder="Mô tả rõ chuyến đi, tuyến đường hoặc nội dung bạn muốn DiTrek hỗ trợ..."
 								className="mt-1.5 w-full rounded-xl border border-[#dfe8df] bg-[#f7faf6] px-4 py-3 text-sm text-[#10221b] outline-none transition focus:border-[#164027] focus:bg-white"
 							/>
 							{errors.message && (

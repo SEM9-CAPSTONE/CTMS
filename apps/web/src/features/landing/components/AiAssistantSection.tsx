@@ -42,7 +42,7 @@ export const AiAssistantSection: React.FC = () => {
 							<Bot size={20} />
 							<div>
 								<strong className="block text-base font-bold text-[#10221b]">
-									Trợ lý Sinh tồn CTMS
+									Trợ lý Sinh tồn DiTrek
 								</strong>
 								<span className="text-xs text-[#425048]">Trợ lý vận hành 24/7</span>
 							</div>

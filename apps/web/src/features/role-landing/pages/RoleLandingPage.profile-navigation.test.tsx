@@ -117,7 +117,7 @@ describe("RoleLandingPage profile navigation", () => {
 			/>
 		);
 
-		expect(screen.getByText("Người hỗ trợ CTMS")).toBeInTheDocument();
+		expect(screen.getByText("Người hỗ trợ DiTrek")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Yêu cầu Trip" })).toBeInTheDocument();
 	});
 

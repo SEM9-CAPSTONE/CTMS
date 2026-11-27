@@ -228,7 +228,7 @@ export function useRegisterForm(onRegisterSuccess: () => void) {
 		if (!acceptedTerms) {
 			setSubmitError({
 				message:
-					"Vui lòng đọc và đồng ý với Điều khoản và Điều kiện sử dụng CTMS trước khi đăng ký.",
+					"Vui lòng đọc và đồng ý với Điều khoản và Điều kiện sử dụng DiTrek trước khi đăng ký.",
 			});
 			return;
 		}

@@ -32,7 +32,7 @@ export const AppRoleGuard: React.FC<AppRoleGuardProps> = ({
 					</div>
 					<h2 className="mt-4 text-2xl font-extrabold text-[#10221b]">Yêu cầu đăng nhập</h2>
 					<p className="mt-2 max-w-md text-sm text-[#54655a]">
-						Bạn cần đăng nhập để truy cập khu vực này. Vui lòng đăng nhập tài khoản CTMS của bạn.
+						Bạn cần đăng nhập để truy cập khu vực này. Vui lòng đăng nhập tài khoản DiTrek của bạn.
 					</p>
 					{onNavigateHome && (
 						<div className="mt-6">

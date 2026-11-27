@@ -52,8 +52,8 @@ const PLATFORM_DETAILS: Record<
 		requirement:
 			"Yêu cầu Android 9.0 trở lên, hỗ trợ định vị vệ tinh và dung lượng trống tối thiểu 200 MB cho bản đồ ngoại tuyến.",
 		steps: [
-			"Đăng ký hoặc đăng nhập tài khoản CTMS để đồng bộ danh sách chuyến đi đã đặt.",
-			"Mở ứng dụng CTMS trên thiết bị Android và cho phép quyền vị trí cùng thông báo.",
+			"Đăng ký hoặc đăng nhập tài khoản DiTrek để đồng bộ danh sách chuyến đi đã đặt.",
+			"Mở ứng dụng DiTrek trên thiết bị Android và cho phép quyền vị trí cùng thông báo.",
 			"Tải gói bản đồ khu vực chuyến đi khi có kết nối mạng trước giờ khởi hành.",
 		],
 	},
@@ -63,8 +63,8 @@ const PLATFORM_DETAILS: Record<
 		requirement:
 			"Yêu cầu iOS 15.0 trở lên, bật dịch vụ định vị chính xác để ghi nhận lộ trình ổn định trong chuyến đi.",
 		steps: [
-			"Đăng ký hoặc đăng nhập tài khoản CTMS để đồng bộ đặt chỗ và Hồ sơ sức khỏe tùy chọn.",
-			"Cài đặt ứng dụng CTMS trên iPhone và cấp quyền thông báo cảnh báo thời tiết.",
+			"Đăng ký hoặc đăng nhập tài khoản DiTrek để đồng bộ đặt chỗ và Hồ sơ sức khỏe tùy chọn.",
+			"Cài đặt ứng dụng DiTrek trên iPhone và cấp quyền thông báo cảnh báo thời tiết.",
 			"Kiểm tra gói bản đồ ngoại tuyến và mức pin dự phòng trước khi xuất phát.",
 		],
 	},
@@ -83,9 +83,9 @@ export const MobileAppPage: React.FC<MobileAppPageProps> = ({
 
 	return (
 		<PublicPageLayout
-			eyebrow="Ứng dụng di động CTMS"
+			eyebrow="Ứng dụng di động DiTrek"
 			title="Đồng hành trên mọi cung đường ngay cả khi mất sóng"
-			subtitle="Ứng dụng di động CTMS đồng bộ trực tiếp với tài khoản web của bạn, hỗ trợ bản đồ ngoại tuyến, theo dõi lịch trình, điểm danh chuyến đi và cảnh báo an toàn."
+			subtitle="Ứng dụng di động DiTrek đồng bộ trực tiếp với tài khoản web của bạn, hỗ trợ bản đồ ngoại tuyến, theo dõi lịch trình, điểm danh chuyến đi và cảnh báo an toàn."
 			onBackToHome={onBackToHome}
 			onNavigateToLogin={onNavigateToLogin}
 			onNavigateToRegister={onNavigateToRegister}
@@ -97,7 +97,7 @@ export const MobileAppPage: React.FC<MobileAppPageProps> = ({
 					onClick={onNavigateToRegister}
 					className="bg-[#164027] hover:bg-[#0f2e1c]"
 				>
-					<span>Tạo tài khoản CTMS</span>
+					<span>Tạo tài khoản DiTrek</span>
 					<ArrowRight className="ml-1.5 size-4" />
 				</Button>
 			}
@@ -125,7 +125,7 @@ export const MobileAppPage: React.FC<MobileAppPageProps> = ({
 
 					<div className="mt-5 flex flex-wrap items-center gap-2.5">
 						<h2 className="text-xl font-bold text-[#10221b]">
-							Phiên bản CTMS cho {activePlatform.label}
+							Phiên bản DiTrek cho {activePlatform.label}
 						</h2>
 						<StatusBadge tone="info">Đang triển khai</StatusBadge>
 					</div>
@@ -165,7 +165,7 @@ export const MobileAppPage: React.FC<MobileAppPageProps> = ({
 					<div className="w-full max-w-[320px] overflow-hidden rounded-[36px] border-8 border-[#283a2e] bg-white shadow-sm">
 						<img
 							src="/figma_assets/mobile_app.png"
-							alt="Màn hình ứng dụng di động CTMS"
+							alt="Màn hình ứng dụng di động DiTrek"
 							className="block h-auto w-full object-cover"
 						/>
 					</div>

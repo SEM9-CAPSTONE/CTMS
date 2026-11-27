@@ -15,7 +15,7 @@ class UnsupportedMobileRoleScreen extends ConsumerWidget {
     final user = ref.watch(authControllerProvider).valueOrNull;
     final message = user == null
         ? 'Vai trò này chưa hỗ trợ trên ứng dụng mobile.'
-        : '${user.displayName} · ${user.email}\nVai trò này quản lý CTMS trên web dashboard.';
+        : '${user.displayName} · ${user.email}\nVai trò này quản lý DiTrek trên web dashboard.';
 
     return CtmsScaffold(
       title: 'Không hỗ trợ trên mobile',
