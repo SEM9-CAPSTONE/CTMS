@@ -1,0 +1,4 @@
+# Overrides terraform.tfvars when passed explicitly with -var-file.
+domain_name     = "dev.ditrek.io.vn"
+dns_zone_name   = "ditrek.io.vn"
+instance_status = "RUNNING"

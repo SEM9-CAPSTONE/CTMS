@@ -21,9 +21,26 @@ variable "credentials_file" {
 }
 
 variable "domain_name" {
-  description = "Custom domain name (e.g. ditrek.io.vn)"
+  description = "Public hostname served by the VM"
   type        = string
   default     = "ditrek.io.vn"
+}
+
+variable "dns_zone_name" {
+  description = "DNS zone containing domain_name. Defaults to domain_name for an apex deployment."
+  type        = string
+  default     = null
+}
+
+variable "instance_status" {
+  description = "Desired power state for the VM"
+  type        = string
+  default     = "TERMINATED"
+
+  validation {
+    condition     = contains(["RUNNING", "TERMINATED"], var.instance_status)
+    error_message = "Set instance_status to RUNNING or TERMINATED."
+  }
 }
 
 variable "machine_type" {

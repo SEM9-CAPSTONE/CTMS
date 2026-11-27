@@ -3,7 +3,7 @@ resource "google_compute_instance" "server" {
   name           = "ctms-server"
   machine_type   = var.machine_type
   zone           = var.zone
-  desired_status = "TERMINATED" # Dừng máy ảo để tiết kiệm chi phí qua đêm
+  desired_status = var.instance_status
   tags           = ["ctms-web-server"]
 
   boot_disk {
