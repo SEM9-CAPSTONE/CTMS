@@ -1,7 +1,8 @@
 import type { MapMouseEvent, Marker } from "maplibre-gl";
 import { useEffect, useRef } from "react";
 import type { GeoJsonLineString, Position } from "../types";
-import { waypointMarker } from "../utils/route-map";
+import { type RouteLineHit, findRouteLineHit } from "../utils/route-line-hit";
+import { DRAWING_POINT_CLASS, drawingPointLabel } from "../utils/route-map";
 import { useRouteMapSurface } from "./useRouteMapSurface";
 
 function waypointPosition({ lng, lat }: { lng: number; lat: number }): Position {
@@ -14,11 +15,13 @@ export function useRouteGeometryMap(
 	waypoints: Position[],
 	disabled: boolean,
 	onChange: (waypoints: Position[]) => void,
-	onSelect: (index: number) => void
+	onSelect: (index: number) => void,
+	onInsert?: (hit: RouteLineHit) => void
 ) {
 	const markersRef = useRef<Marker[]>([]);
 	const onChangeRef = useRef(onChange);
 	const onSelectRef = useRef(onSelect);
+	const onInsertRef = useRef(onInsert);
 	const valueRef = useRef(value);
 	const waypointsRef = useRef(waypoints);
 	const disabledRef = useRef(disabled);
@@ -26,10 +29,11 @@ export function useRouteGeometryMap(
 	useEffect(() => {
 		onChangeRef.current = onChange;
 		onSelectRef.current = onSelect;
+		onInsertRef.current = onInsert;
 		valueRef.current = value;
 		waypointsRef.current = waypoints;
 		disabledRef.current = disabled;
-	}, [disabled, onChange, onSelect, value, waypoints]);
+	}, [disabled, onChange, onInsert, onSelect, value, waypoints]);
 
 	const surface = useRouteMapSurface(
 		(map) => {
@@ -51,8 +55,20 @@ export function useRouteGeometryMap(
 				target.closest("[data-safety-ui], .maplibregl-marker, .maplibregl-popup, .maplibregl-ctrl")
 			)
 				return;
-			if (!disabledRef.current)
-				onChangeRef.current([...waypointsRef.current, waypointPosition(event.lngLat)]);
+			if (disabledRef.current) return;
+			if (onInsertRef.current) {
+				const hit = findRouteLineHit(
+					valueRef.current.coordinates,
+					event.point,
+					(point) => event.target.project(point),
+					10
+				);
+				if (hit) {
+					onInsertRef.current(hit);
+					return;
+				}
+			}
+			onChangeRef.current([...waypointsRef.current, waypointPosition(event.lngLat)]);
 		},
 		value.coordinates[0]
 	);
@@ -73,12 +89,10 @@ export function useRouteGeometryMap(
 			if (disposed) return;
 			markersRef.current = waypoints.map((position, index) => {
 				const element = document.createElement("button");
-				const { label, symbol, color } = waypointMarker(index, waypoints.length);
 				element.type = "button";
-				element.className = `size-8 rounded-full border-2 border-white text-xs font-bold text-white shadow ${color}`;
+				element.className = DRAWING_POINT_CLASS;
 				element.style.zIndex = "10";
-				element.ariaLabel = label;
-				element.textContent = symbol;
+				element.ariaLabel = drawingPointLabel(index);
 				element.onclick = (event) => {
 					event.stopPropagation();
 					onSelectRef.current(index);

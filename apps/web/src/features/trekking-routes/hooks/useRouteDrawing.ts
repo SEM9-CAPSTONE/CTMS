@@ -4,27 +4,26 @@ import {
 	type Position,
 	ROUTE_DRAWING_MODES,
 	type RouteDrawing,
-	type RouteDrawingMode,
 } from "../types";
 import {
 	type DrawingSnapshot,
 	type RouteEdit,
 	RouteEditError,
-	SegmentRoutingError,
+	insertDrawingPoint,
 	resolveRouteEdit,
 	restoreDrawing,
 	samePosition,
 	segmentDraft,
 	serializeDrawing,
 } from "../utils/hybrid-route";
+import type { RouteLineHit } from "../utils/route-line-hit";
 
 const ROUTING_DEBOUNCE_MS = 400;
 const HISTORY_LIMIT = 50;
 type FailedEdit = {
-	edit: RouteEdit;
+	edit?: RouteEdit;
 	message: string;
-	segmentIndex?: number;
-	connection?: GeoJsonLineString;
+	pendingPoints?: Position[];
 };
 
 interface Options {
@@ -38,12 +37,14 @@ export function useRouteDrawing({ value, initialDrawing, onChange, onBlockedChan
 	const [committed, setCommitted] = useState(() => restoreDrawing(value, initialDrawing));
 	const current = useRef(committed);
 	const history = useRef<DrawingSnapshot[]>([]);
-	const [snapping, setSnapping] = useState(true);
 	const [blocked, setBlocked] = useState(false);
 	const [loading, setLoading] = useState(false);
 	const [failure, setFailure] = useState<FailedEdit>();
-	const [reconnectIndex, setReconnectIndex] = useState<number>();
-	const running = useRef<{ controller: AbortController; timer?: number }>();
+	const running = useRef<{
+		controller: AbortController;
+		timer?: number;
+		pendingPoints?: Position[];
+	}>();
 	const handlers = useRef({ onChange, onBlockedChange });
 
 	useEffect(() => {
@@ -68,7 +69,6 @@ export function useRouteDrawing({ value, initialDrawing, onChange, onBlockedChan
 		running.current = undefined;
 		setLoading(false);
 		setFailure(undefined);
-		setReconnectIndex(undefined);
 		block(false);
 	}
 
@@ -84,9 +84,12 @@ export function useRouteDrawing({ value, initialDrawing, onChange, onBlockedChan
 		cancelEdit();
 	}
 
-	function startEdit(edit: RouteEdit) {
+	function startEdit(edit: RouteEdit, pendingPoints?: Position[]) {
 		cancelEdit();
-		const job: NonNullable<typeof running.current> = { controller: new AbortController() };
+		const job: NonNullable<typeof running.current> = {
+			controller: new AbortController(),
+			pendingPoints,
+		};
 		running.current = job;
 		const needsRouting = edit.segments.some(
 			(segment) => !segment.geometry && segment.mode === ROUTE_DRAWING_MODES.SMART
@@ -96,7 +99,10 @@ export function useRouteDrawing({ value, initialDrawing, onChange, onBlockedChan
 		const resolve = async () => {
 			try {
 				const next = await resolveRouteEdit(edit, job.controller.signal);
-				if (running.current === job && !job.controller.signal.aborted) commit(next);
+				if (running.current !== job || job.controller.signal.aborted) return;
+				const following = job.pendingPoints?.shift();
+				commit(next);
+				if (following) appendPoint(following, job.pendingPoints);
 			} catch (error) {
 				if (running.current !== job || job.controller.signal.aborted) return;
 				running.current = undefined;
@@ -105,8 +111,7 @@ export function useRouteDrawing({ value, initialDrawing, onChange, onBlockedChan
 					edit,
 					message:
 						error instanceof RouteEditError ? error.message : "Không thể cập nhật tuyến đường.",
-					segmentIndex: error instanceof SegmentRoutingError ? error.index : undefined,
-					connection: error instanceof SegmentRoutingError ? error.connection : undefined,
+					pendingPoints: job.pendingPoints,
 				});
 			}
 		};
@@ -114,40 +119,55 @@ export function useRouteDrawing({ value, initialDrawing, onChange, onBlockedChan
 		else void resolve();
 	}
 
+	function appendPoint(endpoint: Position, pendingPoints: Position[] = []) {
+		const { waypoints, segments } = current.current;
+		if (!waypoints.length) {
+			commit({ waypoints: [endpoint], segments: [] });
+			return;
+		}
+		if (samePosition(endpoint, waypoints[waypoints.length - 1])) {
+			const following = pendingPoints.shift();
+			if (following) appendPoint(following, pendingPoints);
+			return;
+		}
+		startEdit(
+			{
+				waypoints: [...waypoints, endpoint],
+				segments: [...segments, segmentDraft(ROUTE_DRAWING_MODES.SMART)],
+				movable: segments.length ? [waypoints.length] : [0, 1],
+			},
+			pendingPoints
+		);
+	}
+
 	function updateWaypoints(next: Position[]) {
 		const { waypoints, segments } = current.current;
-		if (!waypoints.length && next.length === 1) {
-			commit({ waypoints: next, segments: [] });
-		} else if (next.length === waypoints.length + 1) {
+		if (next.length === waypoints.length + 1) {
 			const endpoint = next[next.length - 1];
-			if (samePosition(endpoint, waypoints[waypoints.length - 1])) return;
-			startEdit({
-				waypoints: [...waypoints, endpoint],
-				segments: [
-					...segments,
-					segmentDraft(snapping ? ROUTE_DRAWING_MODES.SMART : ROUTE_DRAWING_MODES.MANUAL),
-				],
-				movable: segments.length ? [waypoints.length] : [0, 1],
-				allowManualConnector: segments.length > 0,
-			});
+			if (running.current?.pendingPoints) running.current.pendingPoints.push(endpoint);
+			else appendPoint(endpoint, failure?.pendingPoints ?? []);
 		} else if (next.length === waypoints.length) {
 			const moved = next.findIndex((point, index) => !samePosition(point, waypoints[index]));
 			if (moved < 0) return;
 			if (!segments.length) {
+				const failedDestination = failure?.edit?.waypoints[1];
 				commit({ waypoints: next, segments: [] });
+				if (failedDestination) appendPoint(failedDestination, failure?.pendingPoints);
 				return;
 			}
 			startEdit({
 				waypoints: next,
 				segments: segments.map((segment, index) =>
-					index === moved || index + 1 === moved ? { id: segment.id, mode: segment.mode } : segment
+					index === moved || index + 1 === moved
+						? { id: segment.id, mode: ROUTE_DRAWING_MODES.SMART }
+						: segment
 				),
 				movable: [moved],
 			});
 		}
 	}
 
-	function remove(index: number, chosenMode?: RouteDrawingMode) {
+	function remove(index: number) {
 		const { waypoints, segments } = current.current;
 		if (index < 0 || index >= waypoints.length) return;
 		const next = waypoints.filter((_, waypoint) => waypoint !== index);
@@ -158,19 +178,11 @@ export function useRouteDrawing({ value, initialDrawing, onChange, onBlockedChan
 			});
 			return;
 		}
-		const before = segments[index - 1];
-		const after = segments[index];
-		if (before.mode !== after.mode && !chosenMode) {
-			cancelEdit();
-			setReconnectIndex(index);
-			block(true);
-			return;
-		}
 		startEdit({
 			waypoints: next,
 			segments: [
 				...segments.slice(0, index - 1),
-				segmentDraft(chosenMode ?? before.mode),
+				segmentDraft(ROUTE_DRAWING_MODES.SMART),
 				...segments.slice(index + 1),
 			],
 			movable: [],
@@ -179,22 +191,27 @@ export function useRouteDrawing({ value, initialDrawing, onChange, onBlockedChan
 
 	return {
 		waypoints: committed.waypoints,
-		snapping,
-		setSnapping,
-		hasManual: committed.segments.some((segment) => segment.mode === ROUTE_DRAWING_MODES.MANUAL),
 		blocked,
 		loading,
 		error: failure?.message,
-		canFallback: failure?.segmentIndex !== undefined,
-		canConnectToPath: Boolean(failure?.connection),
+		canRetry: Boolean(failure?.edit),
 		canUndo: history.current.length > 0 || blocked,
-		reconnecting: reconnectIndex !== undefined,
 		updateWaypoints,
+		insertPoint(hit: RouteLineHit) {
+			try {
+				const next = insertDrawingPoint(current.current, hit);
+				if (next) commit(next);
+			} catch (error) {
+				cancelEdit();
+				setFailure({
+					message: error instanceof RouteEditError ? error.message : "Không thể thêm điểm vẽ.",
+				});
+			}
+		},
 		remove,
 		cancelEdit,
 		clear() {
 			commit({ waypoints: [], segments: [] });
-			setSnapping(true);
 		},
 		undo() {
 			if (blocked) {
@@ -204,41 +221,8 @@ export function useRouteDrawing({ value, initialDrawing, onChange, onBlockedChan
 			const previous = history.current.pop();
 			if (previous) commit(previous, false);
 		},
-		reconnect(mode: RouteDrawingMode) {
-			if (reconnectIndex !== undefined) remove(reconnectIndex, mode);
-		},
 		retry() {
-			if (failure) startEdit(failure.edit);
-		},
-		drawFailedSegmentManually() {
-			if (failure?.segmentIndex === undefined) return;
-			startEdit({
-				...failure.edit,
-				segments: failure.edit.segments.map((segment, index) =>
-					index === failure.segmentIndex
-						? { id: segment.id, mode: ROUTE_DRAWING_MODES.MANUAL }
-						: segment
-				),
-			});
-		},
-		connectToPath() {
-			if (!failure?.connection) return;
-			const { waypoints, segments } = failure.edit;
-			const geometry = failure.connection;
-			const last = segments[segments.length - 1];
-			startEdit({
-				waypoints: [
-					...waypoints.slice(0, -1),
-					geometry.coordinates[0],
-					geometry.coordinates[geometry.coordinates.length - 1],
-				],
-				segments: [
-					...segments.slice(0, -1),
-					segmentDraft(ROUTE_DRAWING_MODES.MANUAL),
-					{ ...last, geometry },
-				],
-				movable: [],
-			});
+			if (failure?.edit) startEdit(failure.edit, failure.pendingPoints);
 		},
 	};
 }

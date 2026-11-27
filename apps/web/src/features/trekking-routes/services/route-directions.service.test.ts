@@ -52,7 +52,10 @@ describe("MapTiler pedestrian directions", () => {
 	it("accepts positional responses and rejects remote snaps and disconnected legs", async () => {
 		mockResponse([start, bend, stop]);
 		await expect(request()).resolves.toMatchObject({ coordinates: [start, bend, stop] });
-		await expect(request([start, [107.585, 16.468]])).rejects.toThrow("hơn 75 m");
+		const remote: Position = [107.585, 16.468];
+		await expect(request([remote, stop])).rejects.toMatchObject({ waypointIndices: [0] });
+		await expect(request([start, remote])).rejects.toMatchObject({ waypointIndices: [1] });
+		await expect(request([remote, remote])).rejects.toMatchObject({ waypointIndices: [0, 1] });
 		mockResponse([start, stop], [[107.5801, 16.468], finish]);
 		await expect(request([start, stop, finish])).rejects.toThrow("không hợp lệ");
 	});

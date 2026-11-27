@@ -101,17 +101,19 @@ it("sends the decoded MapTiler line to terrain and each safety provider, and mea
 	expect(screen.getByTestId("preview-length")).not.toHaveTextContent(`${chordMeters} m`);
 
 	post.mockClear();
-	fireEvent.click(screen.getByRole("switch", { name: "Tự động bám đường" }));
-	const manualEnd = [107.5803, 16.4683];
-	fireEvent.click(mapButton, { clientX: manualEnd[0] + 180, clientY: 90 - manualEnd[1] });
-	await act(() => vi.advanceTimersByTimeAsync(0));
+	const nextEnd = [107.5803, 16.4683];
+	fireEvent.click(mapButton, { clientX: nextEnd[0] + 180, clientY: 90 - nextEnd[1] });
+	await act(() => vi.advanceTimersByTimeAsync(400));
+	await act(async () =>
+		completeRouting(Response.json({ route: { legs: [{ geometry: [end, nextEnd] }] } }))
+	);
 	await act(() => vi.advanceTimersByTimeAsync(TERRAIN_DEBOUNCE_MS));
-	const hybrid = { type: "LineString", coordinates: [...routed.coordinates, manualEnd] };
-	expect(fetchDirections).toHaveBeenCalledTimes(1);
+	const extended = { type: "LineString", coordinates: [...routed.coordinates, nextEnd] };
+	expect(fetchDirections).toHaveBeenCalledTimes(2);
 	expect(post.mock.calls.map(([endpoint, body]) => [endpoint, body])).toEqual(
 		expect.arrayContaining([
-			[terrainEndpoint, { geometry: hybrid }],
-			...SAFETY_PROVIDERS.map((source) => [safetyEndpoint, { source, geometry: hybrid }]),
+			[terrainEndpoint, { geometry: extended }],
+			...SAFETY_PROVIDERS.map((source) => [safetyEndpoint, { source, geometry: extended }]),
 		])
 	);
 	view.unmount();

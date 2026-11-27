@@ -2,7 +2,11 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { useRouteSafety } from "../../route-safety/hooks/useRouteSafety";
 import { useRouteTerrain } from "../../route-safety/hooks/useRouteTerrain";
-import { RouteDirectionsError, fetchRouteDirections } from "../services/route-directions.service";
+import {
+	RouteDirectionsError,
+	RouteSnapDistanceError,
+	fetchRouteDirections,
+} from "../services/route-directions.service";
 import type { CreatedTrekkingRoute, GeoJsonLineString, Position } from "../types";
 import { CreateTrekkingRouteForm } from "./CreateTrekkingRouteForm";
 
@@ -57,7 +61,6 @@ const mapClick = ([lng, lat]: Position) =>
 		clientY: 90 - lat,
 	});
 const settle = () => act(() => vi.advanceTimersByTimeAsync(400));
-const toggle = () => fireEvent.click(screen.getByRole("switch", { name: "Tự động bám đường" }));
 const click = (name: string) => fireEvent.click(screen.getByRole("button", { name }));
 
 function setup(existing?: CreatedTrekkingRoute) {
@@ -88,38 +91,38 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-it("appends smart, manual, smart segments without changing earlier geometry and saves their boundaries", async () => {
+it("routes each appended point in click order and saves the segment boundaries", async () => {
 	directions
 		.mockResolvedValueOnce(line(a, firstBend, b))
+		.mockResolvedValueOnce(line(b, c))
 		.mockResolvedValueOnce(line(c, lastBend, d));
 	const submit = setup();
 	fireEvent.change(screen.getByLabelText("Tên tuyến"), { target: { value: route.name } });
 	fireEvent.change(screen.getByLabelText("Thời lượng dự kiến (phút)"), {
 		target: { value: "120" },
 	});
-	expect(screen.getByRole("switch")).toBeChecked();
+	expect(screen.queryByRole("switch")).not.toBeInTheDocument();
 	mapClick(a);
 	await settle();
 	expect(directions).not.toHaveBeenCalled();
 	mapClick(b);
-	await settle();
-	expect(useRouteSafety).toHaveBeenLastCalledWith(line(a, firstBend, b), undefined);
-	toggle();
-	expect(useRouteSafety).toHaveBeenLastCalledWith(line(a, firstBend, b), undefined);
 	mapClick(c);
-	await settle();
-	expect(useRouteSafety).toHaveBeenLastCalledWith(line(a, firstBend, b, c), undefined);
-	expect(directions).toHaveBeenCalledTimes(1);
-	toggle();
 	mapClick(d);
 	await settle();
+	await settle();
+	await settle();
 	expect(directions).toHaveBeenNthCalledWith(1, [a, b], expect.any(AbortSignal));
-	expect(directions).toHaveBeenNthCalledWith(2, [c, d], expect.any(AbortSignal));
-	expect(directions).toHaveBeenCalledTimes(2);
+	expect(directions).toHaveBeenNthCalledWith(2, [b, c], expect.any(AbortSignal));
+	expect(directions).toHaveBeenNthCalledWith(3, [c, d], expect.any(AbortSignal));
+	expect(directions).toHaveBeenCalledTimes(3);
 	expect(useRouteTerrain).toHaveBeenLastCalledWith(hybrid, "120");
 	expect(useRouteSafety).toHaveBeenLastCalledWith(hybrid, undefined);
-	expect(screen.getAllByRole("button", { name: /Điểm trung gian/ })).toHaveLength(2);
-	expect(screen.getByText(/Các đoạn vẽ thủ công chưa được đối chiếu/)).toBeInTheDocument();
+	const drawingPoints = screen.getAllByRole("button", { name: /^Điểm vẽ \d+$/ });
+	expect(drawingPoints).toHaveLength(4);
+	expect(drawingPoints.every((point) => point.textContent === "")).toBe(true);
+	expect(
+		screen.queryByRole("button", { name: /Điểm bắt đầu|Điểm kết thúc|Điểm trung gian/ })
+	).not.toBeInTheDocument();
 	await submitForm();
 	expect(submit).toHaveBeenCalledWith(
 		expect.objectContaining({
@@ -129,7 +132,7 @@ it("appends smart, manual, smart segments without changing earlier geometry and 
 				waypoints: [a, b, c, d],
 				segments: [
 					{ id: expect.any(String), mode: "smart", endIndex: 2 },
-					{ id: expect.any(String), mode: "manual", endIndex: 3 },
+					{ id: expect.any(String), mode: "smart", endIndex: 3 },
 					{ id: expect.any(String), mode: "smart", endIndex: 5 },
 				],
 			},
@@ -142,16 +145,17 @@ it("reopens a hybrid route, edits only its adjacent segments and undoes geometry
 	await settle();
 	expect(directions).not.toHaveBeenCalled();
 	expect(useRouteSafety).toHaveBeenLastCalledWith(hybrid, route.id);
-	const marker = screen.getByRole("button", { name: "Điểm trung gian 1" });
+	const marker = screen.getByRole("button", { name: "Điểm vẽ 2" });
 	marker.setPointerCapture = vi.fn();
-	directions.mockResolvedValueOnce(line(a, firstBend, moved));
+	directions.mockResolvedValueOnce(line(a, firstBend, moved)).mockResolvedValueOnce(line(moved, c));
 	fireEvent.pointerDown(marker, { pointerId: 1 });
 	fireEvent.pointerMove(marker, { clientX: moved[0] + 180, clientY: 90 - moved[1] });
 	await settle();
 	expect(directions).not.toHaveBeenCalled();
 	fireEvent.pointerUp(marker, { clientX: moved[0] + 180, clientY: 90 - moved[1] });
 	await settle();
-	expect(directions).toHaveBeenCalledExactlyOnceWith([a, moved], expect.any(AbortSignal));
+	expect(directions).toHaveBeenNthCalledWith(1, [a, moved], expect.any(AbortSignal));
+	expect(directions).toHaveBeenNthCalledWith(2, [moved, c], expect.any(AbortSignal));
 	expect(useRouteSafety).toHaveBeenLastCalledWith(
 		line(a, firstBend, moved, c, lastBend, d),
 		route.id
@@ -162,25 +166,24 @@ it("reopens a hybrid route, edits only its adjacent segments and undoes geometry
 	expect(submit).toHaveBeenCalledWith(
 		expect.objectContaining({ geometry: hybrid, drawing: route.drawing })
 	);
-	expect(directions).toHaveBeenCalledTimes(1);
+	expect(directions).toHaveBeenCalledTimes(2);
 });
 
-it("asks how to reconnect a mixed junction and leaves the unrelated segment unchanged", async () => {
+it("reconnects a mixed junction by road and leaves the unrelated segment unchanged", async () => {
 	setup(route);
-	click("Điểm trung gian 1");
+	directions.mockResolvedValueOnce(line(a, c));
+	click("Điểm vẽ 2");
 	click("Xóa điểm đã chọn");
-	expect(screen.getByText(/Chọn cách nối hai điểm còn lại/)).toBeInTheDocument();
-	click("Nối thủ công");
 	await settle();
-	expect(directions).not.toHaveBeenCalled();
+	expect(directions).toHaveBeenCalledExactlyOnceWith([a, c], expect.any(AbortSignal));
 	expect(useRouteSafety).toHaveBeenLastCalledWith(line(a, c, lastBend, d), route.id);
 	click("Xóa và vẽ lại");
-	expect(screen.queryByRole("button", { name: "Điểm bắt đầu" })).not.toBeInTheDocument();
+	expect(screen.queryByRole("button", { name: /^Điểm vẽ \d+$/ })).not.toBeInTheDocument();
 	click("Hoàn tác");
 	expect(useRouteSafety).toHaveBeenLastCalledWith(line(a, c, lastBend, d), route.id);
 });
 
-it("locks the shared snapped endpoint while updating two smart segments, even with the switch off", async () => {
+it("locks the shared snapped endpoint while updating two segments", async () => {
 	const metadata = route.drawing;
 	if (metadata?.mode !== "hybrid") throw new Error("Expected hybrid fixture");
 	setup({
@@ -190,12 +193,11 @@ it("locks the shared snapped endpoint while updating two smart segments, even wi
 			segments: metadata.segments.map((segment) => ({ ...segment, mode: "smart" })),
 		},
 	});
-	toggle();
 	const snapped: Position = [107.591001, 16.462];
 	directions
 		.mockResolvedValueOnce(line(a, firstBend, snapped))
 		.mockResolvedValueOnce(line(snapped, c));
-	const marker = screen.getByRole("button", { name: "Điểm trung gian 1" });
+	const marker = screen.getByRole("button", { name: "Điểm vẽ 2" });
 	marker.setPointerCapture = vi.fn();
 	fireEvent.pointerDown(marker, { pointerId: 1 });
 	fireEvent.pointerUp(marker, { clientX: moved[0] + 180, clientY: 90 - moved[1] });
@@ -209,7 +211,7 @@ it("locks the shared snapped endpoint while updating two smart segments, even wi
 	);
 });
 
-it("rejects a disconnected snap, keeps the route and confirms a fallback only for the new segment", async () => {
+it("rejects disconnected routing and keeps the existing route when the change is cancelled", async () => {
 	const submit = setup(route);
 	const endpoint: Position = [107.598, 16.481];
 	directions.mockRejectedValueOnce(new RouteDirectionsError("Không tìm thấy đường đi bộ."));
@@ -220,29 +222,48 @@ it("rejects a disconnected snap, keeps the route and confirms a fallback only fo
 	expect(screen.getByRole("button", { name: "Lưu thay đổi" })).toBeDisabled();
 	click("Thử tìm đường lại");
 	await settle();
-	expect(screen.getByRole("alert")).toHaveTextContent("không nối đúng điểm");
+	expect(screen.getByRole("alert")).toHaveTextContent("Chưa tìm được đường đi bộ nối liền");
 	expect(directions).toHaveBeenLastCalledWith([d, endpoint], expect.any(AbortSignal));
-	click("Vẽ thủ công đoạn này");
-	click("Xác nhận nối thủ công");
-	await settle();
-	expect(screen.getByRole("switch")).toBeChecked();
-	expect(useRouteSafety).toHaveBeenLastCalledWith(line(...hybrid.coordinates, endpoint), route.id);
+	click("Bỏ thay đổi");
+	expect(useRouteSafety).toHaveBeenLastCalledWith(hybrid, route.id);
 	await submitForm();
 	expect(submit).toHaveBeenCalledWith(
 		expect.objectContaining({
-			drawing: expect.objectContaining({
-				segments: [
-					{ id: "first", mode: "smart", endIndex: 2 },
-					{ id: "second", mode: "manual", endIndex: 3 },
-					{ id: "third", mode: "smart", endIndex: 5 },
-					{ id: expect.any(String), mode: "manual", endIndex: 6 },
-				],
-			}),
+			drawing: route.drawing,
 		})
 	);
 });
 
-it("ignores an obsolete response after selecting a different endpoint", async () => {
+it("identifies the first drawing point and retries to the chosen destination when moved", async () => {
+	directions
+		.mockRejectedValueOnce(new RouteSnapDistanceError([0], 75))
+		.mockResolvedValueOnce(line(moved, c));
+	setup();
+	mapClick(a);
+	mapClick(c);
+	await settle();
+	expect(screen.getByRole("alert")).toHaveTextContent("Điểm vẽ 1 cách tuyến đi bộ");
+	const marker = screen.getByRole("button", { name: "Điểm vẽ 1" });
+	marker.setPointerCapture = vi.fn();
+	fireEvent.pointerDown(marker, { pointerId: 1 });
+	fireEvent.pointerUp(marker, { clientX: moved[0] + 180, clientY: 90 - moved[1] });
+	await settle();
+	expect(directions).toHaveBeenLastCalledWith([moved, c], expect.any(AbortSignal));
+	expect(useRouteSafety).toHaveBeenLastCalledWith(line(moved, c), undefined);
+});
+
+it("shows the route point number for a remote snap when appending to an existing route", async () => {
+	directions.mockRejectedValueOnce(new RouteSnapDistanceError([1], 75));
+	setup(route);
+	mapClick([107.598, 16.481]);
+	await settle();
+	expect(screen.getByRole("alert")).toHaveTextContent("Điểm vẽ 5 cách tuyến đi bộ");
+	expect(screen.getAllByRole("button", { name: /^Điểm vẽ \d+$/ })).toHaveLength(4);
+	click("Bỏ thay đổi");
+	expect(useRouteSafety).toHaveBeenLastCalledWith(hybrid, route.id);
+});
+
+it("cancels pending points and ignores an obsolete response after undo", async () => {
 	let finishOld: (value: GeoJsonLineString) => void = () => undefined;
 	directions.mockImplementationOnce(
 		() =>
@@ -258,40 +279,46 @@ it("ignores an obsolete response after selecting a different endpoint", async ()
 	await settle();
 	const oldSignal = directions.mock.calls[0][1];
 	mapClick(nextEnd);
+	click("Hoàn tác");
+	mapClick(nextEnd);
 	await settle();
 	expect(oldSignal.aborted).toBe(true);
 	await act(async () => finishOld(line(d, oldEnd)));
 	expect(useRouteSafety).toHaveBeenLastCalledWith(line(...hybrid.coordinates, nextEnd), route.id);
 });
 
-it("adds a short manual connection to a nearby mapped start only after confirmation", async () => {
+it("inserts a movable point on the orange line without appending or requesting a new route", async () => {
 	const submit = setup(route);
-	const snappedStart: Position = [107.5941, 16.48];
-	const bend: Position = [107.595, 16.481];
-	const endpoint: Position = [107.598, 16.481];
-	directions.mockResolvedValueOnce(line(snappedStart, bend, endpoint));
-	mapClick(endpoint);
-	await settle();
-	expect(screen.getByRole("alert")).toHaveTextContent("không nối đúng điểm");
-	click("Nối tới đường đi bộ");
-	click("Xác nhận nối thủ công");
-	await settle();
-	const appended = line(...hybrid.coordinates, snappedStart, bend, endpoint);
-	expect(useRouteSafety).toHaveBeenLastCalledWith(appended, route.id);
-	expect(directions).toHaveBeenCalledTimes(1);
+	fireEvent.click(screen.getByTestId("drawing-line"), {
+		clientX: firstBend[0] + 180,
+		clientY: 90 - firstBend[1],
+	});
+	expect(screen.getAllByRole("button", { name: /^Điểm vẽ \d+$/ })).toHaveLength(5);
+	expect(useRouteSafety).toHaveBeenLastCalledWith(hybrid, route.id);
+	expect(directions).not.toHaveBeenCalled();
 	await submitForm();
 	expect(submit).toHaveBeenCalledWith(
 		expect.objectContaining({
-			geometry: appended,
+			geometry: hybrid,
 			drawing: expect.objectContaining({
+				waypoints: [a, firstBend, b, c, d],
 				segments: [
-					{ id: "first", mode: "smart", endIndex: 2 },
+					{ id: "first", mode: "smart", endIndex: 1 },
+					{ id: expect.any(String), mode: "smart", endIndex: 2 },
 					{ id: "second", mode: "manual", endIndex: 3 },
 					{ id: "third", mode: "smart", endIndex: 5 },
-					{ id: expect.any(String), mode: "manual", endIndex: 6 },
-					{ id: expect.any(String), mode: "smart", endIndex: 8 },
 				],
 			}),
 		})
 	);
+	const marker = screen.getByRole("button", { name: "Điểm vẽ 2" });
+	marker.setPointerCapture = vi.fn();
+	const adjustment: Position = [107.585, 16.469];
+	directions.mockResolvedValueOnce(line(a, adjustment)).mockResolvedValueOnce(line(adjustment, b));
+	fireEvent.pointerDown(marker, { pointerId: 1 });
+	fireEvent.pointerUp(marker, { clientX: adjustment[0] + 180, clientY: 90 - adjustment[1] });
+	await settle();
+	expect(directions).toHaveBeenNthCalledWith(1, [a, adjustment], expect.any(AbortSignal));
+	expect(directions).toHaveBeenNthCalledWith(2, [adjustment, b], expect.any(AbortSignal));
+	expect(useRouteSafety).toHaveBeenLastCalledWith(line(a, adjustment, b, c, lastBend, d), route.id);
 });

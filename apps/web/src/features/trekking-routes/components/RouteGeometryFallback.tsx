@@ -1,6 +1,7 @@
 import { type RefObject, useState } from "react";
 import type { GeoJsonLineString, Position } from "../types";
-import { DEFAULT_ROUTE_CENTER, waypointMarker } from "../utils/route-map";
+import { type RouteLineHit, findRouteLineHit } from "../utils/route-line-hit";
+import { DEFAULT_ROUTE_CENTER, DRAWING_POINT_CLASS, drawingPointLabel } from "../utils/route-map";
 
 interface Props {
 	value: GeoJsonLineString;
@@ -10,6 +11,7 @@ interface Props {
 	containerRef: RefObject<HTMLDivElement>;
 	onChange: (waypoints: Position[]) => void;
 	onSelect: (index: number) => void;
+	onInsert: (hit: RouteLineHit) => void;
 }
 function position(x: number, y: number, element: HTMLDivElement): Position {
 	const rect = element.getBoundingClientRect();
@@ -28,6 +30,7 @@ export function RouteGeometryFallback({
 	containerRef,
 	onChange,
 	onSelect,
+	onInsert,
 }: Props) {
 	const [dragging, setDragging] = useState<number | null>(null);
 	const update = (index: number, x: number, y: number) => {
@@ -55,6 +58,22 @@ export function RouteGeometryFallback({
 				className="pointer-events-none absolute inset-0 h-full w-full"
 			>
 				<polyline
+					data-testid="drawing-line"
+					pointerEvents={disabled ? "none" : "stroke"}
+					onClick={(event) => {
+						if (disabled || !containerRef.current) return;
+						const rect = containerRef.current.getBoundingClientRect();
+						const hit = findRouteLineHit(
+							value.coordinates,
+							{ x: event.clientX, y: event.clientY },
+							([lng, lat]) => ({
+								x: rect.left + ((lng + 180) / 360) * rect.width,
+								y: rect.top + ((90 - lat) / 180) * rect.height,
+							}),
+							10
+						);
+						if (hit) onInsert(hit);
+					}}
 					points={value.coordinates
 						.map(([lng, lat]) => `${((lng + 180) / 360) * 100},${((90 - lat) / 180) * 100}`)
 						.join(" ")}
@@ -64,35 +83,30 @@ export function RouteGeometryFallback({
 					vectorEffect="non-scaling-stroke"
 				/>
 			</svg>
-			{waypoints.map(([lng, lat], index) => {
-				const { label, symbol, color } = waypointMarker(index, waypoints.length);
-				return (
-					<button
-						key={`${index}-${lng}-${lat}`}
-						type="button"
-						aria-label={label}
-						className={`-translate-x-1/2 -translate-y-1/2 absolute z-10 flex size-8 touch-none items-center justify-center rounded-full border-2 border-white text-xs font-black text-white shadow ${color} ${selected === index ? "ring-4 ring-orange-200" : ""}`}
-						style={{ left: `${((lng + 180) / 360) * 100}%`, top: `${((90 - lat) / 180) * 100}%` }}
-						onClick={(event) => {
-							event.stopPropagation();
-							onSelect(index);
-						}}
-						onPointerDown={(event) => {
-							if (!disabled) {
-								event.currentTarget.setPointerCapture(event.pointerId);
-								setDragging(index);
-							}
-						}}
-						onPointerCancel={() => setDragging(null)}
-						onPointerUp={(event) => {
-							if (dragging === index) update(index, event.clientX, event.clientY);
-							setDragging(null);
-						}}
-					>
-						{symbol}
-					</button>
-				);
-			})}
+			{waypoints.map(([lng, lat], index) => (
+				<button
+					key={`${index}-${lng}-${lat}`}
+					type="button"
+					aria-label={drawingPointLabel(index)}
+					className={`-translate-x-1/2 -translate-y-1/2 absolute z-10 touch-none ${DRAWING_POINT_CLASS} ${selected === index ? "ring-4 ring-orange-200" : ""}`}
+					style={{ left: `${((lng + 180) / 360) * 100}%`, top: `${((90 - lat) / 180) * 100}%` }}
+					onClick={(event) => {
+						event.stopPropagation();
+						onSelect(index);
+					}}
+					onPointerDown={(event) => {
+						if (!disabled) {
+							event.currentTarget.setPointerCapture(event.pointerId);
+							setDragging(index);
+						}
+					}}
+					onPointerCancel={() => setDragging(null)}
+					onPointerUp={(event) => {
+						if (dragging === index) update(index, event.clientX, event.clientY);
+						setDragging(null);
+					}}
+				/>
+			))}
 		</>
 	);
 }

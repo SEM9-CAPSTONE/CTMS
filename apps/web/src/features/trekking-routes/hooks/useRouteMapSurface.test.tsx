@@ -131,8 +131,9 @@ it("updates the full native line with only waypoint markers and commits a move a
 		[108.01, 16.01],
 	];
 	const onChange = vi.fn();
+	const onInsert = vi.fn();
 	function EditorSurface({ geometry }: { geometry: GeoJsonLineString }) {
-		const surface = useRouteGeometryMap(geometry, waypoints, false, onChange, vi.fn());
+		const surface = useRouteGeometryMap(geometry, waypoints, false, onChange, vi.fn(), onInsert);
 		return <div ref={surface.containerRef} />;
 	}
 	const view = render(<EditorSurface geometry={{ type: "LineString", coordinates: waypoints }} />);
@@ -148,14 +149,37 @@ it("updates the full native line with only waypoint markers and commits a move a
 	expect(native.setData).toHaveBeenLastCalledWith(expect.objectContaining({ geometry }));
 	expect(mocks.instances).toHaveLength(1);
 	expect(mocks.markers.map((marker) => marker.element.ariaLabel)).toEqual([
-		"Điểm bắt đầu",
-		"Điểm kết thúc",
+		"Điểm vẽ 1",
+		"Điểm vẽ 2",
 	]);
+	expect(mocks.markers.every((marker) => marker.element.textContent === "")).toBe(true);
 	expect(mocks.markers.every((marker) => marker.draggable)).toBe(true);
+	const project = ([lng, lat]: Position) => ({
+		x: Math.round((lng - 108) * 10_000),
+		y: Math.round((lat - 16) * 10_000),
+	});
+	act(() =>
+		native.handlers.get("click")?.({
+			originalEvent: {},
+			point: { x: 5, y: 60 },
+			target: { project },
+		})
+	);
+	expect(onInsert).toHaveBeenCalledExactlyOnceWith({ edgeIndex: 0, fraction: 0.6 });
 	mocks.markers[1].position = [108.012, 16.011];
 	expect(onChange).not.toHaveBeenCalled();
 	act(() => mocks.markers[1].dragEnd?.());
 	expect(onChange).toHaveBeenCalledWith([waypoints[0], [108.012, 16.011]]);
+	act(() =>
+		native.handlers.get("click")?.({
+			originalEvent: {},
+			point: { x: 104, y: 100 },
+			lngLat: { lng: 108.0104, lat: 16.01 },
+			target: { project },
+		})
+	);
+	expect(onInsert).toHaveBeenCalledTimes(1);
+	expect(onChange).toHaveBeenLastCalledWith([...waypoints, [108.0104, 16.01]]);
 	view.unmount();
 	expect(mocks.markers.every((marker) => marker.remove.mock.calls.length === 1)).toBe(true);
 });

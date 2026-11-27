@@ -11,6 +11,7 @@ import { useRouteDrawing } from "../hooks/useRouteDrawing";
 import { useRouteGeometryMap } from "../hooks/useRouteGeometryMap";
 import type { GeoJsonLineString, RouteDrawing } from "../types";
 import { approximateLengthMeters } from "../utils/route-import";
+import type { RouteLineHit } from "../utils/route-line-hit";
 import { RouteDrawingControls } from "./RouteDrawingControls";
 import { RouteGeometryFallback } from "./RouteGeometryFallback";
 import { RouteGeometryToolbar } from "./RouteGeometryToolbar";
@@ -37,12 +38,17 @@ export function RouteGeometryEditor({
 	const [selected, setSelected] = useState<number | null>(null);
 	const [verifiedIds, setVerifiedIds] = useState<string[]>([]);
 	const drawing = useRouteDrawing({ value, initialDrawing, onChange, onBlockedChange });
+	const insertPoint = (hit: RouteLineHit) => {
+		setSelected(null);
+		drawing.insertPoint(hit);
+	};
 	const map = useRouteGeometryMap(
 		value,
 		drawing.waypoints,
 		disabled,
 		drawing.updateWaypoints,
-		setSelected
+		setSelected,
+		insertPoint
 	);
 	const safety = useRouteSafety(drawing.blocked ? EMPTY_GEOMETRY : value, routeId);
 	const analyzedFeatures = useMemo(
@@ -70,7 +76,7 @@ export function RouteGeometryEditor({
 				>
 					{drawing.blocked ? "—" : `≈ ${approximateLengthMeters(value.coordinates).toFixed(0)} m`}
 					{" · "}
-					{drawing.waypoints.length} điểm
+					{drawing.waypoints.length} điểm vẽ
 				</p>
 			</div>
 			<RouteDrawingControls {...drawing} disabled={disabled} />
@@ -88,6 +94,7 @@ export function RouteGeometryEditor({
 						containerRef={map.containerRef}
 						onChange={drawing.updateWaypoints}
 						onSelect={setSelected}
+						onInsert={insertPoint}
 					/>
 				)}
 				{map.fallback && (

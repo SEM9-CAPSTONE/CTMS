@@ -20,8 +20,6 @@ const errorSchema = z.object({ code: z.string() });
 const messages = {
 	invalid: "Dịch vụ trả về tuyến đường không hợp lệ. Vui lòng thử lại.",
 	noRoute: "Không tìm thấy đường đi bộ qua các điểm đã chọn. Hãy điều chỉnh vị trí các điểm.",
-	far: (limit: number) =>
-		`Có điểm cách đường đi bộ hơn ${limit} m. Hãy di chuyển điểm đến gần đường hơn.`,
 	key: "Dịch vụ định tuyến chưa được cấp quyền truy cập.",
 	request: "Không thể tìm đường với các điểm đã chọn. Hãy kiểm tra lại vị trí các điểm.",
 	busy: "Dịch vụ định tuyến đang nhận quá nhiều yêu cầu. Vui lòng thử lại sau.",
@@ -32,6 +30,27 @@ const messages = {
 };
 
 export class RouteDirectionsError extends Error {}
+
+function snapDistanceMessage(waypointIndices: readonly number[], limitMeters: number) {
+	const points = waypointIndices.map((index) => index + 1).join(" và ");
+	return `Điểm vẽ ${points} cách tuyến đi bộ MapTiler tìm được hơn ${limitMeters} m. Hãy điều chỉnh vị trí.`;
+}
+
+export class RouteSnapDistanceError extends RouteDirectionsError {
+	constructor(
+		readonly waypointIndices: readonly number[],
+		readonly limitMeters: number
+	) {
+		super(snapDistanceMessage(waypointIndices, limitMeters));
+	}
+
+	messageForRoute(legStartIndex: number) {
+		return snapDistanceMessage(
+			this.waypointIndices.map((index) => legStartIndex + index),
+			this.limitMeters
+		);
+	}
+}
 
 export function decodeRoutePolyline(encoded: string): Position[] {
 	const coordinates: Position[] = [];
@@ -77,11 +96,13 @@ function normalizeDirections(
 		const first = points[0];
 		const last = points.at(-1);
 		if (points.length < 2 || !last) throw new RouteDirectionsError(messages.invalid);
-		if (
-			approximateLengthMeters([waypoints[index], first]) > snapLimitMeters ||
-			approximateLengthMeters([waypoints[index + 1], last]) > snapLimitMeters
-		) {
-			throw new RouteDirectionsError(messages.far(snapLimitMeters));
+		const remoteWaypoints = [index, index + 1].filter(
+			(waypoint, endpoint) =>
+				approximateLengthMeters([waypoints[waypoint], endpoint === 0 ? first : last]) >
+				snapLimitMeters
+		);
+		if (remoteWaypoints.length) {
+			throw new RouteSnapDistanceError(remoteWaypoints, snapLimitMeters);
 		}
 		const previous = coordinates.at(-1);
 		if (previous && approximateLengthMeters([previous, first]) > MAX_LEG_GAP_METERS) {

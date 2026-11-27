@@ -1,5 +1,9 @@
 import { TERRAIN_MAX_VERTICES } from "../../route-safety/terrain-constants";
-import { RouteDirectionsError, fetchRouteDirections } from "../services/route-directions.service";
+import {
+	RouteDirectionsError,
+	RouteSnapDistanceError,
+	fetchRouteDirections,
+} from "../services/route-directions.service";
 import {
 	type GeoJsonLineString,
 	type Position,
@@ -8,6 +12,7 @@ import {
 	type RouteDrawingMode,
 	type RouteSegment,
 } from "../types";
+import type { RouteLineHit } from "./route-line-hit";
 
 export interface DrawingSnapshot {
 	waypoints: Position[];
@@ -20,7 +25,6 @@ export interface RouteEdit {
 	waypoints: Position[];
 	segments: SegmentDraft[];
 	movable: number[];
-	allowManualConnector?: boolean;
 }
 
 const MAX_POLYLINE_ROUNDING_DEGREES = 0.000000500001;
@@ -127,17 +131,57 @@ export function serializeDrawing({ waypoints, segments }: DrawingSnapshot) {
 	return { geometry, drawing };
 }
 
-export class RouteEditError extends Error {}
-
-export class SegmentRoutingError extends RouteEditError {
-	constructor(
-		message: string,
-		readonly index: number,
-		readonly connection?: GeoJsonLineString
-	) {
-		super(message);
+export function insertDrawingPoint(
+	snapshot: DrawingSnapshot,
+	hit: RouteLineHit
+): DrawingSnapshot | undefined {
+	let localEdge = hit.edgeIndex;
+	for (const [index, segment] of snapshot.segments.entries()) {
+		const { coordinates } = segment.geometry;
+		if (localEdge >= coordinates.length - 1) {
+			localEdge -= coordinates.length - 1;
+			continue;
+		}
+		const start = coordinates[localEdge];
+		const end = coordinates[localEdge + 1];
+		let point = start;
+		if (hit.fraction === 1) point = end;
+		else if (hit.fraction > 0) {
+			point = [
+				Number((start[0] + (end[0] - start[0]) * hit.fraction).toFixed(9)),
+				Number((start[1] + (end[1] - start[1]) * hit.fraction).toFixed(9)),
+			];
+		}
+		const before = coordinates.slice(0, localEdge + 1);
+		const after = coordinates.slice(localEdge + 1);
+		if (!samePosition(start, point)) before.push(point);
+		if (!samePosition(end, point)) after.unshift(point);
+		if (!hasLength(before) || !hasLength(after)) return undefined;
+		if (
+			!samePosition(start, point) &&
+			!samePosition(end, point) &&
+			snapshot.segments.reduce((count, item) => count + item.geometry.coordinates.length - 1, 1) >=
+				TERRAIN_MAX_VERTICES
+		)
+			throw new RouteEditError("Tuyến đường đã đạt giới hạn 10.000 tọa độ.");
+		return {
+			waypoints: [
+				...snapshot.waypoints.slice(0, index + 1),
+				point,
+				...snapshot.waypoints.slice(index + 1),
+			],
+			segments: [
+				...snapshot.segments.slice(0, index),
+				makeSegment(segment.id, segment.mode, before),
+				makeSegment(segmentDraft(segment.mode).id, segment.mode, after),
+				...snapshot.segments.slice(index + 1),
+			],
+		};
 	}
+	return undefined;
 }
+
+export class RouteEditError extends Error {}
 
 export async function resolveRouteEdit(
 	edit: RouteEdit,
@@ -158,15 +202,8 @@ export async function resolveRouteEdit(
 			] as const) {
 				if (movable.delete(waypointIndex)) waypoints[waypointIndex] = snapped;
 				else if (!matchesEncodedPosition(waypoints[waypointIndex], snapped)) {
-					const canConnectStart =
-						edit.allowManualConnector &&
-						waypointIndex === index &&
-						index === edit.segments.length - 1 &&
-						movable.has(index + 1);
-					throw new SegmentRoutingError(
-						"Đường tìm được không nối đúng điểm đầu hoặc cuối của đoạn.",
-						index,
-						canConnectStart ? geometry : undefined
+					throw new RouteEditError(
+						"Chưa tìm được đường đi bộ nối liền với đoạn đã vẽ. Hãy kéo điểm vẽ đến vị trí khác."
 					);
 				}
 			}
@@ -174,12 +211,14 @@ export async function resolveRouteEdit(
 			const normalized = [waypoints[index], ...coordinates.slice(1, -1), waypoints[index + 1]];
 			routed.set(index, normalized);
 		} catch (error) {
-			if (error instanceof SegmentRoutingError) throw error;
-			throw new SegmentRoutingError(
+			if (error instanceof RouteEditError) throw error;
+			if (error instanceof RouteSnapDistanceError) {
+				throw new RouteEditError(error.messageForRoute(index));
+			}
+			throw new RouteEditError(
 				error instanceof RouteDirectionsError
 					? error.message
-					: "Không thể tìm đường. Vui lòng thử lại.",
-				index
+					: "Không thể tìm đường. Vui lòng thử lại."
 			);
 		}
 	}
