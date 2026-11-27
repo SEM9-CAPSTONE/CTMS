@@ -69,7 +69,7 @@ export const safetyText = {
 		BASE_HISTORICAL: "Dữ liệu lịch sử",
 		HOST_DEFINED: "Nguy hiểm do Host đánh dấu",
 		ADMIN_VERIFIED: "Nguy hiểm đã được quản trị viên xác nhận",
-		FIELD_OBSERVATION: "Sự cố Trip CTMS",
+		FIELD_OBSERVATION: "Sự cố Trip DiTrek",
 		RESOURCE: "Nguồn nước / tài nguyên địa lý",
 	},
 	severity: {

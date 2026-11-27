@@ -10,7 +10,7 @@ export interface HomeLinkProps {
 }
 
 /**
- * Wraps the CTMS brand (logo + name) with the destination for the current layout.
+ * Wraps the DiTrek brand (logo + name) with the destination for the current layout.
  * A plain click navigates in-app (no reload); modified clicks keep native link
  * behaviour, e.g. Ctrl/Cmd+click opens the home page in a new tab.
  */
@@ -38,7 +38,7 @@ export function HomeLink({
 		<a
 			href={href}
 			onClick={handleClick}
-			aria-label={label ?? "Về trang chủ CTMS"}
+			aria-label={label ?? "Về trang chủ DiTrek"}
 			title={label ?? "Về trang chủ"}
 			className={`rounded-xl transition hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#164027]/30 ${className}`}
 		>

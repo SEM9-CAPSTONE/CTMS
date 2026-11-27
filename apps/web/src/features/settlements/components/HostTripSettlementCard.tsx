@@ -60,7 +60,7 @@ export function HostTripSettlementCard({ tripId, onOpenWallet }: HostTripSettlem
 				</div>
 
 				<div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4">
-					<p className="text-xs font-bold text-amber-900">Phí nền tảng CTMS (5%)</p>
+					<p className="text-xs font-bold text-amber-900">Phí nền tảng DiTrek (5%)</p>
 					<p className="mt-1 text-lg font-black text-amber-900">
 						-{formatBookingMoney(evalData.platformFee)}
 					</p>

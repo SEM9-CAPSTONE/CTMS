@@ -112,7 +112,7 @@ describe("Porter Profile routing", () => {
 		window.history.replaceState({}, "", RoutePath.PORTER_PROFILE);
 		await renderLazy(<AppRoutes />);
 
-		expect(screen.getByText("Người hỗ trợ CTMS")).toBeInTheDocument();
+		expect(screen.getByText("Người hỗ trợ DiTrek")).toBeInTheDocument();
 		expect(screen.getByRole("region", { name: "Porter profile content" })).toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "Hồ sơ & Năng lực" })).not.toBeInTheDocument();
 	});

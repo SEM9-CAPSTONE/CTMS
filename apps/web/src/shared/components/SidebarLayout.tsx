@@ -178,7 +178,7 @@ export function SidebarLayout({
 					<div className="grid min-h-dvh place-items-center p-6 text-center lg:hidden">
 						<section className="max-w-md rounded-3xl border border-[#dfe8df] bg-white p-8 shadow-sm">
 							<h1 className="text-xl font-bold text-brand-primary">
-								Vui lòng mở CTMS trên máy tính
+								Vui lòng mở DiTrek trên máy tính
 							</h1>
 						</section>
 					</div>

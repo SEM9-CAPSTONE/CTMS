@@ -15,8 +15,11 @@ import {
 	useEmergencyBroadcastListener,
 } from "../features/emergency-broadcasts";
 import type { HostReportTab } from "../features/host-reports/pages/HostReportsPage";
+import { Footer } from "../features/landing/components/Footer";
+import { HeaderNav } from "../features/landing/components/HeaderNav";
 import { HostTripMapPage } from "../features/role-landing/pages/HostTripMapPage";
 import type { RoleKey } from "../features/role-landing/types";
+import { AdminTermsManagementPage, TermsPage, TermsReconsentGate } from "../features/terms";
 import { PageSkeleton } from "../shared/components/PageSkeleton";
 import { AppRoleGuard } from "./AppRoleGuard";
 import { getAuthenticatedHomePath, getGuestOnlyRedirectPath } from "./authRedirect";
@@ -153,6 +156,41 @@ const HostSosPage = lazy(() =>
 const LandingPage = lazy(() =>
 	import("../features/landing/pages/LandingPage").then((module) => ({
 		default: module.LandingPage,
+	}))
+);
+const TrekkingExplorePage = lazy(() =>
+	import("../features/public-pages/pages/TrekkingExplorePage").then((module) => ({
+		default: module.TrekkingExplorePage,
+	}))
+);
+const SafetyCenterPage = lazy(() =>
+	import("../features/public-pages/pages/SafetyCenterPage").then((module) => ({
+		default: module.SafetyCenterPage,
+	}))
+);
+const AboutPage = lazy(() =>
+	import("../features/public-pages/pages/AboutPage").then((module) => ({
+		default: module.AboutPage,
+	}))
+);
+const PrivacyPolicyPage = lazy(() =>
+	import("../features/public-pages/pages/PrivacyPolicyPage").then((module) => ({
+		default: module.PrivacyPolicyPage,
+	}))
+);
+const ContactPage = lazy(() =>
+	import("../features/public-pages/pages/ContactPage").then((module) => ({
+		default: module.ContactPage,
+	}))
+);
+const SupportCenterPage = lazy(() =>
+	import("../features/public-pages/pages/SupportCenterPage").then((module) => ({
+		default: module.SupportCenterPage,
+	}))
+);
+const MobileAppPage = lazy(() =>
+	import("../features/public-pages/pages/MobileAppPage").then((module) => ({
+		default: module.MobileAppPage,
 	}))
 );
 const PorterProfilePage = lazy(() =>
@@ -299,6 +337,7 @@ export function AppRoutes() {
 				<AppRouteContent />
 			</Suspense>
 			<EmergencyBroadcastAlerts />
+			<TermsReconsentGate />
 		</>
 	);
 }
@@ -335,6 +374,7 @@ function AppRouteContent() {
 			window.history.pushState(state, "", normalizedPath);
 			setCurrentPath(nextLocation.pathname.toLowerCase());
 			setCurrentSearch(nextLocation.search);
+			window.dispatchEvent(new Event("ctms-navigation"));
 		});
 	const handleBookingLoaded = useCallback((booking: BookingDetails) => {
 		setRestoredTripBooking(booking);
@@ -677,6 +717,7 @@ function AppRouteContent() {
 					!storedUser ? "anonymous" : currentRoles.includes("camper") ? "camper" : "non-camper"
 				}
 				onSignIn={() => navigateTo(RoutePath.LOGIN)}
+				onRegister={() => navigateTo(RoutePath.REGISTER)}
 				onEditTrip={(tripId) => navigateTo(`/host/trips/${tripId}/edit`)}
 				onManagePorters={(tripId) =>
 					navigateTo(`${RoutePath.HOST_PORTER}?tripId=${encodeURIComponent(tripId)}`)
@@ -794,12 +835,153 @@ function AppRouteContent() {
 				/>
 			);
 
+		case "/terms": {
+			const canonicalUrl = `${RoutePath.TERMS}${currentSearch}`;
+			window.history.replaceState({}, "", canonicalUrl);
+			return (
+				<TermsPage
+					onBackToHome={() => navigateTo(RoutePath.HOME)}
+					onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
+					onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
+					onBackToRegister={() => navigateTo(RoutePath.REGISTER)}
+					onNavigateToDashboard={() =>
+						navigateTo(storedUser ? getAuthenticatedHomePath(storedUser) : RoutePath.HOME)
+					}
+					fromRegister={navigationContext.get("from") === "register"}
+				/>
+			);
+		}
+
+		case RoutePath.TERMS:
+			return (
+				<TermsPage
+					onBackToHome={() => navigateTo(RoutePath.HOME)}
+					onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
+					onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
+					onBackToRegister={() => navigateTo(RoutePath.REGISTER)}
+					onNavigateToDashboard={() =>
+						navigateTo(storedUser ? getAuthenticatedHomePath(storedUser) : RoutePath.HOME)
+					}
+					fromRegister={navigationContext.get("from") === "register"}
+				/>
+			);
+
+		case RoutePath.TREKKING:
+			return (
+				<TrekkingExplorePage
+					initialQuery={navigationContext.get("q") ?? ""}
+					initialRouteId={navigationContext.get("route")}
+					onBackToHome={() => navigateTo(RoutePath.HOME)}
+					onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
+					onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
+					onNavigateToDashboard={() =>
+						navigateTo(storedUser ? getAuthenticatedHomePath(storedUser) : RoutePath.HOME)
+					}
+					onNavigateToPath={(path) => navigateTo(path)}
+				/>
+			);
+
+		case RoutePath.SAFETY:
+			return (
+				<SafetyCenterPage
+					onBackToHome={() => navigateTo(RoutePath.HOME)}
+					onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
+					onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
+					onNavigateToDashboard={() =>
+						navigateTo(storedUser ? getAuthenticatedHomePath(storedUser) : RoutePath.HOME)
+					}
+					onNavigateToPath={(path) => navigateTo(path)}
+				/>
+			);
+
+		case RoutePath.ABOUT:
+			return (
+				<AboutPage
+					onBackToHome={() => navigateTo(RoutePath.HOME)}
+					onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
+					onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
+					onNavigateToDashboard={() =>
+						navigateTo(storedUser ? getAuthenticatedHomePath(storedUser) : RoutePath.HOME)
+					}
+					onNavigateToPath={(path) => navigateTo(path)}
+				/>
+			);
+
+		case RoutePath.PRIVACY:
+			return (
+				<PrivacyPolicyPage
+					onBackToHome={() => navigateTo(RoutePath.HOME)}
+					onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
+					onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
+					onNavigateToDashboard={() =>
+						navigateTo(storedUser ? getAuthenticatedHomePath(storedUser) : RoutePath.HOME)
+					}
+					onNavigateToPath={(path) => navigateTo(path)}
+				/>
+			);
+
+		case RoutePath.CONTACT:
+			return (
+				<ContactPage
+					onBackToHome={() => navigateTo(RoutePath.HOME)}
+					onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
+					onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
+					onNavigateToDashboard={() =>
+						navigateTo(storedUser ? getAuthenticatedHomePath(storedUser) : RoutePath.HOME)
+					}
+					onNavigateToPath={(path) => navigateTo(path)}
+				/>
+			);
+
+		case RoutePath.SUPPORT:
+			return (
+				<SupportCenterPage
+					onBackToHome={() => navigateTo(RoutePath.HOME)}
+					onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
+					onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
+					onNavigateToDashboard={() =>
+						navigateTo(storedUser ? getAuthenticatedHomePath(storedUser) : RoutePath.HOME)
+					}
+					onNavigateToPath={(path) => navigateTo(path)}
+				/>
+			);
+
+		case RoutePath.MOBILE_APP:
+			return (
+				<MobileAppPage
+					initialPlatform={navigationContext.get("platform") === "ios" ? "ios" : "android"}
+					onBackToHome={() => navigateTo(RoutePath.HOME)}
+					onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
+					onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
+					onNavigateToDashboard={() =>
+						navigateTo(storedUser ? getAuthenticatedHomePath(storedUser) : RoutePath.HOME)
+					}
+					onNavigateToPath={(path) => navigateTo(path)}
+				/>
+			);
+
+		case RoutePath.ADMIN_TERMS:
+			return (
+				<AppRoleGuard
+					allowedRoles={["admin"]}
+					currentRoles={currentRoles}
+					fallback={unauthorizedFallback}
+					onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				>
+					<AdminTermsManagementPage
+						onLogout={handleLogout}
+						onOpenPublicTerms={() => navigateTo(RoutePath.TERMS)}
+					/>
+				</AppRoleGuard>
+			);
+
 		case RoutePath.REGISTER:
 			return (
 				<RegisterPage
 					onBackToHome={() => navigateTo(RoutePath.HOME)}
 					onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
 					onNavigateToVerifyOtp={() => navigateTo(RoutePath.VERIFY_OTP)}
+					onNavigateToTerms={() => navigateTo(`${RoutePath.TERMS}?from=register`)}
 				/>
 			);
 
@@ -930,8 +1112,11 @@ function AppRouteContent() {
 			);
 
 		case RoutePath.TRIPS: {
+			const initialSearch = navigationContext.get("q")?.trim();
 			const searchView = (
 				<SearchTripsPage
+					initialFilters={initialSearch ? { search: initialSearch } : undefined}
+					publicLayout={!storedUser}
 					onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
 					onNavigateToTripDetail={(tripId) => navigateTo(`/trips/${tripId}`)}
 					onNavigateToRecommendedTrip={(tripId) =>
@@ -948,7 +1133,18 @@ function AppRouteContent() {
 				);
 			}
 
-			return searchView;
+			return (
+				<div className="min-h-screen bg-[#f4f7f2] px-5 py-6 font-sans text-[#10221b] antialiased">
+					<div className="mx-auto max-w-[1240px]">
+						<HeaderNav
+							onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
+							onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
+						/>
+						{searchView}
+						<Footer />
+					</div>
+				</div>
+			);
 		}
 
 		case RoutePath.HOST_CREATE_TRIP:

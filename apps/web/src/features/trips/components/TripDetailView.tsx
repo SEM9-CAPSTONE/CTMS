@@ -49,7 +49,8 @@ export interface TripDetailViewProps {
 	onBook?: (
 		tripId: string,
 		numPeople: number,
-		equipment?: SelectedEquipmentItem[]
+		equipment?: SelectedEquipmentItem[],
+		options?: { healthProfileConsent?: boolean }
 	) => void | Promise<void>;
 	isBooking?: boolean;
 	bookingError?: string | null;
@@ -62,6 +63,7 @@ export interface TripDetailViewProps {
 	onBookingRetry?: () => unknown;
 	onBookingReset?: () => void;
 	onSignIn?: () => void;
+	onRegister?: () => void;
 	onConflictDismiss?: () => void;
 	onConflictReload?: () => void;
 	onConflictRetry?: () => void;
@@ -119,6 +121,7 @@ export function TripDetailView({
 	onBookingRetry,
 	onBookingReset,
 	onSignIn,
+	onRegister,
 	onConflictDismiss,
 	onConflictReload,
 	onConflictRetry,
@@ -232,10 +235,20 @@ export function TripDetailView({
 		}
 	};
 
-	const handleBookSubmit = async (targetTripId: string, count: number) => {
+	const handleBookSubmit = async (
+		targetTripId: string,
+		count: number,
+		options?: { healthProfileConsent?: boolean }
+	) => {
 		if (selectedPreBookingEquipment.length > 0) {
-			await onBook?.(targetTripId, count, selectedPreBookingEquipment);
+			if (options?.healthProfileConsent) {
+				await onBook?.(targetTripId, count, selectedPreBookingEquipment, options);
+			} else {
+				await onBook?.(targetTripId, count, selectedPreBookingEquipment);
+			}
 			setSelectedPreBookingEquipment([]);
+		} else if (options?.healthProfileConsent) {
+			await onBook?.(targetTripId, count, undefined, options);
 		} else {
 			await onBook?.(targetTripId, count);
 		}
@@ -692,6 +705,7 @@ export function TripDetailView({
 									onRetry={onBookingRetry ?? onConflictRetry}
 									onReset={onBookingReset}
 									onSignIn={onSignIn}
+									onRegister={onRegister}
 									onConflictDismiss={onConflictDismiss}
 									onConflictReload={onConflictReload}
 									onViewBookingDetails={onViewBookingDetails}

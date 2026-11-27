@@ -117,7 +117,7 @@ export function HostWalletPage({ onBackHome }: HostWalletPageProps) {
 										<span>Số dư khả dụng</span>
 									</div>
 									<span className="rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-bold text-emerald-100 border border-emerald-400/30">
-										CTMS Host Wallet
+										DiTrek Host Wallet
 									</span>
 								</div>
 
@@ -126,7 +126,7 @@ export function HostWalletPage({ onBackHome }: HostWalletPageProps) {
 										{formatBookingMoney(wallet.balance)}
 									</p>
 									<p className="mt-2 text-xs text-emerald-100/80">
-										Số tiền thực nhận (95% doanh thu chuyến đi sau khi trừ 5% phí nền tảng CTMS)
+										Số tiền thực nhận (95% doanh thu chuyến đi sau khi trừ 5% phí nền tảng DiTrek)
 									</p>
 								</div>
 
@@ -197,7 +197,7 @@ export function HostWalletPage({ onBackHome }: HostWalletPageProps) {
 								</div>
 
 								<div className="mt-4 pt-4 border-t border-[#edf3ed] text-[11px] text-[#7d8d83]">
-									Mọi thắc mắc về quyết toán vui lòng liên hệ đội ngũ hỗ trợ CTMS.
+									Mọi thắc mắc về quyết toán vui lòng liên hệ đội ngũ hỗ trợ DiTrek.
 								</div>
 							</div>
 						</div>

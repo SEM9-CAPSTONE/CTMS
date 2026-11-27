@@ -11,7 +11,7 @@ export const landingService = {
 			setTimeout(() => {
 				resolve({
 					sender: "ai",
-					text: `Trợ lý CTMS: Cảm ơn bạn. Để xử lý tình huống "${userMessage}", hãy giữ bình tĩnh, kiểm tra tọa độ GPS trên ứng dụng CTMS và thực hiện theo quy trình an toàn chuẩn.`,
+					text: `Trợ lý DiTrek: Cảm ơn bạn. Để xử lý tình huống "${userMessage}", hãy giữ bình tĩnh, kiểm tra tọa độ GPS trên ứng dụng DiTrek và thực hiện theo quy trình an toàn chuẩn.`,
 				});
 			}, 400);
 		});

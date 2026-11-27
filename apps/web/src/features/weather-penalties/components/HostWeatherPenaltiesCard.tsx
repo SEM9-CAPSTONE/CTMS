@@ -166,7 +166,7 @@ export function HostWeatherPenaltiesCard({
 						className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800"
 					>
 						Quản trị viên chưa cập nhật tài khoản nhận tiền phạt. Vui lòng liên hệ quản trị viên
-						CTMS để nhận thông tin chuyển khoản.
+						DiTrek để nhận thông tin chuyển khoản.
 					</p>
 				))}
 
@@ -224,9 +224,9 @@ export function HostWeatherPenaltiesCard({
 										? `Đã quá hạn nộp (${formatPenaltyDateTime(penalty.payment.dueAt)}).`
 										: `Hạn nộp: ${formatPenaltyDateTime(penalty.payment.dueAt)}.`}{" "}
 									Nếu các lần quyết toán chưa trừ đủ, hãy chuyển khoản số còn lại
-									{data.paymentAccount ? " vào tài khoản CTMS ở trên" : ""} với nội dung "Phạt thời
-									tiết – {penalty.tripTitle}". Khoản phạt được cập nhật khi quản trị viên xác nhận
-									đã nhận tiền.
+									{data.paymentAccount ? " vào tài khoản DiTrek ở trên" : ""} với nội dung "Phạt
+									thời tiết – {penalty.tripTitle}". Khoản phạt được cập nhật khi quản trị viên xác
+									nhận đã nhận tiền.
 								</p>
 							)}
 							{penalty.payment.collectedAt && (

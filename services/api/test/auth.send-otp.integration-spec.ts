@@ -8,6 +8,7 @@ import {
 	type OtpNotificationProvider,
 	SMS_OTP_PROVIDER,
 } from "../src/modules/auth/providers/otp-notification-provider.interface";
+import { DEFAULT_TERMS_VERSION } from "../src/modules/terms/terms-content";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
 
 /**
@@ -117,7 +118,13 @@ describe("POST /api/auth/send-otp (integration, real Postgres, fake delivery pro
 
 		const response = await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ email, phone: local, password: "x", role: "camper" })
+			.send({
+				email,
+				phone: local,
+				password: "x",
+				role: "camper",
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+			})
 			.expect(201);
 
 		const userId: string = response.body.id;

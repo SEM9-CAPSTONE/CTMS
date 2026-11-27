@@ -44,8 +44,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 		<div className="flex flex-1 flex-col items-center justify-center p-6 lg:p-8 xl:p-10 overflow-y-auto h-full">
 			<div className="w-full max-w-[420px]">
 				<div className="mb-6 flex items-center gap-3 lg:hidden">
-					<img src="/ctms_logo.png" alt="CTMS Logo" className="h-10 w-auto object-contain" />
-					<span className="text-2xl font-extrabold text-[#164027]">CTMS</span>
+					<img src="/ctms_logo.png" alt="DiTrek Logo" className="h-10 w-auto object-contain" />
+					<span className="text-2xl font-extrabold text-[#164027]">DiTrek</span>
 				</div>
 
 				<h2 className="text-2xl xl:text-3xl font-extrabold tracking-tight text-[#10221b]">

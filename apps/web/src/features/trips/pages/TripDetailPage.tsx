@@ -44,6 +44,7 @@ export interface TripDetailPageProps {
 	) => void | Promise<void>;
 	bookingAccess?: BookingAccess;
 	onSignIn?: () => void;
+	onRegister?: () => void;
 	onViewBookingDetails?: (bookingId: string) => void;
 	restoredBookingDetails?: BookingDetails | null;
 	onClearRestoredBooking?: () => void;
@@ -94,6 +95,7 @@ export function TripDetailPage({
 	onBook,
 	bookingAccess = "camper",
 	onSignIn,
+	onRegister,
 	onViewBookingDetails,
 	restoredBookingDetails = null,
 	onClearRestoredBooking,
@@ -186,7 +188,12 @@ export function TripDetailPage({
 	}, [showOperationalRoster, currentUserId, trip?.hostId, canManageThisTrip]);
 
 	const handleBook = useCallback(
-		async (targetTripId: string, numPeople: number, equipmentItems?: SelectedEquipmentItem[]) => {
+		async (
+			targetTripId: string,
+			numPeople: number,
+			equipmentItems?: SelectedEquipmentItem[],
+			options?: { healthProfileConsent?: boolean }
+		) => {
 			if (onBook) {
 				if (equipmentItems && equipmentItems.length > 0) {
 					await onBook(targetTripId, numPeople, equipmentItems);
@@ -195,7 +202,11 @@ export function TripDetailPage({
 				}
 				return;
 			}
-			const result = await book({ tripId: targetTripId, numPeople });
+			const result = await book({
+				tripId: targetTripId,
+				numPeople,
+				...(options?.healthProfileConsent ? { healthProfileConsent: true } : {}),
+			});
 			if (result) {
 				if (equipmentItems && equipmentItems.length > 0) {
 					setIsAddingEquipment(true);
@@ -451,6 +462,7 @@ export function TripDetailPage({
 											: undefined
 									}
 									onSignIn={onSignIn}
+									onRegister={onRegister}
 									onConflictDismiss={clearConflict}
 									onConflictReload={handleConflictReload}
 									onConflictRetry={retryBooking}

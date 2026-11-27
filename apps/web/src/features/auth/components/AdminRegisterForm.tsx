@@ -14,7 +14,7 @@ export const AdminRegisterForm: React.FC<AdminRegisterFormProps> = ({ formData, 
 			<div className="flex items-center gap-2 rounded-xl bg-purple-50 p-3 text-xs font-semibold text-purple-900 border border-purple-200">
 				<ShieldCheck size={18} className="shrink-0 text-purple-700" />
 				<span>
-					Đăng ký tài khoản Quản trị viên yêu cầu Mã bảo mật Admin được cấp bởi hệ thống CTMS.
+					Đăng ký tài khoản Quản trị viên yêu cầu Mã bảo mật Admin được cấp bởi hệ thống DiTrek.
 				</span>
 			</div>
 

@@ -53,7 +53,7 @@ class PushNotice {
         if (entry.value != null) entry.key: '${entry.value}',
     };
     final resolvedTitle = (title ?? '').trim().isEmpty
-        ? 'Thông báo CTMS'
+        ? 'Thông báo DiTrek'
         : title!.trim();
     final resolvedBody = (body ?? '').trim();
     final key =

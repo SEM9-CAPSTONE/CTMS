@@ -4,6 +4,7 @@ import request from "supertest";
 import { DataSource } from "typeorm";
 import { AppModule } from "../src/modules/app.module";
 import { AuthService } from "../src/modules/auth/auth.service";
+import { DEFAULT_TERMS_VERSION } from "../src/modules/terms/terms-content";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
 
 describe("POST /api/auth/login (integration, real Postgres)", () => {
@@ -97,7 +98,13 @@ describe("POST /api/auth/login (integration, real Postgres)", () => {
 
 		const registerResponse = await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ email, phone: local, password: PASSWORD, role: "camper" })
+			.send({
+				email,
+				phone: local,
+				password: PASSWORD,
+				role: "camper",
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+			})
 			.expect(201);
 
 		const userId: string = registerResponse.body.id;
@@ -192,7 +199,13 @@ describe("POST /api/auth/login (integration, real Postgres)", () => {
 
 		const registerResponse = await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ email, phone: local, password: PASSWORD, role: "camper" })
+			.send({
+				email,
+				phone: local,
+				password: PASSWORD,
+				role: "camper",
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+			})
 			.expect(201);
 		cleanupUserIds.push(registerResponse.body.id);
 

@@ -198,7 +198,7 @@ export function AdminWeatherPenaltyDialog({
 							<p className="font-extrabold">Host chuyển khoản nộp phạt</p>
 							<p className="mt-1 text-[#667a6d]">
 								Host còn phải nộp {formatBookingMoney(penalty.outstandingAmount)}. Chỉ xác nhận khi
-								tiền đã vào tài khoản CTMS. Sau khi xác nhận, Host tạo Trip lại được nếu đang bị
+								tiền đã vào tài khoản DiTrek. Sau khi xác nhận, Host tạo Trip lại được nếu đang bị
 								chặn vì quá hạn nộp.
 							</p>
 							<p

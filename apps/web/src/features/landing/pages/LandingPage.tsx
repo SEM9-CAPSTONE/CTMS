@@ -7,7 +7,6 @@ import { HeroSection } from "../components/HeroSection";
 import { MainFeaturesSection } from "../components/MainFeaturesSection";
 import { MobileAppSection } from "../components/MobileAppSection";
 import { SafetySection } from "../components/SafetySection";
-import { SearchPanelSection } from "../components/SearchPanelSection";
 import type { LandingPageProps } from "../types";
 
 export const LandingPage: React.FC<LandingPageProps> = ({
@@ -22,7 +21,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 					onNavigateToRegister={onNavigateToRegister}
 				/>
 				<HeroSection />
-				<SearchPanelSection />
 				<FeaturedLocationsSection />
 				<MainFeaturesSection />
 				<SafetySection />

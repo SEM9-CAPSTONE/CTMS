@@ -141,7 +141,7 @@ export function Sidebar({
 
 	return (
 		<SidebarFrame
-			title={`${roleLabels[activeRole]} CTMS`}
+			title={`${roleLabels[activeRole]} DiTrek`}
 			collapsed={collapsed}
 			onToggle={onToggle}
 			onClose={onClose}

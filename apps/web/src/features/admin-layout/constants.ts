@@ -7,6 +7,7 @@ import {
 	Compass,
 	CreditCard,
 	FileClock,
+	FileText,
 	Flag,
 	Landmark,
 	LayoutDashboard,
@@ -107,6 +108,11 @@ const items = {
 		path: RoutePath.ADMIN_REVIEW_ANALYSIS,
 	},
 	"audit-logs": { label: "Nhật ký hệ thống", icon: FileClock, path: RoutePath.ADMIN_AUDIT_LOGS },
+	"terms-and-policy": {
+		label: "Điều khoản & Chính sách",
+		icon: FileText,
+		path: RoutePath.ADMIN_TERMS,
+	},
 } as const satisfies Record<string, AdminNavLinkConfig>;
 
 export interface AdminNavLinkConfig {
@@ -146,7 +152,13 @@ export const ADMIN_NAV_GROUPS = [
 		key: "system",
 		label: "Hệ thống",
 		icon: Settings,
-		items: ["survival-documents", "weather-management", "review-analysis", "audit-logs"],
+		items: [
+			"survival-documents",
+			"weather-management",
+			"review-analysis",
+			"terms-and-policy",
+			"audit-logs",
+		],
 	},
 ] as const satisfies ReadonlyArray<{
 	key: string;

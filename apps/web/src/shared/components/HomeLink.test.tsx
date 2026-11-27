@@ -13,10 +13,10 @@ describe("HomeLink", () => {
 
 		render(
 			<HomeLink>
-				<span>CTMS</span>
+				<span>DiTrek</span>
 			</HomeLink>
 		);
-		fireEvent.click(screen.getByRole("link", { name: "Về trang chủ CTMS" }));
+		fireEvent.click(screen.getByRole("link", { name: "Về trang chủ DiTrek" }));
 
 		expect(window.location.pathname).toBe("/");
 		expect(onPopState).toHaveBeenCalledTimes(1);
@@ -26,10 +26,10 @@ describe("HomeLink", () => {
 	it("leaves Ctrl+click to the browser so it can open a new tab", () => {
 		render(
 			<HomeLink>
-				<span>CTMS</span>
+				<span>DiTrek</span>
 			</HomeLink>
 		);
-		const link = screen.getByRole("link", { name: "Về trang chủ CTMS" });
+		const link = screen.getByRole("link", { name: "Về trang chủ DiTrek" });
 
 		expect(link).toHaveAttribute("href", "/");
 		const wasNotPrevented = fireEvent.click(link, { ctrlKey: true });

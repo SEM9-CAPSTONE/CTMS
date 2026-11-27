@@ -453,7 +453,7 @@ class _CamperTripDetailScreenState
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Đội ngũ điều phối viên CTMS',
+                                  'Đội ngũ điều phối viên DiTrek',
                                   style: AppTypography.bodyStrong.copyWith(
                                     color: Colors.black,
                                     fontWeight: FontWeight.w800,

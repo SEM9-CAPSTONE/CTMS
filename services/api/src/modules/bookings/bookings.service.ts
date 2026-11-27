@@ -22,6 +22,7 @@ import {
 	BookingPaymentStatus,
 	BookingStatus,
 } from "../profiles/entities/booking.entity";
+import { HealthProfile } from "../profiles/entities/health-profile.entity";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { HealthProfileRepository } from "../profiles/repositories/health-profile.repository";
 import { EventsGateway } from "../realtime/events.gateway";
@@ -584,6 +585,28 @@ export class BookingsService {
 				after: this.auditSnapshot(saved),
 				reason: "camper_create_booking",
 			});
+
+			// Optional, strictly separate Camper health-profile sharing consent captured at booking time.
+			if (dto.healthProfileConsent === true) {
+				const healthRepo = manager.getRepository(HealthProfile);
+				const existingProfile = await healthRepo.findOne({ where: { userId } });
+				const consentAt = new Date();
+				if (existingProfile) {
+					if (!existingProfile.isConsentGranted) {
+						existingProfile.isConsentGranted = true;
+						existingProfile.consentGrantedAt = consentAt;
+						existingProfile.consentRevokedAt = null;
+						await healthRepo.save(existingProfile);
+					}
+				} else {
+					await healthRepo.save({
+						userId,
+						isConsentGranted: true,
+						consentGrantedAt: consentAt,
+						consentRevokedAt: null,
+					});
+				}
+			}
 
 			committedTrip = {
 				id: trip.id,

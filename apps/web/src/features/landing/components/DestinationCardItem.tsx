@@ -1,6 +1,7 @@
 import { Camera, ChevronLeft, ChevronRight, Clock, Mountain, Route } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
+import { navigatePublicPath } from "../../public-pages/utils/spaNavigate";
 import type { DestinationCard } from "../types";
 
 interface DestinationCardItemProps {
@@ -28,8 +29,10 @@ export const DestinationCardItem: React.FC<DestinationCardItemProps> = ({
 	};
 
 	const handleNavigate = () => {
-		window.history.pushState({}, "", "/trekking");
-		window.dispatchEvent(new PopStateEvent("popstate"));
+		const target = destination.id
+			? `/trekking?route=${encodeURIComponent(destination.id)}`
+			: "/trekking";
+		navigatePublicPath(target);
 	};
 
 	return (

@@ -244,7 +244,7 @@ export function CamperProfilePage({
 											<div className="flex items-center justify-center rounded-2xl bg-[#eef7f0] p-2.5 mb-3">
 												<img
 													src="/ctms_logo.png"
-													alt="CTMS Logo"
+													alt="DiTrek Logo"
 													className="h-10 w-auto object-contain"
 												/>
 											</div>

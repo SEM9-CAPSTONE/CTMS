@@ -44,6 +44,13 @@ import {
 	sourceFingerprint,
 } from "../modules/offline-packages/package-policy";
 import { readVerifiedPackageRoute } from "../modules/offline-packages/package-route.reader";
+import {
+	DEFAULT_TERMS_EFFECTIVE_DATE,
+	DEFAULT_TERMS_SUMMARY,
+	DEFAULT_TERMS_TITLE,
+	DEFAULT_TERMS_V1_SECTIONS,
+	DEFAULT_TERMS_VERSION,
+} from "../modules/terms/terms-content";
 import { CheckpointType } from "../modules/trekking-routes/entities/checkpoint.entity";
 import { WaypointType } from "../modules/trips/entities/trip-waypoint.entity";
 import { TripStatus, TripType } from "../modules/trips/entities/trip.entity";
@@ -10152,6 +10159,8 @@ export async function runMasterSeed(): Promise<void> {
 		await seedSafetyHotspotScenarios(dataSource);
 		// After the Porter lifecycle Trips exist, so field reports attach to assigned Trips.
 		await seedPorterDangerZoneReports(dataSource);
+		// Terms and Conditions baseline version (CTMS-454) — idempotent upsert preserving acceptance history.
+		await seedTermsVersions(dataSource);
 
 		const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(2);
 
@@ -11924,6 +11933,35 @@ export async function seedHostAnalyticsHistoryScenarios(ds: DataSource): Promise
 			[trip.id, host.id, money(totalMinor), money(feeMinor), money(netMinor), trip.settledAt]
 		);
 	}
+}
+
+async function seedTermsVersions(ds: DataSource): Promise<void> {
+	await ds.query(
+		`INSERT INTO "terms_versions" (
+			"version",
+			"title",
+			"summary",
+			"effective_date",
+			"sections",
+			"is_active",
+			"requires_reconsent",
+			"published_at"
+		)
+		VALUES ($1, $2, $3, $4::date, $5::jsonb, true, true, now())
+		ON CONFLICT ("version") DO UPDATE SET
+			"title" = EXCLUDED."title",
+			"summary" = EXCLUDED."summary",
+			"effective_date" = EXCLUDED."effective_date",
+			"sections" = EXCLUDED."sections",
+			"updated_at" = now()`,
+		[
+			DEFAULT_TERMS_VERSION,
+			DEFAULT_TERMS_TITLE,
+			DEFAULT_TERMS_SUMMARY,
+			DEFAULT_TERMS_EFFECTIVE_DATE,
+			JSON.stringify(DEFAULT_TERMS_V1_SECTIONS),
+		]
+	);
 }
 
 if (require.main === module) {

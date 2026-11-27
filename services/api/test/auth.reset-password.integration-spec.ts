@@ -10,6 +10,7 @@ import {
 	type OtpNotificationProvider,
 	SMS_OTP_PROVIDER,
 } from "../src/modules/auth/providers/otp-notification-provider.interface";
+import { DEFAULT_TERMS_VERSION } from "../src/modules/terms/terms-content";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
 
 jest.setTimeout(60_000);
@@ -131,7 +132,13 @@ describe("POST /api/auth/forgot-password + /reset-password (integration, real Po
 
 		const registerResponse = await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ email, phone: localPhone, password: PASSWORD, role: "camper" })
+			.send({
+				email,
+				phone: localPhone,
+				password: PASSWORD,
+				role: "camper",
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+			})
 			.expect(201);
 
 		const userId: string = registerResponse.body.id;
