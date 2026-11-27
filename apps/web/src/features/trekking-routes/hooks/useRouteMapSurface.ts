@@ -41,7 +41,7 @@ export function useRouteMapSurface(
 			setMapReady(false);
 			setMapError(message);
 		};
-		void import("maplibre-gl")
+		void import("../../../core/maps/maplibre")
 			.then(({ Map: NativeMap, NavigationControl, setMaxParallelImageRequests }) => {
 				if (disposed) return;
 				setMaxParallelImageRequests(8);

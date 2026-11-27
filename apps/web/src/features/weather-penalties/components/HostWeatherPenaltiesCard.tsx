@@ -1,4 +1,4 @@
-import { CloudLightning, Lock } from "lucide-react";
+import { Check, CloudLightning, Copy, Landmark, Lock, Wallet } from "lucide-react";
 import { useState } from "react";
 import type { RealtimeConnection } from "../../../core/realtime/realtimeConnection";
 import { StatusBadge } from "../../../shared/components/StatusBadge";
@@ -13,6 +13,8 @@ import {
 	canRequestWaiver,
 	formatPenaltyDate,
 	formatPenaltyDateTime,
+	hasAmountOwed,
+	isPaymentOverdue,
 	penaltyDisplayStatus,
 	weatherPenaltyErrorMessage,
 } from "../utils/weather-penalty-labels";
@@ -24,9 +26,15 @@ export interface HostWeatherPenaltiesCardProps {
 	now?: () => Date;
 }
 
+/** Deducted from settlements plus paid by transfer, as a money string. */
+function paidSoFar(penalty: WeatherPenalty): string {
+	return (Number(penalty.deductedAmount) + Number(penalty.payment.collectedAmount)).toFixed(2);
+}
+
 /**
- * Policy §6 on the Host wallet: the weather penalties, the debt still to be deducted from the next
- * settlements, any hosting block, and the waiver request. Hidden when the Host has none.
+ * Policy §6 on the Host wallet: the weather penalties, what is still owed (deducted from the next
+ * settlements or paid by transfer within 7 days), any hosting block, and the waiver request.
+ * Hidden when the Host has none.
  */
 export function HostWeatherPenaltiesCard({
 	service,
@@ -35,6 +43,17 @@ export function HostWeatherPenaltiesCard({
 }: HostWeatherPenaltiesCardProps) {
 	const query = useMyWeatherPenalties({ service, connection });
 	const [waiverFor, setWaiverFor] = useState<WeatherPenalty | null>(null);
+	const [copied, setCopied] = useState(false);
+
+	async function copyAccountNumber(value: string) {
+		try {
+			await navigator.clipboard.writeText(value);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 2000);
+		} catch {
+			toast.error("Không sao chép được. Hãy chọn và sao chép số tài khoản thủ công.");
+		}
+	}
 	if (query.isError) {
 		return (
 			<section className="rounded-3xl border border-[#dfe8df] bg-white p-6 text-xs shadow-sm">
@@ -63,13 +82,15 @@ export function HostWeatherPenaltiesCard({
 						<h2 className="text-base font-extrabold text-[#10221b]">Phạt thời tiết</h2>
 						<p className="mt-1 text-xs text-[#667a6d]">
 							Phạt khi Admin phải quyết định thay vì bạn không trả lời dự báo Đỏ trước mốc 24 giờ
-							trước giờ đi. Tiền phạt được trừ vào các lần quyết toán tiếp theo.
+							trước giờ đi. Tiền phạt tính theo phần doanh thu bạn nhận từ chuyến (sau 5% phí nền
+							tảng) và được trừ vào các lần quyết toán tiếp theo. Phần chưa trừ được, bạn chuyển
+							khoản nộp trong 7 ngày.
 						</p>
 					</div>
 				</div>
 				<div className="shrink-0 text-right">
 					<p className="text-[11px] font-bold uppercase tracking-wider text-[#7d8d83]">
-						Còn phải trừ
+						Còn phải nộp
 					</p>
 					<p
 						className="text-2xl font-black text-rose-700"
@@ -92,6 +113,62 @@ export function HostWeatherPenaltiesCard({
 					Các Trip đã đăng vẫn diễn ra bình thường.
 				</output>
 			)}
+
+			{Number(data.overdueTotal) > 0 && (
+				<output
+					data-testid="weather-penalty-overdue"
+					className="mt-4 flex items-start gap-2 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-800"
+				>
+					<Wallet className="size-4 shrink-0" />
+					Bạn còn {formatBookingMoney(data.overdueTotal)} tiền phạt quá hạn nộp nên chưa tạo hoặc
+					gửi duyệt Trip mới được. Sau khi bạn chuyển khoản và quản trị viên xác nhận đã nhận tiền,
+					bạn tạo Trip lại bình thường.
+				</output>
+			)}
+
+			{Number(data.outstandingTotal) > 0 &&
+				(data.paymentAccount ? (
+					<div
+						data-testid="weather-penalty-payment-account"
+						className="mt-4 rounded-2xl border border-[#dfe8df] bg-[#fbfdfb] p-4 text-xs"
+					>
+						<p className="flex items-center gap-2 font-extrabold text-[#10221b]">
+							<Landmark className="size-4 text-[#164027]" /> Thông tin chuyển khoản nộp phạt
+						</p>
+						<dl className="mt-3 grid gap-3 sm:grid-cols-3">
+							<div>
+								<dt className="text-[#7d8d83]">Ngân hàng</dt>
+								<dd className="font-bold">{data.paymentAccount.bankName}</dd>
+							</div>
+							<div>
+								<dt className="text-[#7d8d83]">Số tài khoản</dt>
+								<dd className="flex items-center gap-2 font-bold tracking-wide">
+									{data.paymentAccount.accountNumber}
+									<button
+										type="button"
+										onClick={() => void copyAccountNumber(data.paymentAccount?.accountNumber ?? "")}
+										aria-label="Sao chép số tài khoản"
+										className="rounded-lg p-1 text-[#164027] hover:bg-[#f1f5f0]"
+									>
+										{copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+									</button>
+								</dd>
+							</div>
+							<div>
+								<dt className="text-[#7d8d83]">Chủ tài khoản</dt>
+								<dd className="font-bold">{data.paymentAccount.accountHolderName}</dd>
+							</div>
+						</dl>
+					</div>
+				) : (
+					<p
+						data-testid="weather-penalty-payment-account-missing"
+						className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800"
+					>
+						Quản trị viên chưa cập nhật tài khoản nhận tiền phạt. Vui lòng liên hệ quản trị viên
+						CTMS để nhận thông tin chuyển khoản.
+					</p>
+				))}
 
 			<ul className="mt-4 space-y-3">
 				{data.items.map((penalty) => {
@@ -116,7 +193,7 @@ export function HostWeatherPenaltiesCard({
 							</div>
 							<dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
 								<div>
-									<dt className="text-[#7d8d83]">Giá trị booking</dt>
+									<dt className="text-[#7d8d83]">Doanh thu Host của chuyến</dt>
 									<dd className="font-bold">{formatBookingMoney(penalty.bookingValue)}</dd>
 								</div>
 								<div>
@@ -126,19 +203,39 @@ export function HostWeatherPenaltiesCard({
 									</dd>
 								</div>
 								<div>
-									<dt className="text-[#7d8d83]">Tiền phạt / đã trừ</dt>
+									<dt className="text-[#7d8d83]">Tiền phạt / đã trừ hoặc đã nộp</dt>
 									<dd className="font-bold">
-										{formatBookingMoney(penalty.amount)} /{" "}
-										{formatBookingMoney(penalty.deductedAmount)}
+										{formatBookingMoney(penalty.amount)} / {formatBookingMoney(paidSoFar(penalty))}
 									</dd>
 								</div>
 								<div>
-									<dt className="text-[#7d8d83]">Còn phải trừ</dt>
+									<dt className="text-[#7d8d83]">Còn phải nộp</dt>
 									<dd className="font-bold text-rose-700">
 										{formatBookingMoney(penalty.outstandingAmount)}
 									</dd>
 								</div>
 							</dl>
+							{hasAmountOwed(penalty) && (
+								<p
+									data-testid="weather-penalty-payment-due"
+									className={`mt-3 ${isPaymentOverdue(penalty) ? "font-semibold text-rose-700" : "text-[#52665b]"}`}
+								>
+									{isPaymentOverdue(penalty)
+										? `Đã quá hạn nộp (${formatPenaltyDateTime(penalty.payment.dueAt)}).`
+										: `Hạn nộp: ${formatPenaltyDateTime(penalty.payment.dueAt)}.`}{" "}
+									Nếu các lần quyết toán chưa trừ đủ, hãy chuyển khoản số còn lại
+									{data.paymentAccount ? " vào tài khoản CTMS ở trên" : ""} với nội dung "Phạt thời
+									tiết – {penalty.tripTitle}". Khoản phạt được cập nhật khi quản trị viên xác nhận
+									đã nhận tiền.
+								</p>
+							)}
+							{penalty.payment.collectedAt && (
+								<p className="mt-3 text-[#52665b]">
+									Đã nộp {formatBookingMoney(penalty.payment.collectedAmount)} bằng chuyển khoản,
+									quản trị viên xác nhận lúc {formatPenaltyDateTime(penalty.payment.collectedAt)}
+									{penalty.payment.reference ? ` (mã giao dịch ${penalty.payment.reference})` : ""}.
+								</p>
+							)}
 							{status === "waiver_pending" && penalty.waiver.reviewDueAt && (
 								<p className="mt-3 text-amber-800">
 									Đã gửi yêu cầu miễn phạt. Admin xem xét trước{" "}

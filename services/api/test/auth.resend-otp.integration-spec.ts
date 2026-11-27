@@ -220,7 +220,7 @@ describe("POST /api/auth/resend (integration, real Postgres, fake delivery provi
 		await request(app.getHttpServer())
 			.post("/api/auth/resend")
 			.send({ userId, channel: "phone" })
-			.expect(500);
+			.expect(503);
 
 		const otpRows = await dataSource.query(
 			'SELECT "send_count" FROM "verification_otps" WHERE "user_id" = $1',

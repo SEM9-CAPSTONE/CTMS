@@ -96,6 +96,8 @@ export const queryKeys = {
 			["route-terrain", version, hostId, geometry] as const,
 		analyze: (hostId: string, routeId: string | undefined, geometry: string, source?: string) =>
 			["route-safety", hostId, routeId ?? "preview", geometry, source ?? "all"] as const,
+		review: (actorId: string, routeId: string | undefined, geometry: string, source: string) =>
+			["route-safety-review", actorId, routeId, geometry, source] as const,
 	},
 	hostOverview: {
 		forHost: (hostId: string) => ["host-overview", hostId] as const,
@@ -256,6 +258,9 @@ export const queryKeys = {
 	},
 	bankAccounts: {
 		all: ["bank-accounts"] as const,
+	},
+	platformBankAccount: {
+		admin: ["platform-bank-account", "admin"] as const,
 	},
 	deviceSync: {
 		status: (tripId: string) => ["device-sync", "status", tripId] as const,

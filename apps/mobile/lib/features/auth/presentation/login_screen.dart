@@ -11,16 +11,20 @@ import '../../../core/widgets/ctms_button.dart';
 import '../../../core/widgets/ctms_logo.dart';
 import '../application/auth_controller.dart';
 import '../data/auth_api.dart';
+import '../data/google_id_token_source.dart';
 import '../domain/user_role.dart';
 import 'login_strings.dart';
 import 'widgets/login_remember_row.dart';
+import 'widgets/social_login_button.dart';
 
 /// Backend (CTMS-03-T01) only ever sends these 2 message strings for a
 /// login failure.
 const _accountNotActiveMessage = 'Account is not active';
+const _googleOtherAccountMessage = 'This e-mail is linked to another Google account';
 
 /// `/login` — Clean, modern White theme with Green brand accents.
-/// Social auth (Google/Lark) and the 4 feature chips are removed per user specs.
+/// The 4 feature chips and Lark are removed per user specs; "Đăng nhập bằng Google"
+/// shows only when the app is built with GOOGLE_SERVER_CLIENT_ID.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -35,6 +39,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   bool _obscurePassword = true;
   bool _rememberMe = false;
+
+  /// The last attempt was "Đăng nhập bằng Google": its errors read differently.
+  bool _lastAttemptGoogle = false;
 
   static final _emailPattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
   static final _phonePattern = RegExp(r'^[0-9+\s]{9,}$');
@@ -62,6 +69,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    setState(() => _lastAttemptGoogle = false);
     await ref
         .read(authControllerProvider.notifier)
         .login(
@@ -70,10 +78,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
   }
 
+  Future<void> _signInWithGoogle() async {
+    setState(() => _lastAttemptGoogle = true);
+    await ref.read(authControllerProvider.notifier).loginWithGoogle();
+  }
+
+  /// A Google sign-in activates a pending account itself, so "not active" there
+  /// means suspended/deleted and the verify-account action does not apply.
   bool _isAccountNotActive(Object error) =>
-      error is ApiException && error.message == _accountNotActiveMessage;
+      !_lastAttemptGoogle &&
+      error is ApiException &&
+      error.message == _accountNotActiveMessage;
+
+  String _mapGoogleError(Object error) {
+    if (error is! ApiException) return LoginStrings.googleFailed;
+    if (error.kind != ApiExceptionKind.response) return error.message;
+    if (error.statusCode == 503) return LoginStrings.googleDisabled;
+    if (error.message == _accountNotActiveMessage) return LoginStrings.googleAccountBlocked;
+    if (error.message == _googleOtherAccountMessage) return LoginStrings.googleOtherAccount;
+    if (error.statusCode == 401) return LoginStrings.googleInvalid;
+    return LoginStrings.googleFailed;
+  }
 
   String _mapLoginError(Object error) {
+    if (_lastAttemptGoogle) return _mapGoogleError(error);
     if (error is! ApiException) return LoginStrings.genericError;
 
     switch (error.kind) {
@@ -287,6 +315,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     isLoading: authState.isLoading,
                     onPressed: authState.isLoading ? null : _submit,
                   ),
+                  if (ref.watch(googleIdTokenSourceProvider).isEnabled) ...[
+                    const SizedBox(height: AppSpacing.lg),
+                    Row(
+                      children: [
+                        const Expanded(child: Divider(color: AppColors.border)),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                          child: Text(
+                            LoginStrings.orSignInWith,
+                            style: AppTypography.caption.copyWith(color: AppColors.textMuted),
+                          ),
+                        ),
+                        const Expanded(child: Divider(color: AppColors.border)),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    SocialLoginButton(
+                      label: LoginStrings.googleSignIn,
+                      icon: Icons.g_mobiledata_rounded,
+                      onPressed: authState.isLoading ? null : _signInWithGoogle,
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.xl),
 
                   // 8. Bottom Register Text Link

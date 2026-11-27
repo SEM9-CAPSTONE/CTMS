@@ -152,13 +152,13 @@ void main() {
       expect(repository.sendCalls, hasLength(1));
     });
 
-    test('propagates the backend error message on failure, not a generic one', () async {
+    test('shows a Vietnamese message for the resend limit, never the backend English', () async {
       controller().selectChannel(OtpChannel.email);
       repository.sendFailure = ApiException('Resend limit reached', statusCode: 409);
 
       await controller().sendCode('user-1');
 
-      expect(state().errorMessage, 'Resend limit reached');
+      expect(state().errorMessage, 'Bạn đã yêu cầu gửi mã quá nhiều lần. Vui lòng thử lại sau.');
       expect(state().hasSentCode, isFalse);
     });
 
@@ -201,7 +201,7 @@ void main() {
 
       expect(state().code, '000000');
       expect(state().verifySuccess, isFalse);
-      expect(state().errorMessage, 'Incorrect or expired OTP');
+      expect(state().errorMessage, 'Mã OTP không đúng hoặc đã hết hạn. Vui lòng kiểm tra lại.');
     });
 
     test('does nothing while a verify is already in flight (BR-241-style guard)', () async {

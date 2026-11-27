@@ -1,3 +1,5 @@
+import { splitPlatformCommission } from "../../bookings/platform-commission";
+
 /**
  * Penalty for a Host who did not answer a Red forecast before T-24h,
  * docs/features/weather-trip-date-decision-policy.md §6. Pure rules, unit-tested without a database.
@@ -13,6 +15,12 @@ export const PENALTY_COUNT_WINDOW_MS = 90 * DAY_MS;
 export const PENALTY_WAIVER_REQUEST_MS = 72 * HOUR_MS;
 /** The Admin reviews a waiver within 5 working days (shown only, nothing happens automatically). */
 export const PENALTY_WAIVER_REVIEW_WORKING_DAYS = 5;
+/**
+ * A penalty the settlements could not cover (e.g. the Host's first Trip was cancelled, so there is
+ * no revenue) is paid by the Host within 7 days; after that the Host cannot create or submit Trips
+ * until an Admin confirms the payment.
+ */
+export const PENALTY_PAYMENT_DAYS = 7;
 /** T-24h, same deadline as trip-weather-decision.policy.ts. */
 const HOST_DEADLINE_MS = 24 * HOUR_MS;
 
@@ -37,9 +45,17 @@ export function penaltyTier(violationNumber: number): PenaltyTier {
 	return PENALTY_TIERS[index];
 }
 
-/** Amount in minor units (đồng × 100): rate of the paid booking value, capped. */
-export function penaltyAmountMinor(bookingValueMinor: bigint, tier: PenaltyTier): bigint {
-	const raw = (bookingValueMinor * BigInt(tier.rateBasisPoints)) / 10_000n;
+/**
+ * Penalty base in minor units: what the Host earns from the Trip, i.e. the paid bookings minus the
+ * platform commission, rounded exactly like the settlement.
+ */
+export function penaltyBaseMinor(paidBookingsMinor: bigint): bigint {
+	return splitPlatformCommission(paidBookingsMinor).netMinor;
+}
+
+/** Amount in minor units (đồng × 100): rate of the penalty base (Host earnings), capped. */
+export function penaltyAmountMinor(baseMinor: bigint, tier: PenaltyTier): bigint {
+	const raw = (baseMinor * BigInt(tier.rateBasisPoints)) / 10_000n;
 	const cap = BigInt(tier.capVnd) * 100n;
 	return raw < cap ? raw : cap;
 }
@@ -51,19 +67,35 @@ export function hostingBlockedUntil(tier: PenaltyTier, now: Date): Date | null {
 		: null;
 }
 
+/** Last moment for the Host to pay what the settlements did not cover. */
+export function paymentDueAt(createdAt: Date): Date {
+	return new Date(createdAt.getTime() + PENALTY_PAYMENT_DAYS * DAY_MS);
+}
+
+export interface AppliedPenaltyForRestriction {
+	createdAt: Date;
+	hostingBlockedUntil: Date | null;
+	/** Amount still unpaid (not deducted and not collected), in minor units. */
+	outstandingMinor: bigint;
+	paymentDueAt: Date;
+}
+
 export interface HostingRestriction {
-	/** The Host cannot create or submit Trips before this time; `null` = not restricted. */
+	/** The Host cannot create or submit Trips before this time; `null` = no dated restriction. */
 	blockedUntil: Date | null;
 	/** Tier 3: 3+ applied violations in 90 days (PD-2, lifted when the count drops below 3). */
 	suspended: boolean;
+	/** Unpaid amount past its 7-day payment deadline, in minor units; blocks until paid. */
+	overdueDebtMinor: bigint;
 }
 
 /**
- * Restriction from the Host's applied penalties: the latest dated block (tier 2) and the tier-3
- * suspension, which lasts while 3 or more applied penalties fall in the last 90 days.
+ * Restriction from the Host's applied penalties: the latest dated block (tier 2), the tier-3
+ * suspension, which lasts while 3 or more applied penalties fall in the last 90 days, and any
+ * unpaid amount past its payment deadline (no end date: it lasts until the debt is paid).
  */
 export function hostingRestriction(
-	applied: Array<{ createdAt: Date; hostingBlockedUntil: Date | null }>,
+	applied: AppliedPenaltyForRestriction[],
 	now: Date
 ): HostingRestriction {
 	let blockedUntil: Date | null = null;
@@ -81,7 +113,10 @@ export function hostingRestriction(
 		const liftsAt = new Date(recent[suspensionTier - 1].getTime() + PENALTY_COUNT_WINDOW_MS);
 		if (!blockedUntil || liftsAt > blockedUntil) blockedUntil = liftsAt;
 	}
-	return { blockedUntil, suspended };
+	const overdueDebtMinor = applied
+		.filter((penalty) => penalty.outstandingMinor > 0n && penalty.paymentDueAt < now)
+		.reduce((sum, penalty) => sum + penalty.outstandingMinor, 0n);
+	return { blockedUntil, suspended, overdueDebtMinor };
 }
 
 /** A penalty is due when an Admin acts at or after T-24h and the Host gave no on-time answer. */

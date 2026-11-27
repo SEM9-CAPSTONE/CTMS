@@ -1,9 +1,10 @@
 import type { MapLayerMouseEvent, Map as MapLibreMap, Marker } from "maplibre-gl";
 import { useEffect, useState } from "react";
 import { SAFETY_SOURCE_ID } from "../constants";
+import { createSafetySymbol } from "../create-safety-symbol";
 import {
-	createSafetySymbol,
-	featureColor,
+	HAZARD_MARKER_COLOR,
+	WATER_COLOR,
 	featureMarkerPoint,
 	isBareSymbol,
 	isDisplayableFeature,
@@ -35,7 +36,7 @@ export function useSafetyMapSymbols(
 			if (!feature) return;
 			setSelectedId(feature.id);
 		};
-		void import("maplibre-gl").then(({ Marker: MapMarker }) => {
+		void import("../../../core/maps/maplibre").then(({ Marker: MapMarker }) => {
 			if (disposed) return;
 			for (const feature of features) {
 				const point = featureMarkerPoint(feature);
@@ -51,7 +52,13 @@ export function useSafetyMapSymbols(
 				if (feature.properties.sourceType === "ADMIN_VERIFIED")
 					element.ariaLabel = `${safetyText.verifiedZone.title}: ${element.ariaLabel}`;
 				element.title = element.ariaLabel;
-				element.append(createSafetySymbol(kind, featureColor(feature), !isBareSymbol(feature)));
+				element.append(
+					createSafetySymbol(
+						kind,
+						kind === "water" ? WATER_COLOR : HAZARD_MARKER_COLOR,
+						!isBareSymbol(feature)
+					)
+				);
 				element.addEventListener("mousedown", (event) => event.stopPropagation());
 				element.addEventListener("pointerdown", (event) => event.stopPropagation());
 				element.onclick = (event) => {

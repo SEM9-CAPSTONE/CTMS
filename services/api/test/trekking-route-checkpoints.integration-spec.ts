@@ -90,7 +90,7 @@ describe("trekking route checkpoint update (integration, real Postgres)", () => 
 		return { id, token: jwtService.sign({ sub: id, roles: [role] }) };
 	}
 
-	async function createDraftRoute(hostId: string): Promise<string> {
+	async function createDraftRoute(hostId: string, name?: string): Promise<string> {
 		const routeId = randomUUID();
 		await dataSource.query(
 			`
@@ -110,7 +110,7 @@ describe("trekking route checkpoint update (integration, real Postgres)", () => 
 			[
 				routeId,
 				hostId,
-				`Checkpoint route ${routeId}`,
+				name ?? `Checkpoint route ${routeId}`,
 				"Integration route",
 				TrekkingRouteStatus.DRAFT,
 			]
@@ -255,6 +255,93 @@ describe("trekking route checkpoint update (integration, real Postgres)", () => 
 			.expect(200)
 			.expect(({ body }) => expect(body.status).toBe("active"));
 		await assertNoCheckpoints();
+	});
+
+	it("notifies only the owning Host after approval and does not duplicate a retried decision", async () => {
+		const host = await createUser();
+		const admin = await createUser(UserRole.ADMIN);
+		const title = "Khám phá bán đảo Sơn Trà";
+		const routeId = await createDraftRoute(host.id, title);
+		await request(app.getHttpServer())
+			.patch(`/api/trekking-routes/${routeId}/submit-for-approval`)
+			.set("Authorization", `Bearer ${host.token}`)
+			.expect(200);
+		await request(app.getHttpServer())
+			.patch(`/api/trekking-routes/${routeId}/review`)
+			.set("Authorization", `Bearer ${admin.token}`)
+			.send({ action: "approve" })
+			.expect(200);
+		await request(app.getHttpServer())
+			.patch(`/api/trekking-routes/${routeId}/review`)
+			.set("Authorization", `Bearer ${admin.token}`)
+			.send({ action: "approve" })
+			.expect(409);
+		const inbox = await request(app.getHttpServer())
+			.get("/api/in-app-notifications")
+			.set("Authorization", `Bearer ${host.token}`)
+			.expect(200);
+		expect(inbox.body.items).toEqual([
+			expect.objectContaining({
+				eventType: "trekking_route.approved",
+				readAt: null,
+				targetAvailable: true,
+				target: {
+					type: "trekking_route",
+					routeId,
+					title,
+					action: "view",
+				},
+			}),
+		]);
+		const adminInbox = await request(app.getHttpServer())
+			.get("/api/in-app-notifications")
+			.set("Authorization", `Bearer ${admin.token}`)
+			.expect(200);
+		expect(adminInbox.body.items).toEqual([]);
+	});
+
+	it("round-trips hybrid segment metadata and removes stale controls on older-client geometry updates", async () => {
+		const host = await createUser();
+		const original = routePayload();
+		const [start, end] = original.geometry.coordinates;
+		const junction = [108.226, 16.063];
+		const geometry = {
+			...original.geometry,
+			coordinates: [start, [108.222, 16.056], junction, end],
+		};
+		const drawing = {
+			mode: "hybrid",
+			waypoints: [start, junction, end],
+			segments: [
+				{ id: "approach", mode: "smart", endIndex: 2 },
+				{ id: "trail", mode: "manual", endIndex: 3 },
+			],
+		};
+		const created = await request(app.getHttpServer())
+			.post("/api/trekking-routes")
+			.set("Authorization", `Bearer ${host.token}`)
+			.send({ ...original, geometry, drawing })
+			.expect(201);
+		const id: string = created.body.id;
+		routeIds.push(id);
+
+		await request(app.getHttpServer())
+			.get(`/api/trekking-routes/${id}`)
+			.set("Authorization", `Bearer ${host.token}`)
+			.expect(200)
+			.expect(({ body }) => expect(body).toMatchObject({ geometry, drawing }));
+		await request(app.getHttpServer())
+			.patch(`/api/trekking-routes/${id}`)
+			.set("Authorization", `Bearer ${host.token}`)
+			.send({ ...original, geometry })
+			.expect(200)
+			.expect(({ body }) => expect(body.drawing).toEqual(drawing));
+		await request(app.getHttpServer())
+			.patch(`/api/trekking-routes/${id}`)
+			.set("Authorization", `Bearer ${host.token}`)
+			.send(original)
+			.expect(200)
+			.expect(({ body }) => expect(body).not.toHaveProperty("drawing"));
 	});
 
 	it("submits an existing draft without endpoint checkpoints", async () => {

@@ -12,7 +12,7 @@ import {
 import { routeSafetyService } from "../services/route-safety.service";
 import { combineSafetyQueries } from "../utils/combine-safety-queries";
 
-export function useRouteSafety(geometry: GeoJsonLineString, routeId?: string) {
+export function useRouteSafety(geometry: GeoJsonLineString, routeId?: string, review = false) {
 	const geometryKey = JSON.stringify(geometry);
 	const [stableKey, setStableKey] = useState(geometryKey);
 	const hostId = getStoredAuthUser()?.id ?? "";
@@ -26,15 +26,19 @@ export function useRouteSafety(geometry: GeoJsonLineString, routeId?: string) {
 	const pending = geometryKey !== stableKey;
 	const query = useQueries({
 		queries: SAFETY_PROVIDERS.map((source) => ({
-			queryKey: queryKeys.routeSafety.analyze(hostId, routeId, stableKey, source),
+			queryKey: review
+				? queryKeys.routeSafety.review(hostId, routeId, stableKey, source)
+				: queryKeys.routeSafety.analyze(hostId, routeId, stableKey, source),
 			queryFn: ({ signal }: { signal: AbortSignal }) =>
-				routeSafetyService.analyze(
-					JSON.parse(stableKey) as GeoJsonLineString,
-					routeId,
-					signal,
-					source
-				),
-			enabled: Boolean(hostId) && valid && !pending,
+				review && routeId
+					? routeSafetyService.review(routeId, source, signal)
+					: routeSafetyService.analyze(
+							JSON.parse(stableKey) as GeoJsonLineString,
+							routeId,
+							signal,
+							source
+						),
+			enabled: Boolean(hostId) && valid && !pending && (!review || Boolean(routeId)),
 			retry: false,
 			staleTime: SAFETY_STALE_MS,
 			refetchOnMount: "always" as const,

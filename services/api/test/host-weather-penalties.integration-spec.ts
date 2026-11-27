@@ -30,6 +30,13 @@ interface PenaltyBody {
 	hostingBlockedUntil: string | null;
 	waiverDeadline: string;
 	waiver: { decision: string | null; reviewDueAt: string | null; evidenceUrls: string[] };
+	payment: {
+		dueAt: string;
+		overdue: boolean;
+		collectedAmount: string;
+		collectedAt: string | null;
+		reference: string | null;
+	};
 }
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -234,6 +241,7 @@ describe("Host weather penalties, policy §6 (integration, real Postgres)", () =
 					response.body as {
 						items: PenaltyBody[];
 						outstandingTotal: string;
+						overdueTotal: string;
 						hostingBlockedUntil: string | null;
 						suspended: boolean;
 					}
@@ -249,7 +257,7 @@ describe("Host weather penalties, policy §6 (integration, real Postgres)", () =
 			.set("Authorization", `Bearer ${admin.accessToken}`)
 			.send({ approve, note: approve ? "Giấy viện hợp lệ" : "Thiếu bằng chứng" });
 
-	it("penalises a Host who did not answer: 5% of the paid bookings, capped, audited and pushed", async () => {
+	it("penalises a Host who did not answer: 5% of the Host's earnings, capped, audited and pushed", async () => {
 		const host = await createAccount(UserRole.HOST);
 		const admin = await createAccount(UserRole.ADMIN);
 		const tripId = await createTrip(host, new Date(Date.now() + 10 * HOUR_MS));
@@ -262,9 +270,10 @@ describe("Host weather penalties, policy §6 (integration, real Postgres)", () =
 			expect.objectContaining({
 				tripId,
 				violationNumber: 1,
-				bookingValue: "50000000.00",
+				// 50,000,000đ paid − 5% commission = 47,500,000đ earned by the Host
+				bookingValue: "47500000.00",
 				ratePercent: 5,
-				// 50,000,000đ × 5% = 2,500,000đ, capped at 2,000,000đ
+				// 47,500,000đ × 5% = 2,375,000đ, capped at 2,000,000đ
 				amount: "2000000.00",
 				outstandingAmount: "2000000.00",
 				status: "applied",
@@ -330,7 +339,8 @@ describe("Host weather penalties, policy §6 (integration, real Postgres)", () =
 
 		let mine = await myPenalties(host);
 		const second = mine.items.find((item) => item.tripId === secondTrip) as PenaltyBody;
-		expect(second).toMatchObject({ violationNumber: 2, ratePercent: 10, amount: "1000000.00" });
+		// 10,000,000đ paid → 9,500,000đ earned × 10%
+		expect(second).toMatchObject({ violationNumber: 2, ratePercent: 10, amount: "950000.00" });
 		const blockedFor = new Date(second.hostingBlockedUntil as string).getTime() - Date.now();
 		expect(blockedFor).toBeGreaterThan(13.9 * DAY_MS);
 		expect(blockedFor).toBeLessThanOrEqual(14 * DAY_MS);
@@ -395,7 +405,8 @@ describe("Host weather penalties, policy §6 (integration, real Postgres)", () =
 		await bookPaid(cancelled, 20_000_000);
 		await adminDecides(admin, cancelled, "cancel");
 		const penalty = (await myPenalties(host)).items[0];
-		expect(penalty.amount).toBe("1000000.00");
+		// 20,000,000đ paid → 19,000,000đ earned × 5%
+		expect(penalty.amount).toBe("950000.00");
 
 		// A completed Trip past the hold and complaint windows: 600,000đ base → 570,000đ net.
 		const completed = await createTrip(host, new Date(Date.now() - 6 * DAY_MS), {
@@ -410,9 +421,9 @@ describe("Host weather penalties, policy §6 (integration, real Postgres)", () =
 		let mine = await myPenalties(host);
 		expect(mine.items[0]).toMatchObject({
 			deductedAmount: "570000.00",
-			outstandingAmount: "430000.00",
+			outstandingAmount: "380000.00",
 		});
-		expect(mine.outstandingTotal).toBe("430000.00");
+		expect(mine.outstandingTotal).toBe("380000.00");
 		const ledger = await dataSource.query(
 			`SELECT tx."type", tx."net_amount"::text AS "net", tx."balance_after"::text AS "balance"
 			 FROM "wallet_transactions" tx JOIN "host_wallets" wallet ON wallet."id" = tx."wallet_id"
@@ -434,6 +445,101 @@ describe("Host weather penalties, policy §6 (integration, real Postgres)", () =
 		expect(wallet).toEqual([{ balance: "570000.00" }]);
 		mine = await myPenalties(host);
 		expect(mine.outstandingTotal).toBe("0.00");
+	});
+
+	it("blocks hosting once a penalty the settlements did not cover is unpaid after 7 days, until an Admin confirms the transfer", async () => {
+		const host = await createAccount(UserRole.HOST);
+		const admin = await createAccount(UserRole.ADMIN);
+		// The Host's first Trip, cancelled with a full refund: no revenue to deduct from.
+		const tripId = await createTrip(host, new Date(Date.now() + 10 * HOUR_MS));
+		await bookPaid(tripId, 1_500_000);
+		await adminDecides(admin, tripId, "cancel");
+		let mine = await myPenalties(host);
+		const penalty = mine.items[0];
+		// 1,500,000đ paid → 1,425,000đ earned × 5%
+		expect(penalty).toMatchObject({
+			bookingValue: "1425000.00",
+			amount: "71250.00",
+			outstandingAmount: "71250.00",
+			payment: expect.objectContaining({ overdue: false, collectedAmount: "0.00" }),
+		});
+		const dueIn = new Date(penalty.payment.dueAt).getTime() - Date.now();
+		expect(dueIn).toBeGreaterThan(6.9 * DAY_MS);
+		expect(dueIn).toBeLessThanOrEqual(7 * DAY_MS);
+		expect(mine.overdueTotal).toBe("0.00");
+
+		await dataSource.query(
+			`UPDATE "host_weather_penalties" SET "payment_due_at" = now() - interval '1 minute' WHERE "id" = $1`,
+			[penalty.id]
+		);
+		mine = await myPenalties(host);
+		expect(mine.overdueTotal).toBe("71250.00");
+		expect(mine.items[0].payment.overdue).toBe(true);
+		const draft = await createTrip(host, new Date(Date.now() + 20 * DAY_MS), {
+			status: "draft",
+			risk: null,
+		});
+		await expect(tripsService.submitForApproval(host.id, draft)).rejects.toMatchObject({
+			status: 403,
+			response: expect.objectContaining({
+				code: "WEATHER_PENALTY_OVERDUE",
+				overdueAmount: "71250.00",
+			}),
+		});
+		const unpaid = await api()
+			.get("/api/admin/weather-penalties?status=unpaid")
+			.set("Authorization", `Bearer ${admin.accessToken}`)
+			.expect(200);
+		expect((unpaid.body as PenaltyBody[]).map((item) => item.id)).toContain(penalty.id);
+
+		const confirm = (account: Account, body: Record<string, unknown>) =>
+			api()
+				.post(`/api/admin/weather-penalties/${penalty.id}/payment-confirmation`)
+				.set("Authorization", `Bearer ${account.accessToken}`)
+				.send(body);
+		await confirm(host, { reference: "FT2611230045" }).expect(403);
+		await confirm(admin, { reference: "  " }).expect(422);
+		const confirmed = await confirm(admin, {
+			reference: "FT2611230045",
+			note: "Host chuyển khoản qua Vietcombank",
+		}).expect(200);
+		expect(confirmed.body).toMatchObject({
+			outstandingAmount: "0.00",
+			payment: expect.objectContaining({
+				overdue: false,
+				collectedAmount: "71250.00",
+				reference: "FT2611230045",
+			}),
+		});
+		await confirm(admin, { reference: "FT2611230045" }).expect(409);
+		mine = await myPenalties(host);
+		expect(mine.overdueTotal).toBe("0.00");
+		expect(mine.outstandingTotal).toBe("0.00");
+		const audit = await dataSource.query(
+			`SELECT "actor_id" AS "actorId" FROM "audit_logs"
+			 WHERE "action" = 'host.weather_penalty_payment_confirmed' AND "target_id" = $1`,
+			[penalty.id]
+		);
+		expect(audit).toEqual([{ actorId: admin.id }]);
+
+		// Waived later: the transferred money goes back to a wallet created for this Host.
+		await dataSource.query(
+			`UPDATE "host_weather_penalties" SET "waiver_deadline" = now() + interval '1 hour' WHERE "id" = $1`,
+			[penalty.id]
+		);
+		await requestWaiver(host, penalty.id).expect(200);
+		const waived = await reviewWaiver(admin, penalty.id, true).expect(200);
+		expect(waived.body).toMatchObject({
+			status: "waived",
+			payment: expect.objectContaining({ collectedAmount: "0.00" }),
+		});
+		const ledger = await dataSource.query(
+			`SELECT tx."type", tx."net_amount"::text AS "net", wallet."balance"::text AS "balance"
+			 FROM "wallet_transactions" tx JOIN "host_wallets" wallet ON wallet."id" = tx."wallet_id"
+			 WHERE wallet."host_id" = $1`,
+			[host.id]
+		);
+		expect(ledger).toEqual([{ type: "penalty_refund", net: "71250.00", balance: "71250.00" }]);
 	});
 
 	it("keeps a rejected waiver applied with the Admin's reason", async () => {

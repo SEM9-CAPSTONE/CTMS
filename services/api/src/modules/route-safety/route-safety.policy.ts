@@ -29,6 +29,13 @@ export function safetyLifecycle(
 	const anchor = candidate.issuedAt ?? candidate.observedAt;
 	if (!anchor || !Number.isFinite(Date.parse(anchor))) return "UNKNOWN";
 	if (Date.parse(anchor) > now.getTime()) return "SCHEDULED";
+	// Live VNDMS events carry a provider-reported end status and no forecast expiry.
+	if (
+		candidate.source === "VNDMS" &&
+		candidate.geometryRole === "representative_event_location" &&
+		candidate.lifecycleStatus === "ACTIVE"
+	)
+		return "ACTIVE";
 	return now.getTime() - Date.parse(anchor) >= maxAgeMinutes * 60_000 ? "STALE" : "ACTIVE";
 }
 

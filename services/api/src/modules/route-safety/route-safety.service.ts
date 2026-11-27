@@ -10,7 +10,7 @@ import { ConfigService } from "@nestjs/config";
 import { isCanonicalLineStringCoordinates } from "../trekking-routes/validators/line-string.validator";
 import type { AnalyzeRouteDto } from "./dto/analyze-route.dto";
 import type { VerifiedZonesQueryDto } from "./dto/verified-zones-query.dto";
-import { SAFETY_PROVIDERS } from "./live-safety.types";
+import { SAFETY_PROVIDERS, type SafetyProvider } from "./live-safety.types";
 // biome-ignore lint/style/useImportType: Nest injection metadata
 import { NchmfSafetyService } from "./nchmf-safety.service";
 // biome-ignore lint/style/useImportType: Nest injection metadata
@@ -54,6 +54,20 @@ export class RouteSafetyService {
 			if (owner !== hostId)
 				throw new ForbiddenException("Only the owning Host can analyze this route");
 		}
+		return this.analyzeGeometry(hostId, dto);
+	}
+
+	async analyzeForReview(routeId: string, source?: SafetyProvider): Promise<RouteSafetyResult> {
+		const route = await this.repository.findRouteForReview(routeId);
+		if (!route) throw new NotFoundException("Trekking route not found");
+		return this.analyzeGeometry(route.hostId, { routeId, geometry: route.geometry, source }, true);
+	}
+
+	private async analyzeGeometry(
+		hostId: string,
+		dto: AnalyzeRouteDto,
+		review = false
+	): Promise<RouteSafetyResult> {
 		if (
 			dto.geometry?.type !== "LineString" ||
 			!isCanonicalLineStringCoordinates(dto.geometry.coordinates) ||
@@ -89,7 +103,8 @@ export class RouteSafetyService {
 			dto.geometry,
 			proximity,
 			snapshots.flatMap((snapshot) => snapshot.candidates),
-			true
+			true,
+			review
 		);
 		const candidates = spatialCandidates.filter(
 			(candidate) =>

@@ -12,6 +12,7 @@ interface NativeMap {
 }
 const mocks = vi.hoisted(() => ({ maps: [] as NativeMap[], popupPositions: [] as unknown[] }));
 vi.mock("maplibre-gl", () => ({
+	setWorkerUrl: vi.fn(),
 	Map: class {
 		container: HTMLElement;
 		painter = {};

@@ -2,6 +2,7 @@ import { AlertCircle, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { StatusBadge } from "../../../shared/components/StatusBadge";
 import { formatBookingMoney } from "../../booking-details/utils/booking-details-formatters";
+import type { platformBankAccountService } from "../../platform-bank-account/services/platform-bank-account.service";
 import { useAdminWeatherPenalties } from "../hooks/useWeatherPenalties";
 import type { weatherPenaltiesService } from "../services/weather-penalties.service";
 import type { AdminPenaltyFilter, WeatherPenalty } from "../types";
@@ -9,6 +10,7 @@ import {
 	WEATHER_PENALTY_STATUS_LABELS,
 	WEATHER_PENALTY_STATUS_TONES,
 	formatPenaltyDate,
+	isPaymentOverdue,
 	isReviewOverdue,
 	penaltyDisplayStatus,
 	weatherPenaltyErrorMessage,
@@ -17,6 +19,7 @@ import { AdminWeatherPenaltyDialog } from "./AdminWeatherPenaltyDialog";
 
 const FILTERS: Array<{ key: AdminPenaltyFilter; label: string }> = [
 	{ key: "waiver_pending", label: "Chờ duyệt miễn" },
+	{ key: "unpaid", label: "Chưa nộp đủ" },
 	{ key: "applied", label: "Đang áp dụng" },
 	{ key: "waived", label: "Đã miễn" },
 	{ key: "all", label: "Tất cả" },
@@ -24,6 +27,7 @@ const FILTERS: Array<{ key: AdminPenaltyFilter; label: string }> = [
 
 const EMPTY_TEXT: Record<AdminPenaltyFilter, string> = {
 	waiver_pending: "Không có yêu cầu miễn phạt nào đang chờ.",
+	unpaid: "Không có Host nào còn nợ tiền phạt.",
 	applied: "Không có khoản phạt nào đang áp dụng.",
 	waived: "Chưa miễn khoản phạt nào.",
 	all: "Chưa có Host nào bị phạt vì thời tiết.",
@@ -31,10 +35,11 @@ const EMPTY_TEXT: Record<AdminPenaltyFilter, string> = {
 
 export interface WeatherPenaltiesPanelProps {
 	service?: typeof weatherPenaltiesService;
+	bankAccountService?: typeof platformBankAccountService;
 }
 
 /** "Phạt Host" tab of Admin › Quản lý thời tiết (policy §6): penalties and waiver requests. */
-export function WeatherPenaltiesPanel({ service }: WeatherPenaltiesPanelProps) {
+export function WeatherPenaltiesPanel({ service, bankAccountService }: WeatherPenaltiesPanelProps) {
 	const [filter, setFilter] = useState<AdminPenaltyFilter>("waiver_pending");
 	const query = useAdminWeatherPenalties(filter, { service });
 	const [selected, setSelected] = useState<WeatherPenalty | null>(null);
@@ -45,7 +50,8 @@ export function WeatherPenaltiesPanel({ service }: WeatherPenaltiesPanelProps) {
 			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<p className="text-sm text-[#667a6d]">
 					Host bị phạt khi để quá 24 tiếng trước giờ đi mà chưa xử lý, khiến Admin phải quyết định
-					thay. Yêu cầu miễn phạt nên được xem trong 5 ngày làm việc.
+					thay. Yêu cầu miễn phạt nên được xem trong 5 ngày làm việc. Phần quyết toán chưa trừ đủ,
+					Host chuyển khoản trong 7 ngày và bạn xác nhận khi nhận được tiền.
 				</p>
 				<button
 					type="button"
@@ -116,6 +122,7 @@ export function WeatherPenaltiesPanel({ service }: WeatherPenaltiesPanelProps) {
 									</div>
 									<div className="flex flex-wrap gap-2">
 										{isReviewOverdue(item) && <StatusBadge tone="danger">Quá hạn xem</StatusBadge>}
+										{isPaymentOverdue(item) && <StatusBadge tone="danger">Quá hạn nộp</StatusBadge>}
 										<StatusBadge tone={WEATHER_PENALTY_STATUS_TONES[status]}>
 											{WEATHER_PENALTY_STATUS_LABELS[status]}
 										</StatusBadge>
@@ -132,6 +139,7 @@ export function WeatherPenaltiesPanel({ service }: WeatherPenaltiesPanelProps) {
 					penalty={selected}
 					onClose={() => setSelected(null)}
 					service={service}
+					bankAccountService={bankAccountService}
 				/>
 			)}
 		</section>

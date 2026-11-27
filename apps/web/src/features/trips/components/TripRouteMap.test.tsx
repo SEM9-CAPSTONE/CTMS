@@ -25,6 +25,7 @@ const state = vi.hoisted(() => ({
 	},
 }));
 vi.mock("maplibre-gl", () => ({
+	setWorkerUrl: vi.fn(),
 	Map: class {
 		on = state.map.on;
 		addControl = state.map.addControl;

@@ -68,16 +68,24 @@ class _PorterTripsScreenState extends ConsumerState<PorterTripsScreen>
     }
   }
 
-  OperationalTrip _select(List<OperationalTrip> trips) => trips.firstWhere(
-    (trip) => trip.id == _selectedTripId,
-    orElse: () => trips.firstWhere(
-      (trip) => trip.status == OperationalTripStatus.ongoing,
+  OperationalTrip _select(List<OperationalTrip> trips) {
+    final chosen = trips.firstWhere(
+      (trip) => trip.id == _selectedTripId,
       orElse: () => trips.firstWhere(
-        (trip) => trip.status == OperationalTripStatus.published,
-        orElse: () => trips.first,
+        (trip) => trip.status == OperationalTripStatus.ongoing,
+        orElse: () => trips.firstWhere(
+          (trip) => trip.status == OperationalTripStatus.published,
+          orElse: () => trips.first,
+        ),
       ),
-    ),
-  );
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && ref.read(selectedPorterTripIdProvider) != chosen.id) {
+        ref.read(selectedPorterTripIdProvider.notifier).state = chosen.id;
+      }
+    });
+    return chosen;
+  }
 
   @override
   Widget build(BuildContext context) {

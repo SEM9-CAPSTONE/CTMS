@@ -13,6 +13,7 @@ import {
 	MaxLength,
 } from "class-validator";
 import { minorToMoney, moneyToMinor } from "../../bookings/cancellation-policy";
+import { PlatformPaymentAccountDto } from "../../platform-bank-accounts/platform-bank-account.dto";
 
 function trimmed(value: unknown): unknown {
 	return typeof value === "string" ? value.trim() : value;
@@ -20,7 +21,8 @@ function trimmed(value: unknown): unknown {
 
 export const WEATHER_PENALTY_STATUSES = ["applied", "waived"] as const;
 export type WeatherPenaltyStatus = (typeof WEATHER_PENALTY_STATUSES)[number];
-export const ADMIN_PENALTY_FILTERS = ["applied", "waived", "waiver_pending"] as const;
+/** `unpaid` = applied penalties with money still owed (not deducted and not collected). */
+export const ADMIN_PENALTY_FILTERS = ["applied", "waived", "waiver_pending", "unpaid"] as const;
 export type AdminPenaltyFilter = (typeof ADMIN_PENALTY_FILTERS)[number];
 
 export class RequestWeatherPenaltyWaiverDto {
@@ -58,6 +60,22 @@ export class ReviewWeatherPenaltyWaiverDto {
 	note!: string;
 }
 
+export class ConfirmWeatherPenaltyPaymentDto {
+	@ApiProperty({ maxLength: 100, description: "Bank transfer reference the Host paid with" })
+	@Transform(({ value }) => trimmed(value))
+	@IsString()
+	@IsNotEmpty()
+	@MaxLength(100)
+	reference!: string;
+
+	@ApiPropertyOptional({ maxLength: 500 })
+	@Transform(({ value }) => trimmed(value))
+	@IsOptional()
+	@IsString()
+	@MaxLength(500)
+	note?: string;
+}
+
 export class AdminWeatherPenaltyQueryDto {
 	@ApiPropertyOptional({ enum: ADMIN_PENALTY_FILTERS })
 	@IsOptional()
@@ -88,6 +106,26 @@ export class WeatherPenaltyWaiverDto {
 	reviewNote!: string | null;
 }
 
+export class WeatherPenaltyPaymentDto {
+	@ApiProperty({ format: "date-time", description: "7 days after the penalty was created" })
+	dueAt!: string;
+
+	@ApiProperty({ description: "Money still owed after that deadline: Trip create/submit blocked" })
+	overdue!: boolean;
+
+	@ApiProperty({ example: "0.00", description: "Paid by bank transfer, confirmed by an Admin" })
+	collectedAmount!: string;
+
+	@ApiPropertyOptional({ format: "date-time", nullable: true })
+	collectedAt!: string | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	reference!: string | null;
+
+	@ApiPropertyOptional({ nullable: true })
+	note!: string | null;
+}
+
 export class HostWeatherPenaltyDto {
 	@ApiProperty() id!: string;
 	@ApiProperty() tripId!: string;
@@ -96,13 +134,18 @@ export class HostWeatherPenaltyDto {
 	@ApiProperty() hostId!: string;
 	@ApiPropertyOptional({ nullable: true }) hostName!: string | null;
 	@ApiProperty({ description: "Violation number in the last 90 days" }) violationNumber!: number;
-	@ApiProperty({ example: "12000000.00" }) bookingValue!: string;
+	@ApiProperty({
+		example: "11400000.00",
+		description: "Penalty base: the Host's earnings (paid bookings minus the 5% commission)",
+	})
+	bookingValue!: string;
 	@ApiProperty({ example: 5 }) ratePercent!: number;
 	@ApiProperty({ example: "2000000.00" }) capAmount!: string;
 	@ApiProperty({ example: "600000.00" }) amount!: string;
 	@ApiProperty({ example: "0.00" }) deductedAmount!: string;
-	@ApiProperty({ example: "600000.00", description: "Debt still to deduct" })
+	@ApiProperty({ example: "570000.00", description: "Still owed: not deducted and not collected" })
 	outstandingAmount!: string;
+	@ApiProperty({ type: WeatherPenaltyPaymentDto }) payment!: WeatherPenaltyPaymentDto;
 	@ApiProperty({ enum: WEATHER_PENALTY_STATUSES }) status!: WeatherPenaltyStatus;
 	@ApiPropertyOptional({ format: "date-time", nullable: true })
 	hostingBlockedUntil!: string | null;
@@ -114,10 +157,19 @@ export class HostWeatherPenaltyDto {
 
 export class HostWeatherPenaltyListDto {
 	@ApiProperty({ type: [HostWeatherPenaltyDto] }) items!: HostWeatherPenaltyDto[];
-	@ApiProperty({ example: "600000.00" }) outstandingTotal!: string;
+	@ApiProperty({ example: "570000.00" }) outstandingTotal!: string;
+	@ApiProperty({ example: "0.00", description: "Owed past the 7-day deadline: hosting blocked" })
+	overdueTotal!: string;
 	@ApiPropertyOptional({ format: "date-time", nullable: true })
 	hostingBlockedUntil!: string | null;
 	@ApiProperty() suspended!: boolean;
+	@ApiPropertyOptional({
+		type: PlatformPaymentAccountDto,
+		nullable: true,
+		description:
+			"Where to transfer what the settlements did not cover; null until an Admin sets it",
+	})
+	paymentAccount!: PlatformPaymentAccountDto | null;
 }
 
 export interface HostWeatherPenaltyRow {
@@ -133,6 +185,11 @@ export interface HostWeatherPenaltyRow {
 	cap_amount: string;
 	amount: string;
 	deducted_amount: string;
+	collected_amount: string;
+	collected_at: Date | string | null;
+	collection_reference: string | null;
+	collection_note: string | null;
+	payment_due_at: Date | string;
 	status: WeatherPenaltyStatus;
 	hosting_blocked_until: Date | string | null;
 	waiver_deadline: Date | string;
@@ -156,9 +213,26 @@ function money(value: string): string {
 	return minorToMoney(moneyToMinor(value));
 }
 
-export function toHostWeatherPenaltyDto(row: HostWeatherPenaltyRow): HostWeatherPenaltyDto {
-	const outstanding =
-		row.status === "applied" ? moneyToMinor(row.amount) - moneyToMinor(row.deducted_amount) : 0n;
+/** Money still owed on an applied penalty, in minor units. */
+export function outstandingMinor(row: {
+	status: WeatherPenaltyStatus;
+	amount: string;
+	deducted_amount: string;
+	collected_amount: string;
+}): bigint {
+	if (row.status !== "applied") return 0n;
+	return (
+		moneyToMinor(row.amount) -
+		moneyToMinor(row.deducted_amount) -
+		moneyToMinor(row.collected_amount)
+	);
+}
+
+export function toHostWeatherPenaltyDto(
+	row: HostWeatherPenaltyRow,
+	now: Date = new Date()
+): HostWeatherPenaltyDto {
+	const outstanding = outstandingMinor(row);
 	return {
 		id: row.id,
 		tripId: row.trip_id,
@@ -173,6 +247,14 @@ export function toHostWeatherPenaltyDto(row: HostWeatherPenaltyRow): HostWeather
 		amount: money(row.amount),
 		deductedAmount: money(row.deducted_amount),
 		outstandingAmount: minorToMoney(outstanding),
+		payment: {
+			dueAt: iso(row.payment_due_at),
+			overdue: outstanding > 0n && new Date(row.payment_due_at).getTime() < now.getTime(),
+			collectedAmount: money(row.collected_amount),
+			collectedAt: iso(row.collected_at),
+			reference: row.collection_reference,
+			note: row.collection_note,
+		},
 		status: row.status,
 		hostingBlockedUntil: iso(row.hosting_blocked_until),
 		waiverDeadline: iso(row.waiver_deadline),

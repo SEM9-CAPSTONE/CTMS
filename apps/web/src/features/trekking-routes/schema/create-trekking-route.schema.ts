@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { type CreateTrekkingRouteInput, ROUTE_DIFFICULTIES } from "../types";
 
-const positionSchema = z
+export const positionSchema = z
 	.tuple([z.number().finite(), z.number().finite()])
 	.refine(([longitude]) => longitude >= -180 && longitude <= 180, "Kinh độ phải từ -180 đến 180")
 	.refine(([, latitude]) => latitude >= -90 && latitude <= 90, "Vĩ độ phải từ -90 đến 90");

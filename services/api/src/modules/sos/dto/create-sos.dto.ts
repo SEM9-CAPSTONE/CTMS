@@ -6,8 +6,10 @@ import {
 	IsInt,
 	IsNumber,
 	IsOptional,
+	IsString,
 	IsUUID,
 	Max,
+	MaxLength,
 	Min,
 	ValidateNested,
 } from "class-validator";
@@ -63,4 +65,13 @@ export class CreateSosDto {
 	})
 	@IsISO8601()
 	eventTime!: string;
+
+	@ApiPropertyOptional({
+		description: "Optional notes from the sender when triggering SOS",
+		example: "Bị trật chân gần điểm dừng",
+	})
+	@IsOptional()
+	@IsString()
+	@MaxLength(500)
+	notes?: string;
 }

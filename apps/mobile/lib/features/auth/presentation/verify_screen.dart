@@ -45,6 +45,22 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
   Timer? _redirectTimer;
 
   @override
+  void initState() {
+    super.initState();
+    // Pre-select the channel that can actually deliver: e-mail when there is one.
+    final email = widget.account.email ?? '';
+    final phone = widget.account.phone ?? '';
+    final channel = email.isNotEmpty
+        ? OtpChannel.email
+        : (ref.read(otpSmsEnabledProvider) && phone.isNotEmpty ? OtpChannel.phone : null);
+    if (channel != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) ref.read(verifyOtpControllerProvider.notifier).selectChannel(channel);
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _redirectTimer?.cancel();
     super.dispose();
@@ -117,12 +133,20 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
                     : VerifyStrings.chooseChannelHint,
                 style: AppTypography.caption.copyWith(color: mutedColor),
               ),
+              if (state.hasSentCode && state.selectedChannel == OtpChannel.email) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  VerifyStrings.checkSpamHint,
+                  style: AppTypography.caption.copyWith(color: mutedColor),
+                ),
+              ],
               const SizedBox(height: AppSpacing.md),
               // Verification method selector -- Phone or Email, chosen fresh
               // on this screen every visit, same as Web (never carried from
               // Register, never persisted).
               Row(
                 children: [
+                  if (ref.watch(otpSmsEnabledProvider)) ...[
                   Expanded(
                     child: _ChannelButton(
                       icon: Icons.phone_outlined,
@@ -133,6 +157,7 @@ class _VerifyScreenState extends ConsumerState<VerifyScreen> {
                     ),
                   ),
                   const SizedBox(width: AppSpacing.md),
+                  ],
                   Expanded(
                     child: _ChannelButton(
                       icon: Icons.mail_outline,

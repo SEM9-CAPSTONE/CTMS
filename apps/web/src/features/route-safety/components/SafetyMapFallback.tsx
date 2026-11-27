@@ -1,6 +1,8 @@
 import { useState } from "react";
 import type { Position } from "../../trekking-routes/types";
 import {
+	HAZARD_MARKER_COLOR,
+	WATER_COLOR,
 	featureColor,
 	featureMarkerPoint,
 	isBareSymbol,
@@ -105,7 +107,7 @@ export function SafetyMapFallback({
 					>
 						<SafetySymbol
 							kind={feature.properties.sourceType === "RESOURCE" ? "water" : "hazard"}
-							color={featureColor(feature)}
+							color={isBareSymbol(feature) ? HAZARD_MARKER_COLOR : WATER_COLOR}
 							outlined={!isBareSymbol(feature)}
 						/>
 					</button>

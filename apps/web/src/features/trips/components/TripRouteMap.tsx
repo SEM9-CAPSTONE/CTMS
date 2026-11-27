@@ -90,7 +90,7 @@ export function TripRouteMap({
 			return;
 		}
 		let disposed = false;
-		void import("maplibre-gl")
+		void import("../../../core/maps/maplibre")
 			.then((maplibre) => {
 				if (disposed || !containerRef.current) return;
 				const center =
@@ -182,7 +182,7 @@ export function TripRouteMap({
 		if (!map) return;
 		let cancelled = false;
 
-		void import("maplibre-gl").then((maplibre) => {
+		void import("../../../core/maps/maplibre").then((maplibre) => {
 			if (cancelled || mapRef.current !== map) return;
 			if (!meetingPoint || !selectedRouteId) {
 				markerRef.current?.remove();

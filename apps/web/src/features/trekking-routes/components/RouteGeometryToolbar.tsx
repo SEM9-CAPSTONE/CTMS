@@ -1,15 +1,26 @@
 import { RotateCcw, Trash2, Undo2 } from "lucide-react";
-import type { GeoJsonLineString } from "../types";
-import { emptyLineString, removeLastVertex, removeVertex } from "../utils/route-geometry";
+import type { Position } from "../types";
 
 interface Props {
-	value: GeoJsonLineString;
+	waypoints: Position[];
+	canUndo: boolean;
+	onUndo: () => void;
 	disabled: boolean;
 	selected: number | null;
-	onChange: (value: GeoJsonLineString) => void;
+	onRemove: (index: number) => void;
+	onClear: () => void;
 	onSelect: (index: number | null) => void;
 }
-export function RouteGeometryToolbar({ value, disabled, selected, onChange, onSelect }: Props) {
+export function RouteGeometryToolbar({
+	waypoints,
+	canUndo,
+	onUndo,
+	disabled,
+	selected,
+	onRemove,
+	onClear,
+	onSelect,
+}: Props) {
 	return (
 		<div className="mt-3 flex flex-wrap gap-2">
 			<button
@@ -17,7 +28,7 @@ export function RouteGeometryToolbar({ value, disabled, selected, onChange, onSe
 				disabled={disabled || selected === null}
 				className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-40"
 				onClick={() => {
-					if (selected !== null) onChange(removeVertex(value, selected));
+					if (selected !== null) onRemove(selected);
 					onSelect(null);
 				}}
 			>
@@ -26,19 +37,22 @@ export function RouteGeometryToolbar({ value, disabled, selected, onChange, onSe
 			</button>
 			<button
 				type="button"
-				disabled={disabled || !value.coordinates.length}
+				disabled={disabled || !canUndo}
 				className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-40"
-				onClick={() => onChange(removeLastVertex(value))}
+				onClick={() => {
+					onUndo();
+					onSelect(null);
+				}}
 			>
 				<Undo2 className="mr-1 inline size-4" />
-				<span>Xóa điểm cuối</span>
+				<span>Hoàn tác</span>
 			</button>
 			<button
 				type="button"
-				disabled={disabled || !value.coordinates.length}
+				disabled={disabled || !waypoints.length}
 				className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-40"
 				onClick={() => {
-					onChange(emptyLineString());
+					onClear();
 					onSelect(null);
 				}}
 			>

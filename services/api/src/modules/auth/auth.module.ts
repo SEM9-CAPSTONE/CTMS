@@ -19,6 +19,7 @@ import { RolesGuard } from "./guards/roles.guard";
 import { JwtStrategy } from "./jwt.strategy";
 import { OtpDeliveryService } from "./otp-delivery.service";
 import { EmailOtpProvider } from "./providers/email-otp.provider";
+import { GoogleIdTokenVerifier } from "./providers/google-id-token.verifier";
 import {
 	EMAIL_OTP_PROVIDER,
 	SMS_OTP_PROVIDER,
@@ -51,6 +52,7 @@ import { VerificationOtpRepository } from "./verification-otp.repository";
 		OtpDeliveryService,
 		{ provide: SMS_OTP_PROVIDER, useClass: SmsOtpProvider },
 		{ provide: EMAIL_OTP_PROVIDER, useClass: EmailOtpProvider },
+		GoogleIdTokenVerifier,
 		JwtStrategy,
 		JwtAuthGuard,
 		RolesGuard,

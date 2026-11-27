@@ -10,6 +10,7 @@ import { useSafetyMapSymbols } from "./hooks/useSafetyMapSymbols";
 import type { SafetyFeature } from "./types";
 
 vi.mock("maplibre-gl", () => ({
+	setWorkerUrl: vi.fn(),
 	Marker: class {
 		constructor(private options: { element: HTMLElement }) {}
 		setLngLat() {
@@ -146,7 +147,8 @@ describe("nearby saved route zones", () => {
 		fireEvent.click(screen.getByRole("button", { name: "Đóng thông tin" }));
 		expect(onChange).not.toHaveBeenCalled();
 		fireEvent.click(screen.getByRole("button", { name: "Bản đồ vẽ tuyến" }));
-		expect(onChange).toHaveBeenCalledOnce();
+		expect(screen.getByText("Đang tìm đường đi bộ…")).toBeInTheDocument();
+		expect(onChange).not.toHaveBeenCalled();
 	});
 	it("opens fallback polygon details only outside drawing mode", () => {
 		const props = {

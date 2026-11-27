@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/api_exception.dart';
+import '../../../core/env/env.dart';
 import '../data/auth_api.dart';
 import '../data/auth_repository.dart';
 
@@ -60,13 +61,47 @@ class VerifyOtpState {
   }
 }
 
-/// Same "relay the backend's own message" convention as
-/// RegisterController's `_toRegisterSubmitError` -- the fallback is only
-/// ever shown for a genuine non-HTTP failure (no network, etc.), never
-/// invented per-status-code copy the spec/backend doesn't define.
-String _mapOtpError(Object error, String fallback) {
-  if (error is ApiException) return error.message;
-  return fallback;
+/// Whether the SMS channel is offered (build flag; overridden in tests).
+final otpSmsEnabledProvider = Provider<bool>((ref) => Env.otpSmsEnabled);
+
+/// Vietnamese copy for a failed send/resend (backend messages stay English).
+String sendOtpErrorMessage(Object error, OtpChannel channel, {required bool isResend}) {
+  if (error is ApiException) {
+    // No status code: network/timeout, ApiClient already gives Vietnamese copy.
+    if (error.statusCode == null) return error.message;
+    final body = error.errorData;
+    final code = body is Map ? body['code'] : null;
+    if (error.statusCode == 503 && code == 'OTP_DELIVERY_FAILED') {
+      return channel == OtpChannel.phone
+          ? 'Không gửi được mã qua SMS lúc này. Vui lòng chọn nhận mã qua Email.'
+          : 'Không gửi được email chứa mã lúc này. Vui lòng thử lại sau ít phút.';
+    }
+    if (error.statusCode == 409) {
+      return 'Bạn đã yêu cầu gửi mã quá nhiều lần. Vui lòng thử lại sau.';
+    }
+  }
+  return isResend
+      ? 'Gửi lại mã OTP thất bại. Vui lòng thử lại.'
+      : 'Gửi mã OTP thất bại. Vui lòng thử lại.';
+}
+
+/// Vietnamese copy for a failed code check (backend messages stay English).
+String verifyOtpErrorMessage(Object error) {
+  if (error is ApiException) {
+    if (error.statusCode == null) return error.message;
+    switch (error.message) {
+      case 'Incorrect OTP':
+        return 'Mã OTP không đúng. Vui lòng kiểm tra lại.';
+      case 'OTP has expired':
+        return 'Mã OTP đã hết hạn. Vui lòng bấm gửi lại mã.';
+      case 'Too many incorrect OTP attempts, please request a new OTP':
+        return 'Bạn đã nhập sai quá nhiều lần. Vui lòng bấm gửi lại mã mới.';
+      case 'No pending OTP found for this account':
+        return 'Chưa có mã OTP nào đang chờ. Vui lòng bấm gửi mã.';
+    }
+    if (error.statusCode == 409) return 'Mã OTP không đúng hoặc đã hết hạn. Vui lòng kiểm tra lại.';
+  }
+  return 'Xác minh thất bại. Vui lòng thử lại.';
 }
 
 class VerifyOtpController extends Notifier<VerifyOtpState> {
@@ -111,12 +146,7 @@ class VerifyOtpController extends Notifier<VerifyOtpState> {
     } catch (error) {
       state = state.copyWith(
         isSending: false,
-        errorMessage: _mapOtpError(
-          error,
-          state.hasSentCode
-              ? 'Gửi lại mã OTP thất bại. Vui lòng thử lại.'
-              : 'Gửi mã OTP thất bại. Vui lòng thử lại.',
-        ),
+        errorMessage: sendOtpErrorMessage(error, channel, isResend: state.hasSentCode),
       );
     }
   }
@@ -149,7 +179,7 @@ class VerifyOtpController extends Notifier<VerifyOtpState> {
     } catch (error) {
       state = state.copyWith(
         isVerifying: false,
-        errorMessage: _mapOtpError(error, 'Xác minh thất bại. Vui lòng thử lại.'),
+        errorMessage: verifyOtpErrorMessage(error),
       );
     }
   }

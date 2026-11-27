@@ -78,6 +78,28 @@ describe("CTMS-069 public HTTP contract", () => {
 			.expect(403);
 	});
 
+	it("CTMS-075 independently interrupts a direct question and follows its context", async () => {
+		const ask = (question: string, emergencyContext?: string) =>
+			request(app.getHttpServer())
+				.post(endpoint)
+				.auth(camperToken, { type: "bearer" })
+				.send({ question, requestId: randomUUID(), locale: "vi", emergencyContext });
+		const initial = await ask("Bạn tôi bất tỉnh.").expect(200);
+		expect(initial.headers["cache-control"]).toBe("no-store");
+		expect(initial.body).toMatchObject({
+			status: "SAFETY_ASSESSMENT",
+			severity: "EMERGENCY",
+			protocol: null,
+			answer: null,
+			sources: [],
+			emergencyContext: expect.any(String),
+		});
+		expect(
+			(await ask("Tôi phải làm gì tiếp?", initial.body.emergencyContext).expect(200)).body
+		).toMatchObject({ severity: "EMERGENCY" });
+		await ask("Tôi phải làm gì tiếp?", "invalid").expect(400);
+	});
+
 	it.each([
 		{ name: "empty question", input: { ...body, question: "" }, expectedStatus: 400 },
 		{ name: "blank question", input: { ...body, question: "  " }, expectedStatus: 400 },

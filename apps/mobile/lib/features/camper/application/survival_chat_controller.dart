@@ -7,6 +7,8 @@ import '../../auth/domain/user_role.dart';
 import '../../offline_packages/application/offline_trip_providers.dart';
 import '../../offline_packages/domain/offline_trip.dart';
 import '../../sync/application/connectivity_source.dart';
+import '../data/emergency_personal_context.dart';
+import '../data/emergency_safety_engine.dart';
 import '../data/survival_chat_api.dart';
 import '../data/survival_local_model.dart';
 import '../data/survival_local_policy_v1.dart';
@@ -35,6 +37,8 @@ class SurvivalChatFailure {
     this.retryable = false,
     this.emergency = false,
     this.onlineAttemptUncertain = false,
+    this.assessment,
+    this.showSafetyFallback = false,
   });
 
   factory SurvivalChatFailure.fromError(ApiException error) {
@@ -44,6 +48,7 @@ class SurvivalChatFailure {
         'Tạm thời chưa đọc được tài liệu sinh tồn.',
         retryable: true,
         onlineAttemptUncertain: true,
+        showSafetyFallback: emergencySafetyEnabled,
       );
     }
     if (error.kind == ApiExceptionKind.network) {
@@ -51,6 +56,7 @@ class SurvivalChatFailure {
         'Không kết nối được với trợ lý. Bạn có thể thử lại.',
         retryable: true,
         onlineAttemptUncertain: !error.connectionNotEstablished,
+        showSafetyFallback: emergencySafetyEnabled,
       );
     }
     if (error.kind == ApiExceptionKind.timeout ||
@@ -59,6 +65,7 @@ class SurvivalChatFailure {
         'Trợ lý phản hồi quá lâu. Bạn có thể thử lại.',
         retryable: true,
         onlineAttemptUncertain: true,
+        showSafetyFallback: emergencySafetyEnabled,
       );
     }
     return switch (error.statusCode) {
@@ -87,12 +94,15 @@ class SurvivalChatFailure {
     'Trợ lý tạm thời gián đoạn. Bạn có thể thử lại sau.',
     retryable: true,
     onlineAttemptUncertain: true,
+    showSafetyFallback: emergencySafetyEnabled,
   );
 
   final String message;
   final bool retryable;
   final bool emergency;
   final bool onlineAttemptUncertain;
+  final EmergencyAssessment? assessment;
+  final bool showSafetyFallback;
 }
 
 final survivalChatAccountProvider = Provider<String?>((ref) {
@@ -103,7 +113,13 @@ final survivalChatAccountProvider = Provider<String?>((ref) {
   return roles.contains(UserRole.camper) ? user.id : null;
 });
 
-final _emergency = RegExp(
+// CTMS-009 has no emergency-assessment grant or authorized offline profile
+// source. Keep this unconfigured until an existing purpose-specific source is available.
+final emergencyHealthSourceProvider = Provider<EmergencyHealthSource?>(
+  (ref) => null,
+);
+
+final _legacyEmergency = RegExp(
   r'không (?:thở|tỉnh)|ngừng thở|bất tỉnh|mất ý thức|co giật|'
   r'nghẹt thở|chảy máu (?:nhiều|không ngừng)|'
   r'(?:bị|đang) (?:đuối nước|đau ngực|khó thở)|'
@@ -118,14 +134,22 @@ final survivalChatSnapshotProvider = Provider.autoDispose
 class SurvivalChatController extends Notifier<List<SurvivalChatTurn>> {
   Object? _session;
   bool _offlineAccessDenied = false;
+  EmergencyAssessment? _incident;
 
   @override
   List<SurvivalChatTurn> build() {
     ref.watch(survivalChatAccountProvider);
     _offlineAccessDenied = false;
+    _incident = null;
     _session = Object();
     ref.onDispose(() => _session = null);
     return const [];
+  }
+
+  void startNewConversation() {
+    _session = Object();
+    _incident = null;
+    state = const [];
   }
 
   bool send(String question, {OfflineTripSelection? trip}) {
@@ -165,12 +189,36 @@ class SurvivalChatController extends Notifier<List<SurvivalChatTurn>> {
         identical(session, _session) &&
         account != null &&
         ref.read(survivalChatAccountProvider) == account;
+    if (emergencySafetyEnabled) {
+      var assessment = assessEmergency(pending.question, previous: _incident);
+      if (assessment.severity == EmergencySeverity.warning &&
+          assessment.affectedPerson == AffectedPerson.self &&
+          account != null &&
+          emergencyPersonalRiskRules.isNotEmpty) {
+        final source = ref.read(emergencyHealthSourceProvider);
+        if (source != null) {
+          assessment = await personalizeEmergencyAssessment(
+            assessment,
+            pending.question,
+            account,
+            source,
+          );
+          if (!current() || !state.contains(pending)) return;
+        }
+      }
+      _incident = assessment.requiresSafetyResponse ? assessment : null;
+      if (assessment.requiresSafetyResponse) {
+        _replace(_safetyTurn(pending, assessment));
+        return;
+      }
+    }
     final api = ref.read(survivalChatApiProvider);
     final model = ref.read(survivalLocalModelProvider);
     final connectivity = ref.read(connectivitySourceProvider);
     SurvivalChatTurn result;
     try {
-      if (_emergency.hasMatch(pending.question)) {
+      if (!emergencySafetyEnabled &&
+          _legacyEmergency.hasMatch(pending.question)) {
         _replace(
           SurvivalChatTurn(
             pending.id,
@@ -211,6 +259,7 @@ class SurvivalChatController extends Notifier<List<SurvivalChatTurn>> {
               failure: const SurvivalChatFailure(
                 'Thiết bị này cần kết nối mạng để dùng trợ lý.',
                 retryable: true,
+                showSafetyFallback: emergencySafetyEnabled,
               ),
             ),
           );
@@ -240,7 +289,20 @@ class SurvivalChatController extends Notifier<List<SurvivalChatTurn>> {
           );
         }
       }
+      if (!current() || !state.contains(pending)) return;
+      if (reply case SurvivalChatSafety(:final assessment)) {
+        _incident = assessment;
+      }
+      if (reply case SurvivalChatAnswer(
+        :final text,
+      ) when emergencySafetyEnabled && blocksEmergencyConflictingOutput(text)) {
+        reply = const SurvivalChatUnavailable(refused: true);
+      }
       result = switch (reply) {
+        SurvivalChatSafety(:final assessment) => _safetyTurn(
+          pending,
+          assessment,
+        ),
         SurvivalChatAnswer() => SurvivalChatTurn(
           pending.id,
           pending.question,
@@ -254,6 +316,7 @@ class SurvivalChatController extends Notifier<List<SurvivalChatTurn>> {
             reply.refused
                 ? 'Chưa thể đưa ra hướng dẫn an toàn cho câu hỏi này. Nếu có người đang gặp nguy hiểm, hãy liên hệ cấp cứu hoặc lực lượng cứu hộ tại chỗ ngay.'
                 : 'Chưa tìm thấy hướng dẫn phù hợp trong tài liệu hiện có. Bạn có thể hỏi cụ thể hơn.',
+            showSafetyFallback: emergencySafetyEnabled,
           ),
           trip: pending.trip,
         ),
@@ -274,6 +337,7 @@ class SurvivalChatController extends Notifier<List<SurvivalChatTurn>> {
               ? 'Hãy kết nối mạng hoặc tải trợ lý để hỏi khi mất mạng.'
               : 'Trợ lý trên thiết bị tạm thời gián đoạn. Bạn có thể thử lại.',
           retryable: true,
+          showSafetyFallback: emergencySafetyEnabled,
         ),
         trip: pending.trip,
       );
@@ -289,6 +353,20 @@ class SurvivalChatController extends Notifier<List<SurvivalChatTurn>> {
       _replace(result);
     }
   }
+
+  SurvivalChatTurn _safetyTurn(
+    SurvivalChatTurn turn,
+    EmergencyAssessment assessment,
+  ) => SurvivalChatTurn(
+    turn.id,
+    turn.question,
+    trip: turn.trip,
+    failure: SurvivalChatFailure(
+      '',
+      assessment: assessment,
+      emergency: assessment.severity == EmergencySeverity.emergency,
+    ),
+  );
 
   Future<SurvivalChatResult> _localReply(
     SurvivalLocalModel model,
@@ -318,7 +396,8 @@ class SurvivalChatController extends Notifier<List<SurvivalChatTurn>> {
     }
     final reply = await model.generate(question);
     final text = reply.text;
-    if (!allowsLocalModelAnswerV1(text)) {
+    if (!allowsLocalModelAnswerV1(text) ||
+        (emergencySafetyEnabled && blocksEmergencyConflictingOutput(text))) {
       return const SurvivalChatUnavailable(refused: true);
     }
     return SurvivalChatAnswer.local(

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { HttpError } from "../../../core/api";
 import { authService } from "../services/auth.service";
 import type { OtpChannel } from "../types";
 import { type ApiSubmitError, toApiSubmitError } from "../utils/auth.utils";
@@ -24,6 +25,38 @@ const RESEND_COOLDOWN_SECONDS = 60;
  * this delay only governs the automatic redirect.
  */
 const VERIFY_SUCCESS_REDIRECT_DELAY_MS = 2500;
+
+/**
+ * SMS codes go through Twilio, still a trial account that cannot deliver to unverified
+ * numbers, so the SMS option is hidden unless the build sets VITE_OTP_SMS_ENABLED=true.
+ */
+export function otpSmsEnabled(): boolean {
+	return import.meta.env.VITE_OTP_SMS_ENABLED === "true";
+}
+
+/** Vietnamese copy for a failed send/resend; backend messages stay English. */
+export function sendOtpErrorMessage(
+	error: unknown,
+	channel: OtpChannel,
+	isResend: boolean
+): string {
+	if (error instanceof HttpError) {
+		const body = error.errorData as { code?: unknown } | undefined;
+		if (error.status === 503 && body?.code === "OTP_DELIVERY_FAILED") {
+			return channel === "phone"
+				? "Không gửi được mã qua SMS lúc này. Vui lòng chọn nhận mã qua Email."
+				: "Không gửi được email chứa mã lúc này. Vui lòng thử lại sau ít phút.";
+		}
+		if (error.status === 409) {
+			return "Bạn đã yêu cầu gửi mã quá nhiều lần. Vui lòng thử lại sau.";
+		}
+	} else {
+		return "Không kết nối được máy chủ. Vui lòng kiểm tra mạng và thử lại.";
+	}
+	return isResend
+		? "Gửi lại mã OTP thất bại. Vui lòng thử lại."
+		: "Gửi mã OTP thất bại. Vui lòng thử lại.";
+}
 
 /**
  * First-OTP-trigger Decision Gate (resolved, Option B): no spec, BR, or
@@ -56,6 +89,8 @@ export function useVerifyOtpForm(onNoContext: () => void, onVerifySuccess: () =>
 			return;
 		}
 		setContext(stored);
+		// Pre-select the channel that can actually deliver: e-mail when there is one.
+		setSelectedChannel(stored.email ? "email" : otpSmsEnabled() && stored.phone ? "phone" : null);
 	}, [onNoContext]);
 
 	useEffect(() => {
@@ -122,14 +157,10 @@ export function useVerifyOtpForm(onNoContext: () => void, onVerifySuccess: () =>
 			setHasSentCode(true);
 			setCountdown(RESEND_COOLDOWN_SECONDS);
 		} catch (error) {
-			setSubmitError(
-				toApiSubmitError(
-					error,
-					hasSentCode
-						? "Gửi lại mã OTP thất bại. Vui lòng thử lại."
-						: "Gửi mã OTP thất bại. Vui lòng thử lại."
-				)
-			);
+			setSubmitError({
+				status: error instanceof HttpError ? error.status : undefined,
+				message: sendOtpErrorMessage(error, selectedChannel, hasSentCode),
+			});
 		} finally {
 			setIsSending(false);
 		}

@@ -1,6 +1,7 @@
 import { ConfigService } from "@nestjs/config";
 import { osmWater } from "./osm-water";
 import { OsmWaterService } from "./osm-water.service";
+import { safetyLifecycle } from "./route-safety.policy";
 import { vndmsEvent } from "./vndms-event";
 import { VndmsSafetyService } from "./vndms-safety.service";
 
@@ -33,6 +34,14 @@ const json = (value: unknown) => new Response(JSON.stringify(value));
 
 describe("VNDMS event collection", () => {
 	afterEach(() => jest.restoreAllMocks());
+	it("uses the provider's end status for events updated more than six hours ago", () => {
+		const now = new Date(fetched);
+		const active = vndmsEvent({ ...event, da_ketthuc: false }, fetched, "ref");
+		const ended = vndmsEvent(event, fetched, "ref");
+		if (!active || !ended) throw new Error("Expected both VNDMS events to parse");
+		expect(safetyLifecycle(active, now, 360)).toBe("ACTIVE");
+		expect(safetyLifecycle(ended, now, 360)).toBe("RESOLVED");
+	});
 	it("preserves reported coordinates, source local time and ended status without inventing a footprint or severity", () => {
 		const result = vndmsEvent(event, fetched, "https://vndms.gov.vn/");
 		expect(result).toMatchObject({

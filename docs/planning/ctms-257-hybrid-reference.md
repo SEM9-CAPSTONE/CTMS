@@ -11,6 +11,6 @@ These rows supersede the matching hybrid feature references in the planning expo
 | CTMS-071 | CTMS-259 | Active citation semantics | BR-212, BR-213, BR-248, BR-251 |
 | CTMS-072 | CTMS-260 | Feedback collection and sync. Optional Local trace metadata is planned | [CTMS-072](../../file/spec/ctms-72-rate-ai-answers.md), BR-252, BR-511–BR-516 |
 | CTMS-073 | CTMS-261 | Unsafe feedback review spec and planned feedback analysis and investigation | [CTMS-073](../../file/spec/ctms-73-review-ai-answers-reported-as-dangerous.md), BR-253, BR-520–BR-533, shared BR-172/191/192 |
-| CTMS-075 | CTMS-263 | Active emergency question behavior | BR-216, BR-255 |
+| [CTMS-075](../../file/spec/ctms-75-detect-emergency-questions.md) | CTMS-263 (CTMS-347 logic, CTMS-348 UI) | In product scope. Implementation and release verification pending. No sprint assignment implied. | BR-216, BR-255, BR-551–BR-555 |
 | CTMS-098 | CTMS-289 | Independent release evaluation. May accept independently validated regression proposals from CTMS-073 | BR-279, BR-282 |
 

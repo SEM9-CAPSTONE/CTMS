@@ -83,6 +83,7 @@ export const API_ENDPOINTS = {
 	},
 	ROUTE_SAFETY: {
 		ANALYZE: "/route-safety/analyze",
+		REVIEW: (routeId: string) => `/route-safety/review/${routeId}`,
 		TERRAIN: "/route-safety/terrain",
 		VERIFIED_ZONES: "/route-safety/verified-zones",
 	},
@@ -106,6 +107,7 @@ export const API_ENDPOINTS = {
 	},
 	AUTH: {
 		LOGIN: "/auth/login",
+		GOOGLE: "/auth/google",
 		REGISTER: "/auth/register",
 		VERIFY: "/auth/verify",
 		SEND_OTP: "/auth/send-otp",
@@ -242,6 +244,8 @@ export const API_ENDPOINTS = {
 		ADMIN_PENALTY: (penaltyId: string) => `/admin/weather-penalties/${penaltyId}`,
 		ADMIN_PENALTY_REVIEW: (penaltyId: string) =>
 			`/admin/weather-penalties/${penaltyId}/waiver-review`,
+		ADMIN_PENALTY_PAYMENT: (penaltyId: string) =>
+			`/admin/weather-penalties/${penaltyId}/payment-confirmation`,
 	},
 	AI: {
 		CONVERSATIONS: "/ai/conversations",
@@ -342,6 +346,9 @@ export const API_ENDPOINTS = {
 		APPROVE: (obligationId: string) => `/admin/refunds/${obligationId}/approve`,
 		CONFIRM: (obligationId: string) => `/admin/refunds/${obligationId}/confirm`,
 		REJECT: (obligationId: string) => `/admin/refunds/${obligationId}/reject`,
+	},
+	PLATFORM_BANK_ACCOUNT: {
+		ADMIN: "/admin/platform-bank-account",
 	},
 	SETTLEMENTS: {
 		EVALUATION: (tripId: string) => `/settlements/trips/${tripId}/evaluation`,

@@ -81,7 +81,10 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        expect(find.byType(OfflineMapPanel), findsOneWidget);
+        expect(
+          find.byType(OfflineMapPanel),
+          ongoing ? findsNothing : findsOneWidget,
+        );
         expect(
           find.byType(GpsTrackingPanel),
           ongoing ? findsOneWidget : findsNothing,

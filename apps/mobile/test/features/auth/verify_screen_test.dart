@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mobile/core/api/api_client.dart';
 import 'package:mobile/core/api/api_exception.dart';
 import 'package:mobile/core/storage/token_storage.dart';
+import 'package:mobile/features/auth/application/verify_otp_controller.dart';
 import 'package:mobile/features/auth/data/auth_api.dart';
 import 'package:mobile/features/auth/data/auth_repository.dart';
 import 'package:mobile/features/auth/domain/user_role.dart';
@@ -89,7 +90,7 @@ Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
   await tester.pump();
 }
 
-Widget _app(_RecordingAuthRepository repository) {
+Widget _app(_RecordingAuthRepository repository, {bool smsEnabled = true}) {
   final router = GoRouter(
     initialLocation: '/verify',
     routes: [
@@ -98,7 +99,10 @@ Widget _app(_RecordingAuthRepository repository) {
     ],
   );
   return ProviderScope(
-    overrides: [authRepositoryProvider.overrideWithValue(repository)],
+    overrides: [
+      authRepositoryProvider.overrideWithValue(repository),
+      otpSmsEnabledProvider.overrideWithValue(smsEnabled),
+    ],
     child: MaterialApp.router(routerConfig: router),
   );
 }
@@ -113,6 +117,37 @@ Future<void> _selectChannelAndSend(WidgetTester tester, String channelLabel) asy
 
 void main() {
   group('VerifyScreen', () {
+    testWidgets('without SMS only e-mail is offered, pre-selected, with a spam hint after sending', (
+      tester,
+    ) async {
+      final repository = _RecordingAuthRepository();
+      await tester.pumpWidget(_app(repository, smsEnabled: false));
+      await _settle(tester);
+
+      expect(find.text('Xác minh qua SĐT'), findsNothing);
+      await _tapVisible(tester, find.text('Gửi mã OTP'));
+      await _settle(tester);
+
+      expect(find.text('Không thấy thư? Kiểm tra cả mục Spam hoặc Quảng cáo.'), findsOneWidget);
+    });
+
+    testWidgets('an SMS the provider cannot deliver asks to use e-mail', (tester) async {
+      final repository = _RecordingAuthRepository()
+        ..sendFailure = ApiException(
+          'OTP delivery failed',
+          statusCode: 503,
+          errorData: {'code': 'OTP_DELIVERY_FAILED', 'channel': 'phone'},
+        );
+      await tester.pumpWidget(_app(repository));
+
+      await _selectChannelAndSend(tester, 'Xác minh qua SĐT');
+
+      expect(
+        find.text('Không gửi được mã qua SMS lúc này. Vui lòng chọn nhận mã qua Email.'),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('renders the account context and both channel options', (tester) async {
       await tester.pumpWidget(_app(_RecordingAuthRepository()));
 
@@ -173,14 +208,17 @@ void main() {
       expect(find.text('Xác thực thành công!'), findsOneWidget);
     });
 
-    testWidgets('a send failure shows the backend error message, not a generic one', (tester) async {
+    testWidgets('a send failure shows Vietnamese copy, never the backend English', (tester) async {
       final repository = _RecordingAuthRepository()
         ..sendFailure = ApiException('Resend limit reached', statusCode: 409);
       await tester.pumpWidget(_app(repository));
 
       await _selectChannelAndSend(tester, 'Xác minh qua Email');
 
-      expect(find.text('Resend limit reached'), findsOneWidget);
+      expect(
+        find.text('Bạn đã yêu cầu gửi mã quá nhiều lần. Vui lòng thử lại sau.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('a verify failure shows the backend error and never renders the success view', (
@@ -196,7 +234,10 @@ void main() {
       await _tapVisible(tester, find.text('Xác thực'));
       await _settle(tester);
 
-      expect(find.text('Incorrect or expired OTP'), findsOneWidget);
+      expect(
+        find.text('Mã OTP không đúng hoặc đã hết hạn. Vui lòng kiểm tra lại.'),
+        findsOneWidget,
+      );
       expect(find.text('Xác thực thành công!'), findsNothing);
     });
 

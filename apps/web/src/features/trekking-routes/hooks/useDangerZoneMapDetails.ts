@@ -1,8 +1,9 @@
 import type { MapLayerMouseEvent, Map as MapLibreMap, Marker } from "maplibre-gl";
 import { useEffect, useState } from "react";
-import { createSafetySymbol } from "../../route-safety/map-symbols";
+import { createSafetySymbol } from "../../route-safety/create-safety-symbol";
+import { HAZARD_MARKER_COLOR } from "../../route-safety/map-symbols";
 import type { RouteDangerZone } from "../types";
-import { dangerZoneDescription, severityColors } from "../utils/route-preview";
+import { dangerZoneDescription } from "../utils/route-preview";
 
 /** Shared by route previews and operational/editing maps. */
 export function useDangerZoneMapDetails(
@@ -23,7 +24,7 @@ export function useDangerZoneMapDetails(
 			const zone = byId.get(String(event.features?.[0]?.properties?.id));
 			if (zone) setSelectedId(zone.id);
 		};
-		void import("maplibre-gl").then(({ Marker: MapMarker }) => {
+		void import("../../../core/maps/maplibre").then(({ Marker: MapMarker }) => {
 			if (disposed) return;
 			for (const zone of dangerZones) {
 				if (zone.geometry.type !== "Point") continue;
@@ -32,7 +33,7 @@ export function useDangerZoneMapDetails(
 				// Only the warning sign is shown; no badge frame or radius ring around it.
 				element.className =
 					"z-20 flex size-11 touch-manipulation cursor-pointer items-center justify-center bg-transparent hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4";
-				element.append(createSafetySymbol("hazard", severityColors[zone.severity], false));
+				element.append(createSafetySymbol("hazard", HAZARD_MARKER_COLOR, false));
 				element.dataset.hazardPointMarker = "persisted";
 				element.dataset.severity = zone.severity;
 				element.ariaLabel = dangerZoneDescription(zone);

@@ -78,7 +78,12 @@ describe("Route Safety freshness and lifecycle BR-473", () => {
 });
 
 describe("RouteSafetyService", () => {
-	const repository = { findOwner: jest.fn(), candidates: jest.fn(), verifiedZones: jest.fn() };
+	const repository = {
+		findOwner: jest.fn(),
+		findRouteForReview: jest.fn(),
+		candidates: jest.fn(),
+		verifiedZones: jest.fn(),
+	};
 	const liveSafety = { collect: jest.fn() };
 	const events = { collect: jest.fn() };
 	const water = { collect: jest.fn() };
@@ -195,6 +200,29 @@ describe("RouteSafetyService", () => {
 		expect(events.collect).not.toHaveBeenCalled();
 		expect(water.collect).not.toHaveBeenCalled();
 	});
+	it("uses saved geometry for Admin review and restricts private candidates to the reviewed route", async () => {
+		repository.findRouteForReview.mockResolvedValueOnce({ hostId: "host", geometry });
+		await service.analyzeForReview("reviewed-route", "OSM");
+		expect(repository.findRouteForReview).toHaveBeenCalledWith("reviewed-route");
+		expect(water.collect).toHaveBeenCalledWith(geometry, 300);
+		expect(repository.candidates).toHaveBeenCalledWith(
+			"host",
+			"reviewed-route",
+			geometry,
+			300,
+			[],
+			true,
+			true
+		);
+	});
+	it("does not contact safety providers for a route outside the review queue and history", async () => {
+		repository.findRouteForReview.mockResolvedValueOnce(null);
+		await expect(service.analyzeForReview("private-draft")).rejects.toBeInstanceOf(
+			NotFoundException
+		);
+		expect(repository.candidates).not.toHaveBeenCalled();
+		expect(water.collect).not.toHaveBeenCalled();
+	});
 	it("rejects zero length or invalid coordinates", async () => {
 		await expect(
 			service.analyze("host", {
@@ -264,7 +292,8 @@ describe("RouteSafetyService", () => {
 			geometry,
 			300,
 			[live],
-			true
+			true,
+			false
 		);
 		expect(liveSafety.collect.mock.invocationCallOrder[0]).toBeLessThan(
 			repository.candidates.mock.invocationCallOrder[0]
@@ -279,7 +308,15 @@ describe("RouteSafetyService", () => {
 		const result = await service.analyze("host", { geometry });
 		expect(result.liveSource?.status).toBe("UNAVAILABLE");
 		expect(result.riskLevel).toBe("UNKNOWN");
-		expect(repository.candidates).toHaveBeenCalledWith("host", undefined, geometry, 300, [], true);
+		expect(repository.candidates).toHaveBeenCalledWith(
+			"host",
+			undefined,
+			geometry,
+			300,
+			[],
+			true,
+			false
+		);
 	});
 	it("merges live hazard points and water independently of NCHMF availability", async () => {
 		const point = candidate({ id: "live:VNDMS:4963", source: "VNDMS" });
@@ -303,7 +340,8 @@ describe("RouteSafetyService", () => {
 			geometry,
 			300,
 			[point, resource],
-			true
+			true,
+			false
 		);
 		expect(water.collect).toHaveBeenCalledWith(geometry, 300);
 		expect(result.sources.map((s) => s.status)).toEqual(["UNAVAILABLE", "LIVE", "LIVE"]);

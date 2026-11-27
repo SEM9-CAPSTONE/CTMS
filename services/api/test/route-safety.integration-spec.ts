@@ -158,6 +158,27 @@ describe("Route Safety v2 PostGIS and authorization", () => {
 			.get("/api/route-safety/verified-zones")
 			.set("Authorization", `Bearer ${token(user, role)}`)
 			.query(bounds);
+	it("allows Admin review safety context only after the saved route enters the queue", async () => {
+		const path = `/api/route-safety/review/${route}?source=OSM`;
+		await request(app.getHttpServer()).get(path).expect(401);
+		const review = () =>
+			request(app.getHttpServer())
+				.get(path)
+				.set("Authorization", `Bearer ${token(admin, "admin")}`);
+		await review().expect(404);
+		await db.query("UPDATE trekking_routes SET status = 'pending_approval' WHERE id = $1", [route]);
+		try {
+			await request(app.getHttpServer())
+				.get(path)
+				.set("Authorization", `Bearer ${token(host)}`)
+				.expect(403);
+			const response = await review().expect(200);
+			expect(response.body.sources).toEqual([expect.objectContaining({ source: "OSM" })]);
+		} finally {
+			await db.query("UPDATE trekking_routes SET status = 'draft' WHERE id = $1", [route]);
+		}
+	});
+
 	it("automatically exposes approved safety facts across Hosts and roles without a route or trip", async () => {
 		for (const role of ["host", "admin", "camper", "porter"]) {
 			const response = await readPublished(other, role).expect(200);
@@ -440,7 +461,7 @@ describe("Route Safety v2 PostGIS and authorization", () => {
 		expect(response.body.summary.historicalFeatures).toBe(1);
 		expect(response.body.riskLevel).toBe("UNKNOWN");
 	});
-	it("filters live event points and water by distance to the full route, not exact intersection", async () => {
+	it("includes nearby imported warning areas and live event and water geometry", async () => {
 		const make = (id: string, geometry: unknown, resource = false): SafetyCandidate => {
 			const record = parseSafetyInput(
 				imported(id, geometry, { sourceType: resource ? "RESOURCE" : "OFFICIAL_CURRENT" })
@@ -462,6 +483,7 @@ describe("Route Safety v2 PostGIS and authorization", () => {
 			make("near-event", { type: "Point", coordinates: [108.005, 12.001] }),
 			make("far-event", { type: "Point", coordinates: [108.005, 12.01] }),
 			make("near-water", { type: "Point", coordinates: [108.005, 12.0015] }, true),
+			make("far-water", { type: "Point", coordinates: [108.005, 12.01] }, true),
 			make(
 				"near-surface",
 				{
@@ -489,7 +511,31 @@ describe("Route Safety v2 PostGIS and authorization", () => {
 				true
 			),
 		];
+		const warningArea = (id: string, latitude: number) =>
+			imported(
+				id,
+				{
+					type: "Polygon",
+					coordinates: [
+						[
+							[108.004, latitude],
+							[108.006, latitude],
+							[108.006, latitude + 0.001],
+							[108.004, latitude],
+						],
+					],
+				},
+				{ sourceType: "BASE_HISTORICAL", sourceReference: id }
+			);
+		const nearArea = warningArea("near-imported-area", 12.001);
+		const farArea = warningArea("far-imported-area", 12.005);
 		try {
+			const importedAreas = await request(app.getHttpServer())
+				.post("/api/route-safety/import")
+				.set("Authorization", `Bearer ${token(admin, "admin")}`)
+				.send({ source, features: [nearArea, farArea] })
+				.expect(201);
+			expect(importedAreas.body.accepted).toBe(2);
 			const response = await request(app.getHttpServer())
 				.post("/api/route-safety/analyze")
 				.set("Authorization", `Bearer ${token(host)}`)
@@ -497,13 +543,18 @@ describe("Route Safety v2 PostGIS and authorization", () => {
 				.expect(201);
 			const features = response.body.features.features as Array<{
 				id: string;
-				properties: { distanceMeters: number; intersects: boolean };
+				properties: { distanceMeters: number; intersects: boolean; sourceReference: string };
 			}>;
 			expect(features.map((f) => f.id)).toEqual(
 				expect.arrayContaining(["near-event", "near-water", "near-stream"])
 			);
 			expect(features.map((f) => f.id)).not.toContain("far-event");
+			expect(features.map((f) => f.id)).not.toContain("far-water");
 			expect(features.map((f) => f.id)).not.toContain("near-surface");
+			const nearbyArea = features.find((f) => f.properties.sourceReference === nearArea.externalId);
+			expect(nearbyArea?.properties.intersects).toBe(false);
+			expect(nearbyArea?.properties.distanceMeters).toBeGreaterThan(0);
+			expect(features.some((f) => f.properties.sourceReference === farArea.externalId)).toBe(false);
 			expect(features.find((f) => f.id === "near-water")?.properties).toMatchObject({
 				intersects: false,
 			});
@@ -512,6 +563,10 @@ describe("Route Safety v2 PostGIS and authorization", () => {
 			).toBeGreaterThan(100);
 		} finally {
 			liveCandidates = before;
+			await db.query(
+				"DELETE FROM external_safety_features WHERE source=$1 AND external_id=ANY($2::text[])",
+				[source, [nearArea.externalId, farArea.externalId]]
+			);
 		}
 	});
 	it("keeps Host-defined zones in the unified response", async () => {

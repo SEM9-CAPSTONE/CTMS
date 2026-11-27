@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Header, Post, Query, UseGuards } from "@nestjs/common";
+import {
+	Body,
+	Controller,
+	Get,
+	Header,
+	Param,
+	ParseUUIDPipe,
+	Post,
+	Query,
+	UseGuards,
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -7,7 +17,7 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import type { AuthenticatedUser } from "../auth/jwt.strategy";
 import { UserRole } from "../users/entities/user.entity";
 // biome-ignore lint/style/useImportType: decorated DTO runtime metadata
-import { AnalyzeRouteDto } from "./dto/analyze-route.dto";
+import { AnalyzeRouteDto, RouteSafetySourceQueryDto } from "./dto/analyze-route.dto";
 // biome-ignore lint/style/useImportType: decorated DTO runtime metadata
 import { ImportSafetyDto } from "./dto/import-safety.dto";
 // biome-ignore lint/style/useImportType: DTO validation metadata
@@ -58,6 +68,19 @@ export class RouteSafetyController {
 	@ApiResponse({ status: 422, description: "Invalid WGS84 LineString" })
 	analyze(@CurrentUser() user: AuthenticatedUser, @Body() dto: AnalyzeRouteDto) {
 		return this.safety.analyze(user.userId, dto);
+	}
+
+	@Get("review/:routeId")
+	@Roles(UserRole.ADMIN)
+	@Header("Cache-Control", "private, no-store")
+	@ApiOperation({
+		summary: "Read safety context for a saved route in the Admin review queue or history",
+	})
+	review(
+		@Param("routeId", ParseUUIDPipe) routeId: string,
+		@Query() query: RouteSafetySourceQueryDto
+	) {
+		return this.safety.analyzeForReview(routeId, query.source);
 	}
 
 	@Post("import")

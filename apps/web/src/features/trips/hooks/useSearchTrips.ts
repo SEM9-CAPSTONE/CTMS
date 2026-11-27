@@ -20,6 +20,7 @@ export function useSearchTrips(options: UseSearchTripsOptions = {}) {
 	const [data, setData] = useState<PaginatedTrips | null>(null);
 	const [isLoading, setIsLoading] = useState<boolean>(autoFetch);
 	const [error, setError] = useState<string | null>(null);
+	const [errorStatus, setErrorStatus] = useState<number | null>(null);
 
 	const requestIdRef = useRef(0);
 	const currentQueryRef = useRef(query);
@@ -29,6 +30,7 @@ export function useSearchTrips(options: UseSearchTripsOptions = {}) {
 		const requestId = ++requestIdRef.current;
 		setIsLoading(true);
 		setError(null);
+		setErrorStatus(null);
 
 		try {
 			const result = await tripsService.search(searchParams);
@@ -38,7 +40,12 @@ export function useSearchTrips(options: UseSearchTripsOptions = {}) {
 		} catch (err) {
 			if (requestId === requestIdRef.current) {
 				if (err instanceof HttpError) {
-					if (err.status === 422) {
+					setErrorStatus(err.status);
+					if (err.status === 401) {
+						setError("Vui lòng đăng nhập để xem danh sách chuyến đi.");
+					} else if (err.status === 403) {
+						setError("Bạn không có quyền xem danh sách chuyến đi.");
+					} else if (err.status === 422) {
 						setError("Bộ lọc tìm kiếm không hợp lệ. Vui lòng kiểm tra lại ngày hoặc mức giá.");
 					} else {
 						setError("Không thể tải danh sách chuyến đi. Vui lòng thử lại.");
@@ -93,6 +100,7 @@ export function useSearchTrips(options: UseSearchTripsOptions = {}) {
 		pagination: data?.pagination ?? null,
 		isLoading,
 		error,
+		errorStatus,
 		updateFilters,
 		setPage,
 		retry,

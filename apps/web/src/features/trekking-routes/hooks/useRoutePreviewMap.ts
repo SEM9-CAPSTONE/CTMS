@@ -1,7 +1,8 @@
 import type { Marker } from "maplibre-gl";
 import { useEffect, useMemo, useRef } from "react";
-import type { GeoJsonLineString, RouteCheckpoint, RouteDangerZone } from "../types";
+import type { GeoJsonLineString, Position, RouteCheckpoint, RouteDangerZone } from "../types";
 import { dangerZoneFeatureCollection, dangerZonePositions } from "../utils/danger-zone-map";
+import { waypointMarker } from "../utils/route-map";
 import {
 	checkpointDescription,
 	checkpointMarkerColor,
@@ -17,7 +18,8 @@ export function useRoutePreviewMap(
 	geometry: GeoJsonLineString,
 	checkpoints: RouteCheckpoint[],
 	dangerZones: RouteDangerZone[],
-	fitDangerZones: RouteDangerZone[] = dangerZones
+	fitDangerZones: RouteDangerZone[] = dangerZones,
+	waypoints?: Position[]
 ) {
 	const geometryRef = useRef(geometry);
 	const positionsRef = useRef(geometry.coordinates);
@@ -25,10 +27,11 @@ export function useRoutePreviewMap(
 	const previewPositions = useMemo(
 		() => [
 			...geometry.coordinates,
+			...(waypoints ?? []),
 			...checkpoints.map((checkpoint) => checkpoint.location.coordinates),
 			...dangerZonePositions(fitDangerZones),
 		],
-		[checkpoints, fitDangerZones, geometry.coordinates]
+		[checkpoints, fitDangerZones, geometry.coordinates, waypoints]
 	);
 	const persistedHazards = useMemo(() => dangerZoneFeatureCollection(dangerZones), [dangerZones]);
 	const bounds = useMemo(() => previewBounds(previewPositions), [previewPositions]);
@@ -70,9 +73,19 @@ export function useRoutePreviewMap(
 		for (const marker of markersRef.current) marker.remove();
 		markersRef.current = [];
 
-		void import("maplibre-gl").then(({ Marker: MapMarker }) => {
+		void import("../../../core/maps/maplibre").then(({ Marker: MapMarker }) => {
 			if (disposed) return;
-			markersRef.current = checkpoints.map((checkpoint, index) => {
+			const drawingMarkers = (waypoints ?? []).map((point, index, points) => {
+				const element = document.createElement("div");
+				const { label, symbol, color } = waypointMarker(index, points.length);
+				element.className = `pointer-events-none flex size-6 items-center justify-center rounded-full border-2 border-white text-[10px] font-bold text-white shadow ${color}`;
+				element.textContent = symbol;
+				element.setAttribute("role", "img");
+				element.setAttribute("aria-label", label);
+				element.title = label;
+				return new MapMarker({ element }).setLngLat(point).addTo(map);
+			});
+			const checkpointMarkers = checkpoints.map((checkpoint, index) => {
 				const element = document.createElement("div");
 				const shelter = checkpoint.type === "emergency_shelter";
 				element.className = shelter
@@ -86,6 +99,7 @@ export function useRoutePreviewMap(
 				element.setAttribute("title", description);
 				return new MapMarker({ element }).setLngLat(checkpoint.location.coordinates).addTo(map);
 			});
+			markersRef.current = [...drawingMarkers, ...checkpointMarkers];
 		});
 
 		return () => {
@@ -93,7 +107,7 @@ export function useRoutePreviewMap(
 			for (const marker of markersRef.current) marker.remove();
 			markersRef.current = [];
 		};
-	}, [checkpoints, map, mapReady]);
+	}, [checkpoints, map, mapReady, waypoints]);
 
 	return {
 		...surface,

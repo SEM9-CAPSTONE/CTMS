@@ -47,8 +47,8 @@ import { PaymentsRepository } from "./payments.repository";
 import { evaluateSettlementBlockers } from "./refund-policy";
 
 import { recordApprovedRefundAdjustment } from "./approved-refund.ledger";
+import { PLATFORM_COMMISSION_RATE, splitPlatformCommission } from "./platform-commission";
 
-const PLATFORM_COMMISSION_RATE = "0.0500";
 const HOLD_PERIOD_HOURS = 72;
 const COMPLAINT_WINDOW_HOURS = 24;
 
@@ -134,9 +134,7 @@ export class SettlementsService {
 			!isSettled;
 
 		const settlementBase = blockerResult.settlementBase;
-		const baseMinor = moneyToMinor(settlementBase);
-		const feeMinor = (baseMinor * 5n) / 100n;
-		const netMinor = baseMinor - feeMinor;
+		const { feeMinor, netMinor } = splitPlatformCommission(moneyToMinor(settlementBase));
 
 		return {
 			tripId: trip.id,
@@ -239,9 +237,7 @@ export class SettlementsService {
 
 			// 3. Compute 5% platform commission and 95% net amount (BR-333, BR-337, BR-338)
 			const settlementBase = blockerResult.settlementBase;
-			const baseMinor = moneyToMinor(settlementBase);
-			const feeMinor = (baseMinor * 5n) / 100n;
-			const netMinor = baseMinor - feeMinor;
+			const { feeMinor, netMinor } = splitPlatformCommission(moneyToMinor(settlementBase));
 
 			const platformFee = minorToMoney(feeMinor);
 			const netAmount = minorToMoney(netMinor);

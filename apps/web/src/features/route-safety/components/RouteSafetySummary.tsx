@@ -1,13 +1,11 @@
 import { AlertTriangle } from "lucide-react";
 import { SAFETY_COLORS, WATER_COLOR, isDisplayableFeature } from "../map-symbols";
-import type { LiveSafetySource, SafetyCollection } from "../types";
+import type { SafetyCollection } from "../types";
+import { countConnectedWaterways } from "../utils/count-connected-waterways";
 import { uniqueWarningAreas } from "../utils/unique-warning-areas";
 import { SafetySymbol } from "./SafetySymbol";
 
-export function RouteSafetySummary({
-	data,
-	sources,
-}: { data?: SafetyCollection; sources?: LiveSafetySource[] }) {
+export function RouteSafetySummary({ data }: { data?: SafetyCollection }) {
 	const features = data?.features.filter(isDisplayableFeature) ?? [];
 	const active = features.filter(
 		(feature) =>
@@ -15,12 +13,21 @@ export function RouteSafetySummary({
 			feature.properties.sourceType !== "RESOURCE"
 	);
 	const areas = uniqueWarningAreas(active);
+	const water = features.filter((feature) => feature.properties.sourceType === "RESOURCE");
+	const waterPoints = water.filter((feature) => feature.geometry.type === "Point").length;
+	const waterways = countConnectedWaterways(water);
+	const waterDetail = [
+		waterPoints > 0 ? `${waterPoints} điểm nguồn nước` : "",
+		waterways > 0 ? `${waterways} cụm sông, suối` : "",
+	]
+		.filter(Boolean)
+		.join(" · ");
 	const counts = [
 		areas.filter((feature) => feature.properties.severity === "MEDIUM").length,
 		areas.filter((feature) => feature.properties.severity === "HIGH").length,
 		areas.filter((feature) => feature.properties.severity === "VERY_HIGH").length,
 		active.filter((feature) => !["Polygon", "MultiPolygon"].includes(feature.geometry.type)).length,
-		features.filter((feature) => feature.properties.sourceType === "RESOURCE").length,
+		waterPoints + waterways,
 	];
 	const cards = [
 		{
@@ -28,35 +35,30 @@ export function RouteSafetySummary({
 			detail: "Mức trung bình",
 			color: SAFETY_COLORS.MEDIUM,
 			background: "bg-amber-50",
-			provider: "NCHMF",
 		},
 		{
 			label: "",
 			detail: "Mức cao",
 			color: SAFETY_COLORS.HIGH,
-			background: "bg-orange-50",
-			provider: "NCHMF",
+			background: "bg-red-50",
 		},
 		{
 			label: "",
 			detail: "Mức rất cao",
 			color: SAFETY_COLORS.VERY_HIGH,
-			background: "bg-red-50",
-			provider: "NCHMF",
+			background: "bg-fuchsia-50",
 		},
 		{
 			label: "Vị trí nguy hiểm",
 			detail: "",
 			color: SAFETY_COLORS.UNKNOWN,
 			background: "bg-slate-50",
-			provider: "VNDMS",
 		},
 		{
 			label: "Nguồn nước",
-			detail: "",
+			detail: waterDetail,
 			color: WATER_COLOR,
 			background: "bg-sky-50",
-			provider: "OSM",
 		},
 	];
 	return (
@@ -70,9 +72,6 @@ export function RouteSafetySummary({
 			</h3>
 			<div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
 				{cards.map((card, index) => {
-					const source = sources?.find((item) => item.source === card.provider);
-					const ready = source?.status === "LIVE" || source?.status === "EMPTY";
-					const count = counts[index] > 0 || ready ? counts[index] : "—";
 					return (
 						<div
 							key={card.label + card.detail}
@@ -81,7 +80,7 @@ export function RouteSafetySummary({
 						>
 							<div className="flex items-center gap-2">
 								<SafetySymbol kind={index === 4 ? "water" : "hazard"} color={card.color} />
-								<strong className="text-xl font-extrabold text-[#10221b]">{count}</strong>
+								<strong className="text-xl font-extrabold text-[#10221b]">{counts[index]}</strong>
 							</div>
 							{card.label && (
 								<p className="mt-1 text-xs font-semibold text-[#34483b]">{card.label}</p>

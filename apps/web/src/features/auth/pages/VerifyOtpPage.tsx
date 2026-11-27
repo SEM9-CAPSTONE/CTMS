@@ -1,6 +1,6 @@
 import { ArrowRight, Home, Mail, Phone, Send, ShieldCheck } from "lucide-react";
 import type React from "react";
-import { useVerifyOtpForm } from "../hooks/useVerifyOtpForm";
+import { otpSmsEnabled, useVerifyOtpForm } from "../hooks/useVerifyOtpForm";
 import type { OtpChannel, VerifyOtpPageProps } from "../types";
 
 export const VerifyOtpPage: React.FC<VerifyOtpPageProps> = ({
@@ -72,6 +72,8 @@ export const VerifyOtpPage: React.FC<VerifyOtpPageProps> = ({
 				? "Gửi lại mã"
 				: "Gửi mã OTP";
 
+	const smsEnabled = otpSmsEnabled();
+
 	const destinationFor = (channel: OtpChannel) =>
 		channel === "email" ? context.email : context.phone;
 
@@ -102,26 +104,33 @@ export const VerifyOtpPage: React.FC<VerifyOtpPageProps> = ({
 							'Chọn phương thức nhận mã OTP, sau đó bấm "Gửi mã OTP"'
 						)}
 					</p>
+					{hasSentCode && selectedChannel === "email" && (
+						<p className="mt-1 text-xs font-medium text-[#8a9990]">
+							Không thấy thư? Kiểm tra cả mục Spam hoặc Quảng cáo.
+						</p>
+					)}
 				</div>
 
 				{/* Verification method selector — Phone or Email, chosen fresh on
 				 * this page every visit (never carried from Register, never
 				 * persisted client-side beyond this render). */}
-				<div className="mb-4 grid grid-cols-2 gap-2">
-					<button
-						type="button"
-						onClick={() => selectChannel("phone")}
-						disabled={isSending || countdown > 0}
-						className={`flex flex-col items-center gap-1.5 rounded-2xl border px-3 py-3 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-							selectedChannel === "phone"
-								? "border-[#164027] bg-[#eef7f0] text-[#164027] ring-2 ring-[#164027]/20"
-								: "border-[#dfe8df] bg-white text-[#425048] hover:bg-[#f5f7f4]"
-						}`}
-					>
-						<Phone size={18} />
-						<span>Xác minh qua SĐT</span>
-						<span className="font-normal text-[#8a9990]">{context.phone || "—"}</span>
-					</button>
+				<div className={`mb-4 grid gap-2 ${smsEnabled ? "grid-cols-2" : "grid-cols-1"}`}>
+					{smsEnabled && (
+						<button
+							type="button"
+							onClick={() => selectChannel("phone")}
+							disabled={isSending || countdown > 0}
+							className={`flex flex-col items-center gap-1.5 rounded-2xl border px-3 py-3 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+								selectedChannel === "phone"
+									? "border-[#164027] bg-[#eef7f0] text-[#164027] ring-2 ring-[#164027]/20"
+									: "border-[#dfe8df] bg-white text-[#425048] hover:bg-[#f5f7f4]"
+							}`}
+						>
+							<Phone size={18} />
+							<span>Xác minh qua SĐT</span>
+							<span className="font-normal text-[#8a9990]">{context.phone || "—"}</span>
+						</button>
+					)}
 
 					<button
 						type="button"
@@ -183,7 +192,11 @@ export const VerifyOtpPage: React.FC<VerifyOtpPageProps> = ({
 				</form>
 
 				<div className="mt-4 flex items-center justify-between border-t border-[#f0f4f0] pt-4 text-xs font-semibold text-[#54655a]">
-					<span className="text-[#8a9990]">Chưa nhận được mã? Chọn lại phương thức và gửi mã.</span>
+					<span className="text-[#8a9990]">
+						{smsEnabled
+							? "Chưa nhận được mã? Chọn lại phương thức và gửi mã."
+							: "Chưa nhận được mã? Đợi hết thời gian chờ rồi bấm gửi lại."}
+					</span>
 
 					<button
 						type="button"

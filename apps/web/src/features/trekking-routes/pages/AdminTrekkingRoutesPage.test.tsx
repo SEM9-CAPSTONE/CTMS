@@ -35,6 +35,13 @@ const route: AdminTrekkingRouteReview = {
 		},
 	],
 	dangerZones: [],
+	drawing: {
+		mode: "smart",
+		waypoints: [
+			[108.4, 11.9],
+			[108.5, 12],
+		],
+	},
 	reviewOutcome: "pending",
 	reviewedAt: null,
 };
@@ -84,8 +91,25 @@ async function setup(options: SetupOptions = {}) {
 		trekkingRoutesService: { listAdminReviews, review },
 	}));
 	vi.doMock("../components/RouteGeometryPreview", () => ({
-		RouteGeometryPreview: ({ geometry }: { geometry: { coordinates: unknown[] } }) => (
-			<div data-testid="route-geometry-preview">{geometry.coordinates.length} vertices</div>
+		RouteGeometryPreview: ({
+			geometry,
+			checkpoints,
+			waypoints,
+			mapOverlay,
+		}: {
+			geometry: AdminTrekkingRouteReview["geometry"];
+			checkpoints?: AdminTrekkingRouteReview["checkpoints"];
+			waypoints?: unknown[];
+			mapOverlay?: import("react").ReactNode;
+		}) => (
+			<div data-testid="route-geometry-preview">
+				<p>{geometry.coordinates.length} vertices</p>
+				<p>{waypoints?.length} điểm đã vẽ</p>
+				{checkpoints?.map((checkpoint) => (
+					<p key={checkpoint.id}>{checkpoint.name}</p>
+				))}
+				{mapOverlay}
+			</div>
 		),
 	}));
 	const { act, fireEvent, render, screen, waitFor, within } = await import(
@@ -130,13 +154,15 @@ describe("AdminTrekkingRoutesPage", () => {
 		expect((await test.screen.findAllByText("Pine Ridge")).length).toBeGreaterThan(0);
 	});
 
-	it("reviews route geometry, difficulty and status without a checkpoint step", async () => {
+	it("reviews the saved line, drawing points and checkpoints on the shared safety map", async () => {
 		const { screen } = await setup();
 		expect((await screen.findAllByText("Pine Ridge")).length).toBeGreaterThan(0);
-		expect(screen.getAllByText("hard").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("Khó").length).toBeGreaterThan(0);
 		expect(screen.getAllByText("Chờ duyệt").length).toBeGreaterThan(0);
 		expect(screen.getByTestId("route-geometry-preview")).toHaveTextContent("2 vertices");
-		expect(screen.queryByText("Trail start")).not.toBeInTheDocument();
+		expect(screen.getByTestId("route-geometry-preview")).toHaveTextContent("2 điểm đã vẽ");
+		expect(screen.getByText("Trail start")).toBeInTheDocument();
+		expect(screen.getByText("Review route")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Chờ duyệt" })).toHaveAttribute(
 			"aria-pressed",
 			"true"

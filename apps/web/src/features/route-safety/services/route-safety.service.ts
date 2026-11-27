@@ -8,6 +8,12 @@ import type {
 } from "../types";
 
 export const routeSafetyService = {
+	review: (routeId: string, source: SafetyProvider, signal?: AbortSignal) =>
+		httpClient.get<RouteSafetyResult>(
+			API_ENDPOINTS.ROUTE_SAFETY.REVIEW(routeId),
+			{ source },
+			{ signal }
+		),
 	verifiedZones: (bounds: MapSafetyBounds, signal?: AbortSignal): Promise<VerifiedZoneCollection> =>
 		httpClient.get<VerifiedZoneCollection>(
 			API_ENDPOINTS.ROUTE_SAFETY.VERIFIED_ZONES,

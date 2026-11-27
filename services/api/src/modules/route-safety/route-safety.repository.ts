@@ -2,6 +2,10 @@ import { Injectable } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: Nest injection metadata
 import { DataSource } from "typeorm";
 import type { GeoLineString } from "../trekking-routes/entities/trekking-route.entity";
+import {
+	LATEST_REVIEW_AUDIT_JOIN,
+	ROUTE_REVIEW_OUTCOME_EXPRESSION,
+} from "../trekking-routes/repositories/trekking-routes.repository";
 import type { VerifiedZonesQueryDto } from "./dto/verified-zones-query.dto";
 import { SAFETY_FEATURE_LIMIT } from "./route-safety.policy";
 import type { SafetyCandidate } from "./route-safety.types";
@@ -22,13 +26,27 @@ export class RouteSafetyRepository {
 		return rows[0]?.hostId ?? null;
 	}
 
+	async findRouteForReview(
+		routeId: string
+	): Promise<{ hostId: string; geometry: GeoLineString } | null> {
+		const rows: Array<{ hostId: string; geometry: GeoLineString }> = await this.db.query(
+			`SELECT route.host_id AS "hostId", ST_AsGeoJSON(route.route_geom::geometry)::json AS geometry
+			FROM trekking_routes route
+			${LATEST_REVIEW_AUDIT_JOIN}
+			WHERE route.id = $1 AND (${ROUTE_REVIEW_OUTCOME_EXPRESSION}) IS NOT NULL`,
+			[routeId]
+		);
+		return rows[0] ?? null;
+	}
+
 	async candidates(
 		hostId: string,
 		routeId: string | undefined,
 		geometry: GeoLineString,
 		proximity: number,
 		live: SafetyCandidate[] = [],
-		excludeStoredCurrent = false
+		excludeStoredCurrent = false,
+		review = false
 	): Promise<SafetyCandidate[]> {
 		// Saved zones may inform another route owned by this Host; incidents retain their Trip scope.
 		// Geographies and the matching GiST indexes keep distance thresholds in meters.
@@ -48,9 +66,8 @@ export class RouteSafetyRepository {
 		 s.lifecycle_status AS "lifecycleStatus", s.verification_status AS "verificationStatus",
 		 s.accuracy_meters AS "accuracyMeters", NULL::float8 AS "radiusMeters", NULL::jsonb AS "labelPoint"
 		 FROM external_safety_features s CROSS JOIN route r
-		 WHERE (NOT $7::boolean OR s.source_type <> 'OFFICIAL_CURRENT') AND
-		 ((GeometryType(s.geom::geometry) = 'POINT' AND ST_DWithin(s.geom,r.geom,$4))
-		 OR (GeometryType(s.geom::geometry) <> 'POINT' AND ST_Intersects(s.geom,r.geom)))
+		 WHERE (NOT $7::boolean OR s.source_type <> 'OFFICIAL_CURRENT')
+		 AND ST_DWithin(s.geom,r.geom,$4)
 		 UNION ALL
 		 SELECT s.v->>'id', s.v->>'sourceType', s.v->>'source', s.v->>'sourceReference',
 		 s.v->>'hazardType', s.v->>'severity', NULL::text, s.geom, s.v->>'geometryRole', s.v->>'description',
@@ -66,7 +83,8 @@ export class RouteSafetyRepository {
 		 z.created_at, NULL, NULL, NULL, NULL, z.updated_at,
 		 'ACTIVE', 'UNVERIFIED', NULL::float8, z.radius_m, NULL::jsonb
 		 FROM route_danger_zones z JOIN trekking_routes t ON t.id=z.route_id CROSS JOIN route r
-		 WHERE t.host_id=$2 AND NOT EXISTS(SELECT 1 FROM verified_zones v WHERE v.id=z.id) AND
+		 WHERE t.host_id=$2 AND (NOT $8::boolean OR z.route_id=$3)
+		 AND NOT EXISTS(SELECT 1 FROM verified_zones v WHERE v.id=z.id) AND
 		 ((GeometryType(z.geom::geometry)='POINT' AND ST_DWithin(z.geom,r.geom,$4+COALESCE(z.radius_m,0)))
 		 OR (GeometryType(z.geom::geometry)<>'POINT' AND ST_DWithin(z.geom,r.geom,$4)))
 		 UNION ALL
@@ -80,7 +98,7 @@ export class RouteSafetyRepository {
 		 CASE WHEN i.status::text IN ('resolved','closed') THEN 'RESOLVED' ELSE 'ACTIVE' END,
 		 'UNVERIFIED', i.location_accuracy_meters, NULL::float8, NULL::jsonb
 		 FROM trip_incidents i JOIN trips t ON t.id=i.trip_id CROSS JOIN route r
-		 WHERE t.host_id=$2 AND ($3::uuid IS NULL OR t.route_id=$3)
+		 WHERE NOT $8::boolean AND t.host_id=$2 AND ($3::uuid IS NULL OR t.route_id=$3)
 		 AND i.location IS NOT NULL AND ST_DWithin(i.location,r.geom,$4)
 		)
 		SELECT c.id,c."sourceType",c.source,c."sourceReference",c."hazardType",c.severity,c."routeName",
@@ -103,6 +121,7 @@ export class RouteSafetyRepository {
 				SAFETY_FEATURE_LIMIT + 1,
 				JSON.stringify(live),
 				excludeStoredCurrent,
+				review,
 			]
 		);
 	}

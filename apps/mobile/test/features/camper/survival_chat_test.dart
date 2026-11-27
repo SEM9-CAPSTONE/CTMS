@@ -16,8 +16,15 @@ import 'package:mobile/features/camper/application/survival_chat_controller.dart
 import 'package:mobile/features/camper/data/survival_local_model.dart';
 import 'package:mobile/features/camper/data/survival_local_runtime_v1.dart';
 import 'package:mobile/features/camper/presentation/camper_ai_assistant_screen.dart';
+import 'package:mobile/features/gps_tracking/application/gps_location_source.dart';
+import 'package:mobile/features/gps_tracking/application/gps_tracking_controller.dart';
+import 'package:mobile/features/gps_tracking/domain/gps_tracking_models.dart';
 import 'package:mobile/features/offline_packages/application/offline_trip_providers.dart';
 import 'package:mobile/features/offline_packages/domain/offline_trip.dart';
+import 'package:mobile/features/sos/data/sos_api.dart';
+import 'package:mobile/features/sos/data/sos_store.dart';
+import 'package:mobile/features/sos/domain/sos_alert.dart';
+import 'package:mobile/features/sos/presentation/trigger_sos_dialog.dart';
 import 'package:mobile/features/sync/application/connectivity_source.dart';
 
 class _Connection implements ConnectivitySource {
@@ -52,6 +59,53 @@ class _LocalModel extends SurvivalLocalModel {
       observedAt: DateTime.utc(2026, 11, 16),
       runtimeConfigVersion: localRuntimeConfigV1,
     );
+  }
+}
+
+class _SafetyGps implements GpsLocationSource {
+  _SafetyGps(this.permission, [this.sample]);
+
+  final GpsPermissionState permission;
+  final GpsSample? sample;
+
+  @override
+  Future<GpsPermissionState> checkPermission() async => permission;
+
+  @override
+  Future<GpsPermissionState> requestPermission() async => permission;
+
+  @override
+  Future<GpsSample> currentSample({required Duration timeLimit}) async =>
+      sample ?? (throw StateError('No fix'));
+}
+
+class _SafetySosApi extends Fake implements SosApi {
+  _SafetySosApi({required this.online});
+
+  final bool online;
+  int reads = 0;
+  int submissions = 0;
+
+  @override
+  Future<List<SosAlert>> list(String tripId) async {
+    reads++;
+    if (!online) throw StateError('Fixture: offline');
+    return [];
+  }
+
+  @override
+  Future<SosAlert> create(
+    String tripId, {
+    String? id,
+    required String emergencyType,
+    String? notes,
+    double? latitude,
+    double? longitude,
+    int? batteryLevel,
+    DateTime? eventTime,
+  }) async {
+    submissions++;
+    throw StateError('Fixture: offline');
   }
 }
 
@@ -128,6 +182,9 @@ void main() {
     WidgetTester tester, {
     _LocalModel? model,
     Future<OfflineTrip?> Function(OfflineTripSelection)? snapshot,
+    GpsLocationSource? gps,
+    SosApi? sos,
+    SosStore? sosStore,
   }) async {
     FlutterSecureStorage.setMockInitialValues({});
     transport = _Transport();
@@ -139,6 +196,9 @@ void main() {
         survivalChatAccountProvider.overrideWith((ref) => ref.watch(_account)),
         connectivitySourceProvider.overrideWithValue(network),
         if (model != null) survivalLocalModelProvider.overrideWithValue(model),
+        if (gps != null) gpsLocationSourceProvider.overrideWithValue(gps),
+        if (sos != null) sosApiProvider.overrideWithValue(sos),
+        if (sosStore != null) sosStoreProvider.overrideWithValue(sosStore),
         if (snapshot != null)
           survivalChatSnapshotProvider.overrideWith(
             (ref, selection) => snapshot(selection),
@@ -774,6 +834,143 @@ void main() {
     expect(transport.requests, isEmpty);
     expect(model.requests, 0);
     expect(find.text('Xem vị trí hiện tại'), findsOneWidget);
+  });
+
+  testWidgets('CTMS-075: retains an offline incident and isolates a new chat', (
+    tester,
+  ) async {
+    await open(tester);
+    network.online = false;
+    final controller = container.read(survivalChatControllerProvider.notifier);
+    List<SurvivalChatTurn> turns() =>
+        container.read(survivalChatControllerProvider);
+    expect(controller.send('Tôi chóng mặt khi đi trekking'), isTrue);
+    await tester.pumpAndSettle();
+    expect(find.text('Cần làm rõ tình huống'), findsOneWidget);
+    expect(controller.send('Tôi không thở được'), isTrue);
+    expect(controller.send('Tôi phải làm gì tiếp?'), isTrue);
+    await tester.pumpAndSettle();
+    expect(turns().last.failure?.emergency, isTrue);
+    expect(
+      find.textContaining('Chưa thể gửi yêu cầu cứu hộ mới'),
+      findsOneWidget,
+    );
+    expect(transport.requests, isEmpty);
+    expect(find.text('Mở xác nhận SOS'), findsNothing);
+    await tester.tap(find.byTooltip('Bắt đầu cuộc trò chuyện mới'));
+    await tester.pumpAndSettle();
+    expect(turns(), isEmpty);
+    expect(find.text('Có dấu hiệu khẩn cấp'), findsNothing);
+  });
+
+  testWidgets('CTMS-075: shows unavailable GPS and retains guidance', (
+    tester,
+  ) async {
+    await open(tester, gps: _SafetyGps(GpsPermissionState.deniedForever));
+    final controller = container.read(survivalChatControllerProvider.notifier);
+    expect(controller.send('Bạn tôi bất tỉnh'), isTrue);
+    await tester.pumpAndSettle();
+    await toggle(tester, find.text('Xem vị trí hiện tại'));
+    expect(find.textContaining('Không lấy được vị trí'), findsOneWidget);
+    expect(find.textContaining('Vĩ độ'), findsNothing);
+    await tester.tap(find.text('Đóng'));
+    await tester.pumpAndSettle();
+    expect(find.text('Có dấu hiệu khẩn cấp'), findsOneWidget);
+  });
+
+  testWidgets('CTMS-075: labels a stale GPS fix with time and accuracy', (
+    tester,
+  ) async {
+    await open(
+      tester,
+      gps: _SafetyGps(
+        GpsPermissionState.granted,
+        GpsSample(
+          capturedAt: DateTime.utc(2026, 1, 1),
+          latitude: 10.1,
+          longitude: 106.2,
+          accuracyMeters: 15,
+        ),
+      ),
+    );
+    final controller = container.read(survivalChatControllerProvider.notifier);
+    expect(controller.send('Bạn tôi bất tỉnh'), isTrue);
+    await tester.pumpAndSettle();
+    await toggle(tester, find.text('Xem vị trí hiện tại'));
+    expect(find.text('Vị trí ghi nhận gần nhất'), findsOneWidget);
+    expect(
+      find.textContaining('Độ chính xác khoảng 15 m', findRichText: true),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('CTMS-075: offline SOS handoff uses existing confirmation only', (
+    tester,
+  ) async {
+    const trip = (accountId: 'camper-a', tripId: 'trip-a', version: 2);
+    final api = _SafetySosApi(online: false);
+    final store = InMemorySosStore();
+    await open(
+      tester,
+      sos: api,
+      sosStore: store,
+      snapshot: (_) async => const OfflineTrip(
+        route: [],
+        checkpoints: [],
+        guides: [],
+        hazardSources: [],
+      ),
+    );
+    network.online = false;
+    final controller = container.read(survivalChatControllerProvider.notifier);
+    expect(controller.send('Bạn tôi bất tỉnh', trip: trip), isTrue);
+    await tester.pumpAndSettle();
+    expect(api.reads, 0);
+    expect(api.submissions, 0);
+    expect(await store.readAll(), isEmpty);
+    await toggle(tester, find.text('Mở xác nhận SOS'));
+    expect(find.byType(TriggerSosDialog), findsOneWidget);
+    await tester.tap(find.text('Quay lại'));
+    await tester.pumpAndSettle();
+    expect(api.submissions, 0);
+    expect(await store.readAll(), isEmpty);
+  });
+
+  testWidgets(
+    'CTMS-075: local screening holds an unsupported generated reply',
+    (tester) async {
+      await open(tester);
+      await send(tester);
+      transport.reply(0, {...answered, 'answer': 'Bạn hoàn toàn an toàn.'});
+      await tester.pumpAndSettle();
+      expect(find.text('Bạn hoàn toàn an toàn.'), findsNothing);
+      expect(
+        find.textContaining('Chưa thể đưa ra hướng dẫn an toàn'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('CTMS-075: retry cannot skip the current safety assessment', (
+    tester,
+  ) async {
+    final model = _LocalModel();
+    await open(tester, model: model);
+    await send(tester);
+    transport.reply(0, {'code': 'AI_UNAVAILABLE'}, status: 503);
+    await tester.pumpAndSettle();
+    final failed = container.read(survivalChatControllerProvider).single;
+    expect(failed.failure?.retryable, isTrue);
+    final controller = container.read(survivalChatControllerProvider.notifier);
+    expect(controller.send('Bạn tôi đang bất tỉnh'), isTrue);
+    controller.retry(failed);
+    await tester.pumpAndSettle();
+    expect(
+      container.read(survivalChatControllerProvider).first.failure?.emergency,
+      isTrue,
+    );
+    expect(transport.requests, hasLength(1));
+    expect(model.requests, 0);
   });
 
   testWidgets(

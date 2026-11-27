@@ -242,16 +242,7 @@ class _CheckpointItemCard extends StatelessWidget {
                         fontSize: 11.5,
                       ),
                     ),
-                    if (isStale)
-                      Text(
-                        '(Mẫu cũ)',
-                        style: AppTypography.caption.copyWith(
-                          color: AppColors.statusWarning,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      )
-                    else if (isPoor)
+                    if (isPoor)
                       Text(
                         '(Sai số >20m)',
                         style: AppTypography.caption.copyWith(

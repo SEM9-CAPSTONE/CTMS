@@ -80,7 +80,7 @@ export const safetyText = {
 		UNKNOWN: "Chưa đủ thông tin",
 	},
 	lifecycle: {
-		ACTIVE: "Còn hiệu lực theo chính sách dữ liệu",
+		ACTIVE: "Còn hiệu lực",
 		STALE: "Dữ liệu đã cũ",
 		EXPIRED: "Đã hết hiệu lực",
 		RESOLVED: "Đã xử lý hoặc đóng",

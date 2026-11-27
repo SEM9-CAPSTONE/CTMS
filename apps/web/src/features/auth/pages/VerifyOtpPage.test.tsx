@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpError } from "../../../core/api";
 import { authService } from "../services/auth.service";
 import { getVerifyRegistration, setVerifyRegistration } from "../utils/verifyRegistrationStorage";
@@ -85,6 +85,12 @@ describe("VerifyOtpPage", () => {
 		sendOtpMock.mockReset();
 		resendOtpMock.mockReset();
 		sessionStorage.clear();
+		// Most cases cover both channels; the e-mail-only default has its own tests below.
+		vi.stubEnv("VITE_OTP_SMS_ENABLED", "true");
+	});
+
+	afterEach(() => {
+		vi.unstubAllEnvs();
 	});
 
 	// TC1 — No registration context (direct visit / reload after storage
@@ -99,7 +105,7 @@ describe("VerifyOtpPage", () => {
 	// TC2 — Decision Gate (First OTP Trigger, Option B): no API call on mount,
 	// OTP input and Verify button start disabled, and the send button stays
 	// disabled until a verification method is chosen.
-	it("does not call sendOtp/resendOtp on mount and keeps everything disabled until a channel is chosen", () => {
+	it("does not call sendOtp/resendOtp on mount; e-mail is pre-selected so one click sends the code", () => {
 		setVerifyRegistration(CONTEXT);
 		renderPage();
 
@@ -107,8 +113,48 @@ describe("VerifyOtpPage", () => {
 		expect(resendOtpMock).not.toHaveBeenCalled();
 		expect(otpInput()).toBeDisabled();
 		expect(verifyButton()).toBeDisabled();
-		expect(sendButton()).toBeDisabled();
+		expect(sendButton()).toBeEnabled();
 		expect(sendButton()).toHaveTextContent("Gửi mã OTP");
+	});
+
+	it("offers only e-mail when SMS is not enabled for this build", async () => {
+		vi.stubEnv("VITE_OTP_SMS_ENABLED", "");
+		const user = userEvent.setup();
+		setVerifyRegistration(CONTEXT);
+		sendOtpMock.mockResolvedValueOnce(SEND_SUCCESS_RESPONSE);
+		renderPage();
+
+		expect(screen.queryByRole("button", { name: /xác minh qua sđt/i })).not.toBeInTheDocument();
+		await user.click(sendButton());
+
+		await waitFor(() =>
+			expect(sendOtpMock).toHaveBeenCalledWith({ userId: CONTEXT.userId, channel: "email" })
+		);
+		expect(
+			await screen.findByText("Không thấy thư? Kiểm tra cả mục Spam hoặc Quảng cáo.")
+		).toBeInTheDocument();
+	});
+
+	it("explains in Vietnamese when the SMS provider cannot deliver the code", async () => {
+		const user = userEvent.setup();
+		setVerifyRegistration(CONTEXT);
+		sendOtpMock.mockRejectedValueOnce(
+			new HttpError("OTP delivery failed", 503, {
+				statusCode: 503,
+				message: "OTP delivery failed",
+				code: "OTP_DELIVERY_FAILED",
+				channel: "phone",
+			})
+		);
+		renderPage();
+
+		await user.click(phoneChannelButton());
+		await user.click(sendButton());
+
+		expect(
+			await screen.findByText("Không gửi được mã qua SMS lúc này. Vui lòng chọn nhận mã qua Email.")
+		).toBeInTheDocument();
+		expect(otpInput()).toBeDisabled();
 	});
 
 	// TC3 — Choosing a channel enables the send button; clicking it calls
@@ -120,7 +166,6 @@ describe("VerifyOtpPage", () => {
 		sendOtpMock.mockResolvedValueOnce(SEND_SUCCESS_RESPONSE);
 		renderPage();
 
-		expect(sendButton()).toBeDisabled();
 		await user.click(phoneChannelButton());
 		expect(sendButton()).toBeEnabled();
 		await user.click(sendButton());
@@ -165,7 +210,7 @@ describe("VerifyOtpPage", () => {
 		await user.click(sendButton());
 
 		expect(
-			await screen.findByText("OTP resend limit reached, try again later")
+			await screen.findByText("Bạn đã yêu cầu gửi mã quá nhiều lần. Vui lòng thử lại sau.")
 		).toBeInTheDocument();
 		expect(otpInput()).toBeDisabled();
 	});
@@ -180,7 +225,9 @@ describe("VerifyOtpPage", () => {
 		await user.click(phoneChannelButton());
 		await user.click(sendButton());
 
-		expect(await screen.findByText("Failed to fetch")).toBeInTheDocument();
+		expect(
+			await screen.findByText("Không kết nối được máy chủ. Vui lòng kiểm tra mạng và thử lại.")
+		).toBeInTheDocument();
 	});
 
 	async function sendCodeAndType(user: ReturnType<typeof userEvent.setup>, code: string) {

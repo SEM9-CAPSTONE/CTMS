@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/ctms_section_card.dart';
+import '../../offline_map/application/offline_map_controller.dart';
 import '../../offline_map/domain/synced_map_member.dart';
 import '../../offline_map/presentation/widgets/offline_map_canvas.dart';
 import '../../offline_packages/presentation/package_policy_copy.dart';
@@ -60,6 +61,7 @@ class _TripMemberLocationsPanelState
     final controller = ref.watch(
       memberLocationsControllerProvider(widget.tripId),
     );
+    final offlineMap = ref.watch(offlineMapControllerProvider(widget.tripId));
     final data = controller.data;
     final now = (widget.clock ?? DateTime.now)();
     final denied = [401, 403, 404, 409].contains(controller.errorStatus);
@@ -129,6 +131,7 @@ class _TripMemberLocationsPanelState
                     return OfflineMapCanvas(
                       key: _mapKey,
                       route: data.route,
+                      mbtilesPath: offlineMap.basemapPath,
                       syncedMembers: markers,
                       selectedMemberId: _selected,
                       onSelectSyncedMember: _select,
