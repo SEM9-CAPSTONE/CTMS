@@ -5,6 +5,7 @@ import request from "supertest";
 import { DataSource } from "typeorm";
 import { AppModule } from "../src/modules/app.module";
 import { AuthService } from "../src/modules/auth/auth.service";
+import { DEFAULT_TERMS_VERSION } from "../src/modules/terms/terms-content";
 import { UserRole } from "../src/modules/users/entities/user.entity";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
 
@@ -103,7 +104,13 @@ describe("PATCH /api/profiles/me (integration, real Postgres)", () => {
 
 		const registerResponse = await request(app.getHttpServer())
 			.post("/api/auth/register")
-			.send({ email, phone: local, password: PASSWORD, role: UserRole.CAMPER })
+			.send({
+				email,
+				phone: local,
+				password: PASSWORD,
+				role: UserRole.CAMPER,
+				acceptedTermsVersion: DEFAULT_TERMS_VERSION,
+			})
 			.expect(201);
 
 		const userId: string = registerResponse.body.id;
