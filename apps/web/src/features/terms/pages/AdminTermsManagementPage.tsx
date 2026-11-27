@@ -94,6 +94,7 @@ export const AdminTermsManagementPage: React.FC<AdminTermsManagementPageProps> =
 	const [isCreatingDraft, setIsCreatingDraft] = useState<boolean>(false);
 	const [selectedCode, setSelectedCode] = useState<string | null>(null);
 	const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+	const [editorSessionKey, setEditorSessionKey] = useState<string>("init");
 
 	const selectedDetailQuery = useTermsVersionDetail(
 		!isCreatingDraft && selectedCode && selectedCode !== currentQuery.data?.version
@@ -112,7 +113,6 @@ export const AdminTermsManagementPage: React.FC<AdminTermsManagementPageProps> =
 	const [effectiveDate, setEffectiveDate] = useState("");
 	const [requiresReconsent, setRequiresReconsent] = useState(true);
 	const [sections, setSections] = useState<TermsSection[]>([]);
-	const [activeSectionNumber, setActiveSectionNumber] = useState<number>(1);
 
 	useEffect(() => {
 		if (isCreatingDraft || !sourceVersion) return;
@@ -122,58 +122,8 @@ export const AdminTermsManagementPage: React.FC<AdminTermsManagementPageProps> =
 		setEffectiveDate(sourceVersion.effectiveDate.slice(0, 10));
 		setRequiresReconsent(sourceVersion.requiresReconsent);
 		setSections(structuredClone(sourceVersion.sections));
-		setActiveSectionNumber(sourceVersion.sections[0]?.number ?? 1);
+		setEditorSessionKey(`version-${sourceVersion.id}-${sourceVersion.version}`);
 	}, [isCreatingDraft, sourceVersion]);
-
-	const handleUpdateSection = (
-		sectionNumber: number,
-		updater: (section: TermsSection) => TermsSection
-	) => {
-		setSections((prev) =>
-			prev.map((item) => (item.number === sectionNumber ? updater(item) : item))
-		);
-	};
-
-	const handleAddSection = () => {
-		const nextNumber =
-			sections.reduce((max, item) => (item.number > max ? item.number : max), 0) + 1;
-		const nextSection: TermsSection = {
-			number: nextNumber,
-			slug: `muc-${nextNumber}`,
-			title: `Chính sách mục ${nextNumber}`,
-			subsections: [
-				{
-					code: `${nextNumber}.1`,
-					title: "Nội dung chi tiết",
-					body: "",
-				},
-			],
-		};
-		setSections((prev) => [...prev, nextSection]);
-		setActiveSectionNumber(nextNumber);
-	};
-
-	const handleRemoveSection = (sectionNumber: number) => {
-		if (sections.length <= 1) return;
-		const remaining = sections
-			.filter((item) => item.number !== sectionNumber)
-			.map((item, idx) => {
-				const newNum = idx + 1;
-				return {
-					...item,
-					number: newNum,
-					subsections: item.subsections.map((sub, subIdx) => {
-						const expectedOldPrefix = `${item.number}.`;
-						const code = sub.code.startsWith(expectedOldPrefix)
-							? `${newNum}.${sub.code.slice(expectedOldPrefix.length)}`
-							: sub.code || `${newNum}.${subIdx + 1}`;
-						return { ...sub, code };
-					}),
-				};
-			});
-		setSections(remaining);
-		setActiveSectionNumber(Math.min(sectionNumber, remaining.length));
-	};
 
 	const handleCreateNewDraft = () => {
 		const base = currentQuery.data ?? sourceVersion;
@@ -196,7 +146,7 @@ export const AdminTermsManagementPage: React.FC<AdminTermsManagementPageProps> =
 		setEffectiveDate(draft.effectiveDate);
 		setRequiresReconsent(draft.requiresReconsent);
 		setSections(draft.sections);
-		setActiveSectionNumber(draft.sections[0]?.number ?? 1);
+		setEditorSessionKey(`draft-new-${Date.now()}`);
 	};
 
 	const handleSelectDraft = () => {
@@ -208,7 +158,7 @@ export const AdminTermsManagementPage: React.FC<AdminTermsManagementPageProps> =
 		setEffectiveDate(savedDraft.effectiveDate);
 		setRequiresReconsent(savedDraft.requiresReconsent);
 		setSections(structuredClone(savedDraft.sections));
-		setActiveSectionNumber(savedDraft.sections[0]?.number ?? 1);
+		setEditorSessionKey(`draft-resume-${savedDraft.versionCode}-${savedDraft.updatedAtLabel}`);
 	};
 
 	const handleSelectVersion = (code: string) => {
@@ -242,7 +192,7 @@ export const AdminTermsManagementPage: React.FC<AdminTermsManagementPageProps> =
 	const handleSaveExistingVersion = async () => {
 		if (!sourceVersion) return;
 		if (!title.trim() || !effectiveDate.trim() || sections.length === 0) {
-			toast.error("Vui lòng nhập đầy đủ tiêu đề, ngày hiệu lực và nội dung các mục.");
+			toast.error("Vui lòng nhập đầy đủ tiêu đề, ngày hiệu lực và nội dung điều khoản.");
 			return;
 		}
 		try {
@@ -264,8 +214,8 @@ export const AdminTermsManagementPage: React.FC<AdminTermsManagementPageProps> =
 
 	const handleSubmitVersion = async () => {
 		if (isCreatingDraft) {
-			if (!versionCode.trim() || !title.trim() || !effectiveDate.trim()) {
-				toast.error("Vui lòng nhập mã phiên bản mới, tiêu đề và ngày hiệu lực.");
+			if (!versionCode.trim() || !title.trim() || !effectiveDate.trim() || sections.length === 0) {
+				toast.error("Vui lòng nhập mã phiên bản mới, tiêu đề, ngày hiệu lực và nội dung.");
 				return;
 			}
 			if (!summary.trim()) {
@@ -348,6 +298,7 @@ export const AdminTermsManagementPage: React.FC<AdminTermsManagementPageProps> =
 							/>
 
 							<AdminTermsEditorPanel
+								documentKey={editorSessionKey}
 								versionCode={versionCode}
 								statusTone={activeStatusTone}
 								statusLabel={activeStatusLabel}
@@ -355,15 +306,11 @@ export const AdminTermsManagementPage: React.FC<AdminTermsManagementPageProps> =
 								title={title}
 								effectiveDate={effectiveDate}
 								sections={sections}
-								activeSectionNumber={activeSectionNumber}
 								isSaving={updateMutation.isPending}
 								onChangeVersionCode={setVersionCode}
 								onChangeTitle={setTitle}
 								onChangeEffectiveDate={setEffectiveDate}
-								onSelectSectionNumber={setActiveSectionNumber}
-								onUpdateSection={handleUpdateSection}
-								onAddSection={handleAddSection}
-								onRemoveSection={handleRemoveSection}
+								onChangeSections={setSections}
 								onOpenPreview={() => setIsPreviewOpen(true)}
 								onSaveDraftOrChanges={
 									isCreatingDraft ? handleSaveDraftLocally : () => void handleSaveExistingVersion()

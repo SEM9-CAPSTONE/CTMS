@@ -80,15 +80,19 @@ describe("AdminTermsManagementPage", () => {
 		expect(screen.queryByText(/Công bố phiên bản/i)).not.toBeInTheDocument();
 	});
 
-	it("allows adding a new major policy section (e.g. section 2 / 13) and publishing", async () => {
+	it("renders Word-like rich document editor and appends a new policy section cleanly", async () => {
 		const user = userEvent.setup();
 		renderPage();
 
 		await screen.findByRole("heading", { name: "Chỉnh sửa phiên bản v1.0" });
-		await user.click(screen.getByRole("button", { name: /Thêm mục lớn/i }));
+		const editor = screen.getByRole("textbox", {
+			name: "Trình soạn thảo nội dung Điều khoản và Chính sách",
+		});
+		expect(editor).toHaveTextContent("1. Quy định chung");
+		expect(editor).toHaveTextContent("1.1. Phạm vi áp dụng");
 
-		expect(screen.getByDisplayValue("Chính sách mục 2")).toBeInTheDocument();
-		expect(screen.getByText("Mục 2/2")).toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: /Thêm mục mới/i }));
+		expect(editor).toHaveTextContent("2. Chính sách mục 2");
 	});
 
 	it("creates a new version draft, opens preview, and publishes via Cập nhật phiên bản", async () => {
