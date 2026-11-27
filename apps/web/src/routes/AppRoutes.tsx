@@ -1116,6 +1116,7 @@ function AppRouteContent() {
 			const searchView = (
 				<SearchTripsPage
 					initialFilters={initialSearch ? { search: initialSearch } : undefined}
+					publicLayout={!storedUser}
 					onBackHome={() => navigateTo(storedUser ? RoutePath.DASHBOARD : RoutePath.HOME)}
 					onNavigateToTripDetail={(tripId) => navigateTo(`/trips/${tripId}`)}
 					onNavigateToRecommendedTrip={(tripId) =>
@@ -1133,15 +1134,13 @@ function AppRouteContent() {
 			}
 
 			return (
-				<div className="min-h-screen bg-[#f4f7f2] font-sans text-[#10221b] antialiased">
-					<div className="mx-auto max-w-[1440px] px-4 pt-6 sm:px-6 lg:px-8">
+				<div className="min-h-screen bg-[#f4f7f2] px-5 py-6 font-sans text-[#10221b] antialiased">
+					<div className="mx-auto max-w-[1240px]">
 						<HeaderNav
 							onNavigateToLogin={() => navigateTo(RoutePath.LOGIN)}
 							onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
 						/>
-					</div>
-					{searchView}
-					<div className="mx-auto max-w-[1440px] px-4 pb-10 sm:px-6 lg:px-8">
+						{searchView}
 						<Footer />
 					</div>
 				</div>

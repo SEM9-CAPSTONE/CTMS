@@ -11,7 +11,7 @@ export const Footer: React.FC = () => {
 			>
 				<img src="/ctms_logo.png" alt="CTMS Logo" className="h-9.5 w-auto object-contain" />
 				<span>
-					© 2026 CTMS - Hệ thống Quản lý Điểm cắm trại &amp; Trekking. Tất cả quyền được bảo lưu.
+					© 2026 CTMS - Hệ thống Quản lý Điểm cắm trại và Dã ngoại. Tất cả quyền được bảo lưu.
 				</span>
 			</a>
 			<div className="flex flex-wrap gap-6">
@@ -20,7 +20,7 @@ export const Footer: React.FC = () => {
 					onClick={(event) => handlePublicLinkClick(event, "/privacy")}
 					className="font-semibold text-[#425048] hover:text-[#1c442f]"
 				>
-					Chính sách
+					Chính sách bảo mật
 				</a>
 				<a
 					href="/terms-and-policy"
@@ -30,18 +30,18 @@ export const Footer: React.FC = () => {
 					Điều khoản và Chính sách
 				</a>
 				<a
-					href="/contact"
-					onClick={(event) => handlePublicLinkClick(event, "/contact")}
-					className="font-semibold text-[#425048] hover:text-[#1c442f]"
-				>
-					Liên hệ
-				</a>
-				<a
 					href="/support"
 					onClick={(event) => handlePublicLinkClick(event, "/support")}
 					className="font-semibold text-[#425048] hover:text-[#1c442f]"
 				>
 					Hỗ trợ
+				</a>
+				<a
+					href="/contact"
+					onClick={(event) => handlePublicLinkClick(event, "/contact")}
+					className="font-semibold text-[#425048] hover:text-[#1c442f]"
+				>
+					Liên hệ
 				</a>
 			</div>
 		</footer>

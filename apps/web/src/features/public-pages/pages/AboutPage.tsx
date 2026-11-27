@@ -87,7 +87,7 @@ export const AboutPage: React.FC<PublicPageProps> = ({
 								event.currentTarget.src = "/figma_assets/hero_image.png";
 							}}
 						/>
-						<div className="absolute inset-0 bg-gradient-to-t from-[#10221b]/60 via-transparent to-transparent" />
+						<div className="absolute inset-0 bg-gradient-to-t from-[#10221b]/75 via-transparent to-transparent" />
 						<p className="absolute right-5 bottom-4 left-5 text-xs font-medium text-white/95">
 							Đồng bộ hành trình giữa trang web lập kế hoạch và ứng dụng di động ngoài thực địa.
 						</p>
@@ -110,15 +110,17 @@ export const AboutPage: React.FC<PublicPageProps> = ({
 						<div className="mt-6 grid grid-cols-3 gap-4 border-t border-[#eef2ee] pt-5">
 							<div>
 								<p className="text-xs font-medium text-[#667a6d]">Hệ sinh thái</p>
-								<p className="mt-1 text-xl font-bold text-[#10221b]">4 vai trò</p>
+								<p className="mt-1 whitespace-nowrap text-lg font-bold text-[#10221b]">4 vai trò</p>
 							</div>
 							<div>
 								<p className="text-xs font-medium text-[#667a6d]">Nền tảng</p>
-								<p className="mt-1 text-xl font-bold text-[#10221b]">Web &amp; Di động</p>
+								<p className="mt-1 whitespace-nowrap text-lg font-bold text-[#10221b]">
+									Web &amp; Di động
+								</p>
 							</div>
 							<div>
 								<p className="text-xs font-medium text-[#667a6d]">Cảnh báo</p>
-								<p className="mt-1 text-xl font-bold text-[#10221b]">3 mức độ</p>
+								<p className="mt-1 whitespace-nowrap text-lg font-bold text-[#10221b]">3 mức độ</p>
 							</div>
 						</div>
 					</div>

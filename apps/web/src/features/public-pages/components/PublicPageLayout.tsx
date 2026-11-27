@@ -39,16 +39,16 @@ export const PublicPageLayout: React.FC<PublicPageLayoutProps> = ({
 	const storedUser = getStoredAuthUser();
 
 	return (
-		<div className="min-h-screen bg-[#f4f7f2] font-sans text-[#10221b] antialiased">
-			<div className="mx-auto max-w-6xl px-4 pt-6 sm:px-6 lg:px-8">
+		<div className="min-h-screen bg-[#f4f7f2] px-5 py-6 font-sans text-[#10221b] antialiased">
+			<div className="mx-auto max-w-[1240px]">
 				{storedUser ? (
-					<header className="mb-8 flex flex-wrap items-center justify-between gap-4">
+					<header className="mb-10 flex flex-wrap items-center justify-between gap-4">
 						<button
 							type="button"
 							onClick={onNavigateToDashboard ?? onBackToHome}
-							className="flex cursor-pointer items-center gap-3 text-xl font-extrabold tracking-tight text-[#164027]"
+							className="flex cursor-pointer items-center gap-3 text-2xl font-extrabold tracking-tight text-[#164027]"
 						>
-							<img src="/ctms_logo.png" alt="Logo CTMS" className="h-11 w-auto object-contain" />
+							<img src="/ctms_logo.png" alt="Logo CTMS" className="h-13 w-auto object-contain" />
 							<span>CTMS</span>
 						</button>
 						<div className="flex items-center gap-3">
@@ -79,9 +79,7 @@ export const PublicPageLayout: React.FC<PublicPageLayoutProps> = ({
 				</section>
 
 				<main className="mt-6 pb-14">{children}</main>
-			</div>
 
-			<div className="mx-auto max-w-6xl px-4 pb-10 sm:px-6 lg:px-8">
 				<Footer />
 			</div>
 		</div>
