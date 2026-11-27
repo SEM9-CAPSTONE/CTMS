@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
@@ -8,13 +10,17 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/ctms_scaffold.dart';
 import '../../gps_tracking/application/gps_location_source.dart';
+import '../../gps_tracking/application/gps_tracking_controller.dart';
+import '../../gps_tracking/domain/gps_tracking_models.dart';
 import '../../offline_packages/application/offline_trip_providers.dart';
 import '../../sync/application/connectivity_source.dart';
 import '../application/survival_chat_controller.dart';
+import '../data/emergency_safety_engine.dart';
 import '../data/survival_chat_api.dart';
 import '../data/survival_local_model.dart';
 import 'widgets/ai_answer_feedback_actions.dart';
 import 'widgets/survival_chat_input.dart';
+import 'widgets/survival_safety_card.dart';
 
 class _ChatMessage {
   const _ChatMessage({
@@ -48,32 +54,70 @@ class _CamperAiAssistantScreenState
   int? _downloadBytes;
 
   Future<void> _showCurrentLocation() async {
-    const gps = GeolocatorLocationSource();
-    var message = 'Không lấy được vị trí hiện tại. Hãy kiểm tra quyền vị trí.';
+    final gps = ref.read(gpsLocationSourceProvider);
+    final account = ref.read(survivalChatAccountProvider);
+    GpsSample? fix;
+    var current = false;
     try {
       var permission = await gps.checkPermission();
       if (permission == GpsPermissionState.denied) {
         permission = await gps.requestPermission();
       }
       if (permission == GpsPermissionState.granted) {
-        final fix = await gps.currentSample(
-          timeLimit: const Duration(seconds: 8),
-        );
-        if (DateTime.now().difference(fix.capturedAt).abs() <=
-            const Duration(seconds: 30)) {
-          message =
-              'Vĩ độ ${fix.latitude.toStringAsFixed(5)}\n'
-              'Kinh độ ${fix.longitude.toStringAsFixed(5)}';
+        try {
+          fix = await gps.currentSample(timeLimit: const Duration(seconds: 8));
+          current =
+              DateTime.now().difference(fix.capturedAt).abs() <=
+              const Duration(seconds: 30);
+        } catch (_) {
+          final last = await Geolocator.getLastKnownPosition();
+          if (last != null) {
+            fix = GpsSample(
+              latitude: last.latitude,
+              longitude: last.longitude,
+              capturedAt: last.timestamp,
+              accuracyMeters: last.accuracy,
+            );
+          }
         }
       }
     } catch (_) {
-      // Missing GPS and permission failures do not block the SOS workflow.
+      // Location is optional and does not block guidance or SOS.
     }
-    if (!mounted) return;
+    if (!mounted ||
+        account == null ||
+        ref.read(survivalChatAccountProvider) != account) {
+      return;
+    }
+
+    final sample = fix;
+    final available =
+        sample != null &&
+        sample.latitude.isFinite &&
+        sample.latitude.abs() <= 90 &&
+        sample.longitude.isFinite &&
+        sample.longitude.abs() <= 180;
+    final time = available
+        ? DateFormat('HH:mm · dd/MM/yyyy').format(sample.capturedAt.toLocal())
+        : null;
+    final accuracy = available ? sample.accuracyMeters : null;
+    final message = available
+        ? [
+            'Vĩ độ ${sample.latitude.toStringAsFixed(5)}',
+            'Kinh độ ${sample.longitude.toStringAsFixed(5)}',
+            'Ghi nhận lúc $time',
+            if (accuracy != null && accuracy.isFinite && accuracy >= 0)
+              'Độ chính xác khoảng ${accuracy.toStringAsFixed(0)} m',
+          ].join('\n')
+        : 'Không lấy được vị trí. Bạn có thể kiểm tra quyền vị trí.';
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Vị trí hiện tại'),
+        title: Text(
+          available && !current
+              ? 'Vị trí ghi nhận gần nhất'
+              : 'Vị trí hiện tại',
+        ),
         content: SelectableText(message),
         actions: [
           TextButton(
@@ -189,6 +233,22 @@ class _CamperAiAssistantScreenState
       title: 'Trợ lý AI',
       subtitle: 'Sơ cứu và sinh tồn khi đi trekking',
       isConnected: null,
+      actions: [
+        if (emergencySafetyEnabled && turns.isNotEmpty)
+          IconButton(
+            tooltip: 'Bắt đầu cuộc trò chuyện mới',
+            icon: const Icon(Icons.edit_square),
+            onPressed: pending
+                ? null
+                : () {
+                    ref
+                        .read(survivalChatControllerProvider.notifier)
+                        .startNewConversation();
+                    _inputController.clear();
+                    setState(() => _inputError = null);
+                  },
+          ),
+      ],
       body: Column(
         children: [
           // Chat Stream Area
@@ -342,7 +402,14 @@ class _CamperAiAssistantScreenState
                             ),
                           ),
                         ),
-                      if (turn.failure case final failure?)
+                      if (turn.failure?.assessment case final assessment?)
+                        SurvivalSafetyCard(
+                          assessment: assessment,
+                          trip: turn.trip,
+                          showActions: turns.last.id == turn.id,
+                          showLocation: _showCurrentLocation,
+                        )
+                      else if (turn.failure case final failure?)
                         Semantics(
                           liveRegion: true,
                           child: Padding(
@@ -356,6 +423,16 @@ class _CamperAiAssistantScreenState
                                   failure.message,
                                   style: AppTypography.body,
                                 ),
+                                if ((failure.showSafetyFallback
+                                        ? emergencySafetyFallback()
+                                        : null)
+                                    case final protocol?)
+                                  for (final line in [
+                                    protocol.title,
+                                    ...protocol.guidance,
+                                    ...protocol.warnings,
+                                  ])
+                                    Text(line, style: AppTypography.body),
                                 if (failure.emergency &&
                                     GoRouter.maybeOf(context) != null)
                                   TextButton(

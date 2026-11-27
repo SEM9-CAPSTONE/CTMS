@@ -1,0 +1,395 @@
+{
+	"version": "ctms-075-safety-v1",
+	"review": {
+		"status": "PENDING",
+		"sourceReferences": [],
+		"evaluationReference": null,
+		"reviewer": null,
+		"approvedAt": null
+	},
+	"languages": ["vi", "en"],
+	"patterns": {
+		"clauseBreak": [
+			"nhưng",
+			"tuy nhiên",
+			"but",
+			"however",
+			"although",
+			"and now",
+			"và bây giờ",
+			"và hôm nay",
+			"and today"
+		],
+		"prevention": [
+			"phòng tránh",
+			"phòng ngừa",
+			"ngăn ngừa",
+			"tránh bị",
+			"how to prevent",
+			"prevention",
+			"how to avoid",
+			"prevent"
+		],
+		"knowledge": [
+			"là gì",
+			"như thế nào",
+			"cách xử lý",
+			"cách sơ cứu",
+			"cách làm",
+			"hỏi kiến thức",
+			"tìm hiểu",
+			"how to",
+			"what is",
+			"what are",
+			"symptoms of",
+			"signs of",
+			"what does sos mean",
+			"where is the sos button",
+			"nút sos ở đâu",
+			"sos dùng để làm gì",
+			"how do i",
+			"what should i do if",
+			"hãy dịch",
+			"dịch câu",
+			"nghĩa là gì",
+			"translate",
+			"what does"
+		],
+		"hypothetical": [
+			"nếu",
+			"giả sử",
+			"giả định",
+			"ví dụ",
+			"what if",
+			"if",
+			"hypothetically",
+			"suppose",
+			"imagine"
+		],
+		"past": [
+			"hôm qua",
+			"hôm trước",
+			"tuần trước",
+			"trước đây",
+			"lúc trước",
+			"đã từng",
+			"đã hết",
+			"yesterday",
+			"last week",
+			"earlier",
+			"used to",
+			"was",
+			"were"
+		],
+		"current": [
+			"đang",
+			"bây giờ",
+			"hiện giờ",
+			"hiện tại",
+			"lúc này",
+			"vẫn",
+			"vừa",
+			"now",
+			"right now",
+			"currently",
+			"still",
+			"hôm nay",
+			"today"
+		],
+		"self": ["tôi", "mình", "em", "i", "me", "myself"],
+		"other": [
+			"bạn tôi",
+			"bạn mình",
+			"bạn em",
+			"người đi cùng",
+			"một người",
+			"anh ấy",
+			"chị ấy",
+			"cô ấy",
+			"ông ấy",
+			"em ấy",
+			"người đó",
+			"my friend",
+			"my partner",
+			"someone",
+			"another person",
+			"he",
+			"she",
+			"they"
+		],
+		"negation": [
+			"không",
+			"không có",
+			"không bị",
+			"không hề",
+			"chưa",
+			"not",
+			"no",
+			"never",
+			"isn t",
+			"aren t",
+			"isnt",
+			"doesn t have",
+			"does not have",
+			"don t have",
+			"do not have",
+			"did not",
+			"không có ai",
+			"không ai",
+			"no one is",
+			"nobody is",
+			"is not",
+			"isn’t",
+			"isn't",
+			"không còn",
+			"no longer",
+			"not currently",
+			"không còn bị"
+		],
+		"postNegation": [
+			"đã hết",
+			"không còn",
+			"đã qua",
+			"has stopped",
+			"went away",
+			"is gone",
+			"is resolved",
+			"đã ngừng"
+		],
+		"resolution": [
+			"đó chỉ là giả định",
+			"tôi chỉ hỏi để chuẩn bị",
+			"không có ai gặp sự cố",
+			"mọi việc đã được cấp cứu tiếp nhận",
+			"this was only hypothetical",
+			"i was asking for prevention",
+			"there is no incident",
+			"emergency services have taken over"
+		],
+		"possibleIncident": [
+			"gặp sự cố",
+			"bị thương",
+			"không ổn",
+			"không rõ chuyện gì xảy ra",
+			"thấy không khỏe",
+			"something happened",
+			"not feeling well",
+			"was injured",
+			"in trouble",
+			"need help",
+			"tôi cần giúp đỡ",
+			"cần được giúp đỡ",
+			"i need help",
+			"help please"
+		],
+		"rescue": [
+			"cứu chúng tôi",
+			"cứu tôi với",
+			"cứu bạn tôi",
+			"cứu với",
+			"gọi cấp cứu ngay",
+			"cần cứu hộ ngay",
+			"gửi sos ngay",
+			"call an ambulance",
+			"need rescue now",
+			"send help now",
+			"help me now",
+			"send sos now",
+			"xin cứu hộ",
+			"cứu hộ ngay",
+			"help us now",
+			"send an ambulance",
+			"call rescue now"
+		],
+		"unsupportedOutput": [
+			"bạn chắc chắn an toàn",
+			"bạn hoàn toàn an toàn",
+			"cứ tiếp tục leo",
+			"cứ đi tiếp dù",
+			"không cần gọi cấp cứu",
+			"đã liên hệ cứu hộ",
+			"cứu hộ đang đến",
+			"sos đã được gửi",
+			"tôi chẩn đoán bạn",
+			"tôi kê đơn",
+			"tọa độ của bạn là",
+			"tuyến rút lui này an toàn",
+			"nước này uống được",
+			"thời tiết hiện tại",
+			"hiện tại trời",
+			"tuyến đường đang mở",
+			"you are definitely safe",
+			"you are completely safe",
+			"you are safe",
+			"keep hiking despite",
+			"do not call emergency services",
+			"rescuers are on their way",
+			"rescue is on the way",
+			"your sos has been sent",
+			"your diagnosis is",
+			"i prescribe",
+			"your coordinates are",
+			"this evacuation route is safe",
+			"this water is safe to drink",
+			"the current weather is",
+			"the trail is currently open",
+			"bạn không cần được cấp cứu",
+			"your location is",
+			"you should take medication",
+			"you do not need emergency help",
+			"the weather right now is",
+			"nước suối này uống được",
+			"tọa độ gps là"
+		]
+	},
+	"signals": [
+		{
+			"id": "breathing_stopped",
+			"level": "EMERGENCY",
+			"implicit": true,
+			"expressions": [
+				"không thở",
+				"ngừng thở",
+				"ngưng thở",
+				"không thở được",
+				"not breathing",
+				"stopped breathing",
+				"cannot breathe",
+				"can't breathe",
+				"cant breathe"
+			]
+		},
+		{
+			"id": "breathing_at_rest",
+			"level": "EMERGENCY",
+			"implicit": true,
+			"expressions": [
+				"khó thở khi nghỉ",
+				"khó thở lúc nghỉ",
+				"khó thở dù đang nghỉ",
+				"khó thở dù đã nghỉ",
+				"breathless at rest",
+				"shortness of breath at rest",
+				"struggling to breathe at rest"
+			]
+		},
+		{
+			"id": "unresponsive",
+			"level": "EMERGENCY",
+			"implicit": false,
+			"expressions": [
+				"bất tỉnh",
+				"bấc tỉnh",
+				"mất ý thức",
+				"không tỉnh lại",
+				"không tỉnh",
+				"unconscious",
+				"unresponsive",
+				"passed out"
+			]
+		},
+		{
+			"id": "severe_bleeding",
+			"level": "EMERGENCY",
+			"implicit": true,
+			"expressions": [
+				"chảy máu nhiều",
+				"chảy máu không ngừng",
+				"chảy máu không cầm",
+				"severe bleeding",
+				"bleeding won t stop",
+				"bleeding will not stop"
+			]
+		},
+		{
+			"id": "immediate_distress",
+			"level": "EMERGENCY",
+			"implicit": false,
+			"expressions": [
+				"co giật",
+				"đang đuối nước",
+				"nghẹt thở",
+				"choking",
+				"having a seizure",
+				"drowning",
+				"đau ngực",
+				"chest pain"
+			]
+		},
+		{
+			"id": "possible_symptom",
+			"level": "WARNING",
+			"implicit": false,
+			"expressions": [
+				"chóng mặt",
+				"chống mặt",
+				"choáng",
+				"đau đầu",
+				"buồn nôn",
+				"khó thở",
+				"dizzy",
+				"dizziness",
+				"headache",
+				"nauseous",
+				"short of breath"
+			]
+		}
+	],
+	"routes": {
+		"WARNING": "cautious-guidance",
+		"EMERGENCY": "emergency-essential",
+		"fallback": "unavailable-guidance"
+	},
+	"clarifications": {
+		"incident_timing": {
+			"vi": "Việc này đang xảy ra hay bạn đang hỏi để chuẩn bị?",
+			"en": "Is this happening now, or are you asking to prepare?"
+		},
+		"incident_details": {
+			"vi": "Bạn có thể nói ngắn gọn chuyện gì đang xảy ra không?",
+			"en": "Can you briefly describe what is happening?"
+		}
+	},
+	"protocols": [
+		{
+			"id": "cautious-guidance",
+			"version": 1,
+			"signalIds": ["possible_symptom"],
+			"reviewStatus": "PENDING",
+			"reviewer": null,
+			"approvedAt": null,
+			"sourceReferences": [],
+			"locales": {}
+		},
+		{
+			"id": "emergency-essential",
+			"version": 1,
+			"signalIds": [
+				"breathing_stopped",
+				"breathing_at_rest",
+				"unresponsive",
+				"severe_bleeding",
+				"immediate_distress"
+			],
+			"reviewStatus": "PENDING",
+			"reviewer": null,
+			"approvedAt": null,
+			"sourceReferences": [],
+			"locales": {}
+		},
+		{
+			"id": "unavailable-guidance",
+			"version": 1,
+			"signalIds": [],
+			"reviewStatus": "PENDING",
+			"reviewer": null,
+			"approvedAt": null,
+			"sourceReferences": [],
+			"locales": {}
+		}
+	],
+	"outputReview": {
+		"status": "PENDING",
+		"sourceReferences": []
+	}
+}

@@ -142,7 +142,7 @@ No authoritative business-state transition occurs.
 ## 7. Business Flow
 
 1. Camper asks a question in the existing chat.
-2. Determine applicable safety handling. Apply CTMS-075 before choosing an inference mode.
+2. Apply [CTMS-075](ctms-75-detect-emergency-questions.md) before inference selection. Continue this flow only when the safety assessment permits ordinary inference. CTMS-075 owns immediate guidance, safe fallback and eligible SOS handoff. This step preserves the existing retry and engine-fallback constraints.
 3. For an authorized online turn, retrieve relevant CTMS knowledge and construct bounded context.
 4. Generate a natural-language response and check its claims against the cited evidence. Preserve applicable conditions and warnings.
 5. Apply safety constraints and preserve actual source references. Return the answer and make source metadata available for source display/feedback.
