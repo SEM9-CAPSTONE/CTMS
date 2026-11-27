@@ -72,11 +72,6 @@ const AdminAiInvestigationsPage = lazy(() =>
 		default: module.AdminAiInvestigationsPage,
 	}))
 );
-const AdminPlatformBankAccountPage = lazy(() =>
-	import("../features/platform-bank-account/pages/AdminPlatformBankAccountPage").then((module) => ({
-		default: module.AdminPlatformBankAccountPage,
-	}))
-);
 const AdminPorterLevelsPage = lazy(() =>
 	import("../features/porter-levels/pages/AdminPorterLevelsPage").then((module) => ({
 		default: module.AdminPorterLevelsPage,
@@ -1515,18 +1510,6 @@ function AppRouteContent() {
 					onNavigateHome={() => navigateTo(RoutePath.HOME)}
 				>
 					<AdminSettlementsPage onLogout={handleLogout} />
-				</AppRoleGuard>
-			);
-
-		case RoutePath.ADMIN_PLATFORM_BANK_ACCOUNT:
-			return (
-				<AppRoleGuard
-					allowedRoles={["admin"]}
-					currentRoles={currentRoles}
-					fallback={unauthorizedFallback}
-					onNavigateHome={() => navigateTo(RoutePath.HOME)}
-				>
-					<AdminPlatformBankAccountPage onLogout={handleLogout} />
 				</AppRoleGuard>
 			);
 

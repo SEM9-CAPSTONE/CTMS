@@ -2,6 +2,7 @@ import { BadRequestException } from "@nestjs/common";
 import { PaymentWebhookController } from "./payment-webhook.controller";
 import type { PaymentsService } from "./payments.service";
 import type { PayOSService } from "./payos.service";
+import type { WeatherPenaltyPaymentsService } from "./weather-penalty-payments.service";
 
 describe("PaymentWebhookController", () => {
 	let controller: PaymentWebhookController;
@@ -10,6 +11,9 @@ describe("PaymentWebhookController", () => {
 		verifyWebhook: jest.Mock;
 	};
 	let paymentsService: {
+		handlePayOSWebhook: jest.Mock;
+	};
+	let penaltyPayments: {
 		handlePayOSWebhook: jest.Mock;
 	};
 
@@ -21,10 +25,14 @@ describe("PaymentWebhookController", () => {
 		paymentsService = {
 			handlePayOSWebhook: jest.fn().mockResolvedValue(undefined),
 		};
+		penaltyPayments = {
+			handlePayOSWebhook: jest.fn().mockResolvedValue(false),
+		};
 
 		controller = new PaymentWebhookController(
 			payosService as unknown as PayOSService,
-			paymentsService as unknown as PaymentsService
+			paymentsService as unknown as PaymentsService,
+			penaltyPayments as unknown as WeatherPenaltyPaymentsService
 		);
 	});
 
@@ -79,7 +87,37 @@ describe("PaymentWebhookController", () => {
 
 		expect(result).toEqual({ success: true });
 		expect(payosService.verifyWebhook).toHaveBeenCalled();
+		expect(penaltyPayments.handlePayOSWebhook).toHaveBeenCalledWith(webhookData);
 		expect(paymentsService.handlePayOSWebhook).toHaveBeenCalledWith(webhookData);
+	});
+
+	it("hands a weather penalty order code to the penalty flow and not to Booking payments", async () => {
+		const webhookData = {
+			orderCode: 777666,
+			amount: 71250,
+			description: "CTMS PHAT 777666",
+			accountNumber: "9704",
+			reference: "FT777",
+			transactionDateTime: "2026-11-27T10:00:00Z",
+			currency: "VND",
+			paymentLinkId: "link-penalty",
+			code: "00",
+			desc: "success",
+		};
+		payosService.verifyWebhook.mockResolvedValue(webhookData);
+		penaltyPayments.handlePayOSWebhook.mockResolvedValue(true);
+
+		const result = await controller.handleWebhook({
+			code: "00",
+			desc: "success",
+			success: true,
+			data: webhookData,
+			signature: "valid-sig",
+		});
+
+		expect(result).toEqual({ success: true });
+		expect(penaltyPayments.handlePayOSWebhook).toHaveBeenCalledWith(webhookData);
+		expect(paymentsService.handlePayOSWebhook).not.toHaveBeenCalled();
 	});
 
 	it("throws BadRequestException when webhook signature or data is invalid", async () => {

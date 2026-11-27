@@ -118,7 +118,12 @@ Dự báo Đỏ ──T-48h──► Nhắc Host ──T-24h──► Host quy�
 - **Cơ sở tính phạt = doanh thu Host của Trip** = tổng tiền các booking đã thanh toán **trừ 5% phí nền tảng** (Host nhận 95%, làm tròn giống quyết toán CTMS-112). Số tiền được **chốt tại thời điểm vi phạm**, trước khi huỷ / dời làm thay đổi booking, nên Trip bị huỷ và hoàn 100% cho Camper vẫn có số tiền phạt. Trip chưa có booking đã thanh toán thì tiền phạt **0đ**, nhưng **lần vi phạm vẫn được đếm**.
 - **Thu tiền phạt:**
   1. Tự **trừ vào doanh thu quyết toán** của các Trip sau (CTMS-112), khoản cũ trước. Ví Host không bao giờ âm.
-  2. Phần chưa trừ được (ví dụ Trip đầu tiên của Host bị huỷ nên không có doanh thu), Host **chuyển khoản nộp trong 7 ngày** kể từ khi bị phạt, vào **tài khoản nhận tiền phạt** do Admin cấu hình ở **Tài chính › Tài khoản nhận tiền phạt** (ngân hàng, số tài khoản, chủ tài khoản; mỗi lần đổi đều ghi `audit_logs`). Ví Host hiện thông tin này kèm nội dung chuyển khoản. Admin đối chiếu sao kê tài khoản đó và bấm **Xác nhận đã nhận tiền** (nhập mã giao dịch ngân hàng); hệ thống ghi nhận Host đã nộp đủ phần còn lại.
+  2. Phần chưa trừ được (ví dụ Trip đầu tiên của Host bị huỷ nên không có doanh thu), Host **nộp qua PayOS trong 7 ngày** kể từ khi bị phạt. Ở **Ví Host**, mỗi khoản còn nợ có nút **Nộp phạt**:
+     - Hệ thống tạo link PayOS với **đúng số tiền còn nợ** (server tính) và nội dung `CTMS PHAT <mã đơn>`, rồi chuyển Host sang trang PayOS để quét QR. Xong, PayOS đưa Host về **Ví Host**.
+     - Bấm lại khi số tiền chưa đổi thì dùng lại link cũ. Nếu số còn nợ đã đổi (quyết toán vừa trừ thêm), link cũ bị huỷ và tạo link mới.
+     - Hệ thống **tự ghi nhận** khi PayOS báo đã thanh toán: qua webhook (dùng chung URL webhook với thanh toán đặt chỗ), hoặc khi Host mở Ví (hệ thống hỏi PayOS các link đang chờ; cách này cần cho máy chạy local, nơi webhook không tới được). Không còn bước Admin xác nhận chuyển khoản.
+     - Chỉ ghi nhận tối đa số còn nợ. Nếu Host trả khi khoản phạt đã giảm (được miễn, hoặc quyết toán đã trừ trong lúc link còn mở), phần dư được ghi vào `audit_logs` (`host.weather_penalty_paid_online`, `excessAmount`) để Admin hoàn lại. Hệ thống không tự hoàn.
+     - Mỗi lần thanh toán lưu trong bảng `weather_penalty_payments`. Tài khoản nhận tiền phạt do Admin cấu hình trước đây đã bị bỏ.
   3. **Quá 7 ngày vẫn còn nợ** thì Host **không được tạo / gửi duyệt Trip mới** cho tới khi nộp đủ. Các Trip đã đăng vẫn diễn ra và quyết toán bình thường (và tiếp tục tự trừ nợ).
 - **Đếm số lần vi phạm** trong **90 ngày gần nhất**.
 
@@ -153,4 +158,5 @@ Dự báo Đỏ ──T-48h──► Nhắc Host ──T-24h──► Host quy�
    - (c) quy trình quyết định và Admin can thiệp;
    - (d) phạt và miễn phạt.
 6. **Đã chốt (23/11/2026):** cơ sở tính phạt là doanh thu Host (95%); phần quyết toán chưa trừ được nộp trong **7 ngày**, quá hạn thì chặn tạo / gửi duyệt Trip.
-7. **Đã chốt (23/11/2026):** tài khoản nhận tiền phạt do Admin tự nhập và sửa trên giao diện (Tài chính › Tài khoản nhận tiền phạt). Chưa cấu hình thì Host được hướng dẫn liên hệ quản trị viên.
+7. ~~**Đã chốt (23/11/2026):** tài khoản nhận tiền phạt do Admin tự nhập và sửa trên giao diện.~~ Thay bằng mục 8.
+8. **Đã chốt (27/11/2026):** Host nộp phần còn nợ qua **PayOS**, dùng lại luồng thanh toán đặt chỗ (chuyển sang trang PayOS để quét QR). Hệ thống tự ghi nhận. Đã **bỏ** bước Admin xác nhận chuyển khoản và trang **Tài chính › Tài khoản nhận tiền phạt** (bảng `platform_bank_accounts` bị xoá bằng migration `1798800000001`). Xem §6 mục "Thu tiền phạt".

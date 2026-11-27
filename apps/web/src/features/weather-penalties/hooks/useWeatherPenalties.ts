@@ -5,12 +5,7 @@ import { useRealtimeConnection, useRealtimeEvent } from "../../../core/realtime/
 import { toast } from "../../../shared/components/Toast";
 import { getStoredAuthUser } from "../../auth/utils/tokenStorage";
 import { weatherPenaltiesService } from "../services/weather-penalties.service";
-import type {
-	AdminPenaltyFilter,
-	PaymentConfirmationInput,
-	WaiverRequestInput,
-	WaiverReviewInput,
-} from "../types";
+import type { AdminPenaltyFilter, WaiverRequestInput, WaiverReviewInput } from "../types";
 
 type Service = typeof weatherPenaltiesService;
 
@@ -88,14 +83,9 @@ export function useAdminWeatherPenalties(
 	return query;
 }
 
-/** Admin records the Host's bank transfer for what the settlements did not cover. */
-export function useConfirmWeatherPenaltyPayment(service: Service = weatherPenaltiesService) {
-	const client = useQueryClient();
-	return useMutation({
-		mutationFn: ({ penaltyId, input }: { penaltyId: string; input: PaymentConfirmationInput }) =>
-			service.confirmPayment(penaltyId, input),
-		onSuccess: () => client.invalidateQueries({ queryKey: ["weather", "penalties"] }),
-	});
+/** Host opens the PayOS payment page for what is still owed on a penalty. */
+export function useCreateWeatherPenaltyCheckout(service: Service = weatherPenaltiesService) {
+	return useMutation({ mutationFn: (penaltyId: string) => service.createCheckout(penaltyId) });
 }
 
 export function useReviewWeatherPenaltyWaiver(service: Service = weatherPenaltiesService) {

@@ -114,6 +114,11 @@ import { TripWeatherDecisionsRepository } from "./weather-decisions/trip-weather
 			inject: [DataSource],
 		},
 	],
-	exports: [TripsRepository, CheckpointVisitsRepository, CheckpointVisitsService],
+	exports: [
+		TripsRepository,
+		CheckpointVisitsRepository,
+		CheckpointVisitsService,
+		HostWeatherPenaltiesService,
+	],
 })
 export class TripsModule {}

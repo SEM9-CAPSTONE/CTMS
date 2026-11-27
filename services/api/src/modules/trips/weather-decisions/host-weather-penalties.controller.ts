@@ -22,7 +22,6 @@ import { HostWeatherPenaltiesService } from "./host-weather-penalties.service";
 // biome-ignore lint/style/useImportType: body/query DTO classes carry the class-validator metadata used at runtime
 import {
 	AdminWeatherPenaltyQueryDto,
-	ConfirmWeatherPenaltyPaymentDto,
 	HostWeatherPenaltyDto,
 	HostWeatherPenaltyListDto,
 	RequestWeatherPenaltyWaiverDto,
@@ -82,24 +81,6 @@ export class HostWeatherPenaltiesController {
 	@ApiResponse({ status: 404, description: "Penalty not found" })
 	getForAdmin(@Param("id", UUID_PIPE) id: string): Promise<HostWeatherPenaltyDto> {
 		return this.service.getForAdmin(id);
-	}
-
-	@Post("admin/weather-penalties/:id/payment-confirmation")
-	@Roles(UserRole.ADMIN)
-	@HttpCode(HttpStatus.OK)
-	@ApiOperation({
-		summary: "Confirm the Host paid by bank transfer what the settlements did not cover",
-	})
-	@ApiResponse({ status: 200, type: HostWeatherPenaltyDto })
-	@ApiResponse({ status: 404, description: "Penalty not found" })
-	@ApiResponse({ status: 409, description: "Nothing left to pay (paid, deducted or waived)" })
-	@ApiResponse({ status: 422, description: "Missing transfer reference" })
-	confirmPayment(
-		@Req() req: AuthenticatedRequest,
-		@Param("id", UUID_PIPE) id: string,
-		@Body() dto: ConfirmWeatherPenaltyPaymentDto
-	): Promise<HostWeatherPenaltyDto> {
-		return this.service.confirmPayment(req.user.userId, id, dto);
 	}
 
 	@Post("admin/weather-penalties/:id/waiver-review")

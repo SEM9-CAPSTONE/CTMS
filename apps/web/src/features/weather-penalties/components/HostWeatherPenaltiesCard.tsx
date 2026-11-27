@@ -1,10 +1,13 @@
-import { Check, CloudLightning, Copy, Landmark, Lock, Wallet } from "lucide-react";
-import { useState } from "react";
+import { CloudLightning, CreditCard, Lock, Wallet } from "lucide-react";
+import { useEffect, useState } from "react";
 import type { RealtimeConnection } from "../../../core/realtime/realtimeConnection";
 import { StatusBadge } from "../../../shared/components/StatusBadge";
 import { toast } from "../../../shared/components/Toast";
 import { formatBookingMoney } from "../../booking-details/utils/booking-details-formatters";
-import { useMyWeatherPenalties } from "../hooks/useWeatherPenalties";
+import {
+	useCreateWeatherPenaltyCheckout,
+	useMyWeatherPenalties,
+} from "../hooks/useWeatherPenalties";
 import type { weatherPenaltiesService } from "../services/weather-penalties.service";
 import type { WeatherPenalty } from "../types";
 import {
@@ -24,34 +27,59 @@ export interface HostWeatherPenaltiesCardProps {
 	service?: typeof weatherPenaltiesService;
 	connection?: RealtimeConnection;
 	now?: () => Date;
+	/** Opens the PayOS payment page; replaced in tests. */
+	redirect?: (url: string) => void;
 }
 
-/** Deducted from settlements plus paid by transfer, as a money string. */
+/** Query parameter PayOS sends the Host back with after paying or cancelling. */
+const PAYOS_RETURN_PARAM = "penaltyPayment";
+
+/** Deducted from settlements plus paid through PayOS, as a money string. */
 function paidSoFar(penalty: WeatherPenalty): string {
 	return (Number(penalty.deductedAmount) + Number(penalty.payment.collectedAmount)).toFixed(2);
 }
 
+/** Tells the Host what happened at PayOS, then drops the parameter so a reload stays quiet. */
+function useAnnouncePayOSReturn() {
+	useEffect(() => {
+		const url = new URL(window.location.href);
+		const outcome = url.searchParams.get(PAYOS_RETURN_PARAM);
+		if (!outcome) return;
+		if (outcome === "cancel") {
+			toast.info("Bạn đã huỷ thanh toán tiền phạt. Khoản phạt vẫn chờ bạn nộp.");
+		} else {
+			toast.info("Khoản phạt được cập nhật ngay khi PayOS xác nhận bạn đã thanh toán.");
+		}
+		url.searchParams.delete(PAYOS_RETURN_PARAM);
+		window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+	}, []);
+}
+
 /**
  * Policy §6 on the Host wallet: the weather penalties, what is still owed (deducted from the next
- * settlements or paid by transfer within 7 days), any hosting block, and the waiver request.
+ * settlements or paid through PayOS within 7 days), any hosting block, and the waiver request.
  * Hidden when the Host has none.
  */
 export function HostWeatherPenaltiesCard({
 	service,
 	connection,
 	now = () => new Date(),
+	redirect = (url) => window.location.assign(url),
 }: HostWeatherPenaltiesCardProps) {
 	const query = useMyWeatherPenalties({ service, connection });
+	const checkout = useCreateWeatherPenaltyCheckout(service);
 	const [waiverFor, setWaiverFor] = useState<WeatherPenalty | null>(null);
-	const [copied, setCopied] = useState(false);
+	const [payingId, setPayingId] = useState<string | null>(null);
+	useAnnouncePayOSReturn();
 
-	async function copyAccountNumber(value: string) {
+	async function payPenalty(penalty: WeatherPenalty) {
+		setPayingId(penalty.id);
 		try {
-			await navigator.clipboard.writeText(value);
-			setCopied(true);
-			setTimeout(() => setCopied(false), 2000);
-		} catch {
-			toast.error("Không sao chép được. Hãy chọn và sao chép số tài khoản thủ công.");
+			const opened = await checkout.mutateAsync(penalty.id);
+			redirect(opened.checkoutUrl);
+		} catch (paymentError) {
+			toast.error(weatherPenaltyErrorMessage(paymentError));
+			setPayingId(null);
 		}
 	}
 	if (query.isError) {
@@ -83,8 +111,8 @@ export function HostWeatherPenaltiesCard({
 						<p className="mt-1 text-xs text-[#667a6d]">
 							Phạt khi Admin phải quyết định thay vì bạn không trả lời dự báo Đỏ trước mốc 24 giờ
 							trước giờ đi. Tiền phạt tính theo phần doanh thu bạn nhận từ chuyến (sau 5% phí nền
-							tảng) và được trừ vào các lần quyết toán tiếp theo. Phần chưa trừ được, bạn chuyển
-							khoản nộp trong 7 ngày.
+							tảng) và được trừ vào các lần quyết toán tiếp theo. Phần chưa trừ được, bạn nộp qua
+							PayOS trong 7 ngày.
 						</p>
 					</div>
 				</div>
@@ -121,54 +149,10 @@ export function HostWeatherPenaltiesCard({
 				>
 					<Wallet className="size-4 shrink-0" />
 					Bạn còn {formatBookingMoney(data.overdueTotal)} tiền phạt quá hạn nộp nên chưa tạo hoặc
-					gửi duyệt Trip mới được. Sau khi bạn chuyển khoản và quản trị viên xác nhận đã nhận tiền,
-					bạn tạo Trip lại bình thường.
+					gửi duyệt Trip mới được. Sau khi bạn nộp phạt qua PayOS, hệ thống tự ghi nhận và bạn tạo
+					Trip lại bình thường.
 				</output>
 			)}
-
-			{Number(data.outstandingTotal) > 0 &&
-				(data.paymentAccount ? (
-					<div
-						data-testid="weather-penalty-payment-account"
-						className="mt-4 rounded-2xl border border-[#dfe8df] bg-[#fbfdfb] p-4 text-xs"
-					>
-						<p className="flex items-center gap-2 font-extrabold text-[#10221b]">
-							<Landmark className="size-4 text-[#164027]" /> Thông tin chuyển khoản nộp phạt
-						</p>
-						<dl className="mt-3 grid gap-3 sm:grid-cols-3">
-							<div>
-								<dt className="text-[#7d8d83]">Ngân hàng</dt>
-								<dd className="font-bold">{data.paymentAccount.bankName}</dd>
-							</div>
-							<div>
-								<dt className="text-[#7d8d83]">Số tài khoản</dt>
-								<dd className="flex items-center gap-2 font-bold tracking-wide">
-									{data.paymentAccount.accountNumber}
-									<button
-										type="button"
-										onClick={() => void copyAccountNumber(data.paymentAccount?.accountNumber ?? "")}
-										aria-label="Sao chép số tài khoản"
-										className="rounded-lg p-1 text-[#164027] hover:bg-[#f1f5f0]"
-									>
-										{copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-									</button>
-								</dd>
-							</div>
-							<div>
-								<dt className="text-[#7d8d83]">Chủ tài khoản</dt>
-								<dd className="font-bold">{data.paymentAccount.accountHolderName}</dd>
-							</div>
-						</dl>
-					</div>
-				) : (
-					<p
-						data-testid="weather-penalty-payment-account-missing"
-						className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800"
-					>
-						Quản trị viên chưa cập nhật tài khoản nhận tiền phạt. Vui lòng liên hệ quản trị viên
-						DiTrek để nhận thông tin chuyển khoản.
-					</p>
-				))}
 
 			<ul className="mt-4 space-y-3">
 				{data.items.map((penalty) => {
@@ -216,24 +200,35 @@ export function HostWeatherPenaltiesCard({
 								</div>
 							</dl>
 							{hasAmountOwed(penalty) && (
-								<p
-									data-testid="weather-penalty-payment-due"
-									className={`mt-3 ${isPaymentOverdue(penalty) ? "font-semibold text-rose-700" : "text-[#52665b]"}`}
-								>
-									{isPaymentOverdue(penalty)
-										? `Đã quá hạn nộp (${formatPenaltyDateTime(penalty.payment.dueAt)}).`
-										: `Hạn nộp: ${formatPenaltyDateTime(penalty.payment.dueAt)}.`}{" "}
-									Nếu các lần quyết toán chưa trừ đủ, hãy chuyển khoản số còn lại
-									{data.paymentAccount ? " vào tài khoản DiTrek ở trên" : ""} với nội dung "Phạt
-									thời tiết – {penalty.tripTitle}". Khoản phạt được cập nhật khi quản trị viên xác
-									nhận đã nhận tiền.
-								</p>
+								<div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+									<p
+										data-testid="weather-penalty-payment-due"
+										className={
+											isPaymentOverdue(penalty) ? "font-semibold text-rose-700" : "text-[#52665b]"
+										}
+									>
+										{isPaymentOverdue(penalty)
+											? `Đã quá hạn nộp (${formatPenaltyDateTime(penalty.payment.dueAt)}).`
+											: `Hạn nộp: ${formatPenaltyDateTime(penalty.payment.dueAt)}.`}{" "}
+										Nộp qua PayOS bằng mã QR với đúng số còn lại, khoản phạt được ghi nhận tự động.
+									</p>
+									<button
+										type="button"
+										onClick={() => void payPenalty(penalty)}
+										disabled={payingId !== null}
+										className="inline-flex items-center gap-1.5 rounded-xl bg-rose-700 px-4 py-2 text-xs font-bold text-white hover:bg-rose-800 disabled:opacity-60"
+									>
+										<CreditCard className="size-3.5" />
+										{payingId === penalty.id
+											? "Đang mở PayOS…"
+											: `Nộp phạt ${formatBookingMoney(penalty.outstandingAmount)}`}
+									</button>
+								</div>
 							)}
 							{penalty.payment.collectedAt && (
 								<p className="mt-3 text-[#52665b]">
-									Đã nộp {formatBookingMoney(penalty.payment.collectedAmount)} bằng chuyển khoản,
-									quản trị viên xác nhận lúc {formatPenaltyDateTime(penalty.payment.collectedAt)}
-									{penalty.payment.reference ? ` (mã giao dịch ${penalty.payment.reference})` : ""}.
+									Đã nộp {formatBookingMoney(penalty.payment.collectedAmount)} qua PayOS lúc{" "}
+									{formatPenaltyDateTime(penalty.payment.collectedAt)}.
 								</p>
 							)}
 							{status === "waiver_pending" && penalty.waiver.reviewDueAt && (

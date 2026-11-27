@@ -2,7 +2,6 @@ import { AlertCircle, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { StatusBadge } from "../../../shared/components/StatusBadge";
 import { formatBookingMoney } from "../../booking-details/utils/booking-details-formatters";
-import type { platformBankAccountService } from "../../platform-bank-account/services/platform-bank-account.service";
 import { useAdminWeatherPenalties } from "../hooks/useWeatherPenalties";
 import type { weatherPenaltiesService } from "../services/weather-penalties.service";
 import type { AdminPenaltyFilter, WeatherPenalty } from "../types";
@@ -35,11 +34,10 @@ const EMPTY_TEXT: Record<AdminPenaltyFilter, string> = {
 
 export interface WeatherPenaltiesPanelProps {
 	service?: typeof weatherPenaltiesService;
-	bankAccountService?: typeof platformBankAccountService;
 }
 
 /** "Phạt Host" tab of Admin › Quản lý thời tiết (policy §6): penalties and waiver requests. */
-export function WeatherPenaltiesPanel({ service, bankAccountService }: WeatherPenaltiesPanelProps) {
+export function WeatherPenaltiesPanel({ service }: WeatherPenaltiesPanelProps) {
 	const [filter, setFilter] = useState<AdminPenaltyFilter>("waiver_pending");
 	const query = useAdminWeatherPenalties(filter, { service });
 	const [selected, setSelected] = useState<WeatherPenalty | null>(null);
@@ -51,7 +49,7 @@ export function WeatherPenaltiesPanel({ service, bankAccountService }: WeatherPe
 				<p className="text-sm text-[#667a6d]">
 					Host bị phạt khi để quá 24 tiếng trước giờ đi mà chưa xử lý, khiến Admin phải quyết định
 					thay. Yêu cầu miễn phạt nên được xem trong 5 ngày làm việc. Phần quyết toán chưa trừ đủ,
-					Host chuyển khoản trong 7 ngày và bạn xác nhận khi nhận được tiền.
+					Host nộp qua PayOS trong 7 ngày và hệ thống tự ghi nhận khi PayOS báo đã thanh toán.
 				</p>
 				<button
 					type="button"
@@ -139,7 +137,6 @@ export function WeatherPenaltiesPanel({ service, bankAccountService }: WeatherPe
 					penalty={selected}
 					onClose={() => setSelected(null)}
 					service={service}
-					bankAccountService={bankAccountService}
 				/>
 			)}
 		</section>
