@@ -2472,7 +2472,36 @@ export async function repairDemoBookingCancellation(
 // ==========================================================================
 // [0/9] CLEAN / WIPE DATABASE (FRESH SEED)
 // ==========================================================================
-export async function cleanDatabase(ds = dataSource): Promise<void> {
+export const SYSTEM_PRESERVED_TABLES = ["migrations", "spatial_ref_sys", "geo_areas"] as const;
+
+export const SURVIVAL_DOCUMENT_PRESERVED_TABLES = [
+	"survival_documents",
+	"survival_document_uploads",
+	"survival_document_versions",
+	"survival_document_outbox",
+	"survival_document_edit_drafts",
+	"survival_document_edit_requests",
+	"knowledge_chunk_sets",
+	"knowledge_chunks",
+	"knowledge_chunk_publications",
+	"knowledge_chunk_event_receipts",
+	"knowledge_embeddings",
+] as const;
+
+const SURVIVAL_SELECTIVE_CLEAN_TABLES = ["users", "user_roles", "audit_logs"] as const;
+
+export interface CleanDatabaseOptions {
+	preserveSurvivalDocuments?: boolean;
+}
+
+function quotePgIdentifier(identifier: string): string {
+	return `"${identifier.replace(/"/g, '""')}"`;
+}
+
+export async function cleanDatabase(
+	ds = dataSource,
+	options: CleanDatabaseOptions = {}
+): Promise<void> {
 	if (process.env.NODE_ENV === "production") {
 		throw new Error("[cleanDatabase] Refusing to truncate database in production!");
 	}
@@ -2480,17 +2509,89 @@ export async function cleanDatabase(ds = dataSource): Promise<void> {
 		await ds.initialize();
 	}
 
-	const tablesRes: Array<{ tablenames: string }> = await ds.query(`
-		SELECT string_agg(quote_ident(tablename), ', ') as tablenames
+	const preserveSurvivalDocuments = options.preserveSurvivalDocuments ?? true;
+	const existingTablesRes: Array<{ tablename: string }> = await ds.query(`
+		SELECT tablename
 		FROM pg_tables
-		WHERE schemaname = 'public' 
-		  AND tablename NOT IN ('migrations', 'spatial_ref_sys', 'geo_areas')
+		WHERE schemaname = 'public'
 	`);
+	const existingTables = new Set(existingTablesRes.map((row) => row.tablename));
 
-	if (tablesRes.length > 0 && tablesRes[0]?.tablenames) {
-		const tableList = tablesRes[0].tablenames;
-		console.log("[cleanDatabase] 🧹 Truncating all user tables with CASCADE...");
+	const excludedTables = new Set<string>(SYSTEM_PRESERVED_TABLES);
+	if (preserveSurvivalDocuments) {
+		for (const table of SURVIVAL_DOCUMENT_PRESERVED_TABLES) excludedTables.add(table);
+		for (const table of SURVIVAL_SELECTIVE_CLEAN_TABLES) excludedTables.add(table);
+	}
+
+	const tablesToTruncate = [...existingTables].filter((table) => !excludedTables.has(table)).sort();
+
+	if (tablesToTruncate.length > 0) {
+		const tableList = tablesToTruncate.map(quotePgIdentifier).join(", ");
+		console.log(
+			preserveSurvivalDocuments
+				? "[cleanDatabase] 🧹 Truncating operational tables (preserving /admin/survival-documents & RAG data)..."
+				: "[cleanDatabase] 🧹 Truncating all user tables with CASCADE..."
+		);
 		await ds.query(`TRUNCATE TABLE ${tableList} RESTART IDENTITY CASCADE`);
+	}
+
+	if (preserveSurvivalDocuments) {
+		if (existingTables.has("audit_logs")) {
+			await ds.query(
+				`DELETE FROM "audit_logs" WHERE "target_type" IS DISTINCT FROM 'survival_document'`
+			);
+		}
+
+		const userIdSources: string[] = [];
+		if (existingTables.has("survival_documents")) {
+			userIdSources.push(
+				`SELECT "created_by" AS user_id FROM "survival_documents" WHERE "created_by" IS NOT NULL`
+			);
+		}
+		if (existingTables.has("survival_document_versions")) {
+			userIdSources.push(
+				`SELECT "created_by" AS user_id FROM "survival_document_versions" WHERE "created_by" IS NOT NULL`,
+				`SELECT "reviewed_by" AS user_id FROM "survival_document_versions" WHERE "reviewed_by" IS NOT NULL`,
+				`SELECT "published_by" AS user_id FROM "survival_document_versions" WHERE "published_by" IS NOT NULL`
+			);
+		}
+		if (existingTables.has("survival_document_edit_drafts")) {
+			userIdSources.push(
+				`SELECT "created_by" AS user_id FROM "survival_document_edit_drafts" WHERE "created_by" IS NOT NULL`
+			);
+		}
+		if (existingTables.has("audit_logs")) {
+			userIdSources.push(
+				`SELECT "actor_id" AS user_id FROM "audit_logs" WHERE "target_type" = 'survival_document' AND "actor_id" IS NOT NULL`
+			);
+		}
+
+		const preservedUserRows: Array<{ user_id: string }> =
+			userIdSources.length > 0 ? await ds.query(userIdSources.join("\nUNION\n")) : [];
+		const preservedUserIds = preservedUserRows.map((row) => row.user_id);
+
+		if (existingTables.has("user_roles")) {
+			if (preservedUserIds.length > 0) {
+				await ds.query(`DELETE FROM "user_roles" WHERE NOT ("user_id" = ANY($1::uuid[]))`, [
+					preservedUserIds,
+				]);
+			} else {
+				await ds.query(`DELETE FROM "user_roles"`);
+			}
+		}
+
+		if (existingTables.has("users")) {
+			if (preservedUserIds.length > 0) {
+				await ds.query(`DELETE FROM "users" WHERE NOT ("id" = ANY($1::uuid[]))`, [
+					preservedUserIds,
+				]);
+			} else {
+				await ds.query(`DELETE FROM "users"`);
+			}
+		}
+	}
+
+	if (existingTables.has("geo_areas")) {
 		await ds.query(`
 			INSERT INTO "geo_areas" ("code", "province_code", "province_name", "name", "sort_order") VALUES
 			('DNG-HOA-VANG', '48', 'Thành phố Đà Nẵng', 'Huyện Hòa Vang', 1),
@@ -2502,10 +2603,13 @@ export async function cleanDatabase(ds = dataSource): Promise<void> {
 			('DNG-SON-TRA', '48', 'Thành phố Đà Nẵng', 'Quận Sơn Trà', 7)
 			ON CONFLICT ("code") DO NOTHING
 		`);
-		console.log(
-			`[cleanDatabase] ✅ Successfully wiped ${tableList.split(",").length} tables clean (RESTART IDENTITY CASCADE).\n`
-		);
 	}
+
+	console.log(
+		preserveSurvivalDocuments
+			? `[cleanDatabase] ✅ Successfully wiped ${tablesToTruncate.length} operational tables while preserving survival documents & RAG data.\n`
+			: `[cleanDatabase] ✅ Successfully wiped ${tablesToTruncate.length} tables clean (RESTART IDENTITY CASCADE).\n`
+	);
 }
 
 // ==========================================================================
@@ -10007,10 +10111,13 @@ export async function runMasterSeed(): Promise<void> {
 		process.argv.includes("--fresh") ||
 		process.argv.includes("--clean") ||
 		process.env.SEED_FRESH === "true";
+	const wipeSurvivalDocuments =
+		process.argv.includes("--wipe-survival-documents") ||
+		process.env.SEED_WIPE_SURVIVAL_DOCUMENTS === "true";
 
 	console.log("\n==========================================================================");
 	console.log(
-		`   🚀 STARTING CTMS MASTER DATABASE SEEDING ${isFresh ? "(FRESH / CLEAN WIPE)" : "(IDEMPOTENT MODE)"}`
+		`   🚀 STARTING CTMS MASTER DATABASE SEEDING ${isFresh ? (wipeSurvivalDocuments ? "(FRESH / FULL WIPE)" : "(FRESH / PRESERVE SURVIVAL DOCS)") : "(IDEMPOTENT MODE)"}`
 	);
 	console.log("==========================================================================\n");
 
@@ -10023,9 +10130,13 @@ export async function runMasterSeed(): Promise<void> {
 	try {
 		if (isFresh) {
 			console.log("--------------------------------------------------------------------------");
-			console.log("👉 [0/9] Wiping all database tables clean (--fresh mode)...");
+			console.log(
+				wipeSurvivalDocuments
+					? "👉 [0/9] Wiping all database tables clean (--fresh --wipe-survival-documents)..."
+					: "👉 [0/9] Wiping operational database tables clean (--fresh mode, preserving /admin/survival-documents)..."
+			);
 			console.log("--------------------------------------------------------------------------");
-			await cleanDatabase(dataSource);
+			await cleanDatabase(dataSource, { preserveSurvivalDocuments: !wipeSurvivalDocuments });
 			console.log("✅ Database wiped clean.\n");
 		}
 
