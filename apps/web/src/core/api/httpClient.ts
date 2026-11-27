@@ -38,7 +38,8 @@ class HttpClient {
 		const url = new URL(
 			endpoint.startsWith("http")
 				? endpoint
-				: `${BASE_URL}${endpoint.startsWith("/") ? "" : "/"}${endpoint}`
+				: `${BASE_URL}${endpoint.startsWith("/") ? "" : "/"}${endpoint}`,
+			globalThis.location?.origin
 		);
 		if (params) {
 			for (const [key, value] of Object.entries(params)) {
