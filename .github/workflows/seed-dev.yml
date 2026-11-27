@@ -1,0 +1,110 @@
+name: Seed Dev DB
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Chế độ chạy main.seed.ts (idempotent = giữ dữ liệu hiện có; fresh = xóa sạch toàn bộ bảng và seed lại)"
+        required: true
+        default: idempotent
+        type: choice
+        options:
+          - idempotent
+          - fresh
+      only_flag:
+        description: "Tùy chọn: chỉ chạy 1 nhánh cụ thể trong main.seed.ts (vd: --da-nang-only, --health-profile-only). Để trống để chạy toàn bộ."
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ctms-dev-seed
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    name: Run Seed on Dev VM
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: dev
+      url: ${{ vars.DEV_PUBLIC_URL || 'https://dev.ditrek.io.vn' }}
+    steps:
+      - name: Run master seed inside Dev API container
+        env:
+          DEV_VPS_HOST: ${{ secrets.DEV_VPS_HOST }}
+          DEV_VPS_USER: ${{ secrets.DEV_VPS_USER }}
+          DEV_VPS_SSH_PORT: ${{ vars.DEV_VPS_SSH_PORT || '22' }}
+          DEV_VPS_SSH_PRIVATE_KEY: ${{ secrets.DEV_VPS_SSH_PRIVATE_KEY }}
+          DEV_VPS_SSH_KNOWN_HOSTS: ${{ secrets.DEV_VPS_SSH_KNOWN_HOSTS }}
+          SEED_MODE: ${{ inputs.mode }}
+          SEED_ONLY_FLAG: ${{ inputs.only_flag }}
+        shell: bash
+        run: |
+          : "${DEV_VPS_SSH_PRIVATE_KEY:?Set DEV_VPS_SSH_PRIVATE_KEY}" "${DEV_VPS_SSH_KNOWN_HOSTS:?Set DEV_VPS_SSH_KNOWN_HOSTS}"
+          if ! [[ "$DEV_VPS_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.:-]*$ && "$DEV_VPS_USER" =~ ^[a-z_][a-z0-9_-]*$ && "$DEV_VPS_SSH_PORT" =~ ^[0-9]{1,5}$ ]]; then
+            echo 'Check DEV_VPS_HOST, DEV_VPS_USER and DEV_VPS_SSH_PORT.' >&2
+            exit 1
+          fi
+
+          seed_arg=""
+          if [[ -n "$SEED_ONLY_FLAG" ]]; then
+            if ! [[ "$SEED_ONLY_FLAG" =~ ^--[a-z0-9-]+$ ]]; then
+              echo "Invalid only_flag: ${SEED_ONLY_FLAG}" >&2
+              exit 1
+            fi
+            seed_arg="$SEED_ONLY_FLAG"
+          elif [[ "$SEED_MODE" == "fresh" ]]; then
+            seed_arg="--fresh"
+          elif [[ "$SEED_MODE" != "idempotent" ]]; then
+            echo "Invalid mode: ${SEED_MODE}" >&2
+            exit 1
+          fi
+
+          ssh_dir=$(mktemp -d)
+          trap 'rm -rf -- "$ssh_dir"' EXIT
+          umask 077
+          printf '%s\n' "$DEV_VPS_SSH_PRIVATE_KEY" > "$ssh_dir/key"
+          printf '%s\n' "$DEV_VPS_SSH_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
+          cat > "$ssh_dir/config" <<EOF
+          Host ctms-dev-vm
+            HostName $DEV_VPS_HOST
+            User $DEV_VPS_USER
+            Port $DEV_VPS_SSH_PORT
+            IdentityFile $ssh_dir/key
+            UserKnownHostsFile $ssh_dir/known_hosts
+            GlobalKnownHostsFile /dev/null
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            BatchMode yes
+            ConnectTimeout 15
+            ServerAliveInterval 15
+            ServerAliveCountMax 4
+          EOF
+
+          ssh -F "$ssh_dir/config" ctms-dev-vm bash -s -- "$seed_arg" <<'REMOTE'
+          set -euo pipefail
+          seed_arg="${1:-}"
+
+          api_container=$(sudo -n docker ps \
+            --filter 'label=com.docker.compose.project=ditrek-dev' \
+            --filter 'label=com.docker.compose.service=api' \
+            --filter 'status=running' \
+            --format '{{.ID}}' | head -n 1)
+
+          if [[ -z "$api_container" ]]; then
+            echo "No running api container found for compose project ditrek-dev." >&2
+            exit 1
+          fi
+
+          cmd=(sudo -n docker exec -e NODE_ENV=development "$api_container" node services/api/dist/seeds/main.seed.js)
+          if [[ -n "$seed_arg" ]]; then
+            cmd+=("$seed_arg")
+          fi
+
+          echo "Running master seed in container ${api_container} (arg: ${seed_arg:-<idempotent>})..."
+          "${cmd[@]}"
+          REMOTE

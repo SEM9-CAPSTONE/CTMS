@@ -350,7 +350,6 @@ src/features/<feature-name>/
 - **Commit Messages**: Follow Conventional Commits with Jira scope (enforced by `commitlint`, e.g., `feat(CTMS-101): ...`).
 - **Pre-commit Linter**: Lint-staged runs Biome on pre-commit. Ensure no lint errors before committing.
 - **Git Author & Account**: Always ensure author and active GitHub CLI account is `dklinh05` (`dklinh05@gmail.com`).
-- **Terraform Exclusion**: TUYỆT ĐỐI KHÔNG commit hoặc push các thư mục/tập tin hạ tầng `infra/terraform/` lên git trừ khi được yêu cầu rõ ràng.
 - **Conflict Resolution Principle (Không Xóa Logic Đồng Đội)**:
   - Khi resolve merge conflict (đặc biệt khi kéo/merge `origin/develop` vào nhánh tính năng), **TUYỆT ĐỐI KHÔNG tự ý xóa (remove) logic/code của người khác**.
   - Nếu logic không chồng chéo hoặc mâu thuẫn trực tiếp lên nhau (ví dụ: cùng thêm hàm seed mới, cùng thêm route, cùng import module, cùng thêm DTO/type), **BẮT BUỘC ưu tiên giữ cả hai** (hợp nhất đầy đủ cả logic của đồng đội lẫn logic mới của mình).
