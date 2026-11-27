@@ -97,6 +97,27 @@ for (const item of policy.protocols) {
 	protocols.set(item.id, item);
 }
 const mandatoryIds = ["WARNING", "EMERGENCY", "fallback"].map((key) => policy.routes[key]);
+const personalMatches = new Set();
+assert(Array.isArray(policy.personalRiskRules), "Missing personal risk rule list");
+for (const rule of policy.personalRiskRules) {
+	const match = JSON.stringify([rule.signalId, rule.factCode]);
+	assert(!personalMatches.has(match), "Duplicate personal risk match");
+	personalMatches.add(match);
+	const protocol = protocols.get(rule.protocolId);
+	assert(
+		signalIds.has(rule.signalId) &&
+			protocol?.signalIds.includes(rule.signalId) &&
+			nonempty(rule.factCode) &&
+			Number.isSafeInteger(rule.maxAgeSeconds) &&
+			rule.maxAgeSeconds > 0 &&
+			rule.reviewStatus === "APPROVED" &&
+			lists(rule.sourceReferences) &&
+			datedReview(rule) &&
+			protocol.reviewStatus === "APPROVED",
+		"Invalid or unapproved personal risk rule"
+	);
+	mandatoryIds.push(rule.protocolId);
+}
 assert(
 	mandatoryIds.every((id) => protocols.has(id)),
 	"Missing mandatory protocol reference"

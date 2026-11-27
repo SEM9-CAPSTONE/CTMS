@@ -335,6 +335,7 @@
 			]
 		}
 	],
+	"personalRiskRules": [],
 	"routes": {
 		"WARNING": "cautious-guidance",
 		"EMERGENCY": "emergency-essential",
