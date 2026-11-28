@@ -80,6 +80,7 @@ class CamperBooking {
     required this.basePrice,
     required this.totalAmount,
     this.equipment = const [],
+    this.participationRole = 'owner',
   });
 
   factory CamperBooking.fromJson(Map<String, Object?> json) => CamperBooking(
@@ -95,6 +96,7 @@ class CamperBooking {
       for (final item in (json['equipmentItems'] as List<Object?>? ?? const []))
         BookedEquipment.fromJson(item as Map<String, Object?>),
     ],
+    participationRole: (json['participationRole'] as String?) ?? 'owner',
   );
 
   final String id;
@@ -106,9 +108,180 @@ class CamperBooking {
   final double basePrice;
   final double totalAmount;
   final List<BookedEquipment> equipment;
+  final String participationRole;
 
-  bool get awaitingPayment => status == 'pending_payment' && paymentStatus == 'unpaid';
+  bool get isCompanion => participationRole == 'member';
+  bool get awaitingPayment => !isCompanion && status == 'pending_payment' && paymentStatus == 'unpaid';
   bool get isPaid => paymentStatus == 'paid';
+}
+
+class BookingMemberItem {
+  const BookingMemberItem({
+    required this.id,
+    required this.userId,
+    required this.email,
+    required this.fullName,
+    required this.isPrimary,
+    required this.memberStatus,
+  });
+
+  factory BookingMemberItem.fromJson(Map<String, Object?> json) => BookingMemberItem(
+    id: json['id'] as String,
+    userId: json['userId'] as String?,
+    email: json['email'] as String?,
+    fullName: json['fullName'] as String?,
+    isPrimary: json['isPrimary'] == true,
+    memberStatus: (json['memberStatus'] as String?) ?? 'registered',
+  );
+
+  final String id;
+  final String? userId;
+  final String? email;
+  final String? fullName;
+  final bool isPrimary;
+  final String memberStatus;
+
+  String get displayName =>
+      (fullName != null && fullName!.trim().isNotEmpty)
+          ? fullName!.trim()
+          : (email ?? 'Thành viên DiTrek');
+}
+
+class BookingInvitationItem {
+  const BookingInvitationItem({
+    required this.id,
+    required this.bookingId,
+    required this.invitedEmail,
+    required this.invitedUserFullName,
+    required this.hasAccount,
+    required this.status,
+    required this.token,
+    required this.invitePath,
+    required this.inviteUrl,
+  });
+
+  factory BookingInvitationItem.fromJson(Map<String, Object?> json) => BookingInvitationItem(
+    id: json['id'] as String,
+    bookingId: json['bookingId'] as String,
+    invitedEmail: (json['invitedEmail'] as String?) ?? '',
+    invitedUserFullName: json['invitedUserFullName'] as String?,
+    hasAccount: json['hasAccount'] == true,
+    status: (json['status'] as String?) ?? 'pending',
+    token: (json['token'] as String?) ?? '',
+    invitePath: (json['invitePath'] as String?) ?? '',
+    inviteUrl: json['inviteUrl'] as String?,
+  );
+
+  final String id;
+  final String bookingId;
+  final String invitedEmail;
+  final String? invitedUserFullName;
+  final bool hasAccount;
+  final String status;
+  final String token;
+  final String invitePath;
+  final String? inviteUrl;
+
+  String get shareableLink =>
+      (inviteUrl != null && inviteUrl!.isNotEmpty) ? inviteUrl! : invitePath;
+}
+
+class BookingMembersWorkspace {
+  const BookingMembersWorkspace({
+    required this.bookingId,
+    required this.numPeople,
+    required this.activeMemberCount,
+    required this.pendingInvitationCount,
+    required this.remainingSlots,
+    required this.canManage,
+    required this.members,
+    required this.invitations,
+  });
+
+  factory BookingMembersWorkspace.fromJson(Map<String, Object?> json) => BookingMembersWorkspace(
+    bookingId: json['bookingId'] as String,
+    numPeople: (json['numPeople'] as num?)?.toInt() ?? 1,
+    activeMemberCount: (json['activeMemberCount'] as num?)?.toInt() ?? 0,
+    pendingInvitationCount: (json['pendingInvitationCount'] as num?)?.toInt() ?? 0,
+    remainingSlots: (json['remainingSlots'] as num?)?.toInt() ?? 0,
+    canManage: json['canManage'] == true,
+    members: [
+      for (final item in (json['members'] as List<Object?>? ?? const []))
+        BookingMemberItem.fromJson(item as Map<String, Object?>),
+    ],
+    invitations: [
+      for (final item in (json['invitations'] as List<Object?>? ?? const []))
+        BookingInvitationItem.fromJson(item as Map<String, Object?>),
+    ],
+  );
+
+  final String bookingId;
+  final int numPeople;
+  final int activeMemberCount;
+  final int pendingInvitationCount;
+  final int remainingSlots;
+  final bool canManage;
+  final List<BookingMemberItem> members;
+  final List<BookingInvitationItem> invitations;
+}
+
+class CreateBookingInvitationResult {
+  const CreateBookingInvitationResult({
+    required this.invitation,
+    required this.emailSent,
+    required this.workspace,
+  });
+
+  factory CreateBookingInvitationResult.fromJson(Map<String, Object?> json) =>
+      CreateBookingInvitationResult(
+        invitation: BookingInvitationItem.fromJson(json['invitation'] as Map<String, Object?>),
+        emailSent: json['emailSent'] == true,
+        workspace: BookingMembersWorkspace.fromJson(json['workspace'] as Map<String, Object?>),
+      );
+
+  final BookingInvitationItem invitation;
+  final bool emailSent;
+  final BookingMembersWorkspace workspace;
+}
+
+class MyPendingBookingInvitation {
+  const MyPendingBookingInvitation({
+    required this.id,
+    required this.token,
+    required this.bookingId,
+    required this.tripId,
+    required this.tripTitle,
+    required this.routeName,
+    required this.tripStartsAt,
+    required this.tripEndsAt,
+    required this.inviterName,
+    required this.invitedEmail,
+  });
+
+  factory MyPendingBookingInvitation.fromJson(Map<String, Object?> json) =>
+      MyPendingBookingInvitation(
+        id: json['id'] as String,
+        token: (json['token'] as String?) ?? '',
+        bookingId: json['bookingId'] as String,
+        tripId: json['tripId'] as String,
+        tripTitle: (json['tripTitle'] as String?) ?? 'Chuyến đi',
+        routeName: json['routeName'] as String?,
+        tripStartsAt: _date(json['tripStartsAt']),
+        tripEndsAt: _date(json['tripEndsAt']),
+        inviterName: (json['inviterName'] as String?) ?? 'Người đặt chỗ',
+        invitedEmail: (json['invitedEmail'] as String?) ?? '',
+      );
+
+  final String id;
+  final String token;
+  final String bookingId;
+  final String tripId;
+  final String tripTitle;
+  final String? routeName;
+  final DateTime? tripStartsAt;
+  final DateTime? tripEndsAt;
+  final String inviterName;
+  final String invitedEmail;
 }
 
 /// Result of `POST /bookings/:id/pay`.

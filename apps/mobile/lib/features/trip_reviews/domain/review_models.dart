@@ -109,6 +109,7 @@ class ReviewBooking {
     this.totalAmount,
     this.endsAt,
     this.routeName,
+    this.participationRole = 'owner',
   });
   final String id;
   final String title;
@@ -122,6 +123,9 @@ class ReviewBooking {
   final String? totalAmount;
   final DateTime? endsAt;
   final String? routeName;
+  final String participationRole;
+
+  bool get isCompanion => participationRole == 'member';
 
   factory ReviewBooking.fromJson(Map<String, Object?> json) {
     final presentation = json['tripPresentation'] as Map?;
@@ -142,6 +146,7 @@ class ReviewBooking {
       endsAt: json['tripEndsAtSnapshot'] == null
           ? null
           : DateTime.parse(json['tripEndsAtSnapshot'] as String),
+      participationRole: (json['participationRole'] as String?) ?? 'owner',
     );
   }
 }

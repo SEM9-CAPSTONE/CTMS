@@ -115,6 +115,7 @@ export class TripRosterService {
 			 INNER JOIN "booking_members" bm ON bm."booking_id" = b."id"
 			 LEFT JOIN "users" u ON u."id" = bm."user_id"
 			 WHERE b."trip_id" = $1
+			   AND bm."member_status" <> 'removed'
 			 ORDER BY
 				b."created_at" ASC,
 				b."id" ASC,

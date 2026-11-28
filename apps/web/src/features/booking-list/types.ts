@@ -17,6 +17,7 @@ export interface BookingListItem {
 	createdAt: string;
 	completedAt?: string | null;
 	tripPresentation: BookingTripPresentation | null;
+	participationRole?: "owner" | "member";
 }
 
 export interface BookingListError {

@@ -34,9 +34,11 @@ function getBookingStatusBadge(status: BookingListItem["status"]): string {
 export function BookingListView({
 	bookings,
 	onViewDetails,
+	headerAccessory,
 }: {
 	bookings: BookingListItem[];
 	onViewDetails: (bookingId: string) => void;
+	headerAccessory?: React.ReactNode;
 }) {
 	const [bookingStatus, setBookingStatus] = useState<BookingStatusFilter>("all");
 	const [paymentStatus, setPaymentStatus] = useState<PaymentStatusFilter>("all");
@@ -68,6 +70,8 @@ export function BookingListView({
 						Xem lại các đơn đã tạo và mở chi tiết từ dữ liệu máy chủ.
 					</p>
 				</header>
+
+				{headerAccessory}
 
 				{bookings.length === 0 ? (
 					<p className="mt-4 rounded-2xl bg-white p-6 text-center text-sm text-[#667a6d] shadow-sm">
@@ -163,6 +167,11 @@ function BookingCard({
 					</h2>
 				</div>
 				<div className="flex flex-wrap gap-1.5 text-xs font-bold">
+					{booking.participationRole === "member" && (
+						<span className="rounded-full bg-[#eef7f0] px-2.5 py-1 text-[#164027]">
+							Thành viên đi cùng
+						</span>
+					)}
 					<span
 						data-testid={`booking-status-${booking.id}`}
 						className={`rounded-full px-2.5 py-1 ${getBookingStatusBadge(booking.status)}`}

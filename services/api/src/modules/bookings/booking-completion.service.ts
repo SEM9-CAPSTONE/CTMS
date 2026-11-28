@@ -174,7 +174,10 @@ export class BookingCompletionService {
 				}
 
 				const members = await membersRepo.find({ where: { bookingId: booking.id } });
-				const allMembersHandled = members.every(
+				const activeMembers = members.filter(
+					(m: BookingMember) => m.memberStatus !== BookingMemberStatus.REMOVED
+				);
+				const allMembersHandled = activeMembers.every(
 					(m: BookingMember) =>
 						m.memberStatus === BookingMemberStatus.JOINED ||
 						m.memberStatus === BookingMemberStatus.NO_SHOW
@@ -229,6 +232,7 @@ export class BookingCompletionService {
 	private assertMembersHandled(members: BookingMember[]): void {
 		const unhandled = members.filter(
 			(m) =>
+				m.memberStatus !== BookingMemberStatus.REMOVED &&
 				m.memberStatus !== BookingMemberStatus.JOINED &&
 				m.memberStatus !== BookingMemberStatus.NO_SHOW
 		);

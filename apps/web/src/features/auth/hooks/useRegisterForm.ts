@@ -74,6 +74,10 @@ function buildRegisterPayload(
 
 export function useRegisterForm(onRegisterSuccess: () => void) {
 	const initialDraft = getRegisterDraft();
+	const prefilledEmail =
+		typeof window !== "undefined"
+			? (new URLSearchParams(window.location.search).get("email")?.trim() ?? "")
+			: "";
 
 	const [currentStep, setCurrentStep] = useState(initialDraft?.currentStep ?? 1);
 	const [selectedRole, setSelectedRole] = useState<UserRole>(
@@ -83,7 +87,7 @@ export function useRegisterForm(onRegisterSuccess: () => void) {
 	const [camperForm, setCamperForm] = useState<CamperRegisterFormData>(
 		initialDraft?.camperForm ?? {
 			fullName: "",
-			email: "",
+			email: prefilledEmail,
 			phone: "",
 			password: "",
 			confirmPassword: "",

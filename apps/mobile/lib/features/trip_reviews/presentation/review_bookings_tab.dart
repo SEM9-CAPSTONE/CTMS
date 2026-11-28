@@ -9,6 +9,8 @@ import '../../../core/theme/app_typography.dart';
 import '../../../core/widgets/ctms_button.dart';
 import '../../../core/widgets/ctms_status_badge.dart';
 import '../../camper/presentation/camper_trip_detail_screen.dart';
+import '../../camper_bookings/data/booking_invitations_api.dart';
+import '../../camper_bookings/presentation/pending_invitations_section.dart';
 import '../data/reviews_api.dart';
 import '../domain/review_models.dart';
 import 'trip_reviews_screen.dart';
@@ -238,12 +240,14 @@ class _ReviewBookingsTabState extends ConsumerState<ReviewBookingsTab> {
           onRefresh: () async {
             setState(() => page = 0);
             ref.invalidate(reviewBookingsProvider);
+            ref.invalidate(myPendingInvitationsProvider);
             if (widget.tripHistory) ref.invalidate(reviewSummaryProvider);
             await ref.read(reviewBookingsProvider.future);
           },
           child: ListView(
             padding: const EdgeInsets.all(AppSpacing.lg),
             children: [
+              if (!widget.tripHistory) const PendingInvitationsSection(),
               Text(
                 widget.tripHistory
                     ? 'Lịch sử chuyến đi'
@@ -508,6 +512,13 @@ class _ReviewBookingsTabState extends ConsumerState<ReviewBookingsTab> {
                               ),
                             ],
                           ),
+                          if (item.isCompanion) ...[
+                            const SizedBox(height: 6),
+                            const CtmsStatusBadge(
+                              label: 'Thành viên đi cùng',
+                              status: CtmsStatus.info,
+                            ),
+                          ],
                           const SizedBox(height: 8),
                           Row(
                             children: [

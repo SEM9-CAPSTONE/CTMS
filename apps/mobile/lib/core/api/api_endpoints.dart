@@ -6,6 +6,7 @@ class ApiEndpoints {
   static const auth = AuthEndpoints();
   static const terms = TermsEndpoints();
   static const bookings = BookingEndpoints();
+  static const bookingInvitations = BookingInvitationEndpoints();
   static const porterReviews = PorterReviewEndpoints();
   static const trekking = TrekkingEndpoints();
   static const trips = TripEndpoints();
@@ -67,6 +68,23 @@ class BookingEndpoints {
   String review(String id) => '/trip-reviews/$id';
   String completeTripBookings(String tripId) =>
       '/bookings/trip/$tripId/complete-all';
+  String invitations(String bookingId) => '/bookings/$bookingId/invitations';
+  String invitation(String bookingId, String invitationId) =>
+      '/bookings/$bookingId/invitations/$invitationId';
+  String member(String bookingId, String memberId) =>
+      '/bookings/$bookingId/members/$memberId';
+}
+
+class BookingInvitationEndpoints {
+  const BookingInvitationEndpoints();
+
+  String get mine => '/booking-invitations/mine';
+  String byToken(String token) =>
+      '/booking-invitations/${Uri.encodeComponent(token)}';
+  String accept(String token) =>
+      '/booking-invitations/${Uri.encodeComponent(token)}/accept';
+  String decline(String token) =>
+      '/booking-invitations/${Uri.encodeComponent(token)}/decline';
 }
 
 class PorterReviewEndpoints {

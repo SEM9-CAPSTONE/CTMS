@@ -18,9 +18,14 @@ export function BookingMembersSection({ members }: { members: BookingDetailsMemb
 					{members.map((member) => (
 						<li key={member.id} className="rounded-2xl border border-[#dfe8df] p-4">
 							<div className="flex flex-wrap items-center justify-between gap-2">
-								<p className="break-all font-bold text-[#10221b]">
-									{member.email ?? "Không có email hiển thị"}
-								</p>
+								<div className="min-w-0">
+									<p className="break-all font-bold text-[#10221b]">
+										{member.fullName?.trim() || member.email || "Không có email hiển thị"}
+									</p>
+									{member.fullName?.trim() && member.email && (
+										<p className="break-all text-xs text-[#667a6d]">{member.email}</p>
+									)}
+								</div>
 								<span className="rounded-full bg-[#eef7f0] px-3 py-1 text-xs font-bold text-[#164027]">
 									{formatMemberStatus(member.memberStatus)}
 								</span>

@@ -27,6 +27,9 @@ export class BookingMemberDetailsDto {
 	@ApiPropertyOptional({ type: String, nullable: true })
 	email!: string | null;
 
+	@ApiPropertyOptional({ type: String, nullable: true })
+	fullName?: string | null;
+
 	@ApiProperty()
 	isPrimary!: boolean;
 
@@ -131,4 +134,10 @@ export class BookingDetailsResponseDto {
 
 	@ApiProperty({ type: BookingEquipmentItemDetailsDto, isArray: true })
 	equipmentItems!: BookingEquipmentItemDetailsDto[];
+
+	@ApiPropertyOptional({
+		enum: ["owner", "member"],
+		description: "Whether the authenticated Camper owns the Booking or is an invited companion",
+	})
+	participationRole?: "owner" | "member";
 }

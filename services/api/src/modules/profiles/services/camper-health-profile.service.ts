@@ -265,6 +265,13 @@ export class CamperHealthProfileService {
 			throw new NotFoundException("Health profile not found");
 		}
 
+		const camperParticipationCondition = `(booking.userId = :camperId OR EXISTS (
+			SELECT 1 FROM "booking_members" bm
+			WHERE bm."booking_id" = booking.id
+			  AND bm."user_id" = :camperId
+			  AND bm."member_status" <> 'removed'
+		))`;
+
 		// Owner can always access
 		if (callerId === camperId) {
 			// Find active trip title if exists
@@ -272,7 +279,7 @@ export class CamperHealthProfileService {
 				.getRepository(Booking)
 				.createQueryBuilder("booking")
 				.innerJoinAndSelect("booking.trip", "trip")
-				.where("booking.userId = :camperId", { camperId })
+				.where(camperParticipationCondition, { camperId })
 				.getOne();
 
 			return { profile, activeTripTitle: activeBooking?.trip.title };
@@ -293,25 +300,25 @@ export class CamperHealthProfileService {
 				.getRepository(Booking)
 				.createQueryBuilder("booking")
 				.innerJoinAndSelect("booking.trip", "trip")
-				.where("booking.userId = :camperId", { camperId })
+				.where(camperParticipationCondition, { camperId })
 				.getOne();
 		} else if (callerRoles.includes(UserRole.HOST)) {
-			// Check if host is associated with a Trip this Camper booked
+			// Check if host is associated with a Trip this Camper booked or joined as a member
 			booking = await this.dataSource
 				.getRepository(Booking)
 				.createQueryBuilder("booking")
 				.innerJoinAndSelect("booking.trip", "trip")
-				.where("booking.userId = :camperId", { camperId })
+				.where(camperParticipationCondition, { camperId })
 				.andWhere("trip.hostId = :callerId", { callerId })
 				.getOne();
 		} else if (callerRoles.includes(UserRole.PORTER)) {
-			// Check if porter is assigned to a Trip this Camper booked
+			// Check if porter is assigned to a Trip this Camper booked or joined as a member
 			booking = await this.dataSource
 				.getRepository(Booking)
 				.createQueryBuilder("booking")
 				.innerJoinAndSelect("booking.trip", "trip")
 				.innerJoin("trip_porters", "tp", "tp.trip_id = trip.id")
-				.where("booking.userId = :camperId", { camperId })
+				.where(camperParticipationCondition, { camperId })
 				.andWhere("tp.porter_id = :callerId", { callerId })
 				.getOne();
 		}
