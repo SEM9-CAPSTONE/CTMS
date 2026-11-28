@@ -5,6 +5,7 @@ import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { DataSource } from "typeorm";
 import { AppModule } from "../src/modules/app.module";
+import { PayOSService } from "../src/modules/bookings/payos.service";
 import { SettlementsService } from "../src/modules/bookings/settlements.service";
 import { EventsGateway } from "../src/modules/realtime/events.gateway";
 import { TripsService } from "../src/modules/trips/services/trips.service";
@@ -51,6 +52,17 @@ describe("Host weather penalties, policy §6 (integration, real Postgres)", () =
 	let settlements: SettlementsService;
 	let penaltySpy: jest.SpyInstance;
 	let waiverSpy: jest.SpyInstance;
+	// PayOS is the external boundary: links and status checks are faked, everything else is real.
+	const payos = {
+		isConfigured: () => true,
+		createPaymentLink: jest.fn(async (params: { orderCode: number }) => ({
+			checkoutUrl: `https://pay.payos.vn/web/${params.orderCode}`,
+		})),
+		getPaymentLinkInformation: jest.fn(),
+		cancelPaymentLink: jest.fn().mockResolvedValue({}),
+		verifyWebhook: jest.fn(async (body: { data: unknown }) => body.data),
+		webAppUrl: (path: string) => `http://localhost:5174${path}`,
+	};
 	const userIds: string[] = [];
 	const routeIds: string[] = [];
 	const tripIds: string[] = [];
@@ -60,7 +72,10 @@ describe("Host weather penalties, policy §6 (integration, real Postgres)", () =
 	beforeAll(async () => {
 		penaltySpy = jest.spyOn(EventsGateway.prototype, "emitHostWeatherPenaltyCreated");
 		waiverSpy = jest.spyOn(EventsGateway.prototype, "emitWeatherPenaltyWaiverRequested");
-		const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+		const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+			.overrideProvider(PayOSService)
+			.useValue(payos)
+			.compile();
 		app = moduleRef.createNestApplication();
 		app.setGlobalPrefix("api");
 		app.useGlobalPipes(
@@ -105,6 +120,9 @@ describe("Host weather penalties, policy §6 (integration, real Postgres)", () =
 	beforeEach(() => {
 		penaltySpy.mockClear();
 		waiverSpy.mockClear();
+		payos.createPaymentLink.mockClear();
+		payos.getPaymentLinkInformation.mockReset();
+		payos.cancelPaymentLink.mockClear();
 	});
 
 	afterAll(async () => {
@@ -256,6 +274,38 @@ describe("Host weather penalties, policy §6 (integration, real Postgres)", () =
 			.post(`/api/admin/weather-penalties/${penaltyId}/waiver-review`)
 			.set("Authorization", `Bearer ${admin.accessToken}`)
 			.send({ approve, note: approve ? "Giấy viện hợp lệ" : "Thiếu bằng chứng" });
+	const checkout = (account: Account, penaltyId: string) =>
+		api()
+			.post(`/api/host/weather-penalties/${penaltyId}/payos-payment`)
+			.set("Authorization", `Bearer ${account.accessToken}`);
+	const syncPenalties = (host: Account) =>
+		api()
+			.post("/api/host/weather-penalties/payos-sync")
+			.set("Authorization", `Bearer ${host.accessToken}`)
+			.expect(200)
+			.then((response) => response.body as { items: PenaltyBody[]; outstandingTotal: string });
+	/** PayOS calls the shared webhook; signature checking is the faked boundary. */
+	const payosWebhook = (orderCode: number, amount: number) =>
+		api()
+			.post("/api/bookings/payment-webhook")
+			.send({
+				code: "00",
+				desc: "success",
+				success: true,
+				data: {
+					orderCode,
+					amount,
+					description: `CTMS PHAT ${orderCode}`,
+					accountNumber: "1028374659",
+					reference: `FT${orderCode}`,
+					transactionDateTime: "2026-11-27 10:00:00",
+					currency: "VND",
+					paymentLinkId: `link-${orderCode}`,
+					code: "00",
+					desc: "success",
+				},
+				signature: "signed-by-payos",
+			});
 
 	it("penalises a Host who did not answer: 5% of the Host's earnings, capped, audited and pushed", async () => {
 		const host = await createAccount(UserRole.HOST);
@@ -447,7 +497,7 @@ describe("Host weather penalties, policy §6 (integration, real Postgres)", () =
 		expect(mine.outstandingTotal).toBe("0.00");
 	});
 
-	it("blocks hosting once a penalty the settlements did not cover is unpaid after 7 days, until an Admin confirms the transfer", async () => {
+	it("blocks hosting once a penalty the settlements did not cover is unpaid after 7 days, until the Host pays it through PayOS", async () => {
 		const host = await createAccount(UserRole.HOST);
 		const admin = await createAccount(UserRole.ADMIN);
 		// The Host's first Trip, cancelled with a full refund: no revenue to deduct from.
@@ -492,35 +542,62 @@ describe("Host weather penalties, policy §6 (integration, real Postgres)", () =
 			.expect(200);
 		expect((unpaid.body as PenaltyBody[]).map((item) => item.id)).toContain(penalty.id);
 
-		const confirm = (account: Account, body: Record<string, unknown>) =>
-			api()
-				.post(`/api/admin/weather-penalties/${penalty.id}/payment-confirmation`)
-				.set("Authorization", `Bearer ${account.accessToken}`)
-				.send(body);
-		await confirm(host, { reference: "FT2611230045" }).expect(403);
-		await confirm(admin, { reference: "  " }).expect(422);
-		const confirmed = await confirm(admin, {
-			reference: "FT2611230045",
-			note: "Host chuyển khoản qua Vietcombank",
-		}).expect(200);
-		expect(confirmed.body).toMatchObject({
-			outstandingAmount: "0.00",
-			payment: expect.objectContaining({
-				overdue: false,
-				collectedAmount: "71250.00",
-				reference: "FT2611230045",
-			}),
-		});
-		await confirm(admin, { reference: "FT2611230045" }).expect(409);
+		// No manual Admin confirmation any more: the Host pays through PayOS.
+		await api()
+			.post(`/api/admin/weather-penalties/${penalty.id}/payment-confirmation`)
+			.set("Authorization", `Bearer ${admin.accessToken}`)
+			.send({ reference: "FT2611230045" })
+			.expect(404);
+		const otherHost = await createAccount(UserRole.HOST);
+		await checkout(otherHost, penalty.id).expect(404);
+		await checkout(admin, penalty.id).expect(403);
+		const opened = await checkout(host, penalty.id).expect(200);
+		expect(opened.body).toMatchObject({ amount: "71250.00" });
+		const orderCode = opened.body.orderCode as number;
+		expect(payos.createPaymentLink).toHaveBeenCalledWith(
+			expect.objectContaining({
+				orderCode,
+				amount: 71250,
+				description: `CTMS PHAT ${orderCode}`,
+				returnUrl: "http://localhost:5174/host/wallet?penaltyPayment=return",
+			})
+		);
+		const reopened = await checkout(host, penalty.id).expect(200);
+		expect(reopened.body.orderCode).toBe(orderCode);
+		expect(payos.createPaymentLink).toHaveBeenCalledTimes(1);
+
+		// Still unpaid at PayOS: the status check changes nothing.
+		payos.getPaymentLinkInformation.mockResolvedValueOnce({ status: "PENDING" });
+		expect((await syncPenalties(host)).outstandingTotal).toBe("71250.00");
+
+		await payosWebhook(orderCode, 71250).expect(200);
+		await payosWebhook(orderCode, 71250).expect(200);
 		mine = await myPenalties(host);
 		expect(mine.overdueTotal).toBe("0.00");
 		expect(mine.outstandingTotal).toBe("0.00");
+		expect(mine.items[0].payment).toMatchObject({
+			overdue: false,
+			collectedAmount: "71250.00",
+			reference: `PayOS ${orderCode}`,
+		});
+		const resubmitted = await tripsService
+			.submitForApproval(host.id, draft)
+			.catch((error: { response?: { code?: string } }) => error);
+		expect((resubmitted as { response?: { code?: string } })?.response?.code).not.toBe(
+			"WEATHER_PENALTY_OVERDUE"
+		);
+		await checkout(host, penalty.id).expect(409);
 		const audit = await dataSource.query(
-			`SELECT "actor_id" AS "actorId" FROM "audit_logs"
-			 WHERE "action" = 'host.weather_penalty_payment_confirmed' AND "target_id" = $1`,
+			`SELECT "actor_id" AS "actorId", "after" FROM "audit_logs"
+			 WHERE "action" = 'host.weather_penalty_paid_online' AND "target_id" = $1`,
 			[penalty.id]
 		);
-		expect(audit).toEqual([{ actorId: admin.id }]);
+		expect(audit).toEqual([
+			{
+				actorId: host.id,
+				after: expect.objectContaining({ collectedAmount: "71250.00", excessAmount: "0.00" }),
+			},
+		]);
 
 		// Waived later: the transferred money goes back to a wallet created for this Host.
 		await dataSource.query(
@@ -540,6 +617,82 @@ describe("Host weather penalties, policy §6 (integration, real Postgres)", () =
 			[host.id]
 		);
 		expect(ledger).toEqual([{ type: "penalty_refund", net: "71250.00", balance: "71250.00" }]);
+	});
+
+	it("records a PayOS payment found by the status check, renews a link when the amount owed changes and flags an excess", async () => {
+		const host = await createAccount(UserRole.HOST);
+		const admin = await createAccount(UserRole.ADMIN);
+		const firstTrip = await createTrip(host, new Date(Date.now() + 10 * HOUR_MS));
+		await bookPaid(firstTrip, 1_500_000);
+		await adminDecides(admin, firstTrip, "cancel");
+		const [first] = (await myPenalties(host)).items;
+
+		// The webhook never reaches a local server: opening the wallet asks PayOS instead.
+		const firstOrder = (await checkout(host, first.id).expect(200)).body.orderCode as number;
+		payos.getPaymentLinkInformation.mockResolvedValueOnce({
+			id: `link-${firstOrder}`,
+			orderCode: firstOrder,
+			status: "PAID",
+			amount: 71250,
+			amountPaid: 71250,
+			createdAt: "2026-11-27T03:00:00.000Z",
+			transactions: [],
+		});
+		const synced = await syncPenalties(host);
+		expect(payos.getPaymentLinkInformation).toHaveBeenCalledWith(firstOrder);
+		expect(synced.outstandingTotal).toBe("0.00");
+		expect(synced.items[0].payment.reference).toBe(`PayOS ${firstOrder}`);
+
+		// Another Host's penalty: a settlement deducts part of it while the first link is open.
+		const secondHost = await createAccount(UserRole.HOST);
+		const secondTrip = await createTrip(secondHost, new Date(Date.now() + 11 * HOUR_MS));
+		await bookPaid(secondTrip, 1_500_000);
+		await adminDecides(admin, secondTrip, "cancel");
+		const [second] = (await myPenalties(secondHost)).items;
+		const staleOrder = (await checkout(secondHost, second.id).expect(200)).body.orderCode as number;
+		await dataSource.query(
+			`UPDATE "host_weather_penalties" SET "deducted_amount" = 50000 WHERE "id" = $1`,
+			[second.id]
+		);
+		const renewed = await checkout(secondHost, second.id).expect(200);
+		expect(renewed.body.amount).toBe("21250.00");
+		expect(renewed.body.orderCode).not.toBe(staleOrder);
+		expect(payos.cancelPaymentLink).toHaveBeenCalledWith(staleOrder, "Penalty amount changed");
+		const links = await dataSource.query(
+			`SELECT "order_code"::text AS "orderCode", "status" FROM "weather_penalty_payments"
+			 WHERE "penalty_id" = $1 ORDER BY "created_at"`,
+			[second.id]
+		);
+		expect(links).toEqual([
+			{ orderCode: String(staleOrder), status: "cancelled" },
+			{ orderCode: String(renewed.body.orderCode), status: "pending" },
+		]);
+
+		// Paid more than owed (the amount dropped after the link was opened): the excess is flagged.
+		await dataSource.query(
+			`UPDATE "host_weather_penalties" SET "deducted_amount" = 60000 WHERE "id" = $1`,
+			[second.id]
+		);
+		await payosWebhook(renewed.body.orderCode, 21250).expect(200);
+		const [paid] = (await myPenalties(secondHost)).items;
+		expect(paid).toMatchObject({
+			outstandingAmount: "0.00",
+			payment: expect.objectContaining({ collectedAmount: "11250.00" }),
+		});
+		const audit = await dataSource.query(
+			`SELECT "after" FROM "audit_logs"
+			 WHERE "action" = 'host.weather_penalty_paid_online' AND "target_id" = $1`,
+			[second.id]
+		);
+		expect(audit).toEqual([
+			{
+				after: expect.objectContaining({
+					paidAmount: "21250.00",
+					collectedAmount: "11250.00",
+					excessAmount: "10000.00",
+				}),
+			},
+		]);
 	});
 
 	it("keeps a rejected waiver applied with the Admin's reason", async () => {

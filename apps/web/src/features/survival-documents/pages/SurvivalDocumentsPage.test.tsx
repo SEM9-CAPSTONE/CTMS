@@ -6,7 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpError } from "../../../core/api/httpClient";
 import { toast } from "../../../shared/components/Toast";
 import { sourceSchema } from "../schema/source.schema";
-import { survivalDocumentsService as service } from "../services/survival-documents.service";
+import {
+	survivalDocumentsService as service,
+	sourceActionErrorMessage,
+} from "../services/survival-documents.service";
 import type { DocumentDetail, EditDraft, EditorSection, SourceMetadata } from "../types";
 import { SurvivalDocumentsPage } from "./SurvivalDocumentsPage";
 
@@ -42,6 +45,8 @@ const doc: DocumentDetail = {
 			versionNumber: 1,
 			revision: 1,
 			status: "DRAFT",
+			preparationEligible: true,
+			knowledgeRevision: 1,
 			metadata: {
 				...metadata,
 				licenseType: undefined,
@@ -95,6 +100,17 @@ async function detail() {
 	return within(await screen.findByRole("dialog"));
 }
 beforeEach(() => {
+	vi.spyOn(service, "chunkSets").mockResolvedValue([
+		{
+			status: "READY",
+			input_revision: 1,
+			active: false,
+			chunk_count: 4,
+			error_code: null,
+			automatic_recovery_pending: false,
+			quality_report: { issues: [] },
+		},
+	]);
 	vi.spyOn(service, "list").mockResolvedValue(queue);
 	vi.spyOn(service, "detail").mockResolvedValue(structuredClone(doc));
 	vi.spyOn(service, "upload").mockResolvedValue(doc);
@@ -353,7 +369,7 @@ describe("CTMS-050 Admin source management", () => {
 			"Tệp PDF vượt quá dung lượng cho phép."
 		);
 	});
-	it("saves the selected PDF and publishes that version without rights input", async () => {
+	it("saves the selected PDF and requests preparation without publishing it", async () => {
 		const notify = vi.spyOn(toast, "success");
 		const user = userEvent.setup();
 		view();
@@ -367,17 +383,22 @@ describe("CTMS-050 Admin source management", () => {
 			dataTransfer: { files: [file] },
 		});
 		expect(editor.getByRole("button", { name: "Chọn tệp khác" })).toBeInTheDocument();
-		await user.click(editor.getByRole("button", { name: "Xuất bản" }));
+		await user.click(editor.getByRole("button", { name: "Lưu và chuẩn bị nội dung" }));
 
 		expect(service.upload).toHaveBeenCalledOnce();
 		await waitFor(() =>
-			expect(service.action).toHaveBeenCalledWith(doc.id, doc.versions[0].id, "publish", {
+			expect(service.action).toHaveBeenCalledWith(doc.id, doc.versions[0].id, "prepare", {
 				expectedRevision: doc.versions[0].revision,
+				expectedDocumentRevision: doc.revision,
 				confirmSource: true,
 			})
 		);
-		await waitFor(() => expect(notify).toHaveBeenCalledWith("Đã xuất bản tài liệu."));
-		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+		await waitFor(() =>
+			expect(notify).toHaveBeenCalledWith(
+				"Đã ghi nhận xác nhận nguồn. Hệ thống sẽ chuẩn bị nội dung cho bản nháp."
+			)
+		);
+		expect(screen.getByRole("dialog")).toBeInTheDocument();
 	});
 	it.each([
 		["upload", "SOURCE_DUPLICATE_PDF", "Nội dung PDF đã tồn tại."],
@@ -494,6 +515,7 @@ describe("CTMS-050 Admin source management", () => {
 		);
 		const panel = await detail();
 		const button = panel.getByRole("button", { name: "Xuất bản" });
+		await waitFor(() => expect(button).toBeEnabled());
 		fireEvent.click(button);
 		fireEvent.click(button);
 		await waitFor(() => expect(service.action).toHaveBeenCalledTimes(1));
@@ -507,6 +529,7 @@ describe("CTMS-050 Admin source management", () => {
 			new HttpError("Tài liệu đã thay đổi. Vui lòng tải lại.", 409, {})
 		);
 		const panel = await detail();
+		await waitFor(() => expect(panel.getByRole("button", { name: "Xuất bản" })).toBeEnabled());
 		await userEvent.click(panel.getByRole("button", { name: "Xuất bản" }));
 		expect(await screen.findByRole("alert")).toHaveTextContent("Tài liệu đã thay đổi");
 		await waitFor(() => expect(service.detail).toHaveBeenCalledTimes(2));
@@ -514,10 +537,12 @@ describe("CTMS-050 Admin source management", () => {
 	it("publishes an existing draft without sending permission grants", async () => {
 		const panel = await detail();
 		expect(panel.queryByRole("checkbox")).not.toBeInTheDocument();
+		await waitFor(() => expect(panel.getByRole("button", { name: "Xuất bản" })).toBeEnabled());
 		await userEvent.click(panel.getByRole("button", { name: "Xuất bản" }));
 		await waitFor(() =>
 			expect(service.action).toHaveBeenCalledWith(doc.id, doc.versions[0].id, "publish", {
 				expectedRevision: doc.versions[0].revision,
+				expectedDocumentRevision: doc.revision,
 				confirmSource: true,
 			})
 		);
@@ -528,10 +553,12 @@ describe("CTMS-050 Admin source management", () => {
 			versions: [{ ...doc.versions[0], metadata }],
 		});
 		const panel = await detail();
+		await waitFor(() => expect(panel.getByRole("button", { name: "Xuất bản" })).toBeEnabled());
 		await userEvent.click(panel.getByRole("button", { name: "Xuất bản" }));
 		await waitFor(() =>
 			expect(service.action).toHaveBeenCalledWith(doc.id, doc.versions[0].id, "publish", {
 				expectedRevision: doc.versions[0].revision,
+				expectedDocumentRevision: doc.revision,
 				confirmSource: true,
 				rights: {
 					rightsReviewStatus: "PERMITTED",
@@ -543,6 +570,95 @@ describe("CTMS-050 Admin source management", () => {
 					evidence: metadata.permissionEvidence,
 				},
 			})
+		);
+	});
+	it.each(["PENDING", "RUNNING", "FAILED", "NEEDS_REVIEW", "OBSOLETE"] as const)(
+		"blocks publication while preparation is %s",
+		async (status) => {
+			vi.mocked(service.chunkSets).mockResolvedValue([
+				{
+					status,
+					input_revision: 1,
+					active: false,
+					chunk_count: 0,
+					error_code: null,
+					automatic_recovery_pending: false,
+					quality_report: null,
+				},
+			]);
+			const panel = await detail();
+			await waitFor(() => expect(service.chunkSets).toHaveBeenCalled());
+			expect(panel.getByRole("button", { name: "Xuất bản" })).toBeDisabled();
+			expect(service.action).not.toHaveBeenCalled();
+		}
+	);
+	it("blocks a stale READY revision and explains why publication is unavailable", async () => {
+		vi.mocked(service.chunkSets).mockResolvedValue([
+			{
+				status: "READY",
+				input_revision: 2,
+				active: false,
+				chunk_count: 4,
+				error_code: null,
+				automatic_recovery_pending: false,
+				quality_report: { issues: [] },
+			},
+		]);
+		const panel = await detail();
+		expect(panel.getByRole("button", { name: "Xuất bản" })).toBeDisabled();
+		expect(
+			panel.getByText("Chỉ có thể xuất bản khi nội dung của bản nháp đã sẵn sàng.")
+		).toBeInTheDocument();
+	});
+	it("requires source confirmation before preparing an unverified private draft", async () => {
+		vi.mocked(service.detail).mockResolvedValue({
+			...doc,
+			versions: [{ ...doc.versions[0], preparationEligible: false }],
+		});
+		const panel = await detail();
+		expect(panel.getByRole("button", { name: "Xuất bản" })).toBeDisabled();
+		await userEvent.click(
+			panel.getByRole("button", { name: "Xác nhận nguồn và chuẩn bị nội dung" })
+		);
+		await waitFor(() =>
+			expect(service.action).toHaveBeenCalledWith(
+				doc.id,
+				doc.versions[0].id,
+				"prepare",
+				expect.objectContaining({ confirmSource: true, expectedDocumentRevision: doc.revision })
+			)
+		);
+	});
+	it("previews a historical PDF and requires a restoration reason before creating its new draft", async () => {
+		vi.mocked(service.detail).mockResolvedValue({
+			...doc,
+			versions: [{ ...doc.versions[0], status: "SUPERSEDED", publishedAt: "2026-01-01" }],
+		});
+		const panel = await detail();
+		await userEvent.click(panel.getByRole("button", { name: "Khôi phục thành bản nháp mới" }));
+		const modal = within(
+			await screen.findByRole("dialog", { name: "Khôi phục tài liệu thành bản nháp mới" })
+		);
+		expect(modal.getByRole("button", { name: "Xác nhận tạo bản nháp" })).toBeDisabled();
+		await userEvent.type(
+			modal.getByLabelText("Lý do khôi phục"),
+			"Khôi phục hướng dẫn phù hợp với hành trình hiện tại."
+		);
+		await userEvent.click(modal.getByRole("button", { name: "Xác nhận tạo bản nháp" }));
+		await waitFor(() =>
+			expect(service.action).toHaveBeenCalledWith(doc.id, doc.versions[0].id, "restore", {
+				expectedRevision: 1,
+				expectedDocumentRevision: doc.revision,
+				reason: "Khôi phục hướng dẫn phù hợp với hành trình hiện tại.",
+			})
+		);
+	});
+	it("localizes technical action errors without exposing API messages", () => {
+		expect(sourceActionErrorMessage(new HttpError("Internal server error", 500, {}))).toBe(
+			"Chưa thực hiện được thao tác. Vui lòng thử lại sau."
+		);
+		expect(sourceActionErrorMessage(new HttpError("Forbidden", 403, {}))).toBe(
+			"Bạn không có quyền thực hiện thao tác này."
 		);
 	});
 	it("validates minimal draft metadata and rejects invalid locales", () => {

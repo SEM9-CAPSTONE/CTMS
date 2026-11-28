@@ -82,6 +82,10 @@ const SERVER_MESSAGES: Array<[RegExp, string]> = [
 	[/has not requested a waiver/i, "Host chưa gửi yêu cầu miễn phạt."],
 	[/already reviewed/i, "Yêu cầu miễn phạt này đã được xử lý."],
 	[/Nothing is left to pay/i, "Khoản phạt này không còn số tiền nào cần nộp."],
+	[
+		/Online payment is (not configured|temporarily unavailable)/i,
+		"Chưa mở được trang thanh toán PayOS. Vui lòng thử lại sau ít phút.",
+	],
 	[/Weather penalty not found/i, "Không tìm thấy khoản phạt."],
 	[
 		/Định dạng tài liệu không hợp lệ|PDF không hợp lệ/i,

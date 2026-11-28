@@ -3,6 +3,7 @@ import { HttpError } from "../../../core/api/httpClient";
 import { toast } from "../../../shared/components/Toast";
 import { SOURCE_PAGE_SIZE } from "../constants";
 import { duplicatePdfSchema } from "../schema/source.schema";
+import { sourceActionErrorMessage } from "../services/survival-documents.service";
 import type {
 	DocumentDetail,
 	PdfSource,
@@ -97,14 +98,22 @@ export function useSourceWorkspace() {
 		setNotice("");
 		try {
 			const decision =
-				action === "publish"
+				action === "publish" || action === "prepare"
 					? {
 							...payload,
+							expectedDocumentRevision:
+								payload.expectedDocumentRevision ?? state.detail.data?.revision,
 							confirmSource: true,
 							rights: publicationRights(version.metadata) ?? payload.rights,
 						}
-					: payload;
-			await state.action.mutateAsync({
+					: action === "restore"
+						? {
+								...payload,
+								expectedDocumentRevision:
+									payload.expectedDocumentRevision ?? state.detail.data?.revision,
+							}
+						: payload;
+			const updated = await state.action.mutateAsync({
 				documentId: version.documentId,
 				versionId: version.id,
 				action,
@@ -113,14 +122,22 @@ export function useSourceWorkspace() {
 			if (action === "publish") {
 				openDocument(null);
 				toast.success("Đã xuất bản tài liệu.");
+			} else if (action === "prepare") {
+				openDocument(updated.id, version.id);
+				toast.success("Đã ghi nhận xác nhận nguồn. Hệ thống sẽ chuẩn bị nội dung cho bản nháp.");
+			} else if (action === "restore") {
+				openDocument(updated.id, updated.versions[0].id);
+				toast.success("Đã khôi phục nội dung thành bản nháp mới.");
 			} else {
-				setNotice("Đã ngừng sử dụng tài liệu.");
+				toast.success("Đã ngừng sử dụng tài liệu.");
 			}
+			return true;
 		} catch (error) {
 			if (savedFromEditor) {
-				const message = error instanceof Error ? error.message : "Vui lòng thử lại.";
-				toast.error(message, "Đã lưu bản nháp. Xuất bản chưa thành công.");
-			}
+				const message = sourceActionErrorMessage(error);
+				toast.error(message, "Đã lưu bản nháp. Thao tác chưa hoàn tất.");
+			} else toast.error(sourceActionErrorMessage(error));
+			return false;
 		}
 	}
 	async function save(metadata: SourceMetadata, source?: PdfSource, preparePublication = false) {
@@ -150,11 +167,11 @@ export function useSourceWorkspace() {
 				);
 				if (preparePublication && savedVersion) {
 					setMode(null);
-					openDocument(null);
+					openDocument(result.id, savedVersion.id);
 					await actOnVersion(
 						savedVersion,
-						"publish",
-						{ expectedRevision: savedVersion.revision },
+						"prepare",
+						{ expectedRevision: savedVersion.revision, expectedDocumentRevision: result.revision },
 						true
 					);
 					return;

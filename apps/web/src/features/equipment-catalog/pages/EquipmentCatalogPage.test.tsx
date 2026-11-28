@@ -126,6 +126,7 @@ describe("EquipmentCatalogPage", () => {
 
 		const dialog = screen.getByRole("dialog", { name: "Thêm thiết bị vào kho" });
 		expect(dialog).toBeInTheDocument();
+		expect(screen.queryByText(/Thiết bị mới sẽ ở trạng thái/)).not.toBeInTheDocument();
 		expect(screen.getByLabelText("Tên thiết bị")).toBeInTheDocument();
 
 		fireEvent.click(screen.getByRole("button", { name: "Hủy" }));

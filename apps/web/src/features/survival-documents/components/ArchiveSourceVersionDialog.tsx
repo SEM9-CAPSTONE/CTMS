@@ -11,7 +11,7 @@ interface ArchiveSourceVersionDialogProps {
 		version: SourceVersion,
 		action: SourceAction,
 		payload: SourceDecision
-	) => Promise<void>;
+	) => Promise<boolean>;
 }
 
 export function ArchiveSourceVersionDialog({
@@ -27,11 +27,11 @@ export function ArchiveSourceVersionDialog({
 		if (busy || lock.current || !reason.trim()) return;
 		lock.current = true;
 		try {
-			await onAction(version, "archive", {
+			const succeeded = await onAction(version, "archive", {
 				expectedRevision: version.revision,
 				reason: reason.trim(),
 			});
-			onClose();
+			if (succeeded !== false) onClose();
 		} finally {
 			lock.current = false;
 		}

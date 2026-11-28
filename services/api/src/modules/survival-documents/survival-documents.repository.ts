@@ -21,7 +21,8 @@ export class SurvivalDocumentsRepository {
 		manager: EntityManager,
 		checksum: string,
 		filename: string,
-		targetDocumentId?: string
+		targetDocumentId?: string,
+		allowHistoricalRestoration = false
 	): Promise<void> {
 		const [match]: Array<{
 			documentId: string;
@@ -36,12 +37,13 @@ export class SurvivalDocumentsRepository {
 			        checksum=$1 AS "sameContent",
 			        lower(btrim(normalize(original_filename)))=lower(btrim(normalize($2))) AS "sameName"
 			 FROM survival_document_versions
-			 WHERE checksum=$1 OR lower(btrim(normalize(original_filename)))=lower(btrim(normalize($2)))
+			 WHERE (checksum=$1 OR lower(btrim(normalize(original_filename)))=lower(btrim(normalize($2))))
+			 AND NOT ($4::boolean AND document_id=$3::uuid AND status='SUPERSEDED')
 			 ORDER BY "sameContent" DESC, "sameName" DESC,
 			          (document_id=$3::uuid) DESC NULLS LAST, (status='PUBLISHED') DESC,
 			          created_at, id
 			 LIMIT 1`,
-			[checksum, filename, targetDocumentId ?? null]
+			[checksum, filename, targetDocumentId ?? null, allowHistoricalRestoration]
 		);
 		if (!match) return;
 		const { sameContent, sameName, ...existing } = match;

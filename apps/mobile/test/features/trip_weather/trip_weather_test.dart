@@ -174,6 +174,7 @@ void main() {
       await pump(tester, api);
 
       expect(find.text('Dự báo thời tiết ngày đi'), findsOneWidget);
+      expect(find.textContaining('Dự báo cho lịch trình'), findsNothing);
       expect(find.text('Nguy hiểm (Đỏ)'), findsOneWidget);
       expect(find.text('Độ tin cậy cao'), findsOneWidget);
       expect(find.text('42.5 mm'), findsOneWidget);

@@ -257,14 +257,16 @@ export const API_ENDPOINTS = {
 		RESCHEDULE_RESPONSE: (bookingId: string) =>
 			`/bookings/${bookingId}/weather-reschedule-response`,
 		MY_PENALTIES: "/me/weather-penalties",
+		/** Records PayOS payments of my penalties, then lists them. */
+		MY_PENALTIES_PAYOS_SYNC: "/host/weather-penalties/payos-sync",
 		PENALTY_WAIVER_REQUEST: (penaltyId: string) =>
 			`/host/weather-penalties/${penaltyId}/waiver-request`,
+		PENALTY_PAYOS_PAYMENT: (penaltyId: string) =>
+			`/host/weather-penalties/${penaltyId}/payos-payment`,
 		ADMIN_PENALTIES: "/admin/weather-penalties",
 		ADMIN_PENALTY: (penaltyId: string) => `/admin/weather-penalties/${penaltyId}`,
 		ADMIN_PENALTY_REVIEW: (penaltyId: string) =>
 			`/admin/weather-penalties/${penaltyId}/waiver-review`,
-		ADMIN_PENALTY_PAYMENT: (penaltyId: string) =>
-			`/admin/weather-penalties/${penaltyId}/payment-confirmation`,
 	},
 	AI: {
 		CONVERSATIONS: "/ai/conversations",
@@ -365,9 +367,6 @@ export const API_ENDPOINTS = {
 		APPROVE: (obligationId: string) => `/admin/refunds/${obligationId}/approve`,
 		CONFIRM: (obligationId: string) => `/admin/refunds/${obligationId}/confirm`,
 		REJECT: (obligationId: string) => `/admin/refunds/${obligationId}/reject`,
-	},
-	PLATFORM_BANK_ACCOUNT: {
-		ADMIN: "/admin/platform-bank-account",
 	},
 	SETTLEMENTS: {
 		EVALUATION: (tripId: string) => `/settlements/trips/${tripId}/evaluation`,

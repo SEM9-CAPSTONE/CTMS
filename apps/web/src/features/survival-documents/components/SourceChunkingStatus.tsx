@@ -444,7 +444,12 @@ export function SourceChunkingStatus({
 		enabled: current && eligible,
 		refetchOnWindowFocus: !open,
 		refetchOnReconnect: !open,
-		refetchInterval: ({ state }) => (!state.data || state.data.preparing ? 5000 : false),
+		refetchInterval: ({ state }) =>
+			!state.data || state.data.preparing
+				? 5000
+				: state.data.automaticRecoveryPending
+					? 60_000
+					: false,
 	});
 	const data = query.data;
 	const position =
@@ -456,6 +461,14 @@ export function SourceChunkingStatus({
 		return blockedReason ? <p className="text-sm text-muted-foreground">{blockedReason}</p> : null;
 	return (
 		<section className="space-y-2 border-b border-[#dfe8df] pb-3" aria-label="Đối chiếu nội dung">
+			{data?.complete && (
+				<p className="text-sm text-[#164027]">
+					Nội dung đã sẵn sàng{data.chunkCount ? ` · ${data.chunkCount} đoạn nội dung` : ""}
+					{data.completedAt
+						? ` · Hoàn tất ${new Date(data.completedAt).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}`
+						: ""}
+				</p>
+			)}
 			{data?.notice && <p className="text-sm text-muted-foreground">{data.notice}</p>}
 			{query.isError ? (
 				<p className="text-sm">
@@ -472,7 +485,9 @@ export function SourceChunkingStatus({
 				</output>
 			) : data?.positions.some((item) => !item.resolved) ? (
 				<p className="text-sm">Có một số nội dung cần kiểm tra trước khi xuất bản.</p>
-			) : !data?.complete && (!data?.available || data.positions.every((item) => item.resolved)) ? (
+			) : !data?.notice &&
+				!data?.complete &&
+				(!data?.available || data.positions.every((item) => item.resolved)) ? (
 				<p className="text-sm">
 					{data?.inUse
 						? "Chưa thể cập nhật nội dung. Tài liệu vẫn sử dụng được."

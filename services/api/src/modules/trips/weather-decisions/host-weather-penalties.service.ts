@@ -3,15 +3,10 @@ import { ConflictException, Injectable, NotFoundException, Optional } from "@nes
 import { DataSource, type EntityManager } from "typeorm";
 import { AuditLog } from "../../auth/entities/audit-log.entity";
 import { minorToMoney, moneyToMinor } from "../../bookings/cancellation-policy";
-import {
-	readPlatformBankAccount,
-	toPaymentAccount,
-} from "../../platform-bank-accounts/platform-bank-account.reader";
 // biome-ignore lint/style/useImportType: constructor-injected by NestJS DI, needs design:paramtypes metadata at runtime
 import { EventsGateway } from "../../realtime/events.gateway";
 import {
 	type AdminPenaltyFilter,
-	type ConfirmWeatherPenaltyPaymentDto,
 	type HostWeatherPenaltyDto,
 	type HostWeatherPenaltyListDto,
 	type HostWeatherPenaltyRow,
@@ -196,9 +191,6 @@ export class HostWeatherPenaltiesService {
 			overdueTotal: minorToMoney(restriction.overdueDebtMinor),
 			hostingBlockedUntil: restriction.blockedUntil?.toISOString() ?? null,
 			suspended: restriction.suspended,
-			paymentAccount: toPaymentAccount(
-				await readPlatformBankAccount(this.dataSource, "weather_penalty")
-			),
 		};
 	}
 
@@ -285,42 +277,56 @@ export class HostWeatherPenaltiesService {
 	}
 
 	/**
-	 * Admin confirms the Host paid by bank transfer what the settlements did not cover: the whole
-	 * amount still owed is recorded as collected, which lifts an overdue-debt block.
+	 * Locks the penalty and returns what the Host still owes on it, or `null` when the penalty is
+	 * not the Host's. Used before opening a PayOS payment link for that amount.
 	 */
-	async confirmPayment(
-		adminId: string,
-		id: string,
-		dto: ConfirmWeatherPenaltyPaymentDto,
-		now = new Date()
-	): Promise<HostWeatherPenaltyDto> {
-		const penalty = await this.dataSource.transaction(async (manager) => {
-			const locked = await this.lockRow(manager, id);
-			if (!locked) throw new NotFoundException("Weather penalty not found");
-			const owed = outstandingMinor(locked);
-			if (owed <= 0n) {
-				throw new ConflictException("Nothing is left to pay on this weather penalty");
-			}
-			const collected = minorToMoney(owed);
+	async lockOutstandingForHost(
+		manager: EntityManager,
+		hostId: string,
+		id: string
+	): Promise<string | null> {
+		const locked = await this.lockRow(manager, id);
+		if (!locked || locked.host_id !== hostId) return null;
+		return minorToMoney(outstandingMinor(locked));
+	}
+
+	/**
+	 * A PayOS payment of the Host succeeded: at most the amount still owed is recorded as collected,
+	 * which lifts an overdue-debt block. Money paid beyond that (the penalty was waived or deducted
+	 * while the link was open) is returned so the caller can flag it for an Admin to refund.
+	 */
+	async recordOnlinePayment(
+		manager: EntityManager,
+		input: { hostId: string; penaltyId: string; amount: string; reference: string; now: Date }
+	): Promise<{ collectedAmount: string; excessAmount: string }> {
+		const locked = await this.lockRow(manager, input.penaltyId);
+		if (!locked) throw new NotFoundException("Weather penalty not found");
+		const paid = moneyToMinor(input.amount);
+		const owed = outstandingMinor(locked);
+		const collected = owed > 0n ? (paid < owed ? paid : owed) : 0n;
+		const collectedAmount = minorToMoney(collected);
+		const excessAmount = minorToMoney(paid - collected);
+		if (collected > 0n) {
 			await manager.query(
 				`UPDATE "host_weather_penalties"
 				 SET "collected_amount" = "collected_amount" + $2::numeric, "collected_at" = $3,
-				     "collected_by" = $4, "collection_reference" = $5, "collection_note" = $6, "updated_at" = $3
+				     "collected_by" = NULL, "collection_reference" = $4, "collection_note" = NULL,
+				     "updated_at" = $3
 				 WHERE "id" = $1`,
-				[id, collected, now, adminId, dto.reference, dto.note || null]
+				[input.penaltyId, collectedAmount, input.now, input.reference]
 			);
-			await this.audit(
-				manager,
-				adminId,
-				"host.weather_penalty_payment_confirmed",
-				id,
-				{ collectedAmount: collected, reference: dto.reference },
-				dto.note || "Host paid the weather penalty by bank transfer"
-			);
-			return this.findById(id, manager);
-		});
-		if (!penalty) throw new NotFoundException("Weather penalty not found");
-		return penalty;
+		}
+		await this.audit(
+			manager,
+			input.hostId,
+			"host.weather_penalty_paid_online",
+			input.penaltyId,
+			{ paidAmount: minorToMoney(paid), collectedAmount, excessAmount, reference: input.reference },
+			collected < paid
+				? "Host paid the weather penalty via PayOS; the excess must be refunded by an Admin"
+				: "Host paid the weather penalty via PayOS"
+		);
+		return { collectedAmount, excessAmount };
 	}
 
 	/**

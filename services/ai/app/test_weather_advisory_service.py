@@ -137,3 +137,27 @@ def test_propagates_a_real_network_failure_from_the_openai_client():
 
 	with pytest.raises(ConnectionError):
 		WeatherAdvisoryService(client).generate(_request())
+
+
+@pytest.mark.parametrize(
+	("provider", "override", "expected"),
+	[
+		("openai", None, "gpt-4o-mini"),
+		("gemini", None, "gemini-3.1-flash-lite"),
+		("gemini", "gemini-2.5-flash", "gemini-2.5-flash"),
+	],
+)
+def test_model_follows_the_shared_ai_provider_unless_overridden(monkeypatch, provider, override, expected):
+	monkeypatch.setenv("REVIEW_ANALYSIS_PROVIDER", provider)
+	if override:
+		monkeypatch.setenv("WEATHER_ADVISORY_MODEL", override)
+	else:
+		monkeypatch.delenv("WEATHER_ADVISORY_MODEL", raising=False)
+	client = MagicMock()
+	client.chat.completions.create.return_value = _fake_completion(
+		json.dumps({"advice": "Mang áo mưa.", "actions": ["Kiểm tra dự báo trước giờ đi"]})
+	)
+
+	WeatherAdvisoryService(client).generate(_request())
+
+	assert client.chat.completions.create.call_args.kwargs["model"] == expected

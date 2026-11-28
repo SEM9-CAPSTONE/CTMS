@@ -95,7 +95,7 @@ export function WeatherRiskCard({
 		<section data-testid={testId} aria-label={title}>
 			<Card className="border border-[#e0ebe0] p-5">
 				<div className="flex flex-wrap items-start justify-between gap-3">
-					<div className="flex items-start gap-3">
+					<div className="flex items-center gap-3">
 						<div className="rounded-xl bg-emerald-50 p-2.5 text-[#164027]">
 							<CloudSun className="size-5" />
 						</div>

@@ -1,5 +1,9 @@
 # CTMS-068 — Use Retrieval-Augmented Generation (RAG)
 
+## Document lifecycle amendment — 2026-11-28
+
+Private draft preparation never grants retrieval, reranking, context, citation or answer eligibility. Normal replacement preparation retains the current eligible source until explicit atomic publication switches both version and complete READY knowledge. Final evidence revalidation, current safety/medical requirements and immediate withdrawal remain unchanged. See [the lifecycle contract](../../docs/features/Document-Version-Knowledge-Lifecycle.md).
+
 ## 1. Overview
 
 Story: CTMS-068

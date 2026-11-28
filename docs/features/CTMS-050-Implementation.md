@@ -1,5 +1,9 @@
 # CTMS-050 implementation and data dictionary
 
+## Current lifecycle amendment — 2026-11-28
+
+[Document Version Knowledge Lifecycle](Document-Version-Knowledge-Lifecycle.md) defines the current preparation/publication transaction, restoration, API and schema changes. The earlier publish-then-ingest descriptions below are historical implementation context; source validation, parser/model behavior and retention rules remain applicable unless explicitly amended. Eligible DRAFTs prepare first, READY stays private, and explicit publication atomically switches both source and knowledge pointers.
+
 CTMS-050 lets an active Admin upload a local PDF or import a direct public HTTPS PDF URL. Both methods create a private draft for either a new document or a new version of an existing document. See the [functional specification](../../file/spec/ctms-50-manage-survival-documents.md) for the business rules and acceptance criteria.
 
 ## Ingestion and duplicate detection

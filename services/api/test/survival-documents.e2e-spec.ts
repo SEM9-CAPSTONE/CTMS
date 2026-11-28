@@ -5,6 +5,7 @@ import request from "supertest";
 import { KnowledgeChunksProvider } from "../src/modules/knowledge-chunks/knowledge-chunks.provider";
 import { KnowledgeChunksRepository } from "../src/modules/knowledge-chunks/knowledge-chunks.repository";
 import { DocumentStatus } from "../src/modules/survival-documents/survival-documents.types";
+import { prepareSurvivalSourceFixture } from "./support/prepared-survival-source";
 import {
 	createSurvivalE2eApp,
 	sourceTestEmail,
@@ -53,11 +54,22 @@ describe("CTMS-050 HTTP E2E with real login", () => {
 		const id = doc.versions[0].id;
 		expect(doc.versions[0].status).toBe(DocumentStatus.DRAFT);
 		expect(doc.versions[0].rights.sourceReviewConfirmed).toBe(false);
+		doc = await prepareSurvivalSourceFixture(
+			app,
+			app.get(KnowledgeChunksRepository).db,
+			bearer,
+			doc,
+			{ confirmSource: true }
+		);
 		doc = (
 			await request(app.getHttpServer())
 				.post(`${endpoint}/${doc.id}/versions/${id}/publish`)
 				.set("Authorization", bearer)
-				.send({ expectedRevision: doc.versions[0].revision, confirmSource: true })
+				.send({
+					expectedRevision: doc.versions[0].revision,
+					expectedDocumentRevision: doc.revision,
+					confirmSource: true,
+				})
 				.expect(201)
 		).body as SourceTestDetail;
 		expect(doc.currentPublishedVersionId).toBe(id);
@@ -112,7 +124,7 @@ describe("CTMS-050 HTTP E2E with real login", () => {
 			.set("Authorization", bearer)
 			.expect(200);
 		expect(queued.body).toEqual([
-			expect.objectContaining({ document_version_id: id, status: "PENDING", active: false }),
+			expect.objectContaining({ document_version_id: id, status: "READY", active: true }),
 		]);
 		await request(app.getHttpServer()).get(`${endpoint}/${doc.id}/versions/${id}/file`).expect(401);
 		const bytes = await request(app.getHttpServer())

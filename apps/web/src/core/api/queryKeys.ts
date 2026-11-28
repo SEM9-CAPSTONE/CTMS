@@ -266,9 +266,6 @@ export const queryKeys = {
 	bankAccounts: {
 		all: ["bank-accounts"] as const,
 	},
-	platformBankAccount: {
-		admin: ["platform-bank-account", "admin"] as const,
-	},
 	deviceSync: {
 		status: (tripId: string) => ["device-sync", "status", tripId] as const,
 	},

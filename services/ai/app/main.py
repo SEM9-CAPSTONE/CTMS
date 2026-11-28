@@ -93,19 +93,21 @@ def score_weather_risk(payload: WeatherRiskRequest) -> dict[str, str | int]:
 @lru_cache
 def _build_advisory_service() -> WeatherAdvisoryService:
 	"""Built lazily on first real request, not at import time -- a missing
-	OPENAI_API_KEY must only break an actual /weather-advisory request, not
+	provider key must only break an actual /weather-advisory request, not
 	crash app startup and take down /health and /weather-risk with it (same
 	reasoning as services/api's EmailOtpProvider building its transporter
 	lazily). `lru_cache` makes this a singleton without a mutable module-level
-	global.
+	global. The provider follows REVIEW_ANALYSIS_PROVIDER (OpenAI or Gemini),
+	like the other AI features.
 	"""
-	api_key = os.environ.get("OPENAI_API_KEY")
-	if not api_key:
+	try:
+		client = build_analysis_client()
+	except HTTPException as error:
 		raise HTTPException(
 			status_code=503,
-			detail="Weather advisory service is not configured (missing OPENAI_API_KEY).",
-		)
-	return WeatherAdvisoryService(OpenAI(api_key=api_key))
+			detail="Weather advisory service is not configured (missing AI provider key).",
+		) from error
+	return WeatherAdvisoryService(client)
 
 
 def get_advisory_service() -> WeatherAdvisoryService:

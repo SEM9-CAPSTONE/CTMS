@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "Chế độ chạy main.seed.ts (idempotent = giữ dữ liệu hiện có; fresh = xóa sạch toàn bộ bảng và seed lại)"
+        description: "Chế độ chạy main.seed.ts (idempotent = giữ dữ liệu hiện có; fresh = làm mới dữ liệu nghiệp vụ và giữ nguyên tài liệu sinh tồn tại /admin/survival-documents)"
         required: true
         default: idempotent
         type: choice

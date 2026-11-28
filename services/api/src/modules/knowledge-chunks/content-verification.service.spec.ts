@@ -55,6 +55,43 @@ const snapshot = (regions: IntegrityRegion[]): ExtractionSnapshot => ({
 });
 
 describe("Content verification decisions", () => {
+	it.each([
+		[
+			"ingestion_timeout",
+			true,
+			"Thời gian xử lý nội dung đã vượt giới hạn. Hệ thống sẽ tự động thử lại.",
+		],
+		["ingestion_transport", false, "Quá trình xử lý nội dung bị gián đoạn."],
+		[
+			"ocr_runtime_unavailable",
+			false,
+			"Dịch vụ xử lý tài liệu chưa sẵn sàng. Cần kiểm tra cấu hình máy chủ.",
+		],
+	])("explains %s and its automatic recovery state", async (error, recovering, notice) => {
+		const service = new ContentVerificationService(
+			{
+				query: jest
+					.fn()
+					.mockResolvedValueOnce([{}])
+					.mockResolvedValueOnce([
+						{
+							id: "candidate",
+							status: "FAILED",
+							error_code: error,
+							automatic_recovery_pending: recovering,
+							extraction_snapshot: null,
+						},
+					]),
+			} as unknown as DataSource,
+			{ hasEligibleDocument: jest.fn().mockResolvedValue(false) } as unknown as RagRepository
+		);
+		expect(await service.inspect("document", "version")).toMatchObject({
+			notice,
+			automaticRecoveryPending: recovering,
+			preparing: false,
+			available: false,
+		});
+	});
 	it.each([true, false])(
 		"distinguishes active source availability (%s) from a new pending extraction",
 		async (inUse) => {
@@ -236,12 +273,13 @@ describe("Cached review transactions", () => {
 		};
 		const query = jest.fn(async (sql: string, args: unknown[] = []) => {
 			queries.push(sql);
+			if (sql.includes("survival_document_edit_drafts")) return [];
 			if (sql.includes("SELECT current_published_version_id"))
 				return [{ current_published_version_id: "version" }];
 			if (sql.includes("FROM survival_document_versions")) return [version];
 			if (sql.includes('SELECT "after" FROM audit_logs'))
 				return audits.filter((row) => row.after.requestId === args[2]);
-			if (sql.includes("SELECT * FROM knowledge_chunk_sets")) return [latest];
+			if (sql.startsWith("SELECT") && sql.includes("FROM knowledge_chunk_sets")) return [latest];
 			if (sql.includes("INSERT INTO knowledge_chunk_sets")) {
 				latest = {
 					...structuredClone(original),

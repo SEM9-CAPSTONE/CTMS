@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app, get_advisory_service
+from app.main import _build_advisory_service, app, get_advisory_service
 from app.models import WeatherAdvisoryResponse
 
 client = TestClient(app)
@@ -108,3 +108,33 @@ def test_missing_api_key_configuration_returns_503():
 	response = client.post("/weather-advisory", json=_valid_payload())
 
 	assert response.status_code == 503
+
+
+@pytest.fixture
+def fresh_advisory_builder():
+	app.dependency_overrides.pop(get_advisory_service, None)
+	_build_advisory_service.cache_clear()
+	yield
+	_build_advisory_service.cache_clear()
+
+
+def test_advisory_uses_gemini_with_only_a_gemini_key(monkeypatch, fresh_advisory_builder):
+	monkeypatch.setenv("REVIEW_ANALYSIS_PROVIDER", "gemini")
+	monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key")
+	monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+	monkeypatch.delenv("WEATHER_ADVISORY_MODEL", raising=False)
+
+	service = get_advisory_service()
+
+	assert str(service._client.base_url) == "https://generativelanguage.googleapis.com/v1beta/openai/"
+	assert service._model == "gemini-3.1-flash-lite"
+
+
+def test_advisory_without_the_selected_provider_key_returns_503(monkeypatch, fresh_advisory_builder):
+	monkeypatch.setenv("REVIEW_ANALYSIS_PROVIDER", "gemini")
+	monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+
+	response = client.post("/weather-advisory", json=_valid_payload())
+
+	assert response.status_code == 503
+	assert "not configured" in response.json()["detail"]

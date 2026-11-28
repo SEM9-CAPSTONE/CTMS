@@ -5,7 +5,6 @@ import {
 	CloudLightning,
 	Coins,
 	Compass,
-	CreditCard,
 	FileClock,
 	FileText,
 	Flag,
@@ -77,11 +76,6 @@ const items = {
 		path: RoutePath.ADMIN_PORTER_LEVELS,
 	},
 	settlements: { label: "Quản lý tài chính", icon: Landmark, path: RoutePath.ADMIN_SETTLEMENTS },
-	"platform-bank-account": {
-		label: "Tài khoản nhận tiền phạt",
-		icon: CreditCard,
-		path: RoutePath.ADMIN_PLATFORM_BANK_ACCOUNT,
-	},
 	"survival-documents": {
 		label: "Tài liệu sinh tồn",
 		icon: BookOpen,
@@ -146,7 +140,7 @@ export const ADMIN_NAV_GROUPS = [
 		key: "finance",
 		label: "Tài chính",
 		icon: Coins,
-		items: ["settlements", "platform-bank-account"],
+		items: ["settlements"],
 	},
 	{
 		key: "system",

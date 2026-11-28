@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 // biome-ignore lint/style/useImportType: Nest injection
 import { ConfigService } from "@nestjs/config";
+import { type Dispatcher, request as sendRequest } from "undici";
 import {
 	isValidEmbedding,
 	validateChunkOutput,
@@ -63,11 +64,15 @@ export class KnowledgeChunksProvider {
 				: 1800000;
 		const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(timeout)]);
 		const post = (path: string, body: object) =>
-			fetch(`${this.baseUrl}${path}`, {
+			sendRequest(`${this.baseUrl}${path}`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json", "X-CTMS-Knowledge-Token": token },
 				body: JSON.stringify(body),
 				signal: requestSignal,
+				// Native fetch imposes a separate five-minute headers deadline even
+				// when AbortSignal allows a longer extraction of a large PDF.
+				headersTimeout: timeout,
+				bodyTimeout: timeout,
 			});
 		const request = {
 			extraction_snapshot: set.extraction_snapshot ?? null,
@@ -83,7 +88,8 @@ export class KnowledgeChunksProvider {
 			const preparedResponse = findEmbeddings
 				? await post("/knowledge-chunks/prepare", request)
 				: null;
-			if (!findEmbeddings || !preparedResponse || preparedResponse.status === 404) {
+			if (!findEmbeddings || !preparedResponse || preparedResponse.statusCode === 404) {
+				await preparedResponse?.body.dump();
 				return validateChunkOutput(
 					await this.readResult(await post("/knowledge-chunks", request)),
 					set
@@ -134,7 +140,10 @@ export class KnowledgeChunksProvider {
 						: "ingestion_cancelled",
 					true
 				);
-			const cause = (error as { cause?: { code?: unknown } } | null)?.cause?.code;
+			const transport = error as { code?: unknown; cause?: { code?: unknown } } | null;
+			const cause = transport?.code ?? transport?.cause?.code;
+			if (["UND_ERR_HEADERS_TIMEOUT", "UND_ERR_BODY_TIMEOUT"].includes(String(cause)))
+				throw new IngestionError("ingestion_timeout", true);
 			const known = [
 				"ECONNREFUSED",
 				"ENOTFOUND",
@@ -150,15 +159,17 @@ export class KnowledgeChunksProvider {
 		}
 	}
 
-	private async readResult(response: Response): Promise<unknown> {
-		if (response.status === 503) {
-			const raw = await response.json().catch(() => null);
-			if (raw?.detail?.code === "ocr_runtime_unavailable")
+	private async readResult(response: Dispatcher.ResponseData): Promise<unknown> {
+		const status = response.statusCode;
+		if (status >= 200 && status < 300) return response.body.json();
+		// Consume error bodies as well, releasing the pooled connection for retries.
+		const raw = await response.body.json().catch(() => null);
+		const detail = (raw as { detail?: { code?: unknown; issue?: unknown } } | null)?.detail;
+		if (status === 503) {
+			if (detail?.code === "ocr_runtime_unavailable")
 				throw new IngestionError("ocr_runtime_unavailable", true);
 		}
-		if (response.status === 422) {
-			const raw: unknown = await response.json().catch(() => null);
-			const detail = (raw as { detail?: { code?: unknown; issue?: unknown } } | null)?.detail;
+		if (status === 422) {
 			if (
 				Array.isArray(detail) &&
 				detail.some(
@@ -179,12 +190,9 @@ export class KnowledgeChunksProvider {
 				});
 			}
 		}
-		if (!response.ok) {
-			throw new IngestionError(
-				`ingestion_http_${response.status}`,
-				[401, 429].includes(response.status) || response.status >= 500
-			);
-		}
-		return response.json();
+		throw new IngestionError(
+			`ingestion_http_${status}`,
+			[401, 429].includes(status) || status >= 500
+		);
 	}
 }

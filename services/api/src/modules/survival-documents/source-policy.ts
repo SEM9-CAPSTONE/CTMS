@@ -16,7 +16,16 @@ const SOURCE_NOT_APPROVED =
 
 type SourceIdentity = Pick<SourceVersion, "metadata" | "checksum"> &
 	Partial<
-		Pick<SourceVersion, "rights" | "reviewedBy" | "reviewedAt" | "publishedBy" | "publishedAt">
+		Pick<
+			SourceVersion,
+			| "rights"
+			| "reviewedBy"
+			| "reviewedAt"
+			| "publishedBy"
+			| "publishedAt"
+			| "preparationConfirmedBy"
+			| "preparationConfirmedAt"
+		>
 	>;
 
 export function isConfiguredKnowledgeSource(
@@ -50,8 +59,8 @@ export function isConfiguredKnowledgeSource(
 export function assertApprovedSource(source: SourceIdentity): void {
 	if (isConfiguredKnowledgeSource(source)) return;
 	if (
-		source.publishedBy &&
-		source.publishedAt &&
+		((source.publishedBy && source.publishedAt) ||
+			(source.preparationConfirmedBy && source.preparationConfirmedAt)) &&
 		source.rights?.rightsReviewStatus === RightsStatus.NOT_REVIEWED &&
 		source.rights.sourceReviewConfirmed === true
 	)
@@ -129,7 +138,7 @@ export function validatePublishedSourceMetadata(metadata: SourceMetadata): void 
 		throw invalidSource("Bản dịch cần phiên bản gốc và thông báo trách nhiệm bản dịch.");
 }
 
-/** Shared eligibility for ingestion, retrieval and approved offline guidance. */
+/** Production retrieval and approved offline guidance remain publication-only. */
 export function isEligiblePublishedSource(
 	version: SourceVersion | undefined,
 	currentId: string | null
@@ -146,6 +155,21 @@ export function isEligiblePublishedSource(
 	)
 		return false;
 	return isEligibleSourceContent(version);
+}
+
+/** A private draft can be prepared; this never grants production retrieval. */
+export function isEligiblePreparationSource(
+	version: SourceVersion | undefined,
+	currentId: string | null
+): boolean {
+	if (!version) return false;
+	if (version.status !== DocumentStatus.DRAFT) return isEligiblePublishedSource(version, currentId);
+	return (
+		!!version.fileRef &&
+		version.contentType === "application/pdf" &&
+		/^[a-f0-9]{64}$/.test(version.checksum) &&
+		isEligibleSourceContent(version)
+	);
 }
 
 export function sourceContentIssue(source: SourceVersion): string | null {

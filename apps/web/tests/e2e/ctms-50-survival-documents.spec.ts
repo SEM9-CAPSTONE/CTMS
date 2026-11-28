@@ -82,6 +82,12 @@ async function openDuplicate(
 	await expect(panel.getByLabel("Lịch sử phiên bản").locator("option")).toHaveCount(1);
 }
 async function openPublished(page: Page, title: string) {
+	const draft = page.getByRole("dialog");
+	if (await draft.getByRole("button", { name: "Xác nhận nguồn và chuẩn bị nội dung" }).count())
+		await draft.getByRole("button", { name: "Xác nhận nguồn và chuẩn bị nội dung" }).click();
+	const publish = draft.getByRole("button", { name: "Xuất bản", exact: true });
+	await expect(publish).toBeEnabled();
+	await publish.click();
 	await expect(page.getByTestId("toast-success").last()).toContainText("Đã xuất bản tài liệu.");
 	await expect(page.getByRole("dialog")).toHaveCount(0);
 	await page.getByRole("button", { name: `Xem ${title}`, exact: true }).click();
@@ -99,7 +105,7 @@ test("Admin uploads, publishes, replaces and archives versions with real API and
 	const firstPdf = pdf(`${title} v1`);
 	const changedPdf = pdf(`${title} v2`);
 	await page.getByRole("button", { name: "Thêm tài liệu", exact: true }).click();
-	await fillSource(page, title, firstPdf, firstName, "Xuất bản");
+	await fillSource(page, title, firstPdf, firstName, "Lưu và chuẩn bị nội dung");
 	await openPublished(page, title);
 	const panel = page.getByRole("dialog");
 	const firstPage = panel.getByRole("img", { name: "Trang PDF 1" });
@@ -188,7 +194,6 @@ test("Admin uploads, publishes, replaces and archives versions with real API and
 	await fillSource(page, title, changedPdf, `fictional-${stamp}-v2.pdf`);
 	await expect(panel.getByText("Bản nháp", { exact: true })).toBeVisible();
 	await expect(panel.getByText(/Phiên bản đang xuất bản:/)).toHaveCount(0);
-	await panel.getByRole("button", { name: "Xuất bản", exact: true }).click();
 	await openPublished(page, title);
 	await panel.getByRole("tab", { name: "Phiên bản" }).click();
 	await panel.getByLabel("Lịch sử phiên bản").selectOption({ label: "Phiên bản 1" });

@@ -5,7 +5,6 @@ import { ContentVerificationController } from "./content-verification.controller
 import { ContentVerificationService } from "./content-verification.service";
 import { KnowledgeChunksController } from "./knowledge-chunks.controller";
 import { KnowledgeChunksProvider } from "./knowledge-chunks.provider";
-import { KnowledgeChunksRepository } from "./knowledge-chunks.repository";
 import { KnowledgeChunksService } from "./knowledge-chunks.service";
 import { KnowledgeChunksWorker } from "./knowledge-chunks.worker";
 
@@ -13,12 +12,11 @@ import { KnowledgeChunksWorker } from "./knowledge-chunks.worker";
 	imports: [SurvivalDocumentsModule, RagModule],
 	controllers: [KnowledgeChunksController, ContentVerificationController],
 	providers: [
-		KnowledgeChunksRepository,
 		KnowledgeChunksProvider,
 		KnowledgeChunksWorker,
 		KnowledgeChunksService,
 		ContentVerificationService,
 	],
-	exports: [KnowledgeChunksRepository],
+	exports: [SurvivalDocumentsModule],
 })
 export class KnowledgeChunksModule {}
