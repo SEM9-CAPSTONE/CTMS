@@ -642,13 +642,7 @@ export class SurvivalDocumentsService {
 						 preparation_confirmed_by=$3,preparation_confirmed_at=$4,
 						 reviewed_by=CASE WHEN $5 THEN $3 ELSE reviewed_by END,
 						 reviewed_at=CASE WHEN $5 THEN $4::timestamptz ELSE reviewed_at END WHERE id=$1`,
-							[
-								versionId,
-								JSON.stringify(rights),
-								publication.preparationConfirmedBy ?? null,
-								publication.preparationConfirmedAt ?? null,
-								!!dto.rights,
-							]
+							[versionId, JSON.stringify(rights), actorId, publishedAt, !!dto.rights]
 						);
 						await this.event(
 							manager,

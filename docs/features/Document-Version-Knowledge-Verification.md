@@ -1,5 +1,13 @@
 # Implementation and verification report — 2026-11-28
 
+## Integration follow-up - 2026-11-28
+
+The latest supplied integration log contains two consecutive runs; the second reports **9 failed / 68 passed**, including a passing document-version-lifecycle suite. These are the user's recorded results, not an independent rerun of the current changes.
+
+Follow-up fixes preserve the authenticated Admin and confirmation time when preparing an explicitly approved unlisted PDF, and retain the specific source-policy reason for reconciliation skips. Integration fixtures now distinguish trusted private draft preparation from unconfirmed sources, verify that V1 remains active while draft V2 needs review or exhausts recovery, account for separate preparation/publication outbox deliveries, and include both revision preconditions in concurrent publication. The historical-vector worker case uses Undici's MockAgent and checks the actual missing embedding request instead of spying on native fetch.
+
+Current local verification: **244 API unit tests passed in 16 suites**, including a regression for persisted unlisted-source approval; the affected integration tests, service test and production dependencies pass TypeScript checking. Integration rerun stops in global database setup with `connect EACCES 127.0.0.1:5432`, before executing test scenarios. The nine integration failures are addressed in code but their post-fix database results remain unverified. No migration change is needed for these fixes. The sections below retain the original implementation report and its original verification results.
+
 Scope: the approved CTMS-050/051/220/068/069 document version lifecycle amendment. Implementation is present in the working tree. No commit, push, deployment or external Jira change was performed.
 
 ## Implemented workflow

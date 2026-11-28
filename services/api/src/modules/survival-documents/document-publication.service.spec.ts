@@ -10,6 +10,7 @@ import {
 } from "./document-editor.policy";
 import type { PdfSourceService } from "./pdf-source.service";
 import type { SourceFilesService } from "./source-files.service";
+import { isEligiblePreparationSource } from "./source-policy";
 import type { SourceUploadCleanupService } from "./source-upload-cleanup.service";
 import type { SurvivalDocumentsRepository } from "./survival-documents.repository";
 import { SurvivalDocumentsService } from "./survival-documents.service";
@@ -68,6 +69,40 @@ function fixture() {
 	return { service, knowledge, repo, query, manager };
 }
 describe("Document publication transaction", () => {
+	it("retains explicit source approval when preparing an unlisted PDF without confirmSource", async () => {
+		const f = fixture();
+		const draft = version("draft");
+		draft.metadata.sourceUrl = "https://unlisted.example.com/manual.pdf";
+		draft.reviewedBy = null;
+		draft.reviewedAt = null;
+		f.repo.version.mockResolvedValue(draft);
+		await f.service.change("admin", "document", "draft", {
+			action: "prepare",
+			dto: { expectedRevision: 1, expectedDocumentRevision: 3, rights: fictionalRights },
+		});
+		const approval = f.query.mock.calls.find(([sql]) =>
+			sql.includes("preparation_confirmed_by=$3")
+		);
+		expect(approval).toBeDefined();
+		const values = approval?.[1] as unknown[];
+		expect(values[2]).toBe("admin");
+		expect(values[3]).toEqual(expect.any(String));
+		expect(values[4]).toBe(true);
+		expect(
+			isEligiblePreparationSource(
+				{
+					...draft,
+					rights: JSON.parse(String(values[1])),
+					preparationConfirmedBy: String(values[2]),
+					preparationConfirmedAt: String(values[3]),
+					reviewedBy: String(values[2]),
+					reviewedAt: String(values[3]),
+				},
+				"old"
+			)
+		).toBe(true);
+		expect(f.knowledge.activatePrepared).not.toHaveBeenCalled();
+	});
 	it("T21: restored composed medical content requires current adaptation and exact-PDF specialist grants", async () => {
 		const restored = version("restored");
 		restored.restoredFromVersionId = "historical-copy";

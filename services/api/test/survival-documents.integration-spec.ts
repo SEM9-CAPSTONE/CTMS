@@ -78,6 +78,9 @@ describe("CTMS-050 PostgreSQL integration + real guarded HTTP", () => {
 			await db.query("INSERT INTO user_roles(user_id,role) VALUES($1,$2)", [id, role]);
 		}
 	}, 90000);
+	afterEach(() => {
+		jest.restoreAllMocks();
+	});
 	afterAll(async () => {
 		await app?.close();
 		if (root) await rm(root, { recursive: true, force: true });
@@ -858,11 +861,18 @@ describe("CTMS-050 PostgreSQL integration + real guarded HTTP", () => {
 		expect(doc.currentPublishedVersionId).toBe(first.id);
 		expect(doc.versions[0].versionNumber).toBe(2);
 		expect(doc.versions[1].metadata).toEqual(first.metadata);
+		doc = await prepareSurvivalSourceFixture(app, db, token("admin"), doc, {
+			rights: fictionalRights,
+		});
 		const publish = () =>
 			request(app.getHttpServer())
 				.post(`${endpoint}/${doc.id}/versions/${doc.versions[0].id}/publish`)
 				.set("Authorization", token("admin"))
-				.send({ expectedRevision: doc.versions[0].revision, rights: fictionalRights })
+				.send({
+					expectedRevision: doc.versions[0].revision,
+					expectedDocumentRevision: doc.revision,
+					rights: fictionalRights,
+				})
 				.then((result) => result.status);
 		const published = await Promise.all([publish(), publish()]);
 		expect(published.sort()).toEqual([201, 409]);

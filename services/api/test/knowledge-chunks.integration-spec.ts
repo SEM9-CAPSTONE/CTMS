@@ -8,6 +8,7 @@ import { JwtService } from "@nestjs/jwt";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { DataSource } from "typeorm";
+import { MockAgent, getGlobalDispatcher, setGlobalDispatcher } from "undici";
 import { AiAnswersRepository } from "../src/modules/ai-answers/ai-answers.repository";
 import { AI_PROMPT_VERSION } from "../src/modules/ai-answers/ai-answers.types";
 import { AiGenerationProvider } from "../src/modules/ai-answers/ai-generation.provider";
@@ -176,17 +177,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			input,
 			rights ? { rights: fictionalRights } : {}
 		);
-		const published = (
-			await request(app.getHttpServer())
-				.post(`${endpoint}/${doc.id}/versions/${doc.versions[0].id}/publish`)
-				.set("Authorization", auth)
-				.send({
-					expectedRevision: doc.versions[0].revision,
-					expectedDocumentRevision: doc.revision,
-					...(rights ? { rights: fictionalRights } : {}),
-				})
-				.expect(201)
-		).body as SourceTestDetail;
+		const published = await publishPrepared(doc, rights);
 		// These existing cases exercise recovery/rebuild of published sources.
 		// Remove only this setup extraction so they can claim a fresh generation;
 		// the separate draft-lifecycle suite verifies continuity without this setup.
@@ -202,6 +193,32 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			]
 		);
 		return published;
+	}
+	async function prepareDraft(input: SourceTestDetail): Promise<SourceTestDetail> {
+		return (
+			await request(app.getHttpServer())
+				.post(`${endpoint}/${input.id}/versions/${input.versions[0].id}/prepare`)
+				.set("Authorization", auth)
+				.send({
+					expectedRevision: input.versions[0].revision,
+					expectedDocumentRevision: input.revision,
+					rights: fictionalRights,
+				})
+				.expect(201)
+		).body as SourceTestDetail;
+	}
+	async function publishPrepared(doc: SourceTestDetail, rights = true): Promise<SourceTestDetail> {
+		return (
+			await request(app.getHttpServer())
+				.post(`${endpoint}/${doc.id}/versions/${doc.versions[0].id}/publish`)
+				.set("Authorization", auth)
+				.send({
+					expectedRevision: doc.versions[0].revision,
+					expectedDocumentRevision: doc.revision,
+					...(rights ? { rights: fictionalRights } : {}),
+				})
+				.expect(201)
+		).body as SourceTestDetail;
 	}
 	async function enqueue(doc: SourceTestDetail): Promise<ChunkSet> {
 		await repo.consumeEvents(configuration);
@@ -391,7 +408,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			.expect(200)
 			.expect(({ body }) => expect(body.inUse).toBe(false));
 	});
-	it("fences superseded V1 while V2 needs review and serves only a complete current V2", async () => {
+	it("keeps V1 active while draft V2 needs review and switches only on READY publication", async () => {
 		// This case is outside the RAG describe's configuration hook. Keep its
 		// score policy explicit instead of depending on a developer's .env.
 		const settings = new RagConfig(
@@ -405,7 +422,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		await enqueue(doc);
 		const first = await claim();
 		await repo.finish(first, output(first));
-		const newer = await publish(await draft(doc));
+		const newer = await prepareDraft(await draft(doc));
 		await enqueue(newer);
 		const second = await claim();
 		const review = output(second);
@@ -413,13 +430,23 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		review.chunks = [];
 		await repo.finish(second, review);
 		const repository = app.get(RagRepository);
-		expect(await repository.hasEligibleCorpus(settings)).toBe(false);
+		expect(await repository.hasEligibleCorpus(settings)).toBe(true);
 		const [before] = await db.query(
 			"SELECT chunk_set_id FROM knowledge_chunk_publications WHERE document_id=$1",
 			[doc.id]
 		);
 		expect(before.chunk_set_id).toBe(first.id);
-		expect((await repo.status(doc.id, first.document_version_id))[0].active).toBe(false);
+		expect((await repo.status(doc.id, first.document_version_id))[0].active).toBe(true);
+		expect(await repo.readCurrent(doc.id)).toHaveLength(2);
+		await request(app.getHttpServer())
+			.post(`${endpoint}/${newer.id}/versions/${second.document_version_id}/publish`)
+			.set("Authorization", auth)
+			.send({
+				expectedRevision: newer.versions[0].revision,
+				expectedDocumentRevision: newer.revision,
+				rights: fictionalRights,
+			})
+			.expect(409);
 		// Re-entry here represents a reviewed cached generation, never partial vectors.
 		await db.query(
 			"UPDATE knowledge_chunk_sets SET status='PENDING',next_attempt_at=clock_timestamp() WHERE id=$1",
@@ -427,6 +454,9 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		);
 		const complete = await claim();
 		await repo.finish(complete, output(complete));
+		expect((await repo.status(doc.id, first.document_version_id))[0].active).toBe(true);
+		expect((await repo.status(doc.id, second.document_version_id))[0].active).toBe(false);
+		await publishPrepared(newer);
 		const [after] = await db.query(
 			"SELECT chunk_set_id FROM knowledge_chunk_publications WHERE document_id=$1",
 			[doc.id]
@@ -467,12 +497,40 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			.get(chunkEndpoint(doc))
 			.set("Authorization", camperAuth)
 			.expect(403);
-		const unverified = await draft(undefined, Classification.FIRST_AID);
+		const trustedDraft = await draft(undefined, Classification.FIRST_AID);
+		const unverified = (
+			await request(app.getHttpServer())
+				.post(endpoint)
+				.set("Authorization", auth)
+				.field(
+					"metadata",
+					JSON.stringify({
+						...fictionalMetadata,
+						sourceUrl: "https://unlisted.example.com/manual.pdf",
+					})
+				)
+				.attach("file", uniqueFictionalPdf(), `${randomUUID()}.pdf`)
+				.expect(201)
+		).body as SourceTestDetail;
 		await repo.consumeEvents(configuration);
 		await request(app.getHttpServer())
 			.get(chunkEndpoint(unverified))
 			.set("Authorization", auth)
 			.expect(200, []);
+		await request(app.getHttpServer())
+			.get(chunkEndpoint(trustedDraft))
+			.set("Authorization", auth)
+			.expect(200)
+			.expect(({ body }) =>
+				expect(body).toMatchObject([
+					{
+						document_version_id: trustedDraft.versions[0].id,
+						status: ChunkSetStatus.PENDING,
+						active: false,
+					},
+				])
+			);
+		expect(await repo.readCurrent(trustedDraft.id)).toEqual([]);
 		const valid = await publish(doc, false);
 		await request(app.getHttpServer())
 			.post(chunkEndpoint(valid))
@@ -706,19 +764,34 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		const configSpy = jest
 			.spyOn(config, "get")
 			.mockImplementation((key: string) =>
-				key === "KNOWLEDGE_SERVICE_TOKEN" ? "test-token" : get(key)
+				key === "KNOWLEDGE_SERVICE_TOKEN"
+					? "test-token"
+					: key === "KNOWLEDGE_SERVICE_URL"
+						? "http://knowledge.test"
+						: get(key)
 			);
-		const fetcher = jest
-			.spyOn(globalThis, "fetch")
-			.mockResolvedValueOnce(Response.json(withIntegrity(prepared)))
-			.mockResolvedValueOnce(Response.json({ embeddings: [prepared.chunks[1].embedding] }));
+		const dispatcher = getGlobalDispatcher();
+		const transport = new MockAgent();
+		transport.disableNetConnect();
+		setGlobalDispatcher(transport);
+		const generated: string[][] = [];
+		const pool = transport.get("http://knowledge.test");
+		pool
+			.intercept({ path: "/knowledge-chunks/prepare", method: "POST" })
+			.reply(200, JSON.stringify(withIntegrity(prepared)));
+		pool.intercept({ path: "/passage-embeddings", method: "POST" }).reply((options) => {
+			const body = JSON.parse(String(options.body)) as { passages: string[] };
+			generated.push(body.passages);
+			return {
+				statusCode: 200,
+				data: JSON.stringify({ embeddings: [prepared.chunks[1].embedding] }),
+			};
+		});
 		try {
 			expect(await worker.processOne()).toBe(true);
-			expect(fetcher).toHaveBeenCalledTimes(2);
-			expect(String(fetcher.mock.calls[1][0])).toMatch(/\/passage-embeddings$/);
-			expect(JSON.parse(String(fetcher.mock.calls[1][1]?.body)).passages).toEqual([
-				prepared.chunks[1].embedding_text,
-			]);
+			transport.assertNoPendingInterceptors();
+			expect(generated).toEqual([[prepared.chunks[1].embedding_text]]);
+			expect(await storedStatus(second.id)).toBe(ChunkSetStatus.READY);
 			const [updated] = await repo.readCurrent(v1.id);
 			expect(updated).toMatchObject({
 				document_version_id: second.document_version_id,
@@ -728,7 +801,8 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			expect(updated.id).not.toBe(previous[0].id);
 		} finally {
 			configSpy.mockRestore();
-			fetcher.mockRestore();
+			setGlobalDispatcher(dispatcher);
+			await transport.close();
 		}
 	});
 	it("rejects obsolete output when publication races with completion", async () => {
@@ -891,7 +965,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		const first = await publish(await draft());
 		const ready = await enqueue(first);
 		await repo.finish(await claim(), output(ready));
-		const second = await publish(await draft(first));
+		const second = await prepareDraft(await draft(first));
 		const failed = await enqueue(second);
 		for (let round = 0; round <= MAX_RECOVERY_ROUNDS; round++) {
 			for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
@@ -908,7 +982,9 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			automatic_recovery_pending: false,
 		});
 		expect(await repo.hasRecoverableFailures(configuration)).toBe(false);
-		expect(await repo.readCurrent(first.id)).toEqual([]);
+		expect(await repo.readCurrent(first.id)).toHaveLength(2);
+		expect(second.currentPublishedVersionId).toBe(first.versions[0].id);
+		expect(second.versions[0].status).toBe("DRAFT");
 		expect(
 			await db.query("SELECT chunk_set_id FROM knowledge_chunk_publications WHERE document_id=$1", [
 				first.id,
@@ -949,8 +1025,21 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			await db.query("SELECT document_id FROM knowledge_chunk_sets ORDER BY document_id")
 		).toEqual([{ document_id: eligible.id }]);
 		expect(
-			await db.query("SELECT id FROM survival_document_outbox WHERE document_id=$1", [eligible.id])
-		).toHaveLength(1);
+			await db.query(
+				"SELECT event_type FROM survival_document_outbox WHERE document_id=$1 ORDER BY event_type",
+				[eligible.id]
+			)
+		).toEqual([
+			{ event_type: "draft_preparation_requested" },
+			{ event_type: "published_version_changed" },
+		]);
+		expect(
+			await db.query(
+				`SELECT r.event_id FROM knowledge_chunk_event_receipts r
+		 JOIN survival_document_outbox e ON e.id=r.event_id WHERE e.document_id=$1`,
+				[eligible.id]
+			)
+		).toHaveLength(2);
 	});
 	it("processes an Admin-published medical source without treating NOT_REVIEWED as explicit rejection", async () => {
 		const document = await publish(await draft(undefined, Classification.FIRST_AID), false);
@@ -967,6 +1056,9 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		const b1 = await publish(await draft(), false);
 		const blocked = await restrictedPublication();
 		const ids = [a3.id, b1.id, blocked.id];
+		// Preparing later fixtures can consume earlier publication events. Ensure
+		// both eligible sources actually lack derived sets before reconciliation.
+		await db.query("DELETE FROM knowledge_chunk_sets WHERE document_id=ANY($1::uuid[])", [ids]);
 		await db.query(
 			"INSERT INTO knowledge_chunk_event_receipts(event_id) SELECT id FROM survival_document_outbox ON CONFLICT DO NOTHING"
 		);

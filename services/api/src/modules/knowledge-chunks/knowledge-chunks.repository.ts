@@ -11,6 +11,7 @@ import { assertPreparationAdaptation } from "../survival-documents/document-edit
 import {
 	isEligiblePreparationSource,
 	isEligiblePublishedSource,
+	sourceContentIssue,
 } from "../survival-documents/source-policy";
 import {
 	DocumentStatus,
@@ -220,7 +221,13 @@ export class KnowledgeChunksRepository {
 		for (const candidate of candidates) {
 			const outcome = await this.db.transaction(async (manager) => {
 				const source = await this.preparationSource(manager, candidate.id, candidate.version_id);
-				if (!source) return "Phiên bản hiện hành đã thay đổi.";
+				if (!source) {
+					const [version]: SourceVersion[] = await manager.query(
+						`${VERSION_SELECT} WHERE document_id=$1 AND id=$2`,
+						[candidate.id, candidate.version_id]
+					);
+					return (version && sourceContentIssue(version)) || "Phiên bản hiện hành đã thay đổi.";
+				}
 				const existing: Array<{ id: string }> = await manager.query(
 					"SELECT id FROM knowledge_chunk_sets WHERE document_version_id=$1 AND config_hash=$2 AND input_revision=$3",
 					[source.id, hash, source.knowledgeRevision ?? 1]

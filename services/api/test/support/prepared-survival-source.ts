@@ -65,12 +65,14 @@ export async function prepareSurvivalSourceFixture(
 	const repo = app.get(KnowledgeChunksRepository);
 	await repo.consumeEvents(chunkConfiguration());
 	const [set]: ChunkSet[] = await db.query(
-		`UPDATE knowledge_chunk_sets SET status='RUNNING',attempts=attempts+1,
-	 lease_token=$2,lease_until=clock_timestamp()+interval '2 minutes' WHERE document_version_id=$1 AND status='PENDING' RETURNING *`,
+		`WITH changed AS (
+	 UPDATE knowledge_chunk_sets SET status='RUNNING',attempts=attempts+1,
+	 lease_token=$2,lease_until=clock_timestamp()+interval '2 minutes' WHERE document_version_id=$1 AND status='PENDING' RETURNING *
+	 ) SELECT * FROM changed`,
 		[version.id, randomUUID()]
 	);
 	if (set) {
-		await repo.finish(
+		const completed = await repo.finish(
 			set,
 			withIntegrity({
 				document_version_id: set.document_version_id,
@@ -98,6 +100,10 @@ export async function prepareSurvivalSourceFixture(
 				],
 			})
 		);
+		expect(completed).toBe(true);
 	}
+	expect(await repo.status(document.id, version.id)).toEqual(
+		expect.arrayContaining([expect.objectContaining({ status: "READY" })])
+	);
 	return prepared;
 }
