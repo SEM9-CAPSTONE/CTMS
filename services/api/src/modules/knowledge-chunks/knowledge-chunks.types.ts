@@ -43,6 +43,8 @@ export function chunkConfiguration(): ChunkConfiguration {
 }
 
 export interface ChunkSet {
+	input_revision?: number;
+	source_title?: string | null;
 	extraction_snapshot?: ExtractionSnapshot | null;
 	quality_report?: PreparedChunkOutput["quality"] | null;
 	id: string;

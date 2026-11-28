@@ -1,9 +1,22 @@
 import { createHash, randomUUID } from "node:crypto";
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+	ConflictException,
+	Injectable,
+	NotFoundException,
+	UnprocessableEntityException,
+} from "@nestjs/common";
 // biome-ignore lint/style/useImportType: Nest injection
 import { DataSource, type EntityManager, QueryFailedError } from "typeorm";
-import { isEligiblePublishedSource, sourceContentIssue } from "../survival-documents/source-policy";
-import { type SourceVersion, VERSION_SELECT } from "../survival-documents/survival-documents.types";
+import { assertPreparationAdaptation } from "../survival-documents/document-editor.policy";
+import {
+	isEligiblePreparationSource,
+	isEligiblePublishedSource,
+} from "../survival-documents/source-policy";
+import {
+	DocumentStatus,
+	type SourceVersion,
+	VERSION_SELECT,
+} from "../survival-documents/survival-documents.types";
 import {
 	isValidEmbedding,
 	validateChunkOutput,
@@ -28,7 +41,19 @@ import {
 } from "./knowledge-chunks.types";
 
 function configHash(configuration: ChunkConfiguration): string {
-	return createHash("sha256").update(JSON.stringify(configuration)).digest("hex");
+	// PostgreSQL JSONB does not preserve object insertion order. Reconstruct the
+	// same immutable key order used by chunkConfiguration and the RAG boundary.
+	const identity = {
+		...(configuration.verification_revision !== undefined
+			? { verification_revision: configuration.verification_revision }
+			: {}),
+		pipeline_version: configuration.pipeline_version,
+		embedding_model: configuration.embedding_model,
+		embedding_revision: configuration.embedding_revision,
+		embedding_dimensions: configuration.embedding_dimensions,
+		max_tokens: configuration.max_tokens,
+	};
+	return createHash("sha256").update(JSON.stringify(identity)).digest("hex");
 }
 
 function embeddingCacheHash(set: ChunkSet): string {
@@ -48,8 +73,10 @@ const legacyConfigurationFailure = `(s.error_code='ingestion_http_422'
   AND s.chunk_count=0 AND s.quality_report IS NULL)`;
 const dueRecoveries = `
 	SELECT s.id FROM knowledge_chunk_sets s
-	JOIN survival_documents d ON d.id=s.document_id AND d.current_published_version_id=s.document_version_id
+	JOIN survival_documents d ON d.id=s.document_id
+	JOIN survival_document_versions v ON v.id=s.document_version_id AND v.knowledge_revision=s.input_revision
 	WHERE s.status='FAILED' AND (s.retryable_failure OR ${legacyConfigurationFailure}) AND s.recovery_round<${MAX_RECOVERY_ROUNDS}
+	  AND (v.status='DRAFT' OR (v.status='PUBLISHED' AND d.current_published_version_id=v.id))
 	  AND (s.configuration-'verification_revision')=($1::jsonb-'verification_revision') AND s.next_attempt_at<=clock_timestamp()
 	ORDER BY s.next_attempt_at,s.id`;
 const embeddingInputHash = "encode(sha256(convert_to(embedding_text,'UTF8')),'hex')";
@@ -88,14 +115,34 @@ export class KnowledgeChunksRepository {
 		return version && isEligiblePublishedSource(version, versionId) ? version : null;
 	}
 
+	private async preparationSource(manager: EntityManager, documentId: string, versionId: string) {
+		const [document]: Array<{ current_published_version_id: string | null }> = await manager.query(
+			"SELECT current_published_version_id FROM survival_documents WHERE id=$1 FOR UPDATE",
+			[documentId]
+		);
+		if (!document) return null;
+		const [version]: SourceVersion[] = await manager.query(
+			`${VERSION_SELECT} WHERE document_id=$1 AND id=$2`,
+			[documentId, versionId]
+		);
+		if (!isEligiblePreparationSource(version, document.current_published_version_id)) return null;
+		try {
+			await assertPreparationAdaptation(manager, version);
+		} catch (error) {
+			if (!(error instanceof UnprocessableEntityException)) throw error;
+			return null;
+		}
+		return version;
+	}
+
 	private async insert(
 		manager: EntityManager,
 		version: SourceVersion,
 		configuration: ChunkConfiguration
 	): Promise<void> {
 		await manager.query(
-			`INSERT INTO knowledge_chunk_sets(document_id,document_version_id,source_version,checksum,locale,configuration,config_hash)
-		 VALUES($1,$2,$3,$4,$5,$6::jsonb,$7) ON CONFLICT(document_version_id,config_hash) DO NOTHING`,
+			`INSERT INTO knowledge_chunk_sets(document_id,document_version_id,source_version,checksum,locale,configuration,config_hash,input_revision,source_title)
+		 VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9) ON CONFLICT(document_version_id,config_hash,input_revision) DO NOTHING`,
 			[
 				version.documentId,
 				version.id,
@@ -104,6 +151,8 @@ export class KnowledgeChunksRepository {
 				version.metadata.locale,
 				JSON.stringify(configuration),
 				configHash(configuration),
+				version.knowledgeRevision ?? 1,
+				version.metadata.sourceTitle,
 			]
 		);
 	}
@@ -135,8 +184,14 @@ export class KnowledgeChunksRepository {
 					);
 				}
 				// Historical approval events can still carry a publication; current policy decides eligibility.
-				if (["published_version_changed", "processing_approved"].includes(event.event_type)) {
-					const source = await this.source(manager, event.document_id, event.version_id);
+				if (
+					[
+						"published_version_changed",
+						"processing_approved",
+						"draft_preparation_requested",
+					].includes(event.event_type)
+				) {
+					const source = await this.preparationSource(manager, event.document_id, event.version_id);
 					if (source) await this.insert(manager, source, configuration);
 				}
 				await manager.query(
@@ -153,9 +208,10 @@ export class KnowledgeChunksRepository {
 			`
 			SELECT d.id,v.id AS version_id
 			FROM survival_documents d JOIN survival_document_versions v
-			  ON v.id=d.current_published_version_id AND v.document_id=d.id
-			WHERE v.status='PUBLISHED' AND ($2::uuid IS NULL OR d.id>$2) AND NOT EXISTS (
-			  SELECT 1 FROM knowledge_chunk_sets s WHERE s.document_version_id=v.id AND s.config_hash=$1
+			  ON v.document_id=d.id
+			WHERE (v.status='DRAFT' OR (v.status='PUBLISHED' AND v.id=d.current_published_version_id))
+			 AND ($2::uuid IS NULL OR d.id>$2) AND NOT EXISTS (
+			  SELECT 1 FROM knowledge_chunk_sets s WHERE s.document_version_id=v.id AND s.config_hash=$1 AND s.input_revision=v.knowledge_revision
 			) ORDER BY d.id LIMIT $3`,
 			[hash, after, limit ?? null]
 		);
@@ -163,13 +219,11 @@ export class KnowledgeChunksRepository {
 		const skipped: Array<{ versionId: string; reason: string }> = [];
 		for (const candidate of candidates) {
 			const outcome = await this.db.transaction(async (manager) => {
-				const source = await this.currentSource(manager, candidate.id, candidate.version_id);
+				const source = await this.preparationSource(manager, candidate.id, candidate.version_id);
 				if (!source) return "Phiên bản hiện hành đã thay đổi.";
-				if (!isEligiblePublishedSource(source, candidate.version_id))
-					return sourceContentIssue(source) ?? "Thông tin xuất bản hoặc tệp PDF không hợp lệ.";
 				const existing: Array<{ id: string }> = await manager.query(
-					"SELECT id FROM knowledge_chunk_sets WHERE document_version_id=$1 AND config_hash=$2",
-					[source.id, hash]
+					"SELECT id FROM knowledge_chunk_sets WHERE document_version_id=$1 AND config_hash=$2 AND input_revision=$3",
+					[source.id, hash, source.knowledgeRevision ?? 1]
 				);
 				if (existing.length) return "Phiên bản đã có bộ đoạn trích.";
 				await this.insert(manager, source, configuration);
@@ -303,8 +357,10 @@ export class KnowledgeChunksRepository {
 		const [claim]: ChunkSet[] = await this.db.query(
 			`WITH candidate AS (
 			   SELECT s.id FROM knowledge_chunk_sets s
-			   JOIN survival_documents d ON d.id=s.document_id AND d.current_published_version_id=s.document_version_id
+			   JOIN survival_documents d ON d.id=s.document_id
+			   JOIN survival_document_versions v ON v.id=s.document_version_id AND v.knowledge_revision=s.input_revision
 			   WHERE s.status='PENDING' AND s.next_attempt_at<=clock_timestamp() AND s.attempts<$1
+			     AND (v.status='DRAFT' OR (v.status='PUBLISHED' AND d.current_published_version_id=v.id))
 			     AND (s.configuration-'verification_revision')=($2::jsonb-'verification_revision')
 			   ORDER BY s.next_attempt_at,s.created_at,s.id LIMIT 1 FOR UPDATE OF s SKIP LOCKED
 			 ), changed AS (
@@ -371,7 +427,10 @@ export class KnowledgeChunksRepository {
 		const rows: Array<{ id: string }> = await this.db.query(
 			`UPDATE knowledge_chunk_sets s SET extraction_snapshot=$3::jsonb,quality_report=$4::jsonb
 			 WHERE s.id=$1 AND s.status='RUNNING' AND s.lease_token=$2 AND s.lease_until>clock_timestamp()
-			 AND EXISTS (SELECT 1 FROM survival_documents d WHERE d.id=s.document_id AND d.current_published_version_id=s.document_version_id)
+			 AND EXISTS (SELECT 1 FROM survival_documents d JOIN survival_document_versions v ON v.document_id=d.id
+			   WHERE d.id=s.document_id AND v.id=s.document_version_id AND v.knowledge_revision=s.input_revision
+			   AND v.metadata->>'sourceTitle'=s.source_title AND v.checksum=s.checksum AND v.metadata->>'locale'=s.locale
+			   AND (v.status='DRAFT' OR (v.status='PUBLISHED' AND d.current_published_version_id=v.id)))
 			 RETURNING s.id`,
 			[
 				set.id,
@@ -385,7 +444,11 @@ export class KnowledgeChunksRepository {
 
 	async finish(set: ChunkSet, result: ChunkOutput | ChunkFailure): Promise<boolean> {
 		return this.db.transaction(async (manager) => {
-			const source = await this.source(manager, set.document_id, set.document_version_id);
+			const source = await this.preparationSource(
+				manager,
+				set.document_id,
+				set.document_version_id
+			);
 			const [current]: ChunkSet[] = await manager.query(
 				`SELECT * FROM knowledge_chunk_sets WHERE id=$1 AND status='RUNNING'
 			 AND lease_token=$2 AND lease_until>clock_timestamp() FOR UPDATE`,
@@ -401,7 +464,9 @@ export class KnowledgeChunksRepository {
 				!source ||
 				source.checksum !== set.checksum ||
 				source.versionNumber !== set.source_version ||
-				source.metadata.locale !== set.locale
+				source.metadata.locale !== set.locale ||
+				(source.knowledgeRevision ?? 1) !== (current.input_revision ?? 1) ||
+				(current.source_title != null && source.metadata.sourceTitle !== current.source_title)
 			) {
 				status = ChunkSetStatus.OBSOLETE;
 				error = "source_changed_or_unavailable";
@@ -487,7 +552,7 @@ export class KnowledgeChunksRepository {
 					output?.extraction_snapshot ? JSON.stringify(output.extraction_snapshot) : null,
 				]
 			);
-			if (status === ChunkSetStatus.READY) {
+			if (status === ChunkSetStatus.READY && source?.status === DocumentStatus.PUBLISHED) {
 				await manager.query(
 					`INSERT INTO knowledge_chunk_publications(document_id,chunk_set_id)
 				 SELECT candidate.document_id,candidate.id FROM knowledge_chunk_sets candidate
@@ -511,14 +576,75 @@ export class KnowledgeChunksRepository {
 		);
 		if (!versions.length) throw new NotFoundException({ code: "KNOWLEDGE_SOURCE_NOT_FOUND" });
 		return this.db.query(
-			`SELECT s.id,s.document_version_id,s.source_version,s.locale,s.status,s.attempts,s.error_code,
+			`SELECT s.id,s.document_version_id,s.source_version,s.locale,s.status,s.attempts,s.error_code,s.input_revision,s.source_title,
 			 (s.status='FAILED' AND (s.retryable_failure OR ${legacyConfigurationFailure}) AND s.recovery_round<${MAX_RECOVERY_ROUNDS}) AS automatic_recovery_pending,
 			 s.quality_report,s.configuration,s.chunk_count,s.created_at,s.completed_at,
 			 COALESCE(p.chunk_set_id=s.id AND d.current_published_version_id=s.document_version_id AND s.status='READY',false) AS active
 			 FROM knowledge_chunk_sets s JOIN survival_documents d ON d.id=s.document_id
 			 LEFT JOIN knowledge_chunk_publications p ON p.document_id=d.id
-			 WHERE s.document_version_id=$1 ORDER BY s.created_at DESC,s.id DESC`,
+				 WHERE s.document_version_id=$1 ORDER BY s.input_revision DESC,s.created_at DESC,s.id DESC`,
 			[versionId]
+		);
+	}
+
+	/** Called under the publication's document lock, in the same transaction. */
+	async preparedForPublication(manager: EntityManager, version: SourceVersion): Promise<ChunkSet> {
+		const [set]: ChunkSet[] = await manager.query(
+			`SELECT * FROM knowledge_chunk_sets WHERE document_version_id=$1 AND input_revision=$2
+			 AND (configuration-'verification_revision')=($3::jsonb-'verification_revision')
+			 ORDER BY created_at DESC,id DESC LIMIT 1 FOR UPDATE`,
+			[version.id, version.knowledgeRevision ?? 1, JSON.stringify(chunkConfiguration())]
+		);
+		const reject = () =>
+			new ConflictException({
+				code: "SOURCE_KNOWLEDGE_NOT_READY",
+				message:
+					"Nội dung của bản nháp chưa sẵn sàng. Hãy hoàn tất chuẩn bị và kiểm tra nội dung trước khi xuất bản.",
+			});
+		if (
+			!set ||
+			set.status !== ChunkSetStatus.READY ||
+			set.document_id !== version.documentId ||
+			set.checksum !== version.checksum ||
+			set.locale !== version.metadata.locale ||
+			set.source_version !== version.versionNumber ||
+			(set.input_revision ?? 1) !== (version.knowledgeRevision ?? 1) ||
+			set.source_title !== version.metadata.sourceTitle ||
+			set.config_hash !== configHash(set.configuration) ||
+			set.quality_report?.status !== "PASSED" ||
+			set.quality_report.issues.length !== 0 ||
+			set.quality_report.integrity?.complete !== true
+		)
+			throw reject();
+		const [result]: Array<{ complete: boolean }> = await manager.query(
+			`SELECT count(*)=$2::int AND min(c.chunk_index)=0 AND max(c.chunk_index)=$2::int-1
+			 AND bool_and(c.document_version_id=$3 AND c.source_version=$4 AND c.locale=$5
+			   AND c.metadata->>'source_title'=$6 AND length(btrim(c.content))>0
+			   AND ${validStoredEmbedding("COALESCE(e.embedding,c.embedding)", "$7")}
+			   AND (e.id IS NULL OR (e.document_id=$8 AND e.config_hash=$9
+			     AND e.input_hash=encode(sha256(convert_to(c.embedding_text,'UTF8')),'hex') AND e.embedding_text=c.embedding_text))) AS complete
+			 FROM knowledge_chunks c LEFT JOIN knowledge_embeddings e ON e.id=c.embedding_id WHERE c.chunk_set_id=$1`,
+			[
+				set.id,
+				(set as ChunkSet & { chunk_count: number }).chunk_count,
+				version.id,
+				version.versionNumber,
+				version.metadata.locale,
+				version.metadata.sourceTitle,
+				set.configuration.embedding_dimensions,
+				version.documentId,
+				embeddingCacheHash(set),
+			]
+		);
+		if (!result?.complete) throw reject();
+		return set;
+	}
+
+	async activatePrepared(manager: EntityManager, documentId: string, set: ChunkSet): Promise<void> {
+		await manager.query(
+			`INSERT INTO knowledge_chunk_publications(document_id,chunk_set_id) VALUES($1,$2)
+		 ON CONFLICT(document_id) DO UPDATE SET chunk_set_id=excluded.chunk_set_id`,
+			[documentId, set.id]
 		);
 	}
 

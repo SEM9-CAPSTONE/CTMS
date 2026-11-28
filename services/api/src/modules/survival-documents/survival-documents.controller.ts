@@ -38,6 +38,7 @@ import {
 	ImportSourceDto,
 	ListSourcesDto,
 	PublishSourceDto,
+	RestoreSourceDto,
 	RevisionDto,
 	UploadSourceDto,
 } from "./dto/source.dto";
@@ -172,6 +173,28 @@ export class SurvivalDocumentsController {
 		@Body() dto: PublishSourceDto
 	) {
 		return this.documents.change(actor.userId, id, versionId, { action: "publish", dto });
+	}
+	@Post(":id/versions/:versionId/prepare")
+	@ApiOperation({
+		summary: "Confirm exact draft source and schedule private knowledge preparation",
+	})
+	prepare(
+		@Param("id", uuid) id: string,
+		@Param("versionId", uuid) versionId: string,
+		@CurrentUser() actor: AuthenticatedUser,
+		@Body() dto: PublishSourceDto
+	) {
+		return this.documents.change(actor.userId, id, versionId, { action: "prepare", dto });
+	}
+	@Post(":id/versions/:versionId/restore")
+	@ApiOperation({ summary: "Restore an eligible historical PDF as a new private draft" })
+	restore(
+		@Param("id", uuid) id: string,
+		@Param("versionId", uuid) versionId: string,
+		@CurrentUser() actor: AuthenticatedUser,
+		@Body() dto: RestoreSourceDto
+	) {
+		return this.documents.restore(actor.userId, id, versionId, dto);
 	}
 	@Post(":id/versions/:versionId/archive")
 	@ApiOperation({ summary: "Stop use of current publication without deleting provenance" })

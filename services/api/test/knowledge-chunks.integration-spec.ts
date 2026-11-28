@@ -41,6 +41,7 @@ import {
 	verifiedIntegrity,
 	withIntegrity,
 } from "./support/knowledge-integrity-fixture";
+import { prepareSurvivalSourceFixture } from "./support/prepared-survival-source";
 import {
 	type SourceTestDetail,
 	fictionalMetadata,
@@ -167,17 +168,40 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 		expect(published.processingSyncStatus).toBe("NOT_PROCESSED");
 		return published;
 	}
-	async function publish(doc: SourceTestDetail, rights = true): Promise<SourceTestDetail> {
-		return (
+	async function publish(input: SourceTestDetail, rights = true): Promise<SourceTestDetail> {
+		const doc = await prepareSurvivalSourceFixture(
+			app,
+			db,
+			auth,
+			input,
+			rights ? { rights: fictionalRights } : {}
+		);
+		const published = (
 			await request(app.getHttpServer())
 				.post(`${endpoint}/${doc.id}/versions/${doc.versions[0].id}/publish`)
 				.set("Authorization", auth)
 				.send({
 					expectedRevision: doc.versions[0].revision,
+					expectedDocumentRevision: doc.revision,
 					...(rights ? { rights: fictionalRights } : {}),
 				})
 				.expect(201)
 		).body as SourceTestDetail;
+		// These existing cases exercise recovery/rebuild of published sources.
+		// Remove only this setup extraction so they can claim a fresh generation;
+		// the separate draft-lifecycle suite verifies continuity without this setup.
+		await db.query("DELETE FROM knowledge_chunk_sets WHERE document_version_id=$1", [
+			doc.versions[0].id,
+		]);
+		await db.query(
+			`DELETE FROM knowledge_embeddings e WHERE e.document_id=$1 AND e.embedding_text=$2
+		 AND NOT EXISTS(SELECT 1 FROM knowledge_chunks c WHERE c.embedding_id=e.id)`,
+			[
+				doc.id,
+				`passage: ${doc.versions[0].metadata.sourceTitle}\nKiểm tra điều kiện trước khi xuất phát.`,
+			]
+		);
+		return published;
 	}
 	async function enqueue(doc: SourceTestDetail): Promise<ChunkSet> {
 		await repo.consumeEvents(configuration);
@@ -637,7 +661,7 @@ describe("CTMS-051 durable ingestion and provenance", () => {
 			await db.query("SELECT chunk_set_id FROM knowledge_chunk_publications WHERE document_id=$1", [
 				v1.id,
 			])
-		).toEqual([{ chunk_set_id: first.id }]);
+		).toEqual([]);
 		await repo.finish(second, output(second));
 		const chunks = await repo.readCurrent(v1.id);
 		expect(chunks).toHaveLength(2);

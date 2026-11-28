@@ -1,8 +1,13 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { assertPreparationAdaptation } from "./document-editor.policy";
 import { invalidSource } from "./dto/source.dto";
 // biome-ignore lint/style/useImportType: Nest injection
 import { SourceFilesService } from "./source-files.service";
-import { assertRights, isEligiblePublishedSource } from "./source-policy";
+import {
+	assertRights,
+	isEligiblePreparationSource,
+	isEligiblePublishedSource,
+} from "./source-policy";
 // biome-ignore lint/style/useImportType: Nest injection
 import { SurvivalDocumentsRepository, sourceConflict } from "./survival-documents.repository";
 import {
@@ -80,6 +85,31 @@ export class SurvivalSourceReader {
 					reviewedAt: version.reviewedAt,
 					publishedAt: version.publishedAt,
 					processingSyncStatus: "REGENERATION_NEEDED" as const,
+				},
+				bytes: await this.files.read(version),
+			};
+		});
+	}
+
+	/** Private ingestion boundary only; never used by RAG or citation lookup. */
+	async readForPreparation(versionId: string) {
+		return this.repo.db.transaction(async (manager) => {
+			const [identity]: Array<{ documentId: string }> = await manager.query(
+				'SELECT document_id AS "documentId" FROM survival_document_versions WHERE id=$1',
+				[versionId]
+			);
+			if (!identity) throw new NotFoundException("Không tìm thấy phiên bản nguồn.");
+			const document = await this.repo.document(manager, identity.documentId, true);
+			const version = await this.repo.version(manager, document.id, versionId);
+			if (!isEligiblePreparationSource(version, document.currentPublishedVersionId))
+				throw invalidSource("Phiên bản chưa đủ điều kiện chuẩn bị nội dung.");
+			await assertPreparationAdaptation(manager, version);
+			return {
+				manifest: {
+					versionId: version.id,
+					knowledgeRevision: version.knowledgeRevision ?? 1,
+					checksum: version.checksum,
+					metadata: version.metadata,
 				},
 				bytes: await this.files.read(version),
 			};

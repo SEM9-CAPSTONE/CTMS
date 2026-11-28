@@ -26,6 +26,7 @@ import {
 import { SurvivalSourceReader } from "../src/modules/survival-documents/survival-source-reader.service";
 import { validationExceptionFactory } from "../src/shared/pipes/validation-exception-factory";
 import { assertSafeTestDatabase } from "./support/assert-safe-test-database";
+import { prepareSurvivalSourceFixture } from "./support/prepared-survival-source";
 import {
 	type SourceTestDetail,
 	fictionalMetadata,
@@ -97,16 +98,24 @@ describe("CTMS-050 PostgreSQL integration + real guarded HTTP", () => {
 		return (await uploadPdf(bytes, metadata, filename).expect(201)).body as SourceTestDetail;
 	}
 	async function action(
-		doc: SourceTestDetail,
+		input: SourceTestDetail,
 		name: string,
 		extra: Record<string, unknown> = {},
 		status = 201
 	) {
+		const doc =
+			name === "publish" && status === 201
+				? await prepareSurvivalSourceFixture(app, db, token("admin"), input, extra)
+				: input;
 		const version = doc.versions[0];
 		return request(app.getHttpServer())
 			.post(`${endpoint}/${doc.id}/versions/${version.id}/${name}`)
 			.set("Authorization", token("admin"))
-			.send({ expectedRevision: version.revision, ...extra })
+			.send({
+				expectedRevision: version.revision,
+				...(name === "publish" ? { expectedDocumentRevision: doc.revision } : {}),
+				...extra,
+			})
 			.expect(status);
 	}
 	it("composes the confirmed V3 once, retains lineage, and publishes through CTMS-050", async () => {
@@ -870,9 +879,10 @@ describe("CTMS-050 PostgreSQL integration + real guarded HTTP", () => {
 		expect(citation.publicationStatus).toBe(DocumentStatus.SUPERSEDED);
 		expect(citation.historicalOnly).toBe(true);
 		expect(citation).not.toHaveProperty("fileRef");
-		const events = await db.query("SELECT * FROM survival_document_outbox WHERE document_id=$1", [
-			doc.id,
-		]);
+		const events = await db.query(
+			"SELECT * FROM survival_document_outbox WHERE document_id=$1 AND event_type='published_version_changed'",
+			[doc.id]
+		);
 		expect(events).toHaveLength(2);
 		expect(events[1].payload.regenerationNeeded).toBe(true);
 		await action(latest, "archive", {}, 422);
@@ -928,7 +938,9 @@ describe("CTMS-050 PostgreSQL integration + real guarded HTTP", () => {
 		).toBe(original.versions[0].id);
 	});
 	it("rolls back publication, pointer and outbox together when audit fails", async () => {
-		const draft = await create();
+		const draft = await prepareSurvivalSourceFixture(app, db, token("admin"), await create(), {
+			rights: fictionalRights,
+		});
 		const repo = app.get(SurvivalDocumentsRepository);
 		const audit = jest.spyOn(repo, "audit").mockRejectedValueOnce(new Error("audit unavailable"));
 		await action(draft, "publish", { rights: fictionalRights }, 500);
@@ -941,7 +953,10 @@ describe("CTMS-050 PostgreSQL integration + real guarded HTTP", () => {
 		expect(state.currentPublishedVersionId).toBeNull();
 		expect(state.versions[0].status).toBe(DocumentStatus.DRAFT);
 		expect(
-			await db.query("SELECT id FROM survival_document_outbox WHERE document_id=$1", [state.id])
+			await db.query(
+				"SELECT id FROM survival_document_outbox WHERE document_id=$1 AND event_type='published_version_changed'",
+				[state.id]
+			)
 		).toEqual([]);
 	});
 	it("rolls back failed disk/DB writes and retries durable orphan cleanup", async () => {

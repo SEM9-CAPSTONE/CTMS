@@ -434,6 +434,7 @@ export class RagRepository {
 			WHERE v.status=$1 AND v."publishedAt" IS NOT NULL AND s.status=$2
 				AND s.document_version_id=v.id AND s.source_version=v."versionNumber"
 				AND s.checksum=v.checksum AND s.locale=v.metadata->>'locale' AND s.locale=ANY($3::text[])
+				AND s.input_revision=v."knowledgeRevision" AND s.source_title=v.metadata->>'sourceTitle'
 				AND s.configuration->>'embedding_model'=($4::jsonb)->>'embedding_model'
 				AND s.configuration->>'embedding_revision'=($4::jsonb)->>'embedding_revision'
 				AND s.configuration->>'embedding_dimensions'=($4::jsonb)->>'embedding_dimensions'

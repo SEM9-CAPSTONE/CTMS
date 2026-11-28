@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { MulterModule } from "@nestjs/platform-express";
+import { KnowledgeChunksRepository } from "../knowledge-chunks/knowledge-chunks.repository";
 import { DocumentEditorController } from "./document-editor.controller";
 import { DocumentEditorService } from "./document-editor.service";
 import { sourceMaxBytes } from "./pdf-file-validator";
@@ -21,6 +22,7 @@ import { SurvivalSourceReader } from "./survival-source-reader.service";
 	],
 	controllers: [SurvivalDocumentsController, DocumentEditorController],
 	providers: [
+		KnowledgeChunksRepository,
 		SurvivalDocumentsRepository,
 		SurvivalDocumentsService,
 		DocumentEditorService,
@@ -29,6 +31,6 @@ import { SurvivalSourceReader } from "./survival-source-reader.service";
 		SourceUploadCleanupService,
 		SurvivalSourceReader,
 	],
-	exports: [SurvivalSourceReader],
+	exports: [SurvivalSourceReader, KnowledgeChunksRepository],
 })
 export class SurvivalDocumentsModule {}
