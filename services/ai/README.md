@@ -11,6 +11,14 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+## Trip weather advice (CTMS-29)
+
+`POST /weather-advisory` uses the same provider switch as review analysis:
+`REVIEW_ANALYSIS_PROVIDER=openai` needs `OPENAI_API_KEY`, `gemini` needs `GEMINI_API_KEY`.
+The model defaults to `gpt-4o-mini` or `gemini-3.1-flash-lite`; set `WEATHER_ADVISORY_MODEL`
+to override it. Without the selected provider's key the endpoint returns 503 and the web
+shows that the AI advice is unavailable.
+
 
 ## Trip review analysis (CTMS-411)
 

@@ -12,12 +12,22 @@ silently absorbed twice.
 """
 
 import json
+import os
 
 from openai import OpenAI
 
 from app.models import WeatherAdvisoryRequest, WeatherAdvisoryResponse
 
-MODEL = "gpt-4o-mini"
+
+def default_advisory_model() -> str:
+	"""Same provider switch as the other AI features (REVIEW_ANALYSIS_PROVIDER);
+	WEATHER_ADVISORY_MODEL overrides the per-provider default."""
+	explicit = os.environ.get("WEATHER_ADVISORY_MODEL")
+	if explicit:
+		return explicit
+	provider = os.environ.get("REVIEW_ANALYSIS_PROVIDER", "openai")
+	return "gemini-3.1-flash-lite" if provider == "gemini" else "gpt-4o-mini"
+
 
 SYSTEM_PROMPT = """Bạn là trợ lý an toàn thời tiết cho một nền tảng quản lý cắm trại/trekking (CTMS).
 
@@ -44,9 +54,9 @@ class WeatherAdvisoryService:
 	"fake the edge, keep the real code" boundary this codebase already
 	draws in OpenMeteoWeatherProvider's own tests."""
 
-	def __init__(self, client: OpenAI, model: str = MODEL) -> None:
+	def __init__(self, client: OpenAI, model: str | None = None) -> None:
 		self._client = client
-		self._model = model
+		self._model = model or default_advisory_model()
 
 	def generate(self, request: WeatherAdvisoryRequest) -> WeatherAdvisoryResponse:
 		user_payload = request.model_dump()
