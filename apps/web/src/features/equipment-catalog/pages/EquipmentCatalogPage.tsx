@@ -50,15 +50,13 @@ export function EquipmentCatalogPage({ onBackHome }: EquipmentCatalogPageProps) 
 						</button>
 					)}
 
-					<div className="rounded-xl bg-emerald-50 p-3 text-[#164027]">
-						<Warehouse className="size-6" />
-					</div>
-
-					<div className="flex-1">
-						<h1 className="text-xl font-extrabold sm:text-2xl">Kho thiết bị của Host</h1>
-						<p className="text-sm text-[#667a6d]">
-							Quản lý thiết bị cho thuê: số lượng, giá thuê theo ngày và trạng thái.
-						</p>
+					<div className="flex min-w-0 flex-1 items-start gap-4">
+						<div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-[#164027]">
+							<Warehouse className="size-5" />
+						</div>
+						<div className="min-w-0">
+							<h1 className="text-xl font-extrabold sm:text-2xl">Kho thiết bị của Host</h1>
+						</div>
 					</div>
 
 					<Button onClick={() => setIsCreateOpen(true)} className="gap-2 font-bold">

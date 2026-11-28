@@ -98,6 +98,7 @@ describe("TripWeatherForecastCard", () => {
 
 		expect(screen.getByText("Dự báo thời tiết ngày trekking")).toBeInTheDocument();
 		expect(screen.getByText("Cảnh báo (Vàng)")).toBeInTheDocument();
+		expect(screen.queryByText(/lấy giờ xấu nhất của từng tiêu chí/)).not.toBeInTheDocument();
 		expect(screen.getByTestId("trip-weather-forecast-card-criterion-rainfall")).toHaveTextContent(
 			/Xấu nhất lúc/
 		);
