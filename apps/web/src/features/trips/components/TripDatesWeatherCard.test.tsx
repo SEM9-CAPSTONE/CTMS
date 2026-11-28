@@ -64,7 +64,7 @@ describe("TripDatesWeatherCard", () => {
 
 		expect(await screen.findByText("Dự báo thời tiết ngày đi")).toBeInTheDocument();
 		expect(fetchForecast).toHaveBeenCalledWith(TRIP_ID);
-		expect(await screen.findByText(/Dự báo cho lịch trình/)).toBeInTheDocument();
+		expect(screen.queryByText(/Dự báo cho lịch trình/)).not.toBeInTheDocument();
 	});
 
 	it("shows when the monitor last checked the forecast and offers its change history", async () => {

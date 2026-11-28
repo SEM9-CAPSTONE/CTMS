@@ -138,8 +138,6 @@ class _ForecastBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final schedule =
-        '${formatWeatherTime(forecast.tripStartsAt)} – ${formatWeatherTime(forecast.tripEndsAt)}';
     if (!forecast.isAvailable) {
       return Text(
         forecast.status == 'out_of_range'
@@ -154,11 +152,6 @@ class _ForecastBody extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Dự báo cho lịch trình $schedule, lấy giờ xấu nhất của từng tiêu chí.',
-          style: _caption,
-        ),
-        const SizedBox(height: AppSpacing.sm),
         Wrap(
           spacing: AppSpacing.sm,
           runSpacing: AppSpacing.xs,

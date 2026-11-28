@@ -33,7 +33,6 @@ export function CreateEquipmentCatalogItemDialog({
 			isOpen={open}
 			onClose={close}
 			title="Thêm thiết bị vào kho"
-			description='Thiết bị mới sẽ ở trạng thái "Đang hoạt động".'
 			icon={<PackagePlus className="size-5" />}
 			isCloseDisabled={creation.isSubmitting}
 		>

@@ -86,9 +86,6 @@ export function TripWeatherForecastCard({
 }: TripWeatherForecastCardProps) {
 	const worst = forecast?.worstReading ?? null;
 	const outOfRange = forecast?.status === "out_of_range";
-	const scheduleText = forecast
-		? `${formatWeatherDateTime(forecast.tripStartsAt)} – ${formatWeatherDateTime(forecast.tripEndsAt)}`
-		: "";
 
 	const notice =
 		forecast && forecast.status === "available" && !forecast.coversWholeTrip && forecast.forecastTo
@@ -122,11 +119,6 @@ export function TripWeatherForecastCard({
 	return (
 		<WeatherRiskCard
 			title={titles[variant]}
-			subtitle={
-				forecast
-					? `Dự báo cho lịch trình ${scheduleText}, lấy giờ xấu nhất của từng tiêu chí.`
-					: "Dự báo theo đúng thời gian của chuyến đi, không phải thời tiết hôm nay."
-			}
 			isLoading={isLoading}
 			error={error}
 			onRetry={onRetry ?? onRefresh}
