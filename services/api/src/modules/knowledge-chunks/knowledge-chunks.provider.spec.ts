@@ -1,4 +1,5 @@
 import { ConfigService } from "@nestjs/config";
+import * as undici from "undici";
 import {
 	integrityFixture,
 	verifiedIntegrity,
@@ -6,6 +7,22 @@ import {
 } from "../../../test/support/knowledge-integrity-fixture";
 import { KnowledgeChunksProvider } from "./knowledge-chunks.provider";
 import { type ChunkSet, ChunkSetStatus } from "./knowledge-chunks.types";
+
+jest.mock("undici", () => ({ __esModule: true, request: jest.fn() }));
+
+function reply(body: BodyInit | null, init?: ResponseInit): undici.Dispatcher.ResponseData {
+	const response = new Response(body, init);
+	return {
+		statusCode: response.status,
+		body: {
+			json: () => response.json(),
+			dump: async () => {
+				await response.arrayBuffer();
+			},
+		},
+	} as undici.Dispatcher.ResponseData;
+}
+const jsonReply = (value: unknown) => reply(JSON.stringify(value));
 
 describe("Knowledge ingestion provider boundary", () => {
 	const provider = new KnowledgeChunksProvider(
@@ -25,10 +42,49 @@ describe("Knowledge ingestion provider boundary", () => {
 		recovery_round: 0,
 		lease_token: "token",
 	};
-	afterEach(() => jest.restoreAllMocks());
+	afterEach(() => {
+		jest.restoreAllMocks();
+		jest.resetAllMocks();
+	});
+	it.each([undefined, "2400000", "invalid", "0", "3600001"])(
+		"applies the extraction deadline to HTTP headers and body (%s)",
+		async (configured) => {
+			const service = new KnowledgeChunksProvider(
+				new ConfigService({
+					KNOWLEDGE_SERVICE_TOKEN: "internal-test-token",
+					KNOWLEDGE_EXTRACTION_TIMEOUT_MS: configured,
+				})
+			);
+			const send = jest.spyOn(undici, "request").mockResolvedValue(
+				jsonReply({
+					...set,
+					quality: { status: "NEEDS_REVIEW", issues: ["missing_critical_content"], page_count: 1 },
+					chunks: [],
+				})
+			);
+			await service.generate(set, Buffer.from("pdf"), "Title", new AbortController().signal);
+			expect(send).toHaveBeenCalledWith(
+				"http://localhost:8001/knowledge-chunks",
+				expect.objectContaining({
+					headersTimeout: configured === "2400000" ? 2400000 : 1800000,
+					bodyTimeout: configured === "2400000" ? 2400000 : 1800000,
+					signal: expect.any(AbortSignal),
+				})
+			);
+		}
+	);
+	it.each(["UND_ERR_HEADERS_TIMEOUT", "UND_ERR_BODY_TIMEOUT"])(
+		"classifies %s as a retryable extraction timeout",
+		async (code) => {
+			jest.spyOn(undici, "request").mockRejectedValue(Object.assign(new Error(), { code }));
+			await expect(
+				provider.generate(set, Buffer.from("pdf"), "Title", new AbortController().signal)
+			).rejects.toMatchObject({ code: "ingestion_timeout", retryable: true });
+		}
+	);
 	it("sends immutable identity and private PDF bytes through the authenticated boundary", async () => {
-		const fetcher = jest.spyOn(globalThis, "fetch").mockResolvedValue(
-			new Response(
+		const fetcher = jest.spyOn(undici, "request").mockResolvedValue(
+			reply(
 				JSON.stringify({
 					document_version_id: set.document_version_id,
 					source_version: 2,
@@ -66,21 +122,21 @@ describe("Knowledge ingestion provider boundary", () => {
 		[429, true],
 		[502, true],
 	])("classifies HTTP %i retryability", async (status, retryable) => {
-		jest.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status }));
+		jest.spyOn(undici, "request").mockResolvedValue(reply("{}", { status }));
 		await expect(
 			provider.generate(set, Buffer.from("pdf"), "Title", new AbortController().signal)
 		).rejects.toMatchObject({ code: `ingestion_http_${status}`, retryable });
 	});
 	it("classifies a failed network connection as transient", async () => {
-		jest.spyOn(globalThis, "fetch").mockRejectedValue(new Error("connection refused"));
+		jest.spyOn(undici, "request").mockRejectedValue(new Error("connection refused"));
 		await expect(
 			provider.generate(set, Buffer.from("pdf"), "Title", new AbortController().signal)
 		).rejects.toMatchObject({ code: "ingestion_transport", retryable: true });
 	});
 	it("retries a pipeline contract mismatch while keeping unrelated validation errors permanent", async () => {
-		const fetcher = jest.spyOn(globalThis, "fetch");
+		const fetcher = jest.spyOn(undici, "request");
 		fetcher.mockResolvedValueOnce(
-			new Response(
+			reply(
 				JSON.stringify({
 					detail: [{ type: "literal_error", loc: ["body", "configuration", "pipeline_version"] }],
 				}),
@@ -91,7 +147,7 @@ describe("Knowledge ingestion provider boundary", () => {
 			provider.generate(set, Buffer.from("pdf"), "Title", new AbortController().signal)
 		).rejects.toMatchObject({ code: "ingestion_configuration_mismatch", retryable: true });
 		fetcher.mockResolvedValueOnce(
-			new Response(
+			reply(
 				JSON.stringify({
 					detail: [{ type: "string_pattern_mismatch", loc: ["body", "checksum"] }],
 				}),
@@ -103,8 +159,8 @@ describe("Knowledge ingestion provider boundary", () => {
 		).rejects.toMatchObject({ code: "ingestion_http_422", retryable: false });
 	});
 	it("distinguishes a missing OCR runtime from content requiring technical review", async () => {
-		jest.spyOn(globalThis, "fetch").mockResolvedValue(
-			new Response(JSON.stringify({ detail: { code: "ocr_runtime_unavailable" } }), {
+		jest.spyOn(undici, "request").mockResolvedValue(
+			reply(JSON.stringify({ detail: { code: "ocr_runtime_unavailable" } }), {
 				status: 503,
 			})
 		);
@@ -113,9 +169,7 @@ describe("Knowledge ingestion provider boundary", () => {
 		).rejects.toMatchObject({ code: "ocr_runtime_unavailable", retryable: true });
 	});
 	it("fails explicitly when unconfigured and rejects mismatched worker output", async () => {
-		const fetcher = jest
-			.spyOn(globalThis, "fetch")
-			.mockResolvedValue(new Response("{}", { status: 200 }));
+		const fetcher = jest.spyOn(undici, "request").mockResolvedValue(reply("{}", { status: 200 }));
 		await expect(
 			new KnowledgeChunksProvider(new ConfigService()).generate(
 				set,
@@ -130,8 +184,8 @@ describe("Knowledge ingestion provider boundary", () => {
 		).rejects.toMatchObject({ code: "invalid_ingestion_output", retryable: false });
 	});
 	it("persists the reported PDF issue without guessing a page count or retrying", async () => {
-		jest.spyOn(globalThis, "fetch").mockResolvedValue(
-			new Response(
+		jest.spyOn(undici, "request").mockResolvedValue(
+			reply(
 				JSON.stringify({
 					detail: { code: "invalid_pdf", issue: "pdf_text_read_failed" },
 				}),
@@ -204,9 +258,9 @@ describe("Knowledge ingestion provider boundary", () => {
 			])
 		);
 		const fetcher = jest
-			.spyOn(globalThis, "fetch")
-			.mockResolvedValueOnce(Response.json(response))
-			.mockResolvedValueOnce(Response.json({ embeddings: [vector(1)] }));
+			.spyOn(undici, "request")
+			.mockResolvedValueOnce(jsonReply(response))
+			.mockResolvedValueOnce(jsonReply({ embeddings: [vector(1)] }));
 		const checkpoint = jest.fn().mockResolvedValue(undefined);
 		const result = await provider.generate(
 			set,
@@ -256,7 +310,7 @@ describe("Knowledge ingestion provider boundary", () => {
 			],
 		});
 		prepared.chunks[0].embedding_text = "passage: Changed heading\nVerified instruction";
-		const fetcher = jest.spyOn(globalThis, "fetch").mockResolvedValueOnce(Response.json(prepared));
+		const fetcher = jest.spyOn(undici, "request").mockResolvedValueOnce(jsonReply(prepared));
 		const find = jest.fn();
 		const checkpoint = jest.fn();
 		await expect(
@@ -274,8 +328,8 @@ describe("Knowledge ingestion provider boundary", () => {
 		expect(find).not.toHaveBeenCalled();
 	});
 	it("stops after extraction when the new version fails quality checks", async () => {
-		const fetcher = jest.spyOn(globalThis, "fetch").mockResolvedValue(
-			Response.json({
+		const fetcher = jest.spyOn(undici, "request").mockResolvedValue(
+			jsonReply({
 				...set,
 				quality: { status: "NEEDS_REVIEW", issues: ["missing_critical_content"], page_count: 1 },
 				chunks: [],

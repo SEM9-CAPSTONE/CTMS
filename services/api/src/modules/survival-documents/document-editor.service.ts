@@ -204,7 +204,8 @@ export class DocumentEditorService {
 		assertEditorContext(snapshot.sections);
 		if (
 			snapshot.title === snapshot.baseTitle &&
-			fingerprint(snapshot.sections) === fingerprint(snapshot.baseSections)
+			fingerprint(snapshot.sections.map(({ heading, items }) => ({ heading, items }))) ===
+				fingerprint(snapshot.baseSections.map(({ heading, items }) => ({ heading, items })))
 		)
 			throw invalidSource("Hãy điều chỉnh ít nhất một mục trước khi xác nhận.");
 		return this.update(
@@ -284,7 +285,8 @@ export class DocumentEditorService {
 						[draftId, versionId]
 					);
 					await this.record(manager, draftId, dto.requestId, changeHash);
-				}
+				},
+				sections.some((section) => section.source && section.source.versionId !== base.id)
 			)
 			.catch(async (error: unknown) => {
 				if (!(await this.replayed(this.repo.db.manager, draftId, dto.requestId, changeHash)))

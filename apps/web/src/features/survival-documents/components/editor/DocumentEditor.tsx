@@ -177,7 +177,7 @@ export function DocumentEditor({
 							onClick={preparePublication}
 						>
 							<Send className="size-4" aria-hidden="true" />
-							Xuất bản
+							Lưu và chuẩn bị nội dung
 						</button>
 					)}
 				</div>

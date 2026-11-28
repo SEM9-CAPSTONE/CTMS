@@ -1,9 +1,20 @@
 import { randomUUID } from "node:crypto";
-import { ConflictException, Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
+import {
+	ConflictException,
+	Injectable,
+	Logger,
+	ServiceUnavailableException,
+	UnprocessableEntityException,
+} from "@nestjs/common";
 import { type EntityManager, QueryFailedError } from "typeorm";
+// biome-ignore lint/style/useImportType: Nest injection
+import { KnowledgeChunksRepository } from "../knowledge-chunks/knowledge-chunks.repository";
+import type { ChunkSet } from "../knowledge-chunks/knowledge-chunks.types";
 import {
 	assertAdaptationGrants,
 	assertComposedMedicalReview,
+	assertPreparationAdaptation,
+	compositionContext,
 	isMedicalSource,
 } from "./document-editor.policy";
 import {
@@ -11,12 +22,13 @@ import {
 	type ImportSourceDto,
 	type ListSourcesDto,
 	type PublishSourceDto,
+	type RestoreSourceDto,
 	type RevisionDto,
 	type UploadSourceDto,
 	invalidSource,
 	parseMetadata,
 } from "./dto/source.dto";
-import { sourceMaxBytes } from "./pdf-file-validator";
+import { sourceMaxBytes, validatePdf } from "./pdf-file-validator";
 // biome-ignore lint/style/useImportType: Nest injection
 import { type PdfSource, PdfSourceService } from "./pdf-source.service";
 // biome-ignore lint/style/useImportType: Nest injection
@@ -24,7 +36,9 @@ import { SourceFilesService } from "./source-files.service";
 import {
 	assertApprovedSource,
 	assertRights,
+	isEligiblePreparationSource,
 	isEligiblePublishedSource,
+	isEligibleSourceContent,
 	sourceContentIssue,
 	validatePublicationMetadata,
 	validatePublishedSourceMetadata,
@@ -49,6 +63,7 @@ import {
 type VersionChange =
 	| { action: "metadata"; dto: EditSourceDto }
 	| { action: "publish"; dto: PublishSourceDto }
+	| { action: "prepare"; dto: PublishSourceDto }
 	| { action: "archive"; dto: RevisionDto };
 
 @Injectable()
@@ -58,7 +73,8 @@ export class SurvivalDocumentsService {
 		private readonly repo: SurvivalDocumentsRepository,
 		private readonly files: SourceFilesService,
 		private readonly pdf: PdfSourceService,
-		private readonly uploadCleanup: SourceUploadCleanupService
+		private readonly uploadCleanup: SourceUploadCleanupService,
+		private readonly knowledge: KnowledgeChunksRepository
 	) {}
 	async list(query: ListSourcesDto) {
 		return this.repo.db.transaction("REPEATABLE READ", async (manager) => {
@@ -141,10 +157,43 @@ export class SurvivalDocumentsService {
 			const composed = new Set(composedVersions.map((version) => version.id));
 			return {
 				...document,
-				versions: versions.map((version) => ({
-					...publicVersion(version),
-					...(composed.has(version.id) ? { composed: true } : {}),
-				})),
+				versions: await Promise.all(
+					versions.map(async (version) => {
+						let preparationEligible = isEligiblePreparationSource(
+							version,
+							document.currentPublishedVersionId
+						);
+						let preparationBlockedReason = sourceContentIssue(version);
+						if (
+							version.status === DocumentStatus.DRAFT &&
+							(composed.has(version.id) || version.restoredFromVersionId)
+						) {
+							try {
+								await assertPreparationAdaptation(manager, version);
+							} catch (error) {
+								if (!(error instanceof UnprocessableEntityException)) throw error;
+								preparationEligible = false;
+								preparationBlockedReason =
+									"Cần xác minh quyền biên soạn và nội dung y tế trước khi chuẩn bị.";
+							}
+						}
+						return {
+							...publicVersion(version),
+							preparationEligible,
+							preparationBlockedReason,
+							restorationEligible:
+								version.status === DocumentStatus.SUPERSEDED && isEligibleSourceContent(version),
+							restoredFromVersionNumber:
+								versions.find((item) => item.id === version.restoredFromVersionId)?.versionNumber ??
+								null,
+							requiresKnowledge:
+								![RightsStatus.RESTRICTED, RightsStatus.REVIEW_REQUIRED].includes(
+									version.rights.rightsReviewStatus
+								) && version.rights.medicalContentReviewStatus !== MedicalStatus.REJECTED,
+							...(composed.has(version.id) ? { composed: true } : {}),
+						};
+					})
+				),
 				history,
 				processingSyncStatus: isEligiblePublishedSource(
 					published,
@@ -208,7 +257,8 @@ export class SurvivalDocumentsService {
 		expectedRevision: number,
 		metadata: SourceMetadata,
 		stored: PdfSource,
-		finalize: (manager: EntityManager, versionId: string) => Promise<void>
+		finalize: (manager: EntityManager, versionId: string) => Promise<void>,
+		historicalRestoration = false
 	) {
 		validatePublishedSourceMetadata(metadata);
 		return this.storeDraft(
@@ -218,20 +268,28 @@ export class SurvivalDocumentsService {
 			"compose",
 			documentId,
 			expectedRevision,
-			finalize
+			finalize,
+			historicalRestoration
 		);
 	}
 	private async storeDraft(
 		actorId: string,
 		metadata: SourceMetadata,
 		stored: PdfSource,
-		action: "upload" | "import_url" | "compose",
+		action: "upload" | "import_url" | "compose" | "restore",
 		id?: string,
 		expectedDocumentRevision?: number,
-		finalize?: (manager: EntityManager, versionId: string) => Promise<void>
+		finalize?: (manager: EntityManager, versionId: string) => Promise<void>,
+		historicalRestoration = false
 	) {
 		const { checksum, originalFilename } = stored;
-		await this.repo.assertPdfIsNew(this.repo.db.manager, checksum, originalFilename, id);
+		await this.repo.assertPdfIsNew(
+			this.repo.db.manager,
+			checksum,
+			originalFilename,
+			id,
+			historicalRestoration
+		);
 		const fileRef = randomUUID();
 		await this.repo.db.query("INSERT INTO survival_document_uploads(file_ref) VALUES($1)", [
 			fileRef,
@@ -248,7 +306,13 @@ export class SurvivalDocumentsService {
 					"SELECT pg_advisory_xact_lock(hashtext('survival_pdf_filename'), hashtext(lower(btrim(normalize($1)))))",
 					[originalFilename]
 				);
-				await this.repo.assertPdfIsNew(manager, checksum, originalFilename, id);
+				await this.repo.assertPdfIsNew(
+					manager,
+					checksum,
+					originalFilename,
+					id,
+					historicalRestoration
+				);
 				// Hold the reservation while writing to keep cleanup from racing file storage.
 				const reservations: Array<{ file_ref: string }> = await manager.query(
 					"SELECT file_ref FROM survival_document_uploads WHERE file_ref=$1 FOR UPDATE",
@@ -296,13 +360,31 @@ export class SurvivalDocumentsService {
 					[fileRef, versionId]
 				);
 				await finalize?.(manager, versionId);
+				const savedVersion = await this.repo.version(manager, documentId, versionId);
+				let eligible = isEligiblePreparationSource(savedVersion, null);
+				try {
+					await assertPreparationAdaptation(manager, savedVersion);
+				} catch (error) {
+					if (!(error instanceof UnprocessableEntityException)) throw error;
+					eligible = false;
+				}
+				if (eligible)
+					await this.event(
+						manager,
+						documentId,
+						savedVersion,
+						null,
+						"draft_preparation_requested",
+						true
+					);
 				await this.repo.audit(
 					manager,
 					actorId,
 					action,
 					documentId,
 					await this.repo.version(manager, documentId, versionId),
-					null
+					null,
+					savedVersion.restorationReason ?? undefined
 				);
 			});
 		} catch (error) {
@@ -331,6 +413,41 @@ export class SurvivalDocumentsService {
 			});
 		}
 		return this.detail(documentId);
+	}
+	async restore(actorId: string, documentId: string, versionId: string, dto: RestoreSourceDto) {
+		const historical = await this.repo.version(this.repo.db.manager, documentId, versionId);
+		if (
+			historical.status !== DocumentStatus.SUPERSEDED ||
+			historical.revision !== dto.expectedRevision ||
+			!isEligibleSourceContent(historical)
+		)
+			throw invalidSource(
+				"Chỉ có thể khôi phục phiên bản lịch sử còn đáp ứng điều kiện sử dụng hiện tại."
+			);
+		const bytes = await this.files.read(historical);
+		const pdf = { ...(await validatePdf(bytes, historical.originalFilename)), bytes };
+		return this.storeDraft(
+			actorId,
+			{ ...historical.metadata, changeSummary: dto.reason },
+			pdf,
+			"restore",
+			documentId,
+			dto.expectedDocumentRevision,
+			async (manager, newVersionId) => {
+				const source = await this.repo.version(manager, documentId, versionId);
+				if (
+					source.status !== DocumentStatus.SUPERSEDED ||
+					source.revision !== dto.expectedRevision ||
+					!isEligibleSourceContent(source)
+				)
+					sourceConflict();
+				await manager.query(
+					"UPDATE survival_document_versions SET restored_from_version_id=$2,restoration_reason=$3 WHERE id=$1",
+					[newVersionId, versionId, dto.reason]
+				);
+			},
+			true
+		);
 	}
 	async file(documentId: string, versionId: string) {
 		const version = await this.repo.version(this.repo.db.manager, documentId, versionId);
@@ -411,18 +528,13 @@ export class SurvivalDocumentsService {
 			const document = await this.repo.document(manager, documentId, true);
 			const before = await this.repo.version(manager, documentId, versionId);
 			if (before.revision !== dto.expectedRevision) sourceConflict();
-			const [composition]: Array<{
-				baseVersionId: string;
-				snapshot: {
-					baseChecksum: string;
-					sections: Array<{ source?: { checksum: string } }>;
-					reviewBasis: string;
-				};
-			}> = await manager.query(
-				`SELECT base_version_id AS "baseVersionId",snapshot
-				FROM survival_document_edit_drafts WHERE document_id=$1 AND materialized_version_id=$2`,
-				[documentId, versionId]
-			);
+			if (
+				(action === "publish" || action === "prepare") &&
+				document.revision !== dto.expectedDocumentRevision
+			)
+				sourceConflict();
+			let prepared: ChunkSet | undefined;
+			const composition = await compositionContext(manager, documentId, versionId);
 			let status = before.status;
 			switch (action) {
 				case "metadata": {
@@ -435,6 +547,10 @@ export class SurvivalDocumentsService {
 					await manager.query(
 						`UPDATE survival_document_versions
 						 SET metadata=$2::jsonb,original_version_id=$3,
+						 knowledge_revision=knowledge_revision+CASE WHEN metadata->>'sourceTitle' IS DISTINCT FROM $2::jsonb->>'sourceTitle'
+						   OR metadata->>'locale' IS DISTINCT FROM $2::jsonb->>'locale' THEN 1 ELSE 0 END,
+						 preparation_confirmed_by=CASE WHEN metadata IS DISTINCT FROM $2::jsonb THEN NULL ELSE preparation_confirmed_by END,
+						 preparation_confirmed_at=CASE WHEN metadata IS DISTINCT FROM $2::jsonb THEN NULL ELSE preparation_confirmed_at END,
 						 rights=CASE WHEN metadata IS DISTINCT FROM $2::jsonb THEN $4::jsonb ELSE rights END,
 						 reviewed_by=CASE WHEN metadata IS DISTINCT FROM $2::jsonb THEN NULL ELSE reviewed_by END,
 						 reviewed_at=CASE WHEN metadata IS DISTINCT FROM $2::jsonb THEN NULL ELSE reviewed_at END
@@ -446,12 +562,27 @@ export class SurvivalDocumentsService {
 							JSON.stringify(UNREVIEWED_RIGHTS),
 						]
 					);
+					if (
+						before.metadata.sourceTitle !== metadata.sourceTitle ||
+						before.metadata.locale !== metadata.locale
+					)
+						await manager.query(
+							`UPDATE knowledge_chunk_sets SET status='OBSOLETE',lease_token=NULL,lease_until=NULL,
+						 error_code='source_revision_changed',retryable_failure=false,completed_at=clock_timestamp()
+						 WHERE document_version_id=$1 AND status IN ('PENDING','RUNNING','READY','FAILED','NEEDS_REVIEW')`,
+							[versionId]
+						);
 					break;
 				}
+				case "prepare":
 				case "publish": {
 					if (status !== DocumentStatus.DRAFT) sourceConflict();
 					if (composition) {
-						if (document.currentPublishedVersionId !== composition.baseVersionId) sourceConflict();
+						if (
+							!before.restoredFromVersionId &&
+							document.currentPublishedVersionId !== composition.baseVersionId
+						)
+							sourceConflict();
 						if (dto.confirmSource !== true)
 							throw invalidSource("Hãy xác nhận xuất bản đúng bản PDF đã biên soạn.");
 						const { baseChecksum, sections } = composition.snapshot;
@@ -493,8 +624,10 @@ export class SurvivalDocumentsService {
 					const publication = {
 						...before,
 						rights,
-						publishedBy: actorId,
-						publishedAt,
+						...(dto.confirmSource === true
+							? { preparationConfirmedBy: actorId, preparationConfirmedAt: publishedAt }
+							: {}),
+						...(action === "publish" ? { publishedBy: actorId, publishedAt } : {}),
 						reviewedBy: dto.rights ? actorId : before.reviewedBy,
 						reviewedAt: dto.rights ? publishedAt : before.reviewedAt,
 					};
@@ -502,6 +635,27 @@ export class SurvivalDocumentsService {
 					const processingIssue = sourceContentIssue(publication);
 					await this.original(manager, before.metadata);
 					await this.files.read(before);
+					if (action === "prepare") {
+						if (processingIssue) throw invalidSource(processingIssue);
+						await manager.query(
+							`UPDATE survival_document_versions SET rights=$2::jsonb,
+						 preparation_confirmed_by=$3,preparation_confirmed_at=$4,
+						 reviewed_by=CASE WHEN $5 THEN $3 ELSE reviewed_by END,
+						 reviewed_at=CASE WHEN $5 THEN $4::timestamptz ELSE reviewed_at END WHERE id=$1`,
+							[versionId, JSON.stringify(rights), actorId, publishedAt, !!dto.rights]
+						);
+						await this.event(
+							manager,
+							documentId,
+							publication,
+							null,
+							"draft_preparation_requested",
+							true
+						);
+						break;
+					}
+					if (processingIssue === null)
+						prepared = await this.knowledge.preparedForPublication(manager, publication);
 					if (document.currentPublishedVersionId) {
 						const previous = await this.repo.version(
 							manager,
@@ -565,6 +719,7 @@ export class SurvivalDocumentsService {
 				 reason=CASE WHEN $2::varchar='PUBLISHED' THEN $3::varchar ELSE COALESCE($3::varchar,reason) END WHERE id=$1`,
 				[versionId, status, dto.reason ?? null]
 			);
+			if (prepared) await this.knowledge.activatePrepared(manager, documentId, prepared);
 			await manager.query(
 				"UPDATE survival_documents SET revision=revision+1,updated_at=now() WHERE id=$1",
 				[documentId]
@@ -578,6 +733,11 @@ export class SurvivalDocumentsService {
 				before,
 				dto.reason
 			);
+			if (action === "metadata") {
+				const latest = await this.repo.version(manager, documentId, versionId);
+				if (isEligiblePreparationSource(latest, document.currentPublishedVersionId))
+					await this.event(manager, documentId, latest, null, "draft_preparation_requested", true);
+			}
 		});
 		return this.detail(documentId);
 	}
@@ -586,11 +746,15 @@ export class SurvivalDocumentsService {
 		documentId: string,
 		version: SourceVersion,
 		previousId: string | null,
-		type: "published_version_changed" | "source_unavailable" | "document_deleted",
+		type:
+			| "published_version_changed"
+			| "source_unavailable"
+			| "document_deleted"
+			| "draft_preparation_requested",
 		canProcess = false
 	): Promise<void> {
 		await manager.query(
-			"INSERT INTO survival_document_outbox(document_id,version_id,previous_version_id,event_type,payload) VALUES($1,$2,$3,$4,$5::jsonb)",
+			"INSERT INTO survival_document_outbox(document_id,version_id,previous_version_id,event_type,payload) VALUES($1,$2,$3,$4,$5::jsonb) ON CONFLICT DO NOTHING",
 			[
 				documentId,
 				version.id,
@@ -603,6 +767,8 @@ export class SurvivalDocumentsService {
 					sourceVersion: version.versionNumber,
 					checksum: version.checksum,
 					locale: version.metadata.locale,
+					inputRevision: version.knowledgeRevision ?? 1,
+					preparationOnly: type === "draft_preparation_requested",
 					regenerationNeeded: type !== "published_version_changed" || canProcess,
 					internalRagUseAllowed: version.rights.internalRagUseAllowed,
 					offlineRedistributionAllowed: version.rights.offlineRedistributionAllowed,

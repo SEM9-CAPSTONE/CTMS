@@ -124,7 +124,13 @@ export class KnowledgeChunksWorker implements OnModuleInit, OnModuleDestroy {
 		try {
 			let result: ChunkOutput | ChunkFailure;
 			try {
-				const source = await this.reader.readPublished(set.document_version_id);
+				const source = await this.reader.readForPreparation(set.document_version_id);
+				if (
+					source.manifest.knowledgeRevision !== (set.input_revision ?? 1) ||
+					source.manifest.checksum !== set.checksum ||
+					(set.source_title != null && source.manifest.metadata.sourceTitle !== set.source_title)
+				)
+					throw new IngestionError("source_revision_changed");
 				result = await this.provider.generate(
 					set,
 					source.bytes,

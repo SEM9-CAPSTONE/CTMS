@@ -147,8 +147,11 @@ export function SurvivalDocumentsPage({
 							if (publish)
 								await actOnVersion(
 									version,
-									"publish",
-									{ expectedRevision: version.revision },
+									"prepare",
+									{
+										expectedRevision: version.revision,
+										expectedDocumentRevision: document.revision,
+									},
 									true
 								);
 							else toast.success("Đã tạo bản nháp PDF.");

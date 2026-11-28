@@ -20,6 +20,26 @@ async function start() {
 		"../support/survival-e2e-app"
 	);
 	const { app } = await createSurvivalE2eApp();
+	// Browser tests use the production queue/worker/publication transaction with
+	// deterministic parser output. Real PDF parsing is covered by the Python suite.
+	const {
+		KnowledgeChunksProvider,
+	} = require("../../src/modules/knowledge-chunks/knowledge-chunks.provider");
+	const {
+		KnowledgeChunksWorker,
+	} = require("../../src/modules/knowledge-chunks/knowledge-chunks.worker");
+	const { ConfigService } = require("@nestjs/config");
+	const { survivalSourceFixtureOutput } =
+		require("../support/prepared-survival-source") as typeof import(
+			"../support/prepared-survival-source"
+		);
+	const provider = app.get(KnowledgeChunksProvider) as import(
+		"../../src/modules/knowledge-chunks/knowledge-chunks.provider"
+	).KnowledgeChunksProvider;
+	provider.isAvailable = async () => true;
+	provider.generate = async (set, _bytes, title) => survivalSourceFixtureOutput(set, title);
+	app.get(ConfigService).set("KNOWLEDGE_WORKER_ENABLED", "true");
+	app.get(KnowledgeChunksWorker).onModuleInit();
 	await app.listen(3050, "127.0.0.1");
 }
 void start().catch((error: unknown) => {

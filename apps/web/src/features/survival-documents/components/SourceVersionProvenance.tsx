@@ -23,6 +23,14 @@ export function SourceVersionProvenance({ version }: { version: SourceVersion })
 					</div>
 				))}
 			</dl>
+			{version.restoredFromVersionNumber && (
+				<div className="space-y-1 border-t border-[#dfe8df] pt-3 text-sm">
+					<p>Khôi phục từ phiên bản {version.restoredFromVersionNumber}</p>
+					{version.restorationReason && (
+						<p className="text-[#526c5e]">Lý do: {version.restorationReason}</p>
+					)}
+				</div>
+			)}
 			<div className="space-y-2 border-t border-[#dfe8df] pt-3 text-sm">
 				<h3 className="font-bold">Nguồn tài liệu</h3>
 				{metadata.sourceUrl && (

@@ -1,6 +1,49 @@
 import { createHash, randomUUID } from "node:crypto";
+import type { EntityManager } from "typeorm";
 import { invalidSource } from "./dto/source.dto";
 import { Classification, type SourceVersion } from "./survival-documents.types";
+
+export interface CompositionContext {
+	baseVersionId: string;
+	snapshot: {
+		baseChecksum: string;
+		sections: Array<{ source?: { checksum: string } | null }>;
+		reviewBasis: string;
+	};
+}
+
+/** Follow restoration provenance so copying a composed PDF cannot bypass its grants. */
+export async function compositionContext(
+	manager: EntityManager,
+	documentId: string,
+	versionId: string
+): Promise<CompositionContext | undefined> {
+	const [context]: CompositionContext[] = await manager.query(
+		`WITH RECURSIVE origins(id) AS (
+	 SELECT $2::uuid UNION SELECT v.restored_from_version_id FROM survival_document_versions v JOIN origins o ON v.id=o.id
+	 WHERE v.document_id=$1 AND v.restored_from_version_id IS NOT NULL)
+	 SELECT base_version_id AS "baseVersionId",snapshot FROM survival_document_edit_drafts
+	 WHERE document_id=$1 AND materialized_version_id IN (SELECT id FROM origins)
+	 ORDER BY (materialized_version_id=$2) DESC LIMIT 1`,
+		[documentId, versionId]
+	);
+	return context;
+}
+
+export async function assertPreparationAdaptation(
+	manager: EntityManager,
+	version: SourceVersion
+): Promise<void> {
+	const context = await compositionContext(manager, version.documentId, version.id);
+	if (!context) return;
+	assertAdaptationGrants([
+		context.snapshot.baseChecksum,
+		...context.snapshot.sections.flatMap((section) =>
+			section.source ? [section.source.checksum] : []
+		),
+	]);
+	assertComposedMedicalReview(version.metadata.classification, version.checksum);
+}
 
 export interface EditorItem {
 	kind: "heading" | "paragraph" | "list" | "table";

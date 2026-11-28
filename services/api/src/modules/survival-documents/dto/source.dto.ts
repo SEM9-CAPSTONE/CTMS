@@ -161,6 +161,7 @@ export class SourceRightsDto {
 	@ApiProperty() @Transform(trim) @IsString() @MinLength(10) @MaxLength(5000) evidence!: string;
 }
 export class PublishSourceDto extends RevisionDto {
+	@ApiProperty() @IsInt() @Min(1) expectedDocumentRevision!: number;
 	/** Accepted for compatibility with older clients; source eligibility is evaluated independently. */
 	@ApiPropertyOptional({ deprecated: true })
 	@IsOptional()
@@ -178,6 +179,11 @@ export class PublishSourceDto extends RevisionDto {
 	@ValidateNested()
 	@Type(() => SourceRightsDto)
 	rights?: SourceRightsDto;
+}
+export class RestoreSourceDto {
+	@ApiProperty() @IsInt() @Min(1) expectedDocumentRevision!: number;
+	@ApiProperty() @IsInt() @Min(1) expectedRevision!: number;
+	@ApiProperty() @Transform(trim) @IsString() @MinLength(10) @MaxLength(2000) reason!: string;
 }
 export class ListSourcesDto {
 	@ApiPropertyOptional() @Type(() => Number) @IsInt() @Min(1) page = 1;

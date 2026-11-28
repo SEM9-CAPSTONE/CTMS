@@ -1,5 +1,5 @@
 import { API_ENDPOINTS } from "../../../core/api/endpoints";
-import { httpClient } from "../../../core/api/httpClient";
+import { HttpError, httpClient } from "../../../core/api/httpClient";
 import type { ContentVerification, VerificationSubmission } from "../content-verification.types";
 import type {
 	DocumentDetail,
@@ -15,6 +15,20 @@ import type {
 	SourceMetadata,
 } from "../types";
 const endpoints = API_ENDPOINTS.SURVIVAL_DOCUMENTS;
+export function sourceActionErrorMessage(error: unknown): string {
+	if (error instanceof HttpError) {
+		if (error.status >= 500) return "Chưa thực hiện được thao tác. Vui lòng thử lại sau.";
+		// Keep Vietnamese business explanations; hide transport/framework messages.
+		if (/[ăâđêôơư]/iu.test(error.message)) return error.message;
+		if (error.status === 401) return "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+		if (error.status === 403) return "Bạn không có quyền thực hiện thao tác này.";
+		if (error.status === 404) return "Không tìm thấy phiên bản tài liệu. Vui lòng tải lại.";
+		if (error.status === 409)
+			return "Tài liệu đã thay đổi hoặc nội dung chưa sẵn sàng. Vui lòng tải lại.";
+		return "Thông tin thao tác chưa hợp lệ. Vui lòng kiểm tra lại tài liệu.";
+	}
+	return "Chưa kết nối được dịch vụ. Vui lòng thử lại.";
+}
 export const survivalDocumentsService = {
 	verification: (id: string, versionId: string) =>
 		httpClient.get<ContentVerification>(endpoints.VERSION(id, versionId, "content-verification")),

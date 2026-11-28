@@ -58,6 +58,20 @@ beforeEach(() => {
 });
 
 describe("Admin content verification", () => {
+	it("shows a specific preparation failure without replacing it with the generic message", async () => {
+		const notice = "Thời gian xử lý nội dung đã vượt giới hạn. Hệ thống sẽ tự động thử lại.";
+		vi.mocked(service.verification).mockResolvedValue({
+			...state([]),
+			available: false,
+			notice,
+			automaticRecoveryPending: true,
+		});
+		show();
+		expect(await screen.findByText(notice)).toBeInTheDocument();
+		expect(
+			screen.queryByText("Chưa thể chuẩn bị nội dung. Vui lòng kiểm tra lại sau.")
+		).not.toBeInTheDocument();
+	});
 	it("shows a background update without implying the active source is unavailable", async () => {
 		vi.mocked(service.verification).mockResolvedValue({
 			...state([]),

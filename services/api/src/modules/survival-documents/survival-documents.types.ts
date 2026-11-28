@@ -71,6 +71,11 @@ export interface SourceVersion extends StoredSourceFile {
 	versionNumber: number;
 	revision: number;
 	status: DocumentStatus;
+	knowledgeRevision?: number;
+	preparationConfirmedBy?: string | null;
+	preparationConfirmedAt?: string | null;
+	restoredFromVersionId?: string | null;
+	restorationReason?: string | null;
 	metadata: SourceMetadata;
 	rights: SourceRights;
 	originalVersionId: string | null;
@@ -100,6 +105,8 @@ export interface DocumentListItem extends SurvivalDocument {
 export type SourceUse = "AI" | "OFFLINE" | "TRANSLATION";
 export type PublicSourceVersion = Omit<SourceVersion, "fileRef">;
 export const VERSION_SELECT = `SELECT id, document_id AS "documentId",version_number AS "versionNumber",revision,status,metadata,rights,
+	knowledge_revision AS "knowledgeRevision",preparation_confirmed_by AS "preparationConfirmedBy",preparation_confirmed_at AS "preparationConfirmedAt",
+	restored_from_version_id AS "restoredFromVersionId",restoration_reason AS "restorationReason",
 	file_ref AS "fileRef",original_filename AS "originalFilename",checksum,size,content_type AS "contentType",original_version_id AS "originalVersionId",
 	created_by AS "createdBy",created_at AS "createdAt",reviewed_by AS "reviewedBy",reviewed_at AS "reviewedAt",
 	published_by AS "publishedBy",published_at AS "publishedAt",processing_approved_at AS "processingApprovedAt",

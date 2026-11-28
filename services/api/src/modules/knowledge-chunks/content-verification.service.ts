@@ -9,7 +9,8 @@ import {
 import { DataSource } from "typeorm";
 // biome-ignore lint/style/useImportType: Nest injection
 import { RagRepository } from "../rag/rag.repository";
-import { isEligiblePublishedSource } from "../survival-documents/source-policy";
+import { assertPreparationAdaptation } from "../survival-documents/document-editor.policy";
+import { isEligiblePreparationSource } from "../survival-documents/source-policy";
 import { type SourceVersion, VERSION_SELECT } from "../survival-documents/survival-documents.types";
 import type { VerifyContentDto } from "./content-verification.dto";
 import {
@@ -17,6 +18,7 @@ import {
 	type ExtractionSnapshot,
 	type IntegrityDecision,
 	type IntegrityRegion,
+	MAX_RECOVERY_ROUNDS,
 	chunkConfiguration,
 } from "./knowledge-chunks.types";
 
@@ -210,21 +212,51 @@ export class ContentVerificationService {
 			[documentId, versionId]
 		);
 		if (!version) throw new NotFoundException({ message: "Không tìm thấy phiên bản tài liệu." });
-		const [set]: ChunkSet[] = await this.db.query(
-			"SELECT * FROM knowledge_chunk_sets WHERE document_id=$1 AND document_version_id=$2 ORDER BY created_at DESC,id DESC LIMIT 1",
-			[documentId, versionId]
+		const [set]: Array<
+			ChunkSet & { automatic_recovery_pending: boolean; error_code: string | null }
+		> = await this.db.query(
+			`SELECT *, (status='FAILED' AND retryable_failure AND recovery_round<${MAX_RECOVERY_ROUNDS}) AS automatic_recovery_pending
+			 FROM knowledge_chunk_sets WHERE document_id=$1 AND document_version_id=$2 AND input_revision=$3
+			 ORDER BY created_at DESC,id DESC LIMIT 1`,
+			[documentId, versionId, version.knowledgeRevision ?? 1]
 		);
 		const snapshot = set?.extraction_snapshot;
 		const issues = set?.quality_report?.issues ?? [];
-		const notice = issues.some((code) =>
-			["pdf_conversion_incomplete", "pdf_page_count_mismatch"].includes(code)
-		)
-			? "Chưa đọc được đầy đủ các trang. Hãy tạo phiên bản từ bản PDF rõ hơn hoặc có thể chọn và sao chép chữ."
-			: issues.some((code) => ["invalid_source_bbox", "missing_source_location"].includes(code))
-				? "Chưa xác định chính xác được vị trí một số nội dung. Hãy dùng bản PDF có thể chọn và sao chép chữ để đối chiếu đầy đủ."
+		const failureNotice =
+			set?.status === "FAILED"
+				? set.error_code === "ingestion_timeout"
+					? "Thời gian xử lý nội dung đã vượt giới hạn."
+					: [
+								"ingestion_transport",
+								"source_file_unavailable",
+								"ingestion_cancelled",
+								"lease_expired",
+							].includes(set.error_code ?? "")
+						? "Quá trình xử lý nội dung bị gián đoạn."
+						: [
+									"ingestion_not_configured",
+									"ingestion_configuration_mismatch",
+									"ingestion_http_401",
+									"ocr_runtime_unavailable",
+								].includes(set.error_code ?? "")
+							? "Dịch vụ xử lý tài liệu chưa sẵn sàng. Cần kiểm tra cấu hình máy chủ."
+							: "Chưa xử lý được nội dung tài liệu. Cần kiểm tra dịch vụ xử lý trên máy chủ."
 				: null;
+		const notice = failureNotice
+			? `${failureNotice}${set.automatic_recovery_pending ? " Hệ thống sẽ tự động thử lại." : ""}`
+			: issues.some((code) =>
+						["pdf_conversion_incomplete", "pdf_page_count_mismatch"].includes(code)
+					)
+				? "Chưa đọc được đầy đủ các trang. Hãy tạo phiên bản từ bản PDF rõ hơn hoặc có thể chọn và sao chép chữ."
+				: issues.some((code) => ["invalid_source_bbox", "missing_source_location"].includes(code))
+					? "Chưa xác định chính xác được vị trí một số nội dung. Hãy dùng bản PDF có thể chọn và sao chép chữ để đối chiếu đầy đủ."
+					: null;
 		return {
 			notice,
+			chunkCount: (set as (ChunkSet & { chunk_count?: number }) | undefined)?.chunk_count ?? 0,
+			completedAt:
+				(set as (ChunkSet & { completed_at?: string | null }) | undefined)?.completed_at ?? null,
+			automaticRecoveryPending: set?.automatic_recovery_pending ?? false,
 			inUse: await this.rag.hasEligibleDocument(documentId, versionId),
 			extractionId: set?.id ?? null,
 			revision: snapshot?.revision ?? 0,
@@ -254,7 +286,8 @@ export class ContentVerificationService {
 				`${VERSION_SELECT} WHERE document_id=$1 AND id=$2`,
 				[documentId, versionId]
 			);
-			if (!isEligiblePublishedSource(version, document.current_published_version_id)) conflict();
+			if (!isEligiblePreparationSource(version, document.current_published_version_id)) conflict();
+			await assertPreparationAdaptation(manager, version);
 			const [receipt]: Array<{ after: { payloadHash: string } }> = await manager.query(
 				`SELECT "after" FROM audit_logs WHERE target_type='survival_document' AND target_id=$1 AND actor_id=$2
 				 AND action='survival_document.content_verify' AND "after"->>'requestId'=$3 LIMIT 1`,
@@ -265,8 +298,8 @@ export class ContentVerificationService {
 				return;
 			}
 			const [set]: ChunkSet[] = await manager.query(
-				"SELECT * FROM knowledge_chunk_sets WHERE document_id=$1 AND document_version_id=$2 ORDER BY created_at DESC,id DESC LIMIT 1 FOR UPDATE",
-				[documentId, versionId]
+				"SELECT * FROM knowledge_chunk_sets WHERE document_id=$1 AND document_version_id=$2 AND input_revision=$3 ORDER BY created_at DESC,id DESC LIMIT 1 FOR UPDATE",
+				[documentId, versionId, version.knowledgeRevision ?? 1]
 			);
 			if (
 				!set ||
@@ -328,8 +361,8 @@ export class ContentVerificationService {
 				snapshot.configuration = configuration;
 				target = randomUUID();
 				await manager.query(
-					`INSERT INTO knowledge_chunk_sets(id,document_id,document_version_id,source_version,checksum,locale,configuration,config_hash)
-				 VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8)`,
+					`INSERT INTO knowledge_chunk_sets(id,document_id,document_version_id,source_version,checksum,locale,configuration,config_hash,input_revision,source_title)
+				 VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10)`,
 					[
 						target,
 						documentId,
@@ -339,6 +372,8 @@ export class ContentVerificationService {
 						set.locale,
 						JSON.stringify(configuration),
 						hash(configuration),
+						version.knowledgeRevision ?? 1,
+						version.metadata.sourceTitle,
 					]
 				);
 			}

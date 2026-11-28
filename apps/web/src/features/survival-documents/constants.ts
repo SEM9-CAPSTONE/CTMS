@@ -32,6 +32,8 @@ export const AUDIT_LABELS: Record<string, string> = {
 	submit: "Gửi duyệt",
 	review: "Xét duyệt",
 	publish: "Xuất bản",
+	prepare: "Xác nhận nguồn và chuẩn bị nội dung",
+	restore: "Khôi phục thành bản nháp mới",
 	archive: "Ngừng sử dụng",
 	supersede: "Thay thế phiên bản",
 };

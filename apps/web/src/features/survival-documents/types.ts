@@ -39,6 +39,14 @@ export interface SourceVersion {
 	versionNumber: number;
 	revision: number;
 	status: DocumentStatus;
+	knowledgeRevision?: number;
+	preparationEligible?: boolean;
+	requiresKnowledge?: boolean;
+	preparationBlockedReason?: string | null;
+	restoredFromVersionId?: string | null;
+	restorationReason?: string | null;
+	restoredFromVersionNumber?: number | null;
+	restorationEligible?: boolean;
 	metadata: SourceMetadata;
 	rights: SourceRights;
 	originalFilename: string;
@@ -132,9 +140,10 @@ export interface SourceFilters {
 	locale?: string;
 	status?: DocumentStatus;
 }
-export type SourceAction = "publish" | "archive";
+export type SourceAction = "publish" | "archive" | "prepare" | "restore";
 export interface SourceDecision {
 	expectedRevision: number;
+	expectedDocumentRevision?: number;
 	reason?: string;
 	confirmSource?: boolean;
 	rights?: SourceRights;
@@ -148,6 +157,8 @@ export type ChunkSetStatus =
 	| "OBSOLETE";
 
 export interface SourceChunkSet {
+	input_revision?: number;
+	completed_at?: string | null;
 	status: ChunkSetStatus;
 	active: boolean;
 	chunk_count: number;

@@ -458,7 +458,7 @@ export function VersionCompositionEditor({ document, onClose, onSaved }: Props) 
 									}
 									onClick={() => void run(() => commit(true))}
 								>
-									Xuất bản
+									Tạo bản nháp và chuẩn bị nội dung
 								</button>
 							</div>
 						</section>
