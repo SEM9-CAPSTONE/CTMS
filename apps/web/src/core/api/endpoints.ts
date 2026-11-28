@@ -139,6 +139,10 @@ export const API_ENDPOINTS = {
 		ITEMS: (bookingId: string) => `/bookings/${bookingId}/items`,
 		PACKING_LIST: (bookingId: string) => `/bookings/${bookingId}/packing-list`,
 		MEMBERS: (bookingId: string) => `/bookings/${bookingId}/members`,
+		MEMBER: (bookingId: string, memberId: string) => `/bookings/${bookingId}/members/${memberId}`,
+		INVITATIONS: (bookingId: string) => `/bookings/${bookingId}/invitations`,
+		INVITATION: (bookingId: string, invitationId: string) =>
+			`/bookings/${bookingId}/invitations/${invitationId}`,
 		MEMBER_CANDIDATE_RESOLVE: (bookingId: string) =>
 			`/bookings/${bookingId}/member-candidates/resolve`,
 		PAY: (bookingId: string) => `/bookings/${bookingId}/pay`,
@@ -147,6 +151,12 @@ export const API_ENDPOINTS = {
 		REFUNDS: (bookingId: string) => `/bookings/${bookingId}/refunds`,
 		PROCESS_REFUND_OBLIGATION: (bookingId: string, obligationId: string) =>
 			`/bookings/${bookingId}/refunds/${obligationId}/process`,
+	},
+	BOOKING_INVITATIONS: {
+		MINE: "/booking-invitations/mine",
+		BY_TOKEN: (token: string) => `/booking-invitations/${encodeURIComponent(token)}`,
+		ACCEPT: (token: string) => `/booking-invitations/${encodeURIComponent(token)}/accept`,
+		DECLINE: (token: string) => `/booking-invitations/${encodeURIComponent(token)}/decline`,
 	},
 	TREKKING: {
 		ROUTES: "/trekking-routes",

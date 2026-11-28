@@ -114,9 +114,9 @@ export class BookingsService {
 	) {}
 
 	async listForOwner(actorId: string): Promise<BookingListItemResponseDto[]> {
-		const list = await this.bookingsRepository.findListByOwner(actorId);
+		let owned = await this.bookingsRepository.findListByOwner(actorId);
 		if (this.paymentsService) {
-			const pending = list.filter(
+			const pending = owned.filter(
 				(b) =>
 					b.status === BookingStatus.PENDING_PAYMENT &&
 					b.paymentStatus === BookingPaymentStatus.UNPAID
@@ -128,24 +128,48 @@ export class BookingsService {
 					if (synced) anySynced = true;
 				}
 				if (anySynced) {
-					return this.bookingsRepository.findListByOwner(actorId);
+					owned = await this.bookingsRepository.findListByOwner(actorId);
 				}
 			}
 		}
-		return list;
+		if (typeof this.bookingsRepository.findListByParticipant !== "function") {
+			return owned;
+		}
+		const companion = await this.bookingsRepository.findListByParticipant(actorId);
+		if (companion.length === 0) {
+			return owned;
+		}
+		return [
+			...owned.map((item) => ({ ...item, participationRole: "owner" as const })),
+			...companion,
+		].sort(
+			(a, b) =>
+				new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() ||
+				b.id.localeCompare(a.id)
+		);
 	}
 
 	async getBookingDetails(actorId: string, bookingId: string): Promise<BookingDetailsResponseDto> {
 		const ownership = await this.bookingsRepository.findOwnershipById(bookingId);
 		if (!ownership) throw new NotFoundException("Booking not found");
-		if (ownership.userId !== actorId) {
-			throw new ForbiddenException("Only the Booking owner can view Booking details");
+		const isOwner = ownership.userId === actorId;
+		if (!isOwner) {
+			const isParticipant =
+				typeof this.bookingsRepository.isActiveParticipant === "function"
+					? await this.bookingsRepository.isActiveParticipant(bookingId, actorId)
+					: false;
+			if (!isParticipant) {
+				throw new ForbiddenException("Only the Booking owner can view Booking details");
+			}
 		}
 
-		let details = await this.bookingsRepository.findDetailsByIdForOwner(bookingId, actorId);
+		let details = isOwner
+			? await this.bookingsRepository.findDetailsByIdForOwner(bookingId, actorId)
+			: await this.bookingsRepository.findDetailsByIdForParticipant(bookingId, actorId);
 		if (!details) throw new NotFoundException("Booking not found");
 
 		if (
+			isOwner &&
 			this.paymentsService &&
 			(details.status === BookingStatus.PENDING_PAYMENT ||
 				details.paymentStatus === BookingPaymentStatus.UNPAID)
@@ -190,11 +214,20 @@ export class BookingsService {
 	async getPackingList(actorId: string, bookingId: string): Promise<PackingListResponseDto> {
 		const ownership = await this.bookingsRepository.findOwnershipById(bookingId);
 		if (!ownership) throw new NotFoundException("Booking not found");
-		if (ownership.userId !== actorId) {
-			throw new ForbiddenException("Only the Booking owner can view the packing list");
+		const isOwner = ownership.userId === actorId;
+		if (!isOwner) {
+			const isParticipant =
+				typeof this.bookingsRepository.isActiveParticipant === "function"
+					? await this.bookingsRepository.isActiveParticipant(bookingId, actorId)
+					: false;
+			if (!isParticipant) {
+				throw new ForbiddenException("Only the Booking owner can view the packing list");
+			}
 		}
 
-		const details = await this.bookingsRepository.findDetailsByIdForOwner(bookingId, actorId);
+		const details = isOwner
+			? await this.bookingsRepository.findDetailsByIdForOwner(bookingId, actorId)
+			: await this.bookingsRepository.findDetailsByIdForParticipant(bookingId, actorId);
 		if (!details) throw new NotFoundException("Booking not found");
 		if (!details.tripPresentation || !details.tripStartsAtSnapshot || !details.tripEndsAtSnapshot) {
 			throw new ConflictException(
@@ -377,7 +410,12 @@ export class BookingsService {
 		if (await this.bookingMembersRepository.hasInitialization(bookingId)) {
 			throw new ConflictException("Booking member roster is already initialized");
 		}
-		if ((await this.bookingMembersRepository.findByBooking(bookingId)).length > 0) {
+		const existingMemberRows = await this.bookingMembersRepository.findByBooking(bookingId);
+		const onlyAutoPrimary =
+			existingMemberRows.length === 1 &&
+			existingMemberRows[0].isPrimary &&
+			existingMemberRows[0].userId === booking.userId;
+		if (existingMemberRows.length > 0 && !onlyAutoPrimary) {
 			throw new ConflictException("Booking already has member rows");
 		}
 
@@ -436,7 +474,14 @@ export class BookingsService {
 			if (await membersRepository.hasInitialization(bookingId)) {
 				throw new ConflictException("Booking member roster is already initialized");
 			}
-			if ((await membersRepository.findByBooking(bookingId)).length > 0) {
+			const existingMembers = await membersRepository.findByBooking(bookingId);
+			const existingAutoPrimary =
+				existingMembers.length === 1 &&
+				existingMembers[0].isPrimary &&
+				existingMembers[0].userId === booking.userId
+					? existingMembers[0]
+					: null;
+			if (existingMembers.length > 0 && !existingAutoPrimary) {
 				throw new ConflictException("Booking already has member rows");
 			}
 
@@ -472,23 +517,30 @@ export class BookingsService {
 				throw new NotFoundException("One or more participant users were not found");
 			}
 
-			const memberEntities = [
+			const companionEntities = requestedUserIds.map((userId) =>
 				membersRepository.create({
 					bookingId,
-					userId: booking.userId,
-					isPrimary: true,
+					userId,
+					isPrimary: false,
 					memberStatus: BookingMemberStatus.REGISTERED,
-				}),
-				...requestedUserIds.map((userId) =>
-					membersRepository.create({
-						bookingId,
-						userId,
-						isPrimary: false,
-						memberStatus: BookingMemberStatus.REGISTERED,
-					})
-				),
-			];
-			const savedMembers = await membersRepository.save(memberEntities);
+				})
+			);
+			const savedMembers = existingAutoPrimary
+				? [
+						existingAutoPrimary,
+						...(companionEntities.length > 0
+							? await membersRepository.save(companionEntities)
+							: []),
+					]
+				: await membersRepository.save([
+						membersRepository.create({
+							bookingId,
+							userId: booking.userId,
+							isPrimary: true,
+							memberStatus: BookingMemberStatus.REGISTERED,
+						}),
+						...companionEntities,
+					]);
 
 			await manager.getRepository(AuditLog).save({
 				actorId,
@@ -575,6 +627,20 @@ export class BookingsService {
 				createdAt,
 			});
 			const saved = await bookingRepository.save(booking);
+			const membersRepository = manager.withRepository(this.bookingMembersRepository);
+			if (
+				typeof membersRepository?.create === "function" &&
+				typeof membersRepository?.save === "function"
+			) {
+				await membersRepository.save(
+					membersRepository.create({
+						bookingId: saved.id,
+						userId,
+						isPrimary: true,
+						memberStatus: BookingMemberStatus.REGISTERED,
+					})
+				);
+			}
 			await tripRepository.adjustSeatsTaken(trip.id, dto.numPeople);
 			await manager.getRepository(AuditLog).save({
 				actorId: userId,

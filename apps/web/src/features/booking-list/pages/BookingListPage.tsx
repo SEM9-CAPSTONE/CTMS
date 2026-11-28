@@ -1,4 +1,5 @@
 import { AlertTriangle, Loader2, RefreshCw } from "lucide-react";
+import { MyPendingInvitationsSection } from "../../booking-members/components/MyPendingInvitationsSection";
 import { BookingListView } from "../components/BookingListView";
 import { useBookingList } from "../hooks/useBookingList";
 
@@ -44,5 +45,11 @@ export function BookingListPage({
 			</main>
 		);
 	}
-	return <BookingListView bookings={bookings} onViewDetails={onViewDetails} />;
+	return (
+		<BookingListView
+			bookings={bookings}
+			onViewDetails={onViewDetails}
+			headerAccessory={<MyPendingInvitationsSection onAccepted={() => void retry()} />}
+		/>
+	);
 }

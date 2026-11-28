@@ -3,6 +3,7 @@ import { useEffect, useMemo } from "react";
 import { BookingCancellationPanel } from "../../booking-cancellation/components/BookingCancellationPanel";
 import { useCancelBooking } from "../../booking-cancellation/hooks/useCancelBooking";
 import type { CancelBookingRequest } from "../../booking-cancellation/types";
+import { BookingInvitationsCard } from "../../booking-members/components/BookingInvitationsCard";
 import { BookingRefundPanel } from "../../booking-refund/components/BookingRefundPanel";
 import { BookingDetailsView } from "../components/BookingDetailsView";
 import { useBookingDetails } from "../hooks/useBookingDetails";
@@ -108,52 +109,61 @@ function BookingDetailsContent({
 		);
 	}
 
+	const isCompanionView = displayedBooking?.participationRole === "member";
+
 	return displayedBooking ? (
 		<BookingDetailsView
 			booking={displayedBooking}
 			onBack={onBack}
 			backLabel={backLabel}
 			onBookingChanged={() => void reload()}
+			membersPanel={
+				!isCompanionView ? (
+					<BookingInvitationsCard bookingId={displayedBooking.id} onChanged={() => void reload()} />
+				) : undefined
+			}
 			cancellationPanel={
-				<div className="space-y-6">
-					<BookingCancellationPanel
-						booking={displayedBooking}
-						result={cancellation.result}
-						error={cancellation.error}
-						isSubmitting={cancellation.isSubmitting}
-						isRefreshing={isRefreshing}
-						onSubmit={handleCancel}
-						onReload={() => void reload()}
-						onBack={onBack}
-					/>
-					<BookingRefundPanel booking={displayedBooking} onReload={() => void reload()} />
-					{isRefreshing && (
-						<output className="block text-sm" aria-live="polite">
-							Đang tải lại chi tiết đơn...
-						</output>
-					)}
-					{refreshError && (
-						<div
-							role="alert"
-							className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm"
-						>
-							<p>
-								Chưa tải lại được chi tiết đơn.{" "}
-								{cancellation.result
-									? "Kết quả hủy đã xác nhận ở trên vẫn được giữ nguyên."
-									: refreshError.message}
-							</p>
-							<button
-								type="button"
-								onClick={() => void reload()}
-								disabled={isRefreshing}
-								className="mt-2 rounded-lg border px-3 py-2"
+				isCompanionView ? undefined : (
+					<div className="space-y-6">
+						<BookingCancellationPanel
+							booking={displayedBooking}
+							result={cancellation.result}
+							error={cancellation.error}
+							isSubmitting={cancellation.isSubmitting}
+							isRefreshing={isRefreshing}
+							onSubmit={handleCancel}
+							onReload={() => void reload()}
+							onBack={onBack}
+						/>
+						<BookingRefundPanel booking={displayedBooking} onReload={() => void reload()} />
+						{isRefreshing && (
+							<output className="block text-sm" aria-live="polite">
+								Đang tải lại chi tiết đơn...
+							</output>
+						)}
+						{refreshError && (
+							<div
+								role="alert"
+								className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm"
 							>
-								Tải lại chi tiết
-							</button>
-						</div>
-					)}
-				</div>
+								<p>
+									Chưa tải lại được chi tiết đơn.{" "}
+									{cancellation.result
+										? "Kết quả hủy đã xác nhận ở trên vẫn được giữ nguyên."
+										: refreshError.message}
+								</p>
+								<button
+									type="button"
+									onClick={() => void reload()}
+									disabled={isRefreshing}
+									className="mt-2 rounded-lg border px-3 py-2"
+								>
+									Tải lại chi tiết
+								</button>
+							</div>
+						)}
+					</div>
+				)
 			}
 		/>
 	) : null;

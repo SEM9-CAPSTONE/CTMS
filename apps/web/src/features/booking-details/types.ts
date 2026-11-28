@@ -21,6 +21,7 @@ export interface BookingDetailsMember {
 	id: string;
 	userId: string | null;
 	email: string | null;
+	fullName?: string | null;
 	isPrimary: boolean;
 	memberStatus: BookingMemberStatus;
 	createdAt: string;
@@ -59,6 +60,7 @@ export interface BookingDetails {
 	tripPresentation: BookingTripPresentation | null;
 	members: BookingDetailsMember[];
 	equipmentItems: BookingEquipmentItemDetails[];
+	participationRole?: "owner" | "member";
 }
 
 export type BookingDetailsErrorKind =

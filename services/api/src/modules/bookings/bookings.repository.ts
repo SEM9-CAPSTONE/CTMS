@@ -76,6 +76,59 @@ export class BookingsRepository extends Repository<Booking> {
 		);
 	}
 
+	findListByParticipant(userId: string): Promise<BookingListItemResponseDto[]> {
+		return this.query(
+			`SELECT
+				b."id",
+				b."trip_id" AS "tripId",
+				b."num_people" AS "numPeople",
+				b."status",
+				b."payment_status" AS "paymentStatus",
+				b."hold_expires_at" AS "holdExpiresAt",
+				b."trip_starts_at_snapshot" AS "tripStartsAtSnapshot",
+				b."trip_ends_at_snapshot" AS "tripEndsAtSnapshot",
+				b."total_amount"::text AS "totalAmount",
+				b."created_at" AS "createdAt",
+				b."completed_at" AS "completedAt",
+				CASE
+					WHEN t."id" IS NULL OR r."id" IS NULL
+						OR btrim(t."title") = '' OR btrim(r."name") = '' THEN NULL
+					ELSE jsonb_build_object(
+						'id', t."id",
+						'currentTitle', t."title",
+						'routeId', r."id",
+						'currentRouteName', r."name"
+					)
+				END AS "tripPresentation",
+				'member'::text AS "participationRole"
+			FROM "bookings" b
+			INNER JOIN "booking_members" bm ON bm."booking_id" = b."id"
+			LEFT JOIN "trips" t ON t."id" = b."trip_id"
+			LEFT JOIN "trekking_routes" r ON r."id" = t."route_id"
+			WHERE bm."user_id" = $1
+			  AND b."user_id" <> $1
+			  AND bm."member_status" <> 'removed'
+			  AND b."status" IN ('confirmed', 'completed', 'pending_reconfirmation')
+			ORDER BY b."created_at" DESC, b."id" DESC`,
+			[userId]
+		);
+	}
+
+	async isActiveParticipant(bookingId: string, userId: string): Promise<boolean> {
+		const rows = (await this.query(
+			`SELECT 1
+			 FROM "booking_members" bm
+			 INNER JOIN "bookings" b ON b."id" = bm."booking_id"
+			 WHERE bm."booking_id" = $1
+			   AND bm."user_id" = $2
+			   AND bm."member_status" <> 'removed'
+			   AND b."status" IN ('pending_payment', 'confirmed', 'completed', 'pending_reconfirmation')
+			 LIMIT 1`,
+			[bookingId, userId]
+		)) as Array<{ exists: number }>;
+		return rows.length > 0;
+	}
+
 	findOwnershipById(id: string): Promise<BookingOwnership | null> {
 		return this.findOne({
 			select: { id: true, userId: true },
@@ -140,6 +193,7 @@ export class BookingsRepository extends Repository<Booking> {
 				FROM "booking_members" bm
 				LEFT JOIN "users" u ON u."id" = bm."user_id"
 				WHERE bm."booking_id" = b."id"
+				  AND bm."member_status" <> 'removed'
 			) member_rows ON TRUE
 			LEFT JOIN LATERAL (
 				SELECT jsonb_agg(
@@ -172,6 +226,117 @@ export class BookingsRepository extends Repository<Booking> {
 		if (!row) return null;
 		return {
 			...row,
+			participationRole: "owner",
+			members: row.members.map((member) => ({
+				...member,
+				createdAt: new Date(member.createdAt),
+				updatedAt: new Date(member.updatedAt),
+			})),
+			equipmentItems: row.equipmentItems.map((item) => ({
+				...item,
+				createdAt: new Date(item.createdAt),
+			})),
+		};
+	}
+
+	async findDetailsByIdForParticipant(
+		id: string,
+		participantId: string
+	): Promise<BookingDetailsResponseDto | null> {
+		const rows = (await this.query(
+			`SELECT
+				b."id",
+				b."trip_id" AS "tripId",
+				b."user_id" AS "userId",
+				b."num_people" AS "numPeople",
+				b."status",
+				b."payment_status" AS "paymentStatus",
+				b."hold_expires_at" AS "holdExpiresAt",
+				b."trip_starts_at_snapshot" AS "tripStartsAtSnapshot",
+				b."trip_ends_at_snapshot" AS "tripEndsAtSnapshot",
+				b."base_price" AS "basePrice",
+				b."total_amount" AS "totalAmount",
+				b."cancellation_policy_snapshot" AS "cancellationPolicySnapshot",
+				b."created_at" AS "createdAt",
+				b."completed_at" AS "completedAt",
+				(b."status" = 'pending_reconfirmation' AND COALESCE((
+					SELECT al."reason" = 'weather_reschedule' FROM "audit_logs" al
+					WHERE al."target_type" = 'trip' AND al."target_id" = b."trip_id"
+						AND al."action" = 'trip.rescheduled'
+					ORDER BY al."created_at" DESC LIMIT 1
+				), FALSE)) AS "weatherReschedulePending",
+				CASE
+					WHEN t."id" IS NULL OR r."id" IS NULL
+						OR btrim(t."title") = '' OR btrim(r."name") = '' THEN NULL
+					ELSE jsonb_build_object(
+						'id', t."id",
+						'currentTitle', t."title",
+						'routeId', r."id",
+						'currentRouteName', r."name"
+					)
+				END AS "tripPresentation",
+				COALESCE(member_rows."members", '[]'::jsonb) AS "members",
+				COALESCE(item_rows."equipmentItems", '[]'::jsonb) AS "equipmentItems"
+			FROM "bookings" b
+			LEFT JOIN "trips" t ON t."id" = b."trip_id"
+			LEFT JOIN "trekking_routes" r ON r."id" = t."route_id"
+			LEFT JOIN LATERAL (
+				SELECT jsonb_agg(
+					jsonb_build_object(
+						'id', bm."id",
+						'userId', bm."user_id",
+						'email', u."email",
+						'isPrimary', bm."is_primary",
+						'memberStatus', bm."member_status",
+						'createdAt', bm."created_at",
+						'updatedAt', bm."updated_at"
+					)
+					ORDER BY bm."is_primary" DESC, bm."created_at" ASC, bm."id" ASC
+				) AS "members"
+				FROM "booking_members" bm
+				LEFT JOIN "users" u ON u."id" = bm."user_id"
+				WHERE bm."booking_id" = b."id"
+				  AND bm."member_status" <> 'removed'
+			) member_rows ON TRUE
+			LEFT JOIN LATERAL (
+				SELECT jsonb_agg(
+					jsonb_build_object(
+						'id', bi."id",
+						'itemType', bi."item_type",
+						'equipmentCatalogItemId', bi."equipment_catalog_item_id",
+						'quantity', bi."quantity",
+						'unitPrice', bi."unit_price"::text,
+						'rentalDays', bi."rental_days",
+						'totalPrice', bi."total_price"::text,
+						'createdAt', bi."created_at",
+						'presentation', CASE
+							WHEN eci."id" IS NULL OR btrim(eci."name") = '' THEN NULL
+							ELSE jsonb_build_object('currentName', eci."name")
+						END
+					)
+					ORDER BY bi."created_at" ASC, bi."id" ASC
+				) AS "equipmentItems"
+				FROM "booking_items" bi
+				LEFT JOIN "equipment_catalog_items" eci
+					ON eci."id" = bi."equipment_catalog_item_id"
+				WHERE bi."booking_id" = b."id"
+			) item_rows ON TRUE
+			WHERE b."id" = $1
+			  AND EXISTS (
+					SELECT 1
+					FROM "booking_members" bm
+					WHERE bm."booking_id" = b."id"
+					  AND bm."user_id" = $2
+					  AND bm."member_status" <> 'removed'
+			  )`,
+			[id, participantId]
+		)) as RawBookingDetails[];
+
+		const row = rows[0];
+		if (!row) return null;
+		return {
+			...row,
+			participationRole: "member",
 			members: row.members.map((member) => ({
 				...member,
 				createdAt: new Date(member.createdAt),

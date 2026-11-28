@@ -16,6 +16,9 @@ import { BookingCompletionService } from "./booking-completion.service";
 import { BookingExpiryService } from "./booking-expiry.service";
 import { BookingExpiryWorker } from "./booking-expiry.worker";
 import { BookingItemsRepository } from "./booking-items.repository";
+import { BookingMemberInvitationEmailService } from "./booking-member-invitation-email.service";
+import { BookingMemberInvitationsController } from "./booking-member-invitations.controller";
+import { BookingMemberInvitationsService } from "./booking-member-invitations.service";
 import { BookingMemberStatusController } from "./booking-member-status.controller";
 import { BookingMemberStatusService } from "./booking-member-status.service";
 import { BookingMembersRepository } from "./booking-members.repository";
@@ -44,6 +47,7 @@ import { TripRosterService } from "./trip-roster.service";
 	imports: [TripsModule, WeatherModule, EquipmentCatalogModule, ProfilesModule, RealtimeModule],
 	controllers: [
 		BookingCancellationNoticesController,
+		BookingMemberInvitationsController,
 		BookingsController,
 		PaymentWebhookController,
 		BookingCancellationController,
@@ -55,6 +59,8 @@ import { TripRosterService } from "./trip-roster.service";
 	],
 	providers: [
 		BookingCancellationNoticesService,
+		BookingMemberInvitationEmailService,
+		BookingMemberInvitationsService,
 		BookingsService,
 		BookingCancellationService,
 		BookingCompletionService,

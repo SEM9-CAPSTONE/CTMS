@@ -28,12 +28,14 @@ export function BookingDetailsView({
 	onBack,
 	backLabel = "Quay lại đơn đặt chỗ",
 	cancellationPanel,
+	membersPanel,
 	onBookingChanged,
 }: {
 	booking: BookingDetails;
 	onBack: () => void;
 	backLabel?: string;
 	cancellationPanel?: React.ReactNode;
+	membersPanel?: React.ReactNode;
 	/** Reloads the booking after the Camper answered a reschedule (CTMS-60). */
 	onBookingChanged?: () => void;
 }) {
@@ -64,6 +66,11 @@ export function BookingDetailsView({
 							prefix="Thanh toán: "
 							testId="booking-details-payment-status"
 						/>
+						{booking.participationRole === "member" && (
+							<span className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold text-white">
+								Thành viên đi cùng
+							</span>
+						)}
 					</div>
 				</header>
 
@@ -138,7 +145,7 @@ export function BookingDetailsView({
 					</section>
 
 					{cancellationPanel && <div className="lg:col-span-2">{cancellationPanel}</div>}
-					<BookingMembersSection members={booking.members} />
+					{membersPanel ?? <BookingMembersSection members={booking.members} />}
 					<BookingEquipmentSection items={booking.equipmentItems} />
 
 					<section

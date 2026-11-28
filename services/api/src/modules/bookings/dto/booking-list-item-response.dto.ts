@@ -38,4 +38,10 @@ export class BookingListItemResponseDto {
 
 	@ApiPropertyOptional({ type: BookingTripPresentationDto, nullable: true })
 	tripPresentation!: BookingTripPresentationDto | null;
+
+	@ApiPropertyOptional({
+		enum: ["owner", "member"],
+		description: "Whether the authenticated Camper owns the Booking or is an invited companion",
+	})
+	participationRole?: "owner" | "member";
 }

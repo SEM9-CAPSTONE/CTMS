@@ -138,6 +138,11 @@ const TripRosterPage = lazy(() =>
 		default: module.TripRosterPage,
 	}))
 );
+const BookingInvitationPage = lazy(() =>
+	import("../features/booking-members/pages/BookingInvitationPage").then((module) => ({
+		default: module.BookingInvitationPage,
+	}))
+);
 const CamperProfilePage = lazy(() =>
 	import("../features/camper-profile/pages/CamperProfilePage").then((module) => ({
 		default: module.CamperProfilePage,
@@ -805,6 +810,42 @@ function AppRouteContent() {
 		);
 	}
 
+	const rawPathname = typeof window !== "undefined" ? window.location.pathname : currentPath;
+	const invitationTokenMatch = rawPathname.match(/^\/invitations\/([^/]+)$/i);
+	if (invitationTokenMatch) {
+		const token = decodeURIComponent(invitationTokenMatch[1]);
+		return (
+			<BookingInvitationPage
+				token={token}
+				currentUser={storedUser}
+				onNavigateToLogin={(redirectPath) => {
+					try {
+						window.sessionStorage.setItem("ditrek_post_auth_redirect", redirectPath);
+					} catch {
+						// Ignore storage errors in restricted environments.
+					}
+					navigateTo(`${RoutePath.LOGIN}?redirect=${encodeURIComponent(redirectPath)}`);
+				}}
+				onNavigateToRegister={(invitedEmail, redirectPath) => {
+					try {
+						window.sessionStorage.setItem("ditrek_post_auth_redirect", redirectPath);
+					} catch {
+						// Ignore storage errors in restricted environments.
+					}
+					navigateTo(
+						`${RoutePath.REGISTER}?email=${encodeURIComponent(invitedEmail)}&redirect=${encodeURIComponent(redirectPath)}`
+					);
+				}}
+				onNavigateToBookings={() => navigateTo(RoutePath.BOOKINGS)}
+				onNavigateToBookingDetails={(id) => navigateTo(`/bookings/${encodeURIComponent(id)}`)}
+				onNavigateHome={() => navigateTo(RoutePath.HOME)}
+				onLogout={() => {
+					void handleLogout();
+				}}
+			/>
+		);
+	}
+
 	switch (currentPath) {
 		case RoutePath.HOME:
 		case "":
@@ -822,6 +863,19 @@ function AppRouteContent() {
 					onNavigateToRegister={() => navigateTo(RoutePath.REGISTER)}
 					onNavigateToForgotPassword={() => navigateTo(RoutePath.FORGOT_PASSWORD)}
 					onLoginSuccess={(user) => {
+						const queryRedirect = new URLSearchParams(window.location.search).get("redirect");
+						let storedRedirect: string | null = null;
+						try {
+							storedRedirect = window.sessionStorage.getItem("ditrek_post_auth_redirect");
+							if (storedRedirect) window.sessionStorage.removeItem("ditrek_post_auth_redirect");
+						} catch {
+							storedRedirect = null;
+						}
+						const candidateRedirect = queryRedirect ?? storedRedirect;
+						if (candidateRedirect?.startsWith("/invitations/")) {
+							navigateTo(candidateRedirect);
+							return;
+						}
 						navigateTo(getAuthenticatedHomePath(user));
 					}}
 				/>

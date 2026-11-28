@@ -17,6 +17,7 @@ import '../../camper/domain/published_trip.dart';
 import '../../trip_reviews/presentation/review_bookings_tab.dart';
 import '../data/camper_bookings_api.dart';
 import '../domain/camper_booking_models.dart';
+import 'booking_members_card.dart';
 import 'booking_payment_section.dart';
 import 'camper_booking_format.dart';
 
@@ -321,17 +322,29 @@ class _BookTripScreenState extends ConsumerState<BookTripScreen> {
   }
 
   Widget _buildDone() {
-    return CtmsEmptyState(
-      icon: Icons.check_circle_outline_rounded,
-      title: 'Đặt chỗ thành công',
-      message: 'Thanh toán đã được xác nhận. Bạn có thể xem chuyến đi trong tab Chuyến đi.',
-      action: CtmsButton(
-        label: 'Xem chuyến đi của tôi',
-        onPressed: () {
-          Navigator.of(context).popUntil((route) => route.isFirst);
-          context.go('/camper/trips');
-        },
-      ),
+    final booking = _booking;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        CtmsEmptyState(
+          icon: Icons.check_circle_outline_rounded,
+          title: 'Đặt chỗ thành công',
+          message: (booking?.numPeople ?? 1) > 1
+              ? 'Thanh toán đã được xác nhận. Bạn có thể mời các thành viên đi cùng ngay bên dưới hoặc bổ sung sau trong mục Đơn hàng.'
+              : 'Thanh toán đã được xác nhận. Bạn có thể xem chuyến đi trong tab Chuyến đi.',
+          action: CtmsButton(
+            label: 'Xem chuyến đi của tôi',
+            onPressed: () {
+              Navigator.of(context).popUntil((route) => route.isFirst);
+              context.go('/camper/trips');
+            },
+          ),
+        ),
+        if (booking != null && booking.numPeople > 1) ...[
+          const SizedBox(height: AppSpacing.lg),
+          BookingMembersCard(bookingId: booking.id),
+        ],
+      ],
     );
   }
 }
