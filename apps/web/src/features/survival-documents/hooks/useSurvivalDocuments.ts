@@ -64,7 +64,15 @@ export function useSurvivalDocuments(filters: SourceFilters, id: string | null) 
 			metadata,
 		}: { documentId: string; versionId: string; revision: number; metadata: SourceMetadata }) =>
 			service.edit(documentId, versionId, revision, metadata),
-		onSuccess: save,
+		onSuccess: (data, { versionId }) => {
+			save(data);
+			void client.invalidateQueries({
+				queryKey: queryKeys.survivalDocuments.chunkSets(data.id, versionId),
+			});
+			void client.invalidateQueries({
+				queryKey: ["survival-documents", data.id, versionId, "content-verification"],
+			});
+		},
 		onError: refresh,
 	});
 	const action = useMutation({
@@ -79,6 +87,9 @@ export function useSurvivalDocuments(filters: SourceFilters, id: string | null) 
 			save(data);
 			void client.invalidateQueries({
 				queryKey: queryKeys.survivalDocuments.chunkSets(documentId, versionId),
+			});
+			void client.invalidateQueries({
+				queryKey: ["survival-documents", documentId, versionId, "content-verification"],
 			});
 		},
 		onError: refresh,

@@ -6,19 +6,21 @@ interface SourceVersionActionsProps {
 	version: SourceVersion;
 	busy: boolean;
 	canPublish: boolean;
+	publicationBlockedReason?: string;
 	onNewVersion: () => void;
 	onEdit: (version: SourceVersion) => void;
 	onAction: (
 		version: SourceVersion,
 		action: SourceAction,
 		payload: SourceDecision
-	) => Promise<void>;
+	) => Promise<boolean>;
 }
 
 export function SourceVersionActions({
 	version,
 	busy,
 	canPublish,
+	publicationBlockedReason,
 	onNewVersion,
 	onEdit,
 	onAction,
@@ -52,11 +54,14 @@ export function SourceVersionActions({
 				<button
 					type="button"
 					className={SOURCE_BUTTON}
-					disabled={busy}
+					disabled={busy || !!publicationBlockedReason}
 					onClick={() => void action("publish", {})}
 				>
 					Xuất bản
 				</button>
+			)}
+			{publicationBlockedReason && (
+				<p className="text-sm text-[#667a6d]">{publicationBlockedReason}</p>
 			)}
 			<button type="button" className={SOURCE_BUTTON} disabled={busy} onClick={onNewVersion}>
 				Tạo phiên bản mới

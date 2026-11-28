@@ -31,6 +31,9 @@ export interface VerificationPosition {
 export interface ContentVerification {
 	notice?: string | null;
 	inUse?: boolean;
+	automaticRecoveryPending?: boolean;
+	chunkCount?: number;
+	completedAt?: string | null;
 	extractionId: string | null;
 	revision: number;
 	preparing: boolean;

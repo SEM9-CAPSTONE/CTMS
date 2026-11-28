@@ -1,4 +1,8 @@
 # CTMS-051 — Knowledge chunk ingestion
+
+## Current lifecycle amendment — 2026-11-28
+
+[Document Version Knowledge Lifecycle](Document-Version-Knowledge-Lifecycle.md) defines the current preparation/publication transaction, restoration, API and schema changes. The earlier publish-then-ingest descriptions below are historical implementation context; source validation, parser/model behavior and retention rules remain applicable unless explicitly amended. Eligible DRAFTs prepare first, READY stays private, and explicit publication atomically switches both source and knowledge pointers.
 ## Content integrity revision — 2026-11-20
 
 The current pipeline is `ctms-content-integrity-v5`. It adds source-bound region review, a durable private extraction checkpoint, bounded alternative recognition and atomic derived-generation replacement. RAG requires a complete active generation of the current PUBLISHED PDF. Superseded sources are fenced immediately, including during generation; a derived rebuild can retain an active generation only for that same current PDF. Offline current-source rules remain unchanged. The earlier design and test results below are historical. Current contracts, migration, Admin verification and limits are documented in [content integrity](CTMS-051-Content-Integrity.md).
@@ -42,9 +46,9 @@ These checks cannot prove that an original PDF or its parsed layout is correct. 
 | `FAILED` | Permanent technical error or exhausted attempts. The recovery indicator shows whether another automatic round remains. |
 | `OBSOLETE` | Source lost eligibility before completion. Process the newer authoritative version instead. |
 
-V2 gets a fresh extraction and its own chunk IDs and locations. Only the vector can be shared with V1. The active pointer changes only in the successful V2 transaction. `readCurrent(documentId)` checks current source eligibility, version, checksum, locale and count. Readers return an empty result while a newly published replacement is still being built.
+V2 gets a fresh extraction and its own chunk IDs and locations. Only the vector can be shared with V1. The active pointer changes only in the successful V2 transaction. `readCurrent(documentId)` checks current source eligibility, version, checksum, locale and count. Normal replacements are prepared while still DRAFT, so the existing current publication remains readable until the atomic switch.
 
-Eligible publication queues ingestion. Background reconciliation revisits current eligible publications missing a set for the current configuration. Archive, supersession and deletion fence in-flight completions. Whole-document deletion cascades derived rows, and CTMS-050 retains audit and outbox history. Scheduled cleanup only removes superseded derived sets after an eligible active replacement has been READY for the retention period. See the [CTMS-051 specification](../../file/spec/ctms-51-split-documents-into-knowledge-chunks.md) for retention and test reconciliation.
+Eligible draft events queue preparation. Background reconciliation revisits eligible drafts and current publications missing the current configuration/input revision. Archive, supersession and deletion fence in-flight completions. Whole-document deletion cascades derived rows, and CTMS-050 retains audit and outbox history. Scheduled cleanup only removes superseded derived sets after an eligible active replacement has been READY for the retention period. See the [CTMS-051 specification](../../file/spec/ctms-51-split-documents-into-knowledge-chunks.md) for retention and test reconciliation.
 
 ## Data dictionary
 
@@ -52,7 +56,7 @@ Migrations: `1794100000000-CreateKnowledgeChunks.ts`, `1796900000000-TrackKnowle
 
 | Table | Stored data and invariants |
 | --- | --- |
-| `knowledge_chunk_sets` | UUID, document UUID, exact document-version UUID, numbered source version, SHA-256, locale, configuration JSON/hash, state, attempt counter within the current round, retryable-failure flag, recovery round, next attempt time, fenced lease, quality report, count and timestamps. Unique `(document_version_id, config_hash)` makes delivery and reconciliation idempotent. Composite source FK binds document/version. |
+| `knowledge_chunk_sets` | UUID, document UUID, exact document-version UUID, numbered source version, SHA-256, locale, configuration JSON/hash, state, attempt counter within the current round, retryable-failure flag, recovery round, next attempt time, fenced lease, quality report, count and timestamps. Unique `(document_version_id, config_hash, input_revision)` makes delivery and reconciliation idempotent. Composite source FK binds document/version. |
 | `knowledge_chunks` | UUID, chunk-set UUID, exact version UUID, numbered source version, locale, contiguous zero-based index, original content, contextual embedding text, metadata JSON and either a shared vector reference or a legacy inline vector. Composite FK requires each chunk's set/version/source-version/locale to agree with its set; indexes are unique within a set. Metadata includes heading path, original page/item/bounding boxes, token count and source title. Model identity and checksum are inherited from the immutable set. |
 | `knowledge_embeddings` | One `double precision[]` vector per document, exact input SHA-256 and configuration hash. The input is checked on lookup. History cleanup deletes unused vectors, and deleting a document also deletes its shared vectors. |
 | `knowledge_chunk_publications` | One document → one complete active chunk set. Composite FK prevents linking another document's set. Application transactions require READY and current-source eligibility; consumers recheck eligibility. |
